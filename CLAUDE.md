@@ -4,95 +4,133 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-*Green Car Airport* is a Vietnamese airport-transfer ride-hailing platform. The repository contains:
-- **`backend/`** — Laravel 13 API (PHP 8.4, MySQL, Redis)
-- **`stitch_pwa_t_xe_ti_n_chuy_n/`** — Google Stitch HTML mockups
-- **`DESIGN.md`** — Master UI spec (source of truth for all screens)
+*Green Car Airport* is a Vietnamese airport-transfer ride-hailing platform with three user roles: **Khách Hàng** (Customer), **Tài Xế** (Driver), **Admin**.
+
+| Layer | Tech |
+|---|---|
+| Frontend | React 19 + Vite 8 + TypeScript + Tailwind CSS v3 + PWA |
+| Backend | Laravel 13 / PHP 8.4 |
+| Database | MySQL 8.0 |
+| Cache / Queue | Redis 7 |
+| Dev environment | Docker Compose |
 
 ## Repository Layout
 
 ```
 green-car-airport/
-├── backend/                           # Laravel 13 application
+├── frontend/                          # React PWA
+│   └── src/
+│       ├── api/           # Axios modules (auth, bookings, trips, admin)
+│       ├── components/    # common/, customer/, driver/, admin/
+│       ├── layouts/       # CustomerLayout, DriverLayout, AdminLayout
+│       ├── pages/         # SplashPage, LoginPage, customer/, driver/, admin/
+│       ├── router/        # createBrowserRouter + role guards
+│       ├── stores/        # Zustand: auth.ts, ui.ts
+│       └── types.d.ts     # App.* namespace (shared domain types)
+├── backend/                           # Laravel 13 API
 ├── docker/
-│   ├── nginx/conf.d/default.conf      # Nginx config
-│   └── php/Dockerfile                 # PHP 8.4-FPM image
+│   ├── nginx/conf.d/default.conf
+│   └── php/Dockerfile                 # PHP 8.4-FPM
 ├── docker-compose.yml
-├── Makefile                           # Dev shortcuts
-├── DESIGN.md                          # Master UI spec
-└── stitch_pwa_t_xe_ti_n_chuy_n/
-    ├── t_xe_booking_form/             # Screen A3 — Customer booking form
-    ├── tr_ng_th_i_n_booking_status/   # Screen A4 — Booking status
-    ├── danh_s_ch_chuy_n_driver_dashboard/ # Screen B1 — Driver trip list
-    ├── v_i_m_wallet/                  # Screen B3 — Driver wallet
-    └── b_ng_i_u_khi_n_admin_dashboard/ # Screen C1 — Admin dashboard
+├── Makefile
+└── DESIGN.md                          # Master UI spec (source of truth)
 ```
 
-## Docker Development Environment
-
-All development runs inside Docker. PHP/Composer are not required on the host.
-
-**Services and ports:**
+## Docker Services
 
 | Container | Purpose | Host port |
 |---|---|---|
+| `green_car_frontend` | Vite dev server | **5173** |
+| `green_car_nginx` | Laravel web server | **8080** |
 | `green_car_app` | PHP 8.4-FPM | — |
-| `green_car_nginx` | Web server | **8080** |
 | `green_car_mysql` | MySQL 8.0 | 3306 |
 | `green_car_redis` | Redis 7 | 6380 |
-| `green_car_mailpit` | Mail catcher | 1025 (SMTP) / **8025** (UI) |
+| `green_car_mailpit` | Mail catcher | 1025 / **8025** (UI) |
 
-**Common commands (use Makefile or docker compose directly):**
+## Common Commands
 
 ```bash
 make up               # start all containers
 make down             # stop all containers
 make build            # rebuild images from scratch
-make shell            # bash into app container
-make migrate          # php artisan migrate
-make fresh            # migrate:fresh --seed
-make test             # php artisan test
-make lint             # ./vendor/bin/pint
+make logs             # follow all logs
+make logs-fe          # follow frontend logs only
 
-# Pass arbitrary artisan/composer commands:
+# Backend
+make shell            # bash into PHP container
 make artisan route:list
 make composer require spatie/laravel-permission
+make migrate
+make fresh            # migrate:fresh --seed
+make test
+make lint             # Laravel Pint
+
+# Frontend
+make fe-shell         # sh into frontend container
+make fe-build         # production build
 ```
 
-**Running a single test:**
+**Single test:**
 ```bash
 docker compose exec app php artisan test --filter=ExampleTest
-docker compose exec app php artisan test tests/Feature/ExampleTest.php
 ```
 
-## Backend Stack
+## Frontend Architecture
 
-- **Laravel 13.9** / **PHP 8.4**
-- **MySQL 8.0** — primary database (`DB_HOST=mysql` inside containers)
-- **Redis 7** — cache, session, queue (`REDIS_HOST=redis` inside containers)
-- **Mailpit** — catches outbound mail locally (`MAIL_HOST=mailpit`)
+**State:** Zustand with `persist` middleware — `useAuthStore` (user, token, role), `useUiStore` (toast queue).
 
-The `backend/.env` is already configured for Docker. Copy it from `backend/.env.example` on a fresh clone, then run `php artisan key:generate` inside the container.
+**Data fetching:** TanStack Query v5 — all API calls go through `src/api/` modules which use a shared Axios instance (`src/api/axios.ts`). The interceptor attaches `Bearer` token and redirects to `/login` on 401.
 
-## Three User Roles
+**Routing:** `createBrowserRouter` with two guard components:
+- `<RequireRole role="...">` — redirects unauthenticated users to `/login`, wrong-role users to `/`
+- `<GuestOnly>` — redirects logged-in users to their role home
 
-| Role | Vietnamese | Key Screens |
-|---|---|---|
-| Customer | Khách Hàng | Booking form (A3), Status (A4) |
-| Driver | Tài Xế | Trip list (B1), Wallet (B3) |
-| Admin | Admin | Dashboard (C1) |
+**Route structure:**
+```
+/                       → SplashPage
+/login                  → LoginPage (OTP flow)
+/customer/booking       → BookingFormPage      (A3)
+/customer/booking/:id   → BookingStatusPage    (A4)
+/customer/history       → BookingHistoryPage   (A5)
+/driver/trips           → TripListPage         (B1)
+/driver/trips/:id       → TripDetailPage       (B2)
+/driver/wallet          → WalletPage           (B3)
+/driver/profile         → ProfilePage          (B4)
+/admin/dashboard        → DashboardPage        (C1)
+/admin/drivers          → DriversPage          (C2)
+/admin/vouchers         → VouchersPage         (C3)
+/admin/revenue          → RevenuePage          (C4)
+```
 
-## UI Mockups
+**Forms:** React Hook Form + Zod validation. See `BookingFormPage` and `VouchersPage` for patterns.
 
-Each module under `stitch_pwa_t_xe_ti_n_chuy_n/` contains `code.html` and `screen.png`. Open `code.html` directly in a browser (requires internet for Tailwind CDN + Google Fonts). All UI text is Vietnamese — do not translate.
+**Charts:** Chart.js via `react-chartjs-2` — used in `RevenuePage`.
 
-**Design tokens (Tailwind color names used in every mockup):**
+## Design Tokens (Tailwind)
+
+Defined in `frontend/tailwind.config.ts`. Use these class names:
 
 | Token | Hex | Use |
 |---|---|---|
-| `primary` | `#006a36` | Buttons, active states |
-| `light-green` | `#E8F5EE` | Card backgrounds |
+| `primary` | `#006a36` | CTA buttons, active nav, brand accents |
+| `light-green` | `#E8F5EE` | Card backgrounds, success tints |
 | `warm-white` | `#F8FAF9` | App background |
+| `navy` | `#0F1F2E` | Headings, primary text |
+| `neutral-gray` | `#6B7280` | Secondary text, labels |
+| `border-gray` | `#E5E7EB` | Dividers, input borders |
 | `alert-orange` | `#F59E0B` | Pending status |
 | `success-green` | `#10B981` | Completed status |
-| `danger-red` | `#EF4444` | Cancel / error |
+| `danger-red` | `#EF4444` | Cancel / error / block |
+| `gold` | `#D4AF37` | Points/credits display |
+
+Custom utilities: `rounded-card` (12px), `rounded-input` (8px), `rounded-pill` (9999px), `shadow-card`, `shadow-card-up`, `min-h-touch` / `min-w-touch` (48px).
+
+## Backend Stack
+
+- **Laravel 13.9** / **PHP 8.4** — API-only (no Blade views)
+- `DB_HOST=mysql`, `REDIS_HOST=redis`, `MAIL_HOST=mailpit` inside containers
+- `backend/.env` is pre-configured for Docker — copy from `.env.example` on fresh clone, then `make artisan key:generate`
+
+## All UI Text is Vietnamese
+
+Do not translate Vietnamese strings to English anywhere in the codebase.
