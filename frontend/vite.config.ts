@@ -45,6 +45,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    allowedHosts: ['f30f-2402-800-61b2-7a08-b101-6a9b-39cb-6ab5.ngrok-free.app'],
     proxy: {
       '/api': { target: 'http://nginx', changeOrigin: true },
     },
