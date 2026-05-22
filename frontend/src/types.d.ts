@@ -24,6 +24,8 @@ declare namespace App {
     created_at: string
   }
 
+  type VehicleType = 'sedan_4' | 'suv_5' | 'mpv_7'
+
   interface BookingPayload {
     pickup: string
     destination: string
@@ -31,6 +33,7 @@ declare namespace App {
     time: string
     distance_km: number
     price: number
+    vehicle_type: VehicleType
     voucher_code?: string
   }
 

@@ -28,6 +28,7 @@ class BookingController extends Controller
             'destination'  => 'required|string',
             'date'         => 'required|date_format:Y-m-d',
             'time'         => 'required|date_format:H:i',
+            'vehicle_type' => 'required|in:sedan_4,suv_5,mpv_7',
             'distance_km'  => 'required|numeric|min:0',
             'price'        => 'required|integer|min:0',
             'voucher_code' => 'nullable|string',
@@ -63,6 +64,7 @@ class BookingController extends Controller
             'discount'     => $discount,
             'voucher_id'   => $voucherId,
             'status'       => 'finding_driver',
+            'vehicle_type' => $data['vehicle_type'],
         ]);
 
         return response()->json($this->formatBooking($booking->load('driver.driverProfile')), 201);
@@ -108,6 +110,7 @@ class BookingController extends Controller
             'discount'    => $b->discount,
             'final_price' => $b->price - $b->discount,
             'status'      => $b->status,
+            'vehicle_type' => $b->vehicle_type,
             'created_at'  => $b->created_at?->toISOString(),
             'driver'      => $driver ? [
                 'id'            => $driver->id,

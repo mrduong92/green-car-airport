@@ -6,7 +6,7 @@ class Booking extends Model
 {
     protected $fillable = [
         'customer_id','driver_id','voucher_id','pickup','destination',
-        'date','time','distance_km','price','discount','status','cancelled_at',
+        'date','time','distance_km','price','discount','status','vehicle_type','cancelled_at',
     ];
     protected $casts = ['cancelled_at' => 'datetime', 'date' => 'date'];
 
