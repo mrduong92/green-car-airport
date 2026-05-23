@@ -1,15 +1,19 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink } from 'react-router-dom'
 import ToastContainer from '@/components/common/Toast'
+import AppHeader from '@/components/common/AppHeader'
 import clsx from 'clsx'
 
 const TABS = [
-  { to: '/customer/booking', icon: 'directions_car', label: 'Đặt xe' },
-  { to: '/customer/history', icon: 'receipt_long', label: 'Lịch sử' },
+  { to: '/customer/booking',       icon: 'directions_car', label: 'Đặt xe' },
+  { to: '/customer/history',       icon: 'receipt_long',   label: 'Lịch sử' },
+  { to: '/customer/notifications', icon: 'notifications',  label: 'Thông báo' },
+  { to: '/customer/profile',       icon: 'person',         label: 'Hồ sơ' },
 ]
 
 export default function CustomerLayout() {
   return (
     <div className="flex flex-col min-h-svh bg-warm-white max-w-[430px] mx-auto relative">
+      <AppHeader />
       <main className="flex-1 overflow-y-auto pb-20">
         <Outlet />
       </main>

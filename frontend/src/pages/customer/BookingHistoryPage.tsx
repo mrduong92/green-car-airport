@@ -24,11 +24,9 @@ export default function BookingHistoryPage() {
   })
 
   return (
-    <div className="flex flex-col gap-0 safe-top">
-      {/* Header */}
-      <div className="bg-white px-4 pt-4 pb-0 border-b border-border-gray">
-        <h1 className="text-h2 text-navy font-semibold mb-3">Lịch sử đặt xe</h1>
-        {/* Filter tabs */}
+    <div className="flex flex-col gap-0">
+      {/* Filter tabs */}
+      <div className="bg-white px-4 pt-3 pb-0 border-b border-border-gray">
         <div className="flex gap-2 overflow-x-auto pb-3">
           {FILTERS.map((f) => (
             <button key={f.key} onClick={() => setFilter(f.key)}

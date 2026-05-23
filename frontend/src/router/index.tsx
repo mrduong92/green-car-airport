@@ -8,6 +8,8 @@ import LoginPage from '@/pages/LoginPage'
 import BookingFormPage from '@/pages/customer/BookingFormPage'
 import BookingStatusPage from '@/pages/customer/BookingStatusPage'
 import BookingHistoryPage from '@/pages/customer/BookingHistoryPage'
+import CustomerProfilePage from '@/pages/customer/ProfilePage'
+import CustomerNotificationsPage from '@/pages/customer/NotificationsPage'
 import TripListPage from '@/pages/driver/TripListPage'
 import TripDetailPage from '@/pages/driver/TripDetailPage'
 import WalletPage from '@/pages/driver/WalletPage'
@@ -16,6 +18,9 @@ import AdminDashboardPage from '@/pages/admin/DashboardPage'
 import DriversPage from '@/pages/admin/DriversPage'
 import VouchersPage from '@/pages/admin/VouchersPage'
 import RevenuePage from '@/pages/admin/RevenuePage'
+import PriceConfigPage from '@/pages/admin/PriceConfigPage'
+import AdminCustomersPage from '@/pages/admin/CustomersPage'
+import DriverNotificationsPage from '@/pages/driver/NotificationsPage'
 
 function RequireRole({ role }: { role: App.Role }) {
   const user = useAuthStore((s) => s.user)
@@ -49,6 +54,8 @@ export const router = createBrowserRouter([
           { path: '/customer/booking', element: <BookingFormPage /> },
           { path: '/customer/booking/:id', element: <BookingStatusPage /> },
           { path: '/customer/history', element: <BookingHistoryPage /> },
+          { path: '/customer/notifications', element: <CustomerNotificationsPage /> },
+          { path: '/customer/profile', element: <CustomerProfilePage /> },
         ],
       },
     ],
@@ -62,6 +69,7 @@ export const router = createBrowserRouter([
           { path: '/driver/trips', element: <TripListPage /> },
           { path: '/driver/trips/:id', element: <TripDetailPage /> },
           { path: '/driver/wallet', element: <WalletPage /> },
+          { path: '/driver/notifications', element: <DriverNotificationsPage /> },
           { path: '/driver/profile', element: <DriverProfilePage /> },
         ],
       },
@@ -77,6 +85,8 @@ export const router = createBrowserRouter([
           { path: '/admin/drivers', element: <DriversPage /> },
           { path: '/admin/vouchers', element: <VouchersPage /> },
           { path: '/admin/revenue', element: <RevenuePage /> },
+          { path: '/admin/prices', element: <PriceConfigPage /> },
+          { path: '/admin/customers', element: <AdminCustomersPage /> },
         ],
       },
     ],

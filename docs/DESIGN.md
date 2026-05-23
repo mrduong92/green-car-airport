@@ -1,392 +1,402 @@
-# Green Car Airport — UI Design Specification for Mockup
+# Green Car Airport — UI Design Specification
 
-> **Tool:** Google Stitch  
-> **Goal:** Generate high-fidelity mobile mockups for customer demo  
+> **Thiết kế:** Claude Design  
 > **Platform:** Progressive Web App (PWA), mobile-first  
-> **Target devices:** iPhone 14 Pro / Android (390×844px viewport)
+> **Target:** iPhone 14 Pro / Android (390×844px) — Admin cũng responsive trên PC
 
 ---
 
 ## 1. Brand & Visual Identity
 
 ### Brand Personality
-Professional, trustworthy, eco-friendly, efficient. Inspired by premium ride-hailing apps but tailored for Vietnamese airport transfer context.
+Chuyên nghiệp, đáng tin cậy, hiện đại. Dịch vụ đưa đón sân bay cao cấp tại Việt Nam.
 
 ### Color Palette
 
-| Token | Hex | Usage |
-|---|---|---|
-| Primary Green | `#1B8A4C` | CTA buttons, active states, brand accents |
-| Light Green | `#E8F5EE` | Card backgrounds, success states |
-| Dark Navy | `#0F1F2E` | Headers, primary text |
-| Warm White | `#F8FAF9` | App background |
-| Neutral Gray | `#6B7280` | Secondary text, labels |
-| Border Gray | `#E5E7EB` | Dividers, input borders |
-| Alert Orange | `#F59E0B` | Pending status badges |
-| Success Green | `#10B981` | Completed status badges |
-| Danger Red | `#EF4444` | Cancel, block, error states |
-| Gold | `#D4AF37` | Point/credits display |
+> ⚠️ **Đang redesign** — màu xanh `#006a36` hiện tại quá gần với Grab. Bộ màu dưới đây là hiện trạng trong code; sẽ được thay thế sau khi có design mới từ Claude Design.
+
+| Token | Hex | Tailwind class | Dùng cho |
+|---|---|---|---|
+| Primary | `#006a36` | `primary` | CTA, active nav, brand accent |
+| Light Green | `#E8F5EE` | `light-green` | Card bg, success tint |
+| Warm White | `#F8FAF9` | `warm-white` | App background |
+| Navy | `#0F1F2E` | `navy` | Tiêu đề, text chính |
+| Neutral Gray | `#6B7280` | `neutral-gray` | Text phụ, label |
+| Border Gray | `#E5E7EB` | `border-gray` | Divider, input border |
+| Alert Orange | `#F59E0B` | `alert-orange` | Trạng thái chờ |
+| Success Green | `#10B981` | `success-green` | Trạng thái hoàn thành |
+| Danger Red | `#EF4444` | `danger-red` | Huỷ, lỗi, block |
+| Gold | `#D4AF37` | `gold` | Ví điểm |
 
 ### Typography
 - **Font:** Inter (Google Fonts)
-- **H1:** 24px, Bold, Dark Navy
-- **H2:** 18px, SemiBold, Dark Navy  
-- **Body:** 14px, Regular, Dark Navy
-- **Caption:** 12px, Regular, Neutral Gray
-- **CTA Button Text:** 16px, SemiBold, White
+- **H1:** 24px Bold Navy — tiêu đề trang
+- **H2:** 18px SemiBold Navy — tiêu đề section
+- **Body:** 14px Regular Navy
+- **Caption:** 12px Regular Neutral Gray
+- **CTA Button:** 16px SemiBold White
 
-### Design Principles
-- Rounded corners: 12px (cards), 8px (inputs), 999px (pills/badges)
-- Card shadow: `0 2px 8px rgba(0,0,0,0.08)`
-- Bottom navigation bar (5 tabs max)
-- Large touch targets: minimum 48×48px
-- Status bar: dark content on light background
-
----
-
-## 2. Screen Inventory
-
-Generate mockups for **3 user roles** across **15 key screens**:
+### Design Tokens (Tailwind)
+```
+rounded-card   = 12px
+rounded-input  = 8px
+rounded-pill   = 9999px
+shadow-card    = 0 2px 8px rgba(0,0,0,0.08)
+shadow-card-up = 0 -2px 8px rgba(0,0,0,0.06)
+min-h-touch    = 48px
+```
 
 ---
 
-## 3. ROLE A — Khách Hàng (Customer)
+## 2. App Shell
 
-### Screen A1: Splash / Onboarding
+### 2.1 Header — AppHeader
 
-**Layout:** Full-screen with centered brand mark  
-**Elements:**
-- Green Car Airport logo (car icon + leaf accent) centered at 40% from top
-- App tagline: *"Đặt xe sân bay — Nhanh, minh bạch, tiện lợi"*
-- Illustration: minimal airport terminal silhouette with a green car
-- Bottom: two buttons stacked — **"Đăng nhập"** (filled green) and **"Đăng ký"** (outlined green)
-- Footer text: *"Dành cho khách hàng · Dành cho tài xế"* as a text toggle link
+Dùng chung cho cả 3 role. Luôn `sticky top-0 z-30`, có `safe-top` (notch).
 
----
+```
+┌──────────────────────────────────────────────┐
+│  [←/🚗]        Green Car / Tên màn hình   [Quy định / 🚪]
+└──────────────────────────────────────────────┘
+```
 
-### Screen A2: Đăng Nhập / OTP
+| Vị trí | Root tab | Detail page |
+|---|---|---|
+| **Trái** | Icon `directions_car` (primary) | Nút back `arrow_back` |
+| **Giữa** | "Green Car" (bold) | Tên trang (từ route) |
+| **Phải — Customer/Driver** | Nút "Quy định" (icon info + text, primary) | Nút "Quy định" |
+| **Phải — Admin** | Icon logout | Icon logout |
 
-**Layout:** Single-column form, top 30% is green gradient header  
-**Elements:**
-- Back arrow top-left
-- Header: "Xác minh số điện thoại"
-- Subtext: "Nhập số điện thoại để nhận mã OTP"
-- Phone input field with `+84` prefix flag selector
-- Large primary button: **"Gửi mã OTP"**
-- **OTP Step (2nd state):** 6-digit OTP input boxes (each box 48×56px, auto-advance on type)
-- Countdown timer: *"Gửi lại mã sau 0:45"* in gray
-- Auto-verify animation on correct code entry
+**Quy định bottom sheet:** tap "Quy định" mở sheet từ dưới lên, backdrop đen mờ, danh sách rules theo role.
 
----
+### 2.2 Bottom Navigation
 
-### Screen A3: Đặt Xe (Booking Form) ⭐ HERO SCREEN
+**Customer (4 tabs):**
+```
+[🚗 Đặt xe]  [📋 Lịch sử]  [🔔 Thông báo]  [👤 Hồ sơ]
+```
 
-**Layout:** Single-scroll form with sticky header  
-**Elements:**
+**Driver (4 tabs):**
+```
+[📋 Cuốc xe]  [💰 Ví điểm]  [🔔 Thông báo]  [👤 Hồ sơ]
+```
 
-**Top Section — Trip Info Card:**
-- White card with green left border
-- Row 1: 📍 Điểm đón — text input with placeholder *"Nhập địa điểm đón"*
-- Divider line with swap icon (↕) between rows
-- Row 2: 🛫 Điểm đến — text input with placeholder *"Sân bay Tân Sơn Nhất"*
+**Admin — Mobile (6 tabs, nhỏ):**
+```
+[Dashboard]  [Tài xế]  [Voucher]  [Doanh thu]  [Bảng giá]  [Khách hàng]
+```
 
-**Middle Section — Trip Details:**
-- Date/time picker row: calendar icon + date chip + clock icon + time chip (both tappable)
-- Distance input: "Số km ước tính" with number input + unit label "km"
-- Suggested price section:
-  - Label: *"Bảng giá tham khảo"*
-  - Price range chip: `350,000 – 420,000 đ` in green pill
-  - Your price input: large number input field, prefix "đ", hint text *"Nhập giá bạn muốn trả"*
-
-**Voucher Row:**
-- Ticket icon + "Thêm voucher" + arrow right (tappable row)
-- If voucher applied: green pill showing discount amount
-
-**Bottom Fixed — Summary + CTA:**
-- Sticky footer card (white, shadow up)
-- Left: "Tổng thanh toán: **420,000 đ**" 
-- Right: Green button **"Đặt xe ngay →"** (full-width on confirm state)
-
----
-
-### Screen A4: Trạng Thái Đơn (Booking Status)
-
-**Layout:** Status timeline screen  
-**Elements:**
-- Top: Booking ID chip + status badge ("Đang tìm tài xế" in orange)
-- Progress stepper (horizontal or vertical):
-  - ✅ Đã đặt xe
-  - 🔄 Đang tìm tài xế ← current
-  - ⬜ Tài xế đã nhận
-  - ⬜ Hoàn thành
-- Trip summary card: route, time, price
-- Driver info card (appears after driver accepts):
-  - Avatar circle + name + star rating
-  - Car make, model, plate number
-  - Phone icon button (call) + Chat icon button
-- Cancel button (text link, visible only within 1 hour of booking): *"Huỷ chuyến (còn 45 phút)"*
-- Bottom: **"Đặt xe mới"** button after completion
+**Admin — PC (lg+): Sidebar cố định bên trái**
+```
+┌─────────────┐
+│ 🚗 Green Car│  ← brand
+│ Admin Portal│
+├─────────────┤
+│ Dashboard   │  ← active: bg trắng/10, border-l primary
+│ Tài xế      │
+│ Voucher     │
+│ Doanh thu   │
+│ Bảng giá    │
+│ Khách hàng  │
+├─────────────┤
+│ 🚪 Đăng xuất│
+└─────────────┘
+```
+Content area: `ml-64`, full width, không max-w.
 
 ---
 
-### Screen A5: Lịch Sử Đặt Xe (Booking History)
+## 3. Screen Inventory
 
-**Layout:** List view with filter tabs  
-**Elements:**
-- Search bar at top
-- Filter tabs: "Tất cả · Hoàn thành · Đã huỷ" (pill tabs, green active state)
-- Booking list cards:
-  - Left: date column (day number large, month small)
-  - Route: origin → destination with arrow
-  - Price in bold green
-  - Status badge (color-coded)
-  - Tap to expand: show driver name, distance, booking ID
+### Shared — Auth
+
+| ID | Màn hình | Route | Status |
+|---|---|---|---|
+| S1 | Splash | `/` | ✅ |
+| S2 | Đăng nhập OTP | `/login` | ✅ |
+
+### Role A — Khách Hàng
+
+| ID | Màn hình | Route | Status | Ghi chú |
+|---|---|---|---|---|
+| A1 | Đặt xe | `/customer/booking` | ✅ | Goong autocomplete, chọn xe, date/time, giá, voucher |
+| A2 | Trạng thái đơn | `/customer/booking/:id` | ✅ | Stepper, thông tin tài xế, huỷ chuyến |
+| A3 | Lịch sử | `/customer/history` | ⚠️ | Fix: FE gọi `r.data.data`, BE trả plain array |
+| A4 | Thông báo | `/customer/notifications` | ❌ | Placeholder — chờ push notification (Phase N2) |
+| A5 | Hồ sơ | `/customer/profile` | ✅ | Tên, SĐT, đăng xuất |
+
+### Role B — Tài Xế
+
+| ID | Màn hình | Route | Status | Ghi chú |
+|---|---|---|---|---|
+| B1 | Danh sách cuốc | `/driver/trips` | ✅ | Toggle online/offline, GPS, sort gần nhất/mới nhất |
+| B2 | Chi tiết cuốc | `/driver/trips/:id` | ⚠️ | Fix: BE chưa xử lý `picking_up` (422) |
+| B3 | Ví điểm | `/driver/wallet` | ⚠️ | Fix: cần deduct 20% thay vì cộng |
+| B4 | Thông báo | `/driver/notifications` | ❌ | Placeholder |
+| B5 | Hồ sơ | `/driver/profile` | ⚠️ | Thiếu: form chỉnh sửa xe inline |
+| B6 | Onboarding tài xế mới | `/driver/onboarding` | ❌ | Chưa làm |
+
+### Role C — Admin
+
+| ID | Màn hình | Route | Status | Ghi chú |
+|---|---|---|---|---|
+| C1 | Dashboard | `/admin/dashboard` | ⚠️ | Fix: BE trả all-time stats, FE cần today stats |
+| C2 | Quản lý tài xế | `/admin/drivers` | ⚠️ | Fix: pagination, search, points, block reason |
+| C3 | Voucher | `/admin/vouchers` | ✅ | CRUD đầy đủ |
+| C4 | Doanh thu | `/admin/revenue` | ⚠️ | Fix: param/field name mismatch |
+| C5 | Bảng giá | `/admin/prices` | ✅ | CRUD + seed data |
+| C6 | Khách hàng | `/admin/customers` | ❌ | Placeholder — chưa implement |
 
 ---
 
-## 4. ROLE B — Tài Xế (Driver)
+## 4. Screens — Chi tiết thiết kế
 
-### Screen B1: Driver Dashboard / Cuốc Xe (Trip List) ⭐ HERO SCREEN
+### A1 · Đặt xe ⭐ HERO
 
-**Layout:** Feed-style list with sticky header controls  
-**Elements:**
+**Header:** AppHeader "Đặt xe" + "Quy định" button  
+**Sub-header:** Nút "Quy định" nhỏ align right (giữ từ trước)
 
-**Header Bar:**
-- Left: Avatar + "Xin chào, Minh 👋"
-- Right: Point balance chip — gold coin icon + **"1,240 điểm"**
-- Below header: online/offline toggle switch with label *"Sẵn sàng nhận cuốc"*
+**Form layout (single scroll):**
 
-**Filter Row:**
-- Location chip: 📍 *"Bật định vị — Sắp xếp theo gần nhất"* → toggle
-- Sort: dropdown "Gần nhất / Mới nhất"
-
-**Trip Cards (repeating):**
 ```
 ┌─────────────────────────────────┐
-│  🕐 14:30 · Hôm nay   [MỚI]   │
-│  📍 Quận 7 → 🛫 TSN           │
-│  ↔ 12 km · ⏱ ~25 phút        │
-│  💰 380,000 đ  [Phí: 76,000đ] │
-│          [NHẬN CUỐC]           │
+│ 📍 Điểm đón (autocomplete)      │
+│ ─────────────────────────────── │
+│ 🛫 Điểm đến (autocomplete)      │
+└─────────────────────────────────┘
+
+[4 chỗ]  [5 chỗ]  [7 chỗ]   ← loại xe
+
+[Hôm nay] [T2] [T3] [T4] ...  ← date chips, scroll ngang
+
+Row 1: 0h  0h30  1h  1h30 ...  ← time rows, scroll ngang
+Row 2: 8h  8h30  9h  9h30 ...
+Row 3: 16h 16h30 ...
+
+Khoảng cách: [__ km]  (auto-fill từ Goong Matrix)
+
+Bảng giá tham khảo: [350,000 – 420,000 đ]  (từ API price-configs)
+
+Giá bạn muốn trả: [_________đ]
+
+🎫 Voucher: [Nhập mã...]  [Áp dụng]
+```
+
+**Sticky footer:**
+```
+┌─────────────────────────────────┐
+│ Tổng: 420,000 đ   [ĐẶT XE →]   │
 └─────────────────────────────────┘
 ```
-- Badge "MỚI" in green (trips < 30 min old)
-- Fee deduction shown in smaller gray text
-- **"NHẬN CUỐC"** — large green button, full card width
-- If driver at max capacity (3 trips): button becomes disabled gray + tooltip "Hoàn thành cuốc hiện tại trước"
 
 ---
 
-### Screen B2: Chi Tiết Cuốc (Trip Detail)
+### A2 · Trạng thái đơn
 
-**Layout:** Full detail sheet (modal or new screen)  
-**Elements:**
-- Map preview card (static map image) showing pickup → dropoff pin
-- Customer info row: avatar initial + masked phone number + call button
-- Trip specs grid (2×2):
-  - 📅 Ngày giờ
-  - ↔ Khoảng cách  
-  - 💰 Giá khách trả
-  - 💸 Phí app (20%)
-- Net earnings highlight: "**Bạn nhận: 304,000 đ**" in large green text
-- Action buttons:
-  - **"Nhận cuốc"** (green, primary)
-  - "Bỏ qua" (text button, gray)
-- After accepting: status update buttons — "Đang đến đón" → "Đang chạy" → "Hoàn thành"
-
----
-
-### Screen B3: Ví Điểm & Nạp Điểm (Points Wallet)
-
-**Layout:** Wallet-style screen  
-**Elements:**
-
-**Balance Card** (green gradient card):
-- Label: "Số dư điểm"
-- Large number: **1,240 điểm**
-- Subtext: *"Tương đương 1,240,000 đ"*
-- "Nạp điểm" button (white outlined)
-
-**How-to-top-up instruction box** (light green):
-- 💳 Chuyển tiền đến: **[Tên công ty]**
-- 🏦 STK: `1234 5678 90` — Vietcombank
-- ⚡ Điểm tự động cộng sau khi nhận tiền
-
-**Transaction History:**
-- List rows: icon (+ green for add, - red for deduct) + description + amount + date
-- Examples:
-  - ➕ Nạp điểm · +500 điểm · 12/06
-  - ➖ Phí cuốc #1042 · -76 điểm · 12/06
-  - ➕ Nạp điểm · +1,000 điểm · 10/06
-
----
-
-### Screen B4: Hồ Sơ Tài Xế (Driver Profile)
-
-**Layout:** Profile with verification status  
-**Elements:**
-- Avatar circle (large, 80px) with camera edit icon
-- Name + phone number
-- Verification badge: ✅ "Đã xác minh" or ⏳ "Chờ duyệt"
-- Vehicle info card: make/model, plate, year, color
-- Stats row: trips completed / rating / months active
-- Settings rows: Đổi mật khẩu · Thông báo · Đăng xuất
-
----
-
-## 5. ROLE C — Admin
-
-### Screen C1: Admin Dashboard
-
-**Layout:** Dark-mode optional; desktop-friendly but mobile-usable  
-**Elements:**
-
-**Summary KPI Cards (2×2 grid):**
-- 🚗 Cuốc hôm nay: **47** (↑12% vs yesterday)
-- 💰 Doanh thu: **18.2M đ**
-- 👤 Tài xế online: **23 / 58**
-- 🎫 Phí app thu: **3.6M đ**
-
-**Recent Trips Table:**
-- Columns: ID · Khách · Tài xế · Tuyến · Trạng thái · Thời gian
-- Color-coded status pills
-
-**Quick Actions Row:**
-- [Duyệt tài xế mới] [Tạo voucher] [Xem báo cáo]
-
----
-
-### Screen C2: Quản Lý Tài Xế (Driver Management)
-
-**Layout:** List + search + filter  
-**Elements:**
-- Search bar: "Tìm theo tên, SĐT, biển số"
-- Filter tabs: "Tất cả · Đang hoạt động · Chờ duyệt · Đã block"
-- Driver cards:
-  - Avatar + name + phone
-  - Point balance + trips count
-  - Status badge
-  - Actions: **"Xem"** · **"Block"** (red destructive)
-- "Block" confirmation modal: red warning card, reason input, confirm button
-
----
-
-### Screen C3: Tạo Voucher
-
-**Layout:** Simple form  
-**Elements:**
-- Voucher code input (auto-generate button)
-- Discount type toggle: "Số tiền cố định / Phần trăm"
-- Discount value input
-- Target: "Tất cả khách / Chọn khách cụ thể" — dropdown or search-select
-- Expiry date picker
-- Usage limit input
-- **"Tạo Voucher"** green button
-- Below: list of active vouchers with copy-code and deactivate options
-
----
-
-### Screen C4: Báo Cáo Doanh Thu (Revenue Report)
-
-**Layout:** Chart-forward analytics screen  
-**Elements:**
-- Period selector tabs: "Hôm nay · Tuần này · Tháng này · Tuỳ chọn"
-- Bar chart: daily revenue (green bars) with app fee overlay (darker green)
-- Summary stats below chart:
-  - Tổng doanh thu: **54,800,000 đ**
-  - Phí app thu được: **10,960,000 đ**
-  - Số cuốc hoàn thành: **312**
-  - Trung bình/cuốc: **175,600 đ**
-- Export button: "📥 Xuất Excel"
-
----
-
-## 6. Component Library
-
-Generate these reusable components separately:
-
-### 6.1 Bottom Navigation Bar (Customer)
-4 tabs: 🏠 Trang chủ · 🚗 Đặt xe · 📋 Lịch sử · 👤 Hồ sơ  
-Active tab: filled icon + label in Primary Green. Inactive: outline icon + gray label.
-
-### 6.2 Bottom Navigation Bar (Driver)
-4 tabs: 📋 Cuốc xe · 🗺 Bản đồ · 💰 Ví điểm · 👤 Hồ sơ
-
-### 6.3 Status Badge Pills
-```
-[Đang tìm tài xế]  — Orange background, dark orange text
-[Đã nhận]          — Blue background, dark blue text  
-[Đang chạy]        — Green background, white text
-[Hoàn thành]       — Gray background, dark gray text
-[Đã huỷ]          — Red background, white text
-[Chờ duyệt]        — Yellow background, dark text
-[Đã block]         — Dark red background, white text
-```
-
-### 6.4 Trip Card (Driver view)
-Full-width card, white background, 12px border-radius, subtle shadow, green left border accent (4px). Contains: time, route, distance, price, fee breakdown, CTA button.
-
-### 6.5 Empty State
-Centered illustration (simple line art of a car or document), heading text, subtext, optional CTA button. Use for: no trips, no history, no drivers.
-
-### 6.6 Toast Notification
-Bottom-center, pill shape (rounded full), dark navy background, white text, icon left. Variants: success (green icon), error (red icon), info (blue icon). Auto-dismiss 3s.
-
----
-
-## 7. Key User Flows to Mockup as Sequences
-
-### Flow 1: Customer Booking Flow (5 screens)
-`Splash → Login/OTP → Booking Form → Booking Confirmation → Booking Status`
-
-### Flow 2: Driver Trip Flow (4 screens)  
-`Dashboard (trip list) → Trip Detail → Accept Confirmation → Active Trip Status`
-
-### Flow 3: Driver Wallet (3 screens)
-`Wallet Balance → Top-up Instructions → Transaction History`
-
-### Flow 4: Admin Oversight (3 screens)
-`Dashboard → Driver List → Block Confirmation Modal`
-
----
-
-## 8. Mockup Output Instructions for Google Stitch
-
-When generating mockups, please follow these instructions:
-
-1. **Device frame:** iPhone 14 Pro (393×852pt) with status bar showing 9:41 AM
-2. **Resolution:** @2x (Retina) for all assets
-3. **Style:** Clean, modern mobile UI — reference apps: Grab, Be, Gojek for layout patterns
-4. **Language:** All UI text in Vietnamese as specified above
-5. **Illustrations:** Use simple, flat-style icons. Prefer Lucide or Material Icons style.
-6. **Spacing system:** 4pt base grid (8, 12, 16, 20, 24, 32pt spacing)
-7. **Prioritize these 5 screens first for customer demo:**
-   - A3: Đặt Xe (Booking Form) — most important
-   - B1: Driver Trip List — most important for driver UX
-   - A4: Booking Status
-   - C1: Admin Dashboard
-   - B3: Driver Wallet
-
----
-
-## 9. Sample Copy (Vietnamese UI Strings)
+**Header:** AppHeader "Trạng thái đơn" + back button
 
 ```
-App name:        Green Car Airport
-Tagline:         Đặt xe sân bay — Nhanh, minh bạch, tiện lợi
-Login CTA:       Đăng nhập bằng SĐT
-OTP label:       Nhập mã 6 chữ số được gửi đến 09xx xxx xxx
-Book button:     Đặt xe ngay →
-Accept trip:     Nhận cuốc này
-Complete trip:   Hoàn thành chuyến
-Points unit:     điểm
-Currency format: 380,000 đ
-Cancel warning:  Huỷ sau 1 giờ sẽ bị phạt 50,000 đ
-Block confirm:   Tài khoản này sẽ bị khoá vĩnh viễn. Xác nhận?
-No trips empty:  Chưa có cuốc xe nào. Hãy chờ khách đặt!
+Đơn #123                [Badge: Đang tìm tài xế]
+
+Stepper (vertical):
+✅ Đã đặt xe
+🔄 Đang tìm tài xế  ← current (spinning icon)
+⬜ Tài xế đã nhận
+⬜ Hoàn thành
+
+Trip summary card: điểm đón → điểm đến · ngày giờ · giá
+
+Driver card (sau khi nhận):
+  [Avatar] Nguyễn Văn A  ⭐ 4.8
+           Toyota Camry · 51G-12345
+  [📞 Gọi]
+
+[Huỷ chuyến (còn 45 phút)]   ← chỉ hiện trong 1h đầu
 ```
 
 ---
 
-*Document prepared for Google Stitch mockup generation — Green Car Airport PWA*  
-*AMD AI Solutions × Green Car Airport · Phase 1 MVP Demo*
+### B1 · Danh sách cuốc ⭐ HERO
+
+**Header:** AppHeader "Cuốc xe"
+
+**Control strip (dưới header):**
+```
+Sẵn sàng nhận cuốc              [Toggle on/off]
+```
+
+**Sort row:**
+```
+📍 Sắp xếp theo:    [Gần nhất ▾]
+```
+
+**Trip cards:**
+```
+┌── border-l-4 primary ──────────────┐
+│  🕐 14:30 · 24/05          [MỚI]  │
+│  📍 Quận 7                         │
+│     → 🛫 Sân bay Nội Bài           │
+│  ↔ 12 km · ~X km tới đón          │
+│  💰 380,000 đ   Phí: 76,000đ      │
+│          [NHẬN CUỐC]               │
+└────────────────────────────────────┘
+```
+
+---
+
+### B2 · Chi tiết cuốc
+
+**Header:** AppHeader "Chi tiết cuốc" + back  
+**Content:**
+```
+Cuốc #42                    [Badge: accepted]
+
+[Map placeholder — Phase 2]
+
+[Avatar K]  09xx xxx xxx           [📞]
+
+Ngày giờ  · Khoảng cách
+Giá KH trả · Phí app 20%
+
+Bạn nhận: 304,000 đ  (large, primary)
+
+[Đang đến đón →]   hoặc  [Đang chạy →]  hoặc  [Hoàn thành]
+[Bỏ qua]
+```
+
+---
+
+### B3 · Ví điểm
+
+**Header:** AppHeader "Ví điểm"
+
+```
+┌─── green gradient ──────────────┐
+│ Số dư điểm                      │
+│ 1,240 điểm                      │
+│ ≈ 1,240,000 đ                   │
+│ [Nạp điểm]                      │
+└─────────────────────────────────┘
+
+Hướng dẫn nạp:
+💳 Chuyển khoản đến Green Car Airport Co.
+🏦 STK: 1234 5678 90 — Vietcombank
+⚡ Điểm tự động cộng sau khi nhận tiền
+
+Lịch sử giao dịch:
+[+/-icon] Mô tả           +/-X điểm  · DD/MM
+```
+
+---
+
+### C1 · Admin Dashboard
+
+**PC:** Sidebar + content full width  
+**Mobile:** AppHeader + bottom nav (6 tab nhỏ)
+
+```
+KPI Grid 2×2:
+[🚗 Cuốc hôm nay: 47 ↑12%]  [💰 Doanh thu: 18.2M đ]
+[👤 Tài xế online: 23/58]   [🎫 Phí app thu: 3.6M đ]
+
+Quick actions: [Duyệt tài xế] [Tạo voucher] [Báo cáo]
+
+Chuyến gần đây (table):
+#ID · Khách → Tài xế · Tuyến · Status · Giờ
+```
+
+---
+
+## 5. Component Library
+
+### 5.1 Status Badge Pills
+
+| Status | Background | Text |
+|---|---|---|
+| `pending` / `finding_driver` | Alert Orange / 15% | Alert Orange |
+| `accepted` / `picking_up` / `in_progress` | Primary / 15% | Primary |
+| `completed` | Success Green / 15% | Success Green |
+| `cancelled` | Danger Red | White |
+| `waiting_approval` | Alert Orange / 15% | Alert Orange |
+| `active` | Primary / 15% | Primary |
+| `blocked` | Danger Red | White |
+
+### 5.2 Button Variants
+
+| Variant | Style |
+|---|---|
+| Primary (default) | bg-primary, text-white, rounded-pill |
+| Outline | border-primary, text-primary, bg-transparent |
+| Ghost | text-primary, no border/bg |
+| Danger | bg-danger-red, text-white |
+
+Sizes: `sm` (px-3 py-1.5 text-sm) · `md` default · `lg` (py-4 text-base)
+
+### 5.3 Input Fields
+
+Border: `border-border-gray rounded-input`. Focus: `border-primary ring-1 ring-primary/20`. Error: `border-danger-red`.
+
+### 5.4 Cards
+
+`bg-white rounded-card shadow-card`. Driver trip cards thêm `border-l-4 border-primary`.
+
+### 5.5 Empty State
+
+Icon lớn (text-5xl, text-border-gray) + title (text-sm font-semibold navy) + subtitle (text-xs neutral-gray) + optional CTA button.
+
+### 5.6 Toast
+
+Fixed bottom-center, pill shape, max-w `[280px]`. Variants: `success` (primary icon), `error` (danger-red icon), `info` (neutral icon). Auto-dismiss 3s.
+
+---
+
+## 6. Quy định — Nội dung
+
+### Quy định đặt xe (Khách hàng)
+
+1. **schedule** — Đặt xe trước ít nhất 30 phút giờ khởi hành.
+2. **cancel** — Hủy miễn phí trong vòng 1 giờ sau khi đặt.
+3. **payments** — Hủy sau 1 giờ bị phạt 50.000đ, áp dụng cho chuyến tiếp theo.
+4. **timer_off** — Chuyến tự động hủy sau 24 giờ nếu không có tài xế nhận.
+5. **local_parking** — Giá đã bao gồm phí cầu đường và bãi đỗ sân bay.
+6. **phone** — Tài xế sẽ chủ động liên hệ trước giờ đón để xác nhận.
+7. **edit_off** — Không thể thay đổi điểm đón/đến sau khi đã đặt chuyến.
+
+### Quy định tài xế
+
+1. **account_balance_wallet** — Phí ứng dụng 20% được trừ từ ví điểm sau mỗi chuyến hoàn thành.
+2. **paid** — Cần nạp điểm vào ví trước khi nhận cuốc (1.000đ = 1 điểm).
+3. **checklist** — Tối đa 3 cuốc đang thực hiện cùng lúc.
+4. **schedule** — Cập nhật trạng thái cuốc kịp thời — không để khách chờ.
+5. **phone** — Chủ động liên hệ khách trước giờ đón để xác nhận.
+6. **gpp_bad** — Tài khoản vi phạm nhiều lần có thể bị khoá bởi admin.
+
+---
+
+## 7. Key User Flows
+
+### Flow 1: Khách đặt xe
+`Splash → Login OTP → Đặt xe (form) → Trạng thái đơn → [Tài xế nhận] → Hoàn thành`
+
+### Flow 2: Tài xế nhận cuốc
+`Đăng nhập → Bật online + GPS → Danh sách cuốc → Chi tiết → Nhận → Đang đến → Đang chạy → Hoàn thành`
+
+### Flow 3: Admin duyệt tài xế
+`Dashboard → Danh sách tài xế → Xem hồ sơ → Duyệt / Block (với lý do)`
+
+---
+
+## 8. Phase 2 Roadmap
+
+| Feature | Màn hình | Ghi chú |
+|---|---|---|
+| Push Notification | A4/B4 (Thông báo) | Web Push API + minishlink/web-push |
+| Bản đồ tương tác | B7 (Driver Map) | Goong JS — driver marker + trip pins + bottom sheet |
+| Onboarding tài xế | B6 | Form nhập xe, chờ duyệt |
+| Quản lý khách | C6 | Danh sách, tìm kiếm, block, xem lịch sử |
+| Penalty tự động | — | BE: check 1h → ghi penalty_amount |
+| Auto-expiry | — | Job Laravel mỗi 5 phút → cancel booking 24h |
+
+---
+
+*Spec cập nhật: 2026-05-24 · Tool thiết kế: Claude Design*

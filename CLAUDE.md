@@ -125,9 +125,42 @@ Defined in `frontend/tailwind.config.ts`. Use these class names:
 
 Custom utilities: `rounded-card` (12px), `rounded-input` (8px), `rounded-pill` (9999px), `shadow-card`, `shadow-card-up`, `min-h-touch` / `min-w-touch` (48px).
 
-## Backend Stack
+## Backend Architecture
 
-- **Laravel 13.9** / **PHP 8.4** — API-only (no Blade views)
+**Laravel 13.9 / PHP 8.4 — API-only, no Blade views.**
+
+### Auth
+OTP-based, no passwords. `POST /api/auth/otp/send` stores a 6-digit code, `POST /api/auth/otp/verify` issues a Sanctum personal access token. **Dev bypass:** `APP_ENV=local` OR OTP=`000000` always authenticates — `firstOrCreate` the user and return a token without checking the OTP table.
+
+### Role middleware
+`EnsureRole` (registered as `role` alias in `bootstrap/app.php`) checks `$request->user()->role`. Three roles: `customer`, `driver`, `admin`. Route groups in `routes/api.php` are nested `auth:sanctum` → `role:X`.
+
+### Controller layout
+```
+app/Http/Controllers/
+├── Auth/        OtpController (send, verify), AuthController (me, logout)
+├── Customer/    BookingController (index, store, show, cancel), VoucherController (apply)
+├── Driver/      TripController (index, accept, updateStatus), WalletController (show, transactions),
+│                ProfileController (show, update), StatusController (update)
+└── Admin/       DashboardController, DriverController (index, block, approve),
+                 AdminVoucherController (index, store, deactivate), RevenueController
+```
+
+No API Resource classes — controllers return plain arrays directly.
+
+### Business rules
+- **App fee = 20%** of `booking.price`; driver nets 80% converted to points (1 point = 1,000 VND).
+- `TripController::index()` only returns bookings with `status=finding_driver`.
+- `TripController::updateStatus()` to `completed` → creates `WalletTransaction` and increments `driver_profiles.trips_count`.
+- `RevenueController` groups completed bookings by `DATE(created_at)` — must use `groupByRaw` to avoid MySQL `only_full_group_by` error.
+
+### Migration order (FK dependencies)
+`vouchers` → `bookings` → `wallet_transactions` (wallet_transactions.booking_id references bookings).
+
+### Dev seed data
+`make fresh` runs 5 seeders: 3 fixed-phone users (`0901234567` customer, `0912345678` driver, `0923456789` admin), driver profile (Toyota Camry 51G-12345), wallet (1,240 pts), 5 sample bookings, 2 vouchers (`AIRPORT50K`, `NEWUSER10`).
+
+### Backend env
 - `DB_HOST=mysql`, `REDIS_HOST=redis`, `MAIL_HOST=mailpit` inside containers
 - `backend/.env` is pre-configured for Docker — copy from `.env.example` on fresh clone, then `make artisan key:generate`
 

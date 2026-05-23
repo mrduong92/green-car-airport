@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAvailableTrips, toggleOnline, acceptTrip } from '@/api/trips'
-import { useAuthStore } from '@/stores/auth'
+import { getAvailableTrips, getWallet, toggleOnline, acceptTrip } from '@/api/trips'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
@@ -10,10 +9,15 @@ import clsx from 'clsx'
 export default function TripListPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const user = useAuthStore((s) => s.user)
   const showToast = useUiStore((s) => s.showToast)
   const [isOnline, setIsOnline] = useState(false)
   const [sort, setSort] = useState('newest')
+  const [hasLocation, setHasLocation] = useState(false)
+
+  const { data: wallet } = useQuery({
+    queryKey: ['wallet'],
+    queryFn: () => getWallet().then((r) => r.data),
+  })
 
   const { data: trips = [] } = useQuery({
     queryKey: ['trips', sort],
@@ -23,9 +27,30 @@ export default function TripListPage() {
   })
 
   const toggleMutation = useMutation({
-    mutationFn: (online: boolean) => toggleOnline(online),
-    onSuccess: (_, online) => setIsOnline(online),
+    mutationFn: ({ online, latitude, longitude }: { online: boolean; latitude?: number; longitude?: number }) =>
+      toggleOnline(online, latitude, longitude),
+    onSuccess: (_, { online }) => setIsOnline(online),
   })
+
+  const handleToggleOnline = () => {
+    const goOnline = !isOnline
+    if (goOnline) {
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+          setHasLocation(true)
+          toggleMutation.mutate({ online: true, latitude: coords.latitude, longitude: coords.longitude })
+        },
+        () => {
+          setHasLocation(false)
+          toggleMutation.mutate({ online: true })
+        },
+        { timeout: 5000 },
+      )
+    } else {
+      setHasLocation(false)
+      toggleMutation.mutate({ online: false })
+    }
+  }
 
   const acceptMutation = useMutation({
     mutationFn: (id: number) => acceptTrip(id),
@@ -38,30 +63,19 @@ export default function TripListPage() {
   })
 
   return (
-    <div className="flex flex-col safe-top">
-      {/* Header */}
-      <div className="bg-white px-4 pt-4 pb-3 border-b border-border-gray">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-light-green flex items-center justify-center text-primary font-bold">
-              {user?.name?.[0] ?? 'T'}
-            </div>
-            <div>
-              <p className="text-caption text-neutral-gray">Xin chào,</p>
-              <p className="text-sm font-semibold text-navy">{user?.name ?? 'Tài xế'} 👋</p>
-            </div>
+    <div className="flex flex-col">
+      {/* Online toggle strip */}
+      <div className="bg-white px-4 py-3 border-b border-border-gray">
+        <div className="flex items-center justify-between bg-warm-white rounded-card px-4 py-3">
+          <div>
+            <span className="text-sm text-navy font-medium">Sẵn sàng nhận cuốc</span>
+            {isOnline && !hasLocation && (
+              <p className="text-xs text-neutral-gray mt-0.5">Không có vị trí — sort "Gần nhất" không khả dụng</p>
+            )}
           </div>
-          <div className="flex items-center gap-1 bg-light-green rounded-pill px-3 py-1.5">
-            <span className="material-symbols-outlined text-gold text-lg">paid</span>
-            <span className="text-sm font-bold text-navy">1,240 điểm</span>
-          </div>
-        </div>
-
-        {/* Online toggle */}
-        <div className="flex items-center justify-between bg-surface rounded-card px-4 py-3">
-          <span className="text-sm text-navy font-medium">Sẵn sàng nhận cuốc</span>
           <button
-            onClick={() => toggleMutation.mutate(!isOnline)}
+            onClick={handleToggleOnline}
+            disabled={toggleMutation.isPending}
             className={clsx('relative w-12 h-6 rounded-full transition-colors',
               isOnline ? 'bg-primary' : 'bg-border-gray')}
           >
@@ -115,7 +129,7 @@ export default function TripListPage() {
                 <span className="text-sm text-navy flex-1 truncate">{trip.destination}</span>
               </div>
 
-              <div className="flex gap-4 text-caption text-neutral-gray">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-neutral-gray">
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-sm">straighten</span>
                   {trip.distance_km} km
@@ -124,6 +138,12 @@ export default function TripListPage() {
                   <span className="material-symbols-outlined text-sm">timer</span>
                   ~{trip.duration_min} phút
                 </span>
+                {trip.distance_to_driver != null && (
+                  <span className="flex items-center gap-1 text-primary font-medium">
+                    <span className="material-symbols-outlined text-sm">near_me</span>
+                    ~{trip.distance_to_driver} km tới điểm đón
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center justify-between">

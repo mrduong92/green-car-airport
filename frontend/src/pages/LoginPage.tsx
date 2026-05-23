@@ -6,14 +6,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 
+const DEV_OTP  = '000000'
 const DEV_PHONE = '0901234567'
-const DEV_OTP   = '000000'
-const IS_DEV    = import.meta.env.DEV
+const IS_DEV   = import.meta.env.DEV
 
-const DEV_USERS: App.User[] = [
-  { id: 1, name: 'Khách Hàng Demo', phone: DEV_PHONE, role: 'customer' },
-  { id: 2, name: 'Tài Xế Demo',     phone: DEV_PHONE, role: 'driver'   },
-  { id: 3, name: 'Admin Demo',      phone: DEV_PHONE, role: 'admin'    },
+const DEV_ACCOUNTS = [
+  { label: 'Khách Hàng Demo', phone: '0901234567', role: 'customer' as App.Role },
+  { label: 'Tài Xế Demo',     phone: '0912345678', role: 'driver'   as App.Role },
+  { label: 'Admin Demo',      phone: '0923456789', role: 'admin'    as App.Role },
 ]
 
 export default function LoginPage() {
@@ -33,7 +33,10 @@ export default function LoginPage() {
   }, [countdown])
 
   const verifyMutation = useMutation({
-    mutationFn: (code: string) => verifyOtp(phone, code),
+    mutationFn: (payload: string | { phone: string; otp: string }) =>
+      typeof payload === 'string'
+        ? verifyOtp(phone, payload)
+        : verifyOtp(payload.phone, payload.otp),
     onSuccess: ({ data }) => {
       setAuth(data.user, data.token)
       const role = data.user.role
@@ -93,19 +96,15 @@ export default function LoginPage() {
             {IS_DEV && (
               <div className="flex flex-col gap-2">
                 <p className="text-xs text-center text-neutral-gray">🛠 Dev — đăng nhập nhanh</p>
-                {DEV_USERS.map((u) => (
+                {DEV_ACCOUNTS.map((acc) => (
                   <button
-                    key={u.role}
-                    onClick={() => {
-                      setAuth(u, 'dev-token')
-                      if (u.role === 'customer') navigate('/customer/booking')
-                      else if (u.role === 'driver') navigate('/driver/trips')
-                      else navigate('/admin/dashboard')
-                    }}
-                    className="w-full py-3 rounded-card border-2 border-primary/30 bg-light-green text-navy text-sm font-medium flex items-center justify-between px-4"
+                    key={acc.role}
+                    disabled={verifyMutation.isPending}
+                    onClick={() => verifyMutation.mutate({ phone: acc.phone, otp: DEV_OTP })}
+                    className="w-full py-3 rounded-card border-2 border-primary/30 bg-light-green text-navy text-sm font-medium flex items-center justify-between px-4 disabled:opacity-50"
                   >
-                    <span>{u.name}</span>
-                    <span className="text-xs text-neutral-gray capitalize">{u.role}</span>
+                    <span>{acc.label}</span>
+                    <span className="text-xs text-neutral-gray">{acc.phone}</span>
                   </button>
                 ))}
                 <div className="flex items-center gap-2 my-1">

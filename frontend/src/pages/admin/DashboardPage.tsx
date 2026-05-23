@@ -24,13 +24,11 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
-      <h1 className="text-h2 text-navy font-bold">Dashboard</h1>
-
       {/* KPI Grid */}
       <div className="grid grid-cols-2 gap-3">
         <KpiCard icon="directions_car" label="Cuốc hôm nay"
-          value={data?.trips_today.toString() ?? '—'}
-          sub={data ? `↑${data.trips_today_change}% vs hôm qua` : undefined} />
+          value={data?.trips_today?.toString() ?? '—'}
+          sub={data?.trips_today_change != null ? `↑${data.trips_today_change}% vs hôm qua` : undefined} />
         <KpiCard icon="payments" label="Doanh thu" color="text-success-green"
           value={data ? `${(data.revenue_today / 1_000_000).toFixed(1)}M đ` : '—'} />
         <KpiCard icon="person" label="Tài xế online"
@@ -59,7 +57,7 @@ export default function AdminDashboardPage() {
         <div className="px-4 py-3 border-b border-border-gray">
           <p className="text-sm font-semibold text-navy">Chuyến gần đây</p>
         </div>
-        {data?.recent_trips.map((trip) => (
+        {data?.recent_trips?.map((trip) => (
           <div key={trip.id} className="px-4 py-3 border-b border-border-gray last:border-b-0 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">

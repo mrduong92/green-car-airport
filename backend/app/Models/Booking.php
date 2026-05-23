@@ -5,7 +5,8 @@ use Illuminate\Database\Eloquent\Model;
 class Booking extends Model
 {
     protected $fillable = [
-        'customer_id','driver_id','voucher_id','pickup','destination',
+        'customer_id','driver_id','voucher_id','pickup','pickup_lat','pickup_lng',
+        'destination','destination_lat','destination_lng',
         'date','time','distance_km','price','discount','status','vehicle_type','cancelled_at',
     ];
     protected $casts = ['cancelled_at' => 'datetime', 'date' => 'date'];

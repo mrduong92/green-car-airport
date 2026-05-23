@@ -12,13 +12,23 @@ class TripController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $profile = $request->user()->driverProfile;
+
         $trips = Booking::with('customer')
             ->where('status', 'finding_driver')
             ->latest()
-            ->get()
-            ->map(fn ($b) => $this->formatTrip($b));
+            ->get();
 
-        return response()->json($trips);
+        if ($request->sort === 'nearest' && $profile?->latitude && $profile?->longitude) {
+            $trips = $trips->sortBy(fn ($b) => $this->haversine(
+                (float) $profile->latitude,
+                (float) $profile->longitude,
+                (float) $b->pickup_lat,
+                (float) $b->pickup_lng,
+            ))->values();
+        }
+
+        return response()->json($trips->map(fn ($b) => $this->formatTrip($b, $profile)));
     }
 
     public function accept(Request $request, Booking $booking): JsonResponse
@@ -72,36 +82,87 @@ class TripController extends Controller
         $wallet->increment('points', $netPoints);
 
         WalletTransaction::create([
-            'wallet_id'  => $wallet->id,
-            'booking_id' => $booking->id,
-            'type'       => 'credit',
-            'description'=> "Hoàn thành chuyến #{$booking->id}",
-            'points'     => $netPoints,
+            'wallet_id'   => $wallet->id,
+            'booking_id'  => $booking->id,
+            'type'        => 'credit',
+            'description' => "Hoàn thành chuyến #{$booking->id}",
+            'points'      => $netPoints,
         ]);
 
         $driver->driverProfile?->increment('trips_count');
     }
 
-    private function formatTrip(Booking $b): array
+    public function mine(Request $request): JsonResponse
     {
-        $appFee     = (int) round($b->price * 0.20);
-        $netEarning = $b->price - $appFee;
-        $phone      = $b->customer?->phone ?? '';
+        $trips = Booking::with('customer')
+            ->where('driver_id', $request->user()->id)
+            ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
+            ->latest()
+            ->get()
+            ->map(fn ($b) => $this->formatTrip($b));
+
+        return response()->json($trips);
+    }
+
+    private function formatTrip(Booking $b, $driverProfile = null): array
+    {
+        $appFee      = (int) round($b->price * 0.20);
+        $netEarning  = $b->price - $appFee;
+        $phone       = $b->customer?->phone ?? '';
+        $durationMin = (int) round((float) $b->distance_km / 30 * 60);
+
+        $statusMap = [
+            'finding_driver' => 'available',
+            'accepted'       => 'accepted',
+            'picking_up'     => 'picking_up',
+            'in_progress'    => 'in_progress',
+            'completed'      => 'completed',
+        ];
+
+        $distanceToDriver = null;
+        if ($driverProfile?->latitude && $b->pickup_lat) {
+            $distanceToDriver = round($this->haversine(
+                (float) $driverProfile->latitude,
+                (float) $driverProfile->longitude,
+                (float) $b->pickup_lat,
+                (float) $b->pickup_lng,
+            ), 1);
+        }
 
         return [
-            'id'            => $b->id,
-            'pickup'        => $b->pickup,
-            'destination'   => $b->destination,
-            'date'          => $b->date,
-            'time'          => $b->time,
-            'distance_km'   => (float) $b->distance_km,
-            'price'         => $b->price,
-            'app_fee'       => $appFee,
-            'net_earning'   => $netEarning,
-            'status'        => $b->status,
-            'customer_name' => $b->customer?->name,
-            'customer_phone'=> substr($phone, 0, -3) . '***',
-            'created_at'    => $b->created_at?->toISOString(),
+            'id'                    => $b->id,
+            'booking_id'            => $b->id,
+            'pickup'                => $b->pickup,
+            'pickup_lat'            => $b->pickup_lat ? (float) $b->pickup_lat : null,
+            'pickup_lng'            => $b->pickup_lng ? (float) $b->pickup_lng : null,
+            'destination'           => $b->destination,
+            'date'                  => $b->date,
+            'time'                  => $b->time,
+            'distance_km'           => (float) $b->distance_km,
+            'duration_min'          => $durationMin,
+            'price'                 => $b->price,
+            'app_fee'               => $appFee,
+            'net_earning'           => $netEarning,
+            'status'                => $statusMap[$b->status] ?? $b->status,
+            'is_new'                => $b->created_at?->gt(now()->subMinutes(30)) ?? false,
+            'customer_name'         => $b->customer?->name,
+            'customer_phone_masked' => $phone ? substr($phone, 0, -3) . '***' : '',
+            'created_at'            => $b->created_at?->toISOString(),
+            'distance_to_driver'    => $distanceToDriver,
         ];
+    }
+
+    private function haversine(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        if (! $lat2 || ! $lng2) {
+            return PHP_FLOAT_MAX;
+        }
+
+        $R  = 6371;
+        $dL = deg2rad($lat2 - $lat1);
+        $dl = deg2rad($lng2 - $lng1);
+        $a  = sin($dL / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dl / 2) ** 2;
+
+        return $R * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 }

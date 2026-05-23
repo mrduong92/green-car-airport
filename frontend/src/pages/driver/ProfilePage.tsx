@@ -21,7 +21,7 @@ export default function DriverProfilePage() {
   ]
 
   return (
-    <div className="flex flex-col safe-top">
+    <div className="flex flex-col">
       {/* Profile header */}
       <div className="bg-white px-4 py-6 flex flex-col items-center border-b border-border-gray">
         <div className="relative mb-3">

@@ -24,14 +24,18 @@ class BookingController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'pickup'       => 'required|string',
-            'destination'  => 'required|string',
-            'date'         => 'required|date_format:Y-m-d',
-            'time'         => 'required|date_format:H:i',
-            'vehicle_type' => 'required|in:sedan_4,suv_5,mpv_7',
-            'distance_km'  => 'required|numeric|min:0',
-            'price'        => 'required|integer|min:0',
-            'voucher_code' => 'nullable|string',
+            'pickup'          => 'required|string',
+            'pickup_lat'      => 'nullable|numeric|between:-90,90',
+            'pickup_lng'      => 'nullable|numeric|between:-180,180',
+            'destination'     => 'required|string',
+            'destination_lat' => 'nullable|numeric|between:-90,90',
+            'destination_lng' => 'nullable|numeric|between:-180,180',
+            'date'            => 'required|date_format:Y-m-d',
+            'time'            => 'required|date_format:H:i',
+            'vehicle_type'    => 'required|in:sedan_4,suv_5,mpv_7',
+            'distance_km'     => 'required|numeric|min:0',
+            'price'           => 'required|integer|min:0',
+            'voucher_code'    => 'nullable|string',
         ]);
 
         $discount   = 0;
@@ -54,17 +58,21 @@ class BookingController extends Controller
         }
 
         $booking = Booking::create([
-            'customer_id'  => $request->user()->id,
-            'pickup'       => $data['pickup'],
-            'destination'  => $data['destination'],
-            'date'         => $data['date'],
-            'time'         => $data['time'],
-            'distance_km'  => $data['distance_km'],
-            'price'        => $data['price'],
-            'discount'     => $discount,
-            'voucher_id'   => $voucherId,
-            'status'       => 'finding_driver',
-            'vehicle_type' => $data['vehicle_type'],
+            'customer_id'     => $request->user()->id,
+            'pickup'          => $data['pickup'],
+            'pickup_lat'      => $data['pickup_lat'] ?? null,
+            'pickup_lng'      => $data['pickup_lng'] ?? null,
+            'destination'     => $data['destination'],
+            'destination_lat' => $data['destination_lat'] ?? null,
+            'destination_lng' => $data['destination_lng'] ?? null,
+            'date'            => $data['date'],
+            'time'            => $data['time'],
+            'distance_km'     => $data['distance_km'],
+            'price'           => $data['price'],
+            'discount'        => $discount,
+            'voucher_id'      => $voucherId,
+            'status'          => 'finding_driver',
+            'vehicle_type'    => $data['vehicle_type'],
         ]);
 
         return response()->json($this->formatBooking($booking->load('driver.driverProfile')), 201);

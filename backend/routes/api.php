@@ -13,10 +13,13 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\Admin\RevenueController;
+use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
+use App\Http\Controllers\PriceConfigController;
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send',   [OtpController::class, 'send']);
 Route::post('/auth/otp/verify', [OtpController::class, 'verify']);
+Route::get('/price-configs',    [PriceConfigController::class, 'index']);
 
 // ── Authenticated ─────────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -35,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Driver
     Route::middleware('role:driver')->group(function () {
         Route::get('/driver/trips',                      [TripController::class, 'index']);
+        Route::get('/driver/trips/mine',                 [TripController::class, 'mine']);
         Route::post('/driver/trips/{booking}/accept',    [TripController::class, 'accept']);
         Route::patch('/driver/trips/{booking}/status',   [TripController::class, 'updateStatus']);
         Route::get('/driver/wallet',                     [WalletController::class, 'show']);
@@ -54,5 +58,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/vouchers',                        [AdminVoucherController::class, 'store']);
         Route::patch('/admin/vouchers/{voucher}/deactivate',  [AdminVoucherController::class, 'deactivate']);
         Route::get('/admin/revenue',                          [RevenueController::class, 'index']);
+        Route::apiResource('/admin/price-configs', AdminPriceConfigController::class)->except(['show']);
     });
 });

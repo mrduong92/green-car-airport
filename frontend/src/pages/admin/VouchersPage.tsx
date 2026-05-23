@@ -50,7 +50,7 @@ export default function VouchersPage() {
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-h2 text-navy font-semibold">Voucher</h1>
+        <h1 className="hidden lg:block text-h2 text-navy font-semibold">Voucher</h1>
         <Button size="sm" onClick={() => setShowForm(!showForm)}>
           <span className="material-symbols-outlined text-lg">add</span>
           Tạo mới

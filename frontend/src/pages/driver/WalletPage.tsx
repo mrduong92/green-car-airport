@@ -8,7 +8,7 @@ export default function WalletPage() {
   const { data: txs = [] } = useQuery({ queryKey: ['transactions'], queryFn: () => getTransactions().then((r) => r.data) })
 
   return (
-    <div className="flex flex-col safe-top">
+    <div className="flex flex-col">
       {/* Balance card */}
       <div className="bg-primary px-6 pt-10 pb-8">
         <p className="text-white/70 text-sm mb-1">Số dư điểm</p>

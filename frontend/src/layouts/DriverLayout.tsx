@@ -1,16 +1,19 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import ToastContainer from '@/components/common/Toast'
+import AppHeader from '@/components/common/AppHeader'
 import clsx from 'clsx'
 
 const TABS = [
-  { to: '/driver/trips',   icon: 'list_alt',        label: 'Cuốc xe' },
-  { to: '/driver/wallet',  icon: 'account_balance_wallet', label: 'Ví điểm' },
-  { to: '/driver/profile', icon: 'person',          label: 'Hồ sơ' },
+  { to: '/driver/trips',         icon: 'list_alt',               label: 'Cuốc xe' },
+  { to: '/driver/wallet',        icon: 'account_balance_wallet',  label: 'Ví điểm' },
+  { to: '/driver/notifications', icon: 'notifications',           label: 'Thông báo' },
+  { to: '/driver/profile',       icon: 'person',                 label: 'Hồ sơ' },
 ]
 
 export default function DriverLayout() {
   return (
     <div className="flex flex-col min-h-svh bg-warm-white max-w-[430px] mx-auto relative">
+      <AppHeader />
       <main className="flex-1 overflow-y-auto pb-20">
         <Outlet />
       </main>

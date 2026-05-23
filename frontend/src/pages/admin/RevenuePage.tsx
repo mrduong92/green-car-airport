@@ -49,8 +49,6 @@ export default function RevenuePage() {
 
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
-      <h1 className="text-h2 text-navy font-semibold">Báo cáo doanh thu</h1>
-
       {/* Period selector */}
       <div className="flex gap-2">
         {PERIODS.map((p) => (

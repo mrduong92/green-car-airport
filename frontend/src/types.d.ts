@@ -28,7 +28,11 @@ declare namespace App {
 
   interface BookingPayload {
     pickup: string
+    pickup_lat?: number
+    pickup_lng?: number
     destination: string
+    destination_lat?: number
+    destination_lng?: number
     date: string
     time: string
     distance_km: number
@@ -41,6 +45,8 @@ declare namespace App {
     id: number
     booking_id: number
     pickup: string
+    pickup_lat?: number | null
+    pickup_lng?: number | null
     destination: string
     date: string
     time: string
@@ -52,6 +58,7 @@ declare namespace App {
     status: TripStatus
     is_new: boolean
     customer_phone_masked: string
+    distance_to_driver?: number | null
   }
 
   interface Wallet {
@@ -133,6 +140,18 @@ declare namespace App {
     trips_completed: number
     avg_per_trip: number
     chart: { label: string; revenue: number; fee: number }[]
+  }
+
+  interface PriceConfig {
+    id: number
+    service_type: 'airport' | 'provincial'
+    trip_type: 'one_way' | 'round_trip'
+    vehicle_type: VehicleType
+    price_type: 'range' | 'per_km'
+    min_price: number
+    max_price: number
+    is_active: boolean
+    sort_order: number
   }
 
   interface Paginated<T> {

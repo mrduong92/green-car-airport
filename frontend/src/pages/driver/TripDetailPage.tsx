@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAvailableTrips, updateTripStatus } from '@/api/trips'
+import { getMyTrips, updateTripStatus } from '@/api/trips'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 import StatusBadge from '@/components/common/StatusBadge'
@@ -18,8 +18,8 @@ export default function TripDetailPage() {
   const showToast = useUiStore((s) => s.showToast)
 
   const { data: trips = [] } = useQuery({
-    queryKey: ['trips'],
-    queryFn: () => getAvailableTrips().then((r) => r.data),
+    queryKey: ['my-trips'],
+    queryFn: () => getMyTrips().then((r) => r.data),
   })
   const trip = trips.find((t) => t.id === Number(id))
 
@@ -45,12 +45,9 @@ export default function TripDetailPage() {
   )
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4 safe-top">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)}>
-          <span className="material-symbols-outlined text-neutral-gray">arrow_back</span>
-        </button>
-        <h1 className="text-h2 text-navy font-semibold flex-1">Chi tiết cuốc #{trip.id}</h1>
+    <div className="flex flex-col gap-4 px-4 py-4">
+      <div className="flex items-center justify-between">
+        <span className="text-caption text-neutral-gray">Cuốc #{trip.id}</span>
         <StatusBadge status={trip.status} />
       </div>
 
