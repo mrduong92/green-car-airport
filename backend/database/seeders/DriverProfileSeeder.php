@@ -22,7 +22,7 @@ class DriverProfileSeeder extends Seeder
                 'vehicle_color' => 'Trắng',
                 'status'        => 'active',
                 'is_verified'   => true,
-                'is_online'     => false,
+                'is_online'     => true,
                 'rating'        => 4.85,
                 'trips_count'   => 142,
                 'months_active' => 8,

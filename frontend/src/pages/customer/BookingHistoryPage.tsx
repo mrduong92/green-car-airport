@@ -24,7 +24,7 @@ export default function BookingHistoryPage() {
   })
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="w-full flex flex-col gap-0">
       {/* Filter tabs */}
       <div className="bg-white px-4 pt-3 pb-0 border-b border-border-gray">
         <div className="flex gap-2 overflow-x-auto pb-3">

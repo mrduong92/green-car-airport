@@ -79,18 +79,20 @@ export default function AppHeader() {
 
   return (
     <>
-      <header className="bg-white border-b border-border-gray px-4 flex items-center justify-between safe-top sticky top-0 z-30 min-h-[56px]">
-        {/* Left — back button or brand icon */}
-        <div className="w-10 flex items-center shrink-0">
+      <header className="sticky top-0 z-30 safe-top bg-white/[0.92] backdrop-blur-[10px] [-webkit-backdrop-filter:blur(10px)] border-b border-border-soft px-3 flex items-center justify-between min-h-[52px]">
+        {/* Left — brand logo square or back button */}
+        <div className="w-9 flex items-center shrink-0">
           {inRootSet ? (
-            <span className="material-symbols-outlined text-primary text-2xl select-none">directions_car</span>
+            <div className="w-9 h-9 rounded-logo bg-primary-tint flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary" style={{ fontSize: 20 }}>directions_car</span>
+            </div>
           ) : (
             <button
               onClick={() => navigate(-1)}
-              className="w-10 h-10 flex items-center justify-center -ml-2 text-navy"
+              className="w-9 h-9 flex items-center justify-center text-navy"
               aria-label="Quay lại"
             >
-              <span className="material-symbols-outlined">arrow_back</span>
+              <span className="material-symbols-outlined text-[22px]">arrow_back</span>
             </button>
           )}
         </div>
@@ -98,9 +100,9 @@ export default function AppHeader() {
         {/* Center — page title */}
         <div className="flex-1 text-center px-2 min-w-0">
           {inRootSet ? (
-            <span className="text-navy font-bold text-sm tracking-wide">Green Car</span>
+            <span className="text-navy font-semibold text-[15px] tracking-tight">Green Car</span>
           ) : (
-            <span className="text-navy font-semibold text-sm truncate block">{title}</span>
+            <span className="text-navy font-semibold text-[15px] truncate block">{title}</span>
           )}
         </div>
 
@@ -109,17 +111,17 @@ export default function AppHeader() {
           {user?.role === 'admin' ? (
             <button
               onClick={() => logoutMutation.mutate()}
-              className="w-10 h-10 flex items-center justify-center text-neutral-gray"
+              className="w-9 h-9 flex items-center justify-center text-neutral-gray"
               aria-label="Đăng xuất"
             >
-              <span className="material-symbols-outlined">logout</span>
+              <span className="material-symbols-outlined text-[20px]">logout</span>
             </button>
           ) : (
             <button
               onClick={() => setShowQuyDinh(true)}
-              className="flex items-center gap-1 text-primary text-sm font-medium"
+              className="flex items-center gap-1 text-primary text-[13px] font-semibold"
             >
-              <span className="material-symbols-outlined text-base leading-none">info</span>
+              <span className="material-symbols-outlined text-[16px] leading-none">info</span>
               <span>Quy định</span>
             </button>
           )}
@@ -136,17 +138,19 @@ export default function AppHeader() {
             className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white rounded-t-2xl max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-4 border-b border-border-gray">
-              <p className="text-sm font-semibold text-navy">{regulationsTitle}</p>
-              <button onClick={() => setShowQuyDinh(false)}>
-                <span className="material-symbols-outlined text-neutral-gray">close</span>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border-soft">
+              <p className="text-[15px] font-semibold text-navy">{regulationsTitle}</p>
+              <button onClick={() => setShowQuyDinh(false)} className="text-neutral-gray">
+                <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
             <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto">
               {regulations.map(({ icon, text }) => (
                 <div key={text} className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-primary text-xl shrink-0">{icon}</span>
-                  <p className="text-sm text-navy leading-relaxed">{text}</p>
+                  <div className="w-8 h-8 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-primary text-[18px]">{icon}</span>
+                  </div>
+                  <p className="text-sm text-navy leading-relaxed pt-1">{text}</p>
                 </div>
               ))}
             </div>

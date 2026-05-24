@@ -28,13 +28,13 @@ export default function RevenuePage() {
       {
         label: 'Doanh thu',
         data: data?.chart.map((c) => c.revenue / 1000) ?? [],
-        backgroundColor: '#006a36',
+        backgroundColor: '#1E3A8A',
         borderRadius: 6,
       },
       {
         label: 'Phí app',
         data: data?.chart.map((c) => c.fee / 1000) ?? [],
-        backgroundColor: '#138648',
+        backgroundColor: '#C8A24A',
         borderRadius: 6,
       },
     ],

@@ -24,11 +24,15 @@ export default function AdminLayout() {
       {/* PC sidebar — visible only lg+ */}
       <aside className="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 flex-col bg-navy z-50">
         <div className="px-5 py-6 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-2xl">directions_car</span>
-            <span className="text-white font-bold text-lg">Green Car</span>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-logo bg-white/10 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>directions_car</span>
+            </div>
+            <div>
+              <p className="text-white font-bold text-[16px] leading-tight">Green Car</p>
+              <p className="text-white/50 text-[11px]">Admin Portal</p>
+            </div>
           </div>
-          <p className="text-white/50 text-xs mt-1">Admin Portal</p>
         </div>
         <nav className="flex-1 py-2">
           {TABS.map((tab) => (
@@ -64,30 +68,30 @@ export default function AdminLayout() {
         <div className="lg:hidden">
           <AppHeader />
         </div>
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-8">
+        <main className="flex-1 w-full overflow-y-auto pb-nav lg:pb-8 flex flex-col">
           <Outlet />
         </main>
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-border-gray safe-bottom z-40">
-        <div className="flex">
+      <nav className="lg:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white/[0.96] backdrop-blur-[12px] [-webkit-backdrop-filter:blur(12px)] border-t border-border-soft shadow-card-up safe-bottom z-40">
+        <div className="flex pt-1.5 pb-1">
           {TABS.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
               className={({ isActive }) =>
-                clsx('flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors',
-                  isActive ? 'text-primary' : 'text-neutral-gray')
+                clsx('flex-1 flex flex-col items-center py-1.5 gap-0.5 transition-colors',
+                  isActive ? 'text-primary' : 'text-neutral-dim')
               }
             >
               {({ isActive }) => (
                 <>
-                  <span className="material-symbols-outlined text-xl"
-                    style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
+                  <span className="material-symbols-outlined text-[20px]"
+                    style={{ fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400" }}>
                     {tab.icon}
                   </span>
-                  <span className="font-medium text-[10px] leading-tight text-center">{tab.label}</span>
+                  <span className={clsx('text-[10px] leading-tight text-center', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
                 </>
               )}
             </NavLink>

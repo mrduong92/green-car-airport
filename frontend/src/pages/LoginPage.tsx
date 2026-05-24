@@ -75,22 +75,33 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-svh bg-warm-white flex flex-col max-w-[430px] mx-auto">
-      {/* Green header */}
-      <div className="bg-primary px-6 pt-14 pb-10 safe-top">
-        <button onClick={() => step === 'otp' ? setStep('phone') : navigate(-1)}
-          className="text-white mb-6 flex items-center gap-1">
+    <div className="min-h-svh bg-white flex flex-col max-w-[430px] mx-auto">
+      {/* Top bar with back */}
+      <div className="px-4 pt-14 pb-2 safe-top flex items-center">
+        <button
+          onClick={() => step === 'otp' ? setStep('phone') : navigate(-1)}
+          className="w-10 h-10 flex items-center justify-center text-navy"
+        >
           <span className="material-symbols-outlined">arrow_back</span>
         </button>
-        <h1 className="text-white text-2xl font-bold">Xác minh số điện thoại</h1>
-        <p className="text-white/70 text-sm mt-1">
-          {step === 'phone'
-            ? 'Nhập số điện thoại để nhận mã OTP'
-            : `Nhập mã 6 chữ số được gửi đến ${phone}`}
-        </p>
       </div>
 
-      <div className="flex-1 px-6 pt-8 flex flex-col gap-6">
+      <div className="flex-1 px-6 pt-4 flex flex-col gap-6">
+        {/* Brand icon */}
+        <div>
+          <div className="w-16 h-16 rounded-logo bg-primary-tint flex items-center justify-center mb-7">
+            <span className="material-symbols-outlined text-primary" style={{ fontSize: 32, fontVariationSettings: "'FILL' 1" }}>
+              directions_car
+            </span>
+          </div>
+          <h1 className="text-navy font-bold text-[28px] leading-tight mb-2">Chào mừng trở lại</h1>
+          <p className="text-neutral-gray text-sm">
+            {step === 'phone'
+              ? 'Đăng nhập bằng số điện thoại để bắt đầu đặt xe sân bay'
+              : `Nhập mã 6 chữ số được gửi đến ${phone}`}
+          </p>
+        </div>
+
         {step === 'phone' ? (
           <>
             {IS_DEV && (
@@ -101,7 +112,7 @@ export default function LoginPage() {
                     key={acc.role}
                     disabled={verifyMutation.isPending}
                     onClick={() => verifyMutation.mutate({ phone: acc.phone, otp: DEV_OTP })}
-                    className="w-full py-3 rounded-card border-2 border-primary/30 bg-light-green text-navy text-sm font-medium flex items-center justify-between px-4 disabled:opacity-50"
+                    className="w-full py-3 rounded-card border border-border-soft bg-primary-tint text-navy text-sm font-medium flex items-center justify-between px-4 disabled:opacity-50"
                   >
                     <span>{acc.label}</span>
                     <span className="text-xs text-neutral-gray">{acc.phone}</span>
@@ -114,15 +125,21 @@ export default function LoginPage() {
                 </div>
               </div>
             )}
-            <div className="flex items-center border border-border-gray rounded-input bg-white overflow-hidden">
-              <span className="px-4 py-4 text-navy font-medium border-r border-border-gray bg-light-green text-sm">🇻🇳 +84</span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="9xx xxx xxx"
-                className="flex-1 px-4 py-4 outline-none text-navy text-base"
-              />
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mb-2">Số điện thoại</p>
+              <div
+                className="flex items-center bg-white overflow-hidden h-[52px]"
+                style={{ border: '1.5px solid #1E3A8A', borderRadius: 8, boxShadow: '0 0 0 4px rgba(30,58,138,0.18)' }}
+              >
+                <span className="px-4 text-navy font-semibold text-sm border-r border-border-gray h-full flex items-center">🇻🇳 +84</span>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="9xx xxx xxx"
+                  className="flex-1 px-4 outline-none text-navy text-[17px] font-semibold tracking-wider bg-transparent"
+                />
+              </div>
             </div>
             <Button
               fullWidth size="lg"
@@ -132,6 +149,13 @@ export default function LoginPage() {
             >
               {IS_DEV ? 'Đăng nhập (Dev)' : 'Gửi mã OTP'}
             </Button>
+            {/* Info hint */}
+            <div className="flex items-start gap-3 p-4 bg-primary-tint rounded-card">
+              <span className="material-symbols-outlined text-primary text-[18px] shrink-0 mt-0.5">info</span>
+              <p className="text-[12px] text-primary leading-relaxed">
+                Lần đầu sử dụng? Tài khoản sẽ được tạo tự động sau khi xác thực OTP.
+              </p>
+            </div>
           </>
         ) : (
           <>
@@ -145,7 +169,7 @@ export default function LoginPage() {
                   value={d}
                   onChange={(e) => handleOtpChange(i, e.target.value)}
                   onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                  className="w-12 h-14 text-center text-xl font-bold border-2 border-border-gray rounded-input outline-none focus:border-primary text-navy"
+                  className="w-12 h-14 text-center text-xl font-bold border-[1.5px] border-border-gray rounded-input outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(30,58,138,0.18)] text-navy transition-shadow"
                 />
               ))}
             </div>
@@ -156,7 +180,7 @@ export default function LoginPage() {
             <p className="text-center text-caption text-neutral-gray">
               {countdown > 0
                 ? `Gửi lại mã sau ${countdown}s`
-                : <button onClick={() => { sendMutation.mutate(); setCountdown(45) }} className="text-primary">Gửi lại mã</button>
+                : <button onClick={() => { sendMutation.mutate(); setCountdown(45) }} className="text-primary font-medium">Gửi lại mã</button>
               }
             </p>
           </>

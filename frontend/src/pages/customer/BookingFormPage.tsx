@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -11,7 +12,6 @@ import { getPriceConfigs } from '@/api/priceConfig'
 import { goongDistanceMatrix } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
 import { useUiStore } from '@/stores/ui'
-import { useEffect, useRef } from 'react'
 import Button from '@/components/common/Button'
 import AddressInput from '@/components/common/AddressInput'
 
@@ -41,25 +41,30 @@ const DATE_CHIPS = Array.from({ length: 7 }, (_, i) => {
   const d = dayjs().add(i, 'day')
   return {
     value: d.format('YYYY-MM-DD'),
-    topLabel: i === 0 ? 'Hôm nay' : i === 1 ? 'Ngày mai' : VI_DAY[d.day()],
-    bottomLabel: d.format('D/M'),
+    label: i === 0 ? 'Hôm nay' : `${VI_DAY[d.day()]} ${d.format('D/M')}`,
   }
 })
 
-// ─── Time grid: 3 scroll rows × 16 chips (8h × :00+:30 interleaved) ──────────
+// ─── Time grid: 3 scroll rows (morning / afternoon / evening) ─────────────────
 
-const fmtTimeLabel = (val: string) => {
-  const [hh, mm] = val.split(':')
-  return `${parseInt(hh)}h${mm}`
-}
 const fmtTimeValue = (h: number, m: number) =>
   `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 
 const TIME_ROWS: string[][] = [
-  Array.from({ length: 8 }, (_, i) => i).flatMap((h)      => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),
-  Array.from({ length: 8 }, (_, i) => i + 8).flatMap((h)  => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),
-  Array.from({ length: 8 }, (_, i) => i + 16).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),
+  Array.from({ length: 7 }, (_, i) => i + 5).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),   // 05:00–11:30
+  Array.from({ length: 7 }, (_, i) => i + 12).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),  // 12:00–18:30
+  Array.from({ length: 5 }, (_, i) => i + 19).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),  // 19:00–23:30
 ]
+
+// ─── Section label ────────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-widest mt-5 mb-2.5">
+      {children}
+    </p>
+  )
+}
 
 // ─── Form schema ──────────────────────────────────────────────────────────────
 
@@ -211,220 +216,237 @@ export default function BookingFormPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-full">
+    <form
+      onSubmit={handleSubmit((d) => bookingMutation.mutate(d))}
+      className="flex flex-col min-h-full pb-44"
+    >
+      <div className="px-4 pt-4 flex flex-col">
 
-      {/* Header */}
-      <form
-        onSubmit={handleSubmit((d) => bookingMutation.mutate(d))}
-        className="flex flex-col flex-1 pb-28"
-      >
-        <div className="px-4 py-4 flex flex-col gap-4">
+        {/* ── Location card ─────────────────────────────────── */}
+        <div className="bg-white rounded-card shadow-card border border-border-soft">
+          {/* Điểm đón */}
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-7 h-7 rounded-full bg-primary-tint flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-primary" style={{ fontSize: 15, fontVariationSettings: "'FILL' 1" }}>location_on</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <AddressInput
+                label="Điểm đón"
+                placeholder="Tìm địa điểm đón..."
+                value={watch('pickup') ?? ''}
+                onChange={(v) => setValue('pickup', v, { shouldValidate: true })}
+                onPlaceSelect={(addr, latlng) => {
+                  setValue('pickup', addr, { shouldValidate: true })
+                  setPickupLatLng(latlng)
+                }}
+                error={errors.pickup?.message}
+              />
+            </div>
+            <button type="button" className="text-neutral-dim shrink-0">
+              <span className="material-symbols-outlined text-[20px]">swap_vert</span>
+            </button>
+          </div>
 
-          {/* Vehicle type selector */}
-          <div className="flex gap-2">
-            {VEHICLE_TYPES.map((v) => (
+          <div className="h-px bg-border-soft ml-[52px]" />
+
+          {/* Điểm đến */}
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="w-7 h-7 rounded-full bg-gold-tint flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-gold" style={{ fontSize: 15, fontVariationSettings: "'FILL' 1" }}>flight</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <AddressInput
+                label="Điểm đến"
+                placeholder="Sân bay hoặc điểm đến..."
+                value={watch('destination') ?? ''}
+                onChange={(v) => setValue('destination', v, { shouldValidate: true })}
+                onPlaceSelect={(addr, latlng) => {
+                  setValue('destination', addr, { shouldValidate: true })
+                  setDestLatLng(latlng)
+                }}
+                error={errors.destination?.message}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── LOẠI XE ───────────────────────────────────────── */}
+        <SectionLabel>Loại xe</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {VEHICLE_TYPES.map((v) => {
+            const active = vehicleType === v.value
+            return (
               <button
                 key={v.value}
                 type="button"
                 onClick={() => handleVehicleChange(v.value)}
                 className={clsx(
-                  'flex-1 flex flex-col items-center gap-1.5 py-3 rounded-card border-2 transition-colors',
-                  vehicleType === v.value
-                    ? 'border-primary bg-light-green'
+                  'flex flex-col items-center gap-1 py-3 rounded-card border transition-all',
+                  active
+                    ? 'border-primary bg-primary-tint shadow-[0_0_0_3px_rgba(30,58,138,0.18)]'
                     : 'border-border-gray bg-white'
                 )}
               >
-                <span className={clsx('material-symbols-outlined text-2xl', vehicleType === v.value ? 'text-primary' : 'text-neutral-gray')}>
+                <span
+                  className={clsx('material-symbols-outlined text-[26px]', active ? 'text-primary' : 'text-neutral-gray')}
+                  style={{ fontVariationSettings: "'wght' 300" }}
+                >
                   {v.icon}
                 </span>
-                <span className={clsx('text-sm font-semibold', vehicleType === v.value ? 'text-primary' : 'text-navy')}>
+                <span className={clsx('text-[13px] font-semibold', active ? 'text-primary' : 'text-navy')}>
                   {v.label}
                 </span>
               </button>
-            ))}
-          </div>
+            )
+          })}
+        </div>
 
-          {/* Location inputs */}
-          <div className="bg-white rounded-card shadow-card border-l-4 border-primary p-4 flex flex-col gap-3">
-            <AddressInput
-              icon="location_on"
-              placeholder="Tìm địa điểm đón..."
-              value={watch('pickup') ?? ''}
-              onChange={(v) => setValue('pickup', v, { shouldValidate: true })}
-              onPlaceSelect={(addr, latlng) => {
-                setValue('pickup', addr, { shouldValidate: true })
-                setPickupLatLng(latlng)
-              }}
-              error={errors.pickup?.message}
-            />
-            <div className="h-px bg-border-gray ml-9" />
-            <AddressInput
-              icon="flight_takeoff"
-              placeholder="Sân bay hoặc điểm đến..."
-              value={watch('destination') ?? ''}
-              onChange={(v) => setValue('destination', v, { shouldValidate: true })}
-              onPlaceSelect={(addr, latlng) => {
-                setValue('destination', addr, { shouldValidate: true })
-                setDestLatLng(latlng)
-              }}
-              error={errors.destination?.message}
-            />
-          </div>
-
-          {/* Date + Time */}
-          <div className="bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
-
-            {/* Date chips */}
-            <p className="text-caption text-neutral-gray">Ngày khởi hành</p>
-            <div className="overflow-x-auto -mx-1 px-1 pb-0.5">
-              <div className="flex gap-2" style={{ width: 'max-content' }}>
-                {DATE_CHIPS.map((chip) => (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    onClick={() => setValue('date', chip.value, { shouldValidate: true })}
-                    className={clsx(
-                      'flex flex-col items-center px-3.5 py-2 rounded-card border-2 shrink-0 min-w-[60px] transition-colors',
-                      selectedDate === chip.value
-                        ? 'border-primary bg-light-green'
-                        : 'border-border-gray bg-white'
-                    )}
-                  >
-                    <span className={clsx('text-xs font-medium', selectedDate === chip.value ? 'text-primary' : 'text-neutral-gray')}>
-                      {chip.topLabel}
-                    </span>
-                    <span className={clsx('text-sm font-bold mt-0.5', selectedDate === chip.value ? 'text-primary' : 'text-navy')}>
-                      {chip.bottomLabel}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="h-px bg-border-gray" />
-
-            {/* Time grid — 3 rows scrolling together as one unit */}
-            <p className="text-caption text-neutral-gray">Giờ đón</p>
-            <div className="overflow-x-auto -mx-1 px-1 pb-0.5">
-              <div className="flex flex-col gap-1.5" style={{ width: 'max-content' }}>
-                {TIME_ROWS.map((row, ri) => (
-                  <div key={ri} className="flex gap-1.5">
-                    {row.map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setValue('time', val, { shouldValidate: true })}
-                        className={clsx(
-                          'w-14 py-2 rounded-input text-xs font-medium border-2 transition-colors shrink-0',
-                          selectedTime === val
-                            ? 'border-primary bg-light-green text-primary'
-                            : 'border-border-gray bg-white text-navy'
-                        )}
-                      >
-                        {fmtTimeLabel(val)}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Price */}
-          <div className="bg-white rounded-card shadow-card p-4 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-caption text-neutral-gray mb-1.5">
-                  Giá tham khảo · {currentVehicle.label}
-                  {activeConfig && (
-                    <span className="ml-1 text-primary">
-                      ({activeConfig.price_type === 'per_km' ? 'theo km' : detectedService === 'airport' ? 'sân bay' : 'cố định'})
-                    </span>
+        {/* ── NGÀY KHỞI HÀNH ────────────────────────────────── */}
+        <SectionLabel>Ngày khởi hành</SectionLabel>
+        <div className="overflow-x-auto -mx-4 px-4 pb-0.5">
+          <div className="flex gap-2" style={{ width: 'max-content' }}>
+            {DATE_CHIPS.map((chip) => {
+              const active = selectedDate === chip.value
+              return (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => setValue('date', chip.value, { shouldValidate: true })}
+                  className={clsx(
+                    'px-4 py-2 rounded-pill text-[13px] font-medium border whitespace-nowrap shrink-0 transition-colors',
+                    active
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-white text-navy border-border-gray'
                   )}
-                </p>
-                {activeConfig && (suggestedMin > 0 || activeConfig.price_type === 'range') ? (
-                  <span className="bg-light-green text-primary text-xs font-semibold rounded-pill px-3 py-1">
-                    {suggestedMin.toLocaleString('vi')} – {suggestedMax.toLocaleString('vi')} đ
-                  </span>
-                ) : (
-                  <span className="text-xs text-neutral-gray">
-                    {activeConfig ? 'Chọn điểm đón & đến để tính' : 'Chọn điểm đón & đến để xem'}
-                  </span>
-                )}
+                >
+                  {chip.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── GIỜ ĐÓN ──────────────────────────────────────── */}
+        <SectionLabel>Giờ đón</SectionLabel>
+        <div className="flex flex-col gap-1.5">
+          {TIME_ROWS.map((row, ri) => (
+            <div key={ri} className="overflow-x-auto -mx-4 px-4">
+              <div className="flex gap-1.5" style={{ width: 'max-content' }}>
+                {row.map((val) => {
+                  const active = selectedTime === val
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setValue('time', val, { shouldValidate: true })}
+                      className={clsx(
+                        'w-[56px] py-[7px] rounded-pill text-[13px] font-medium border shrink-0 transition-colors',
+                        active
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white text-navy border-border-gray'
+                      )}
+                    >
+                      {val}
+                    </button>
+                  )
+                })}
               </div>
-              {distance > 0 && (
-                <div className="flex items-center gap-1.5 bg-light-green rounded-pill px-3 py-1">
-                  <span className="material-symbols-outlined text-primary text-sm">straighten</span>
-                  <span className="text-xs font-semibold text-primary">~{distance.toFixed(1)} km</span>
-                </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── BẢNG GIÁ THAM KHẢO ───────────────────────────── */}
+        <SectionLabel>Bảng giá tham khảo</SectionLabel>
+        <div className="bg-white rounded-card shadow-card border border-border-soft">
+          <div className="flex items-center gap-4 px-4 py-3.5">
+            <div className="flex-1">
+              <p className="text-[12px] text-neutral-gray mb-0.5">Khoảng cách</p>
+              <p className="text-[16px] font-semibold text-navy tabular-nums">
+                {distance > 0 ? `${distance.toFixed(1)} km` : '—'}
+              </p>
+            </div>
+            <div className="w-px h-8 bg-border-soft" />
+            <div className="flex-1">
+              <p className="text-[12px] text-neutral-gray mb-0.5">Mức giá tham khảo</p>
+              {activeConfig && suggestedMin > 0 ? (
+                <p className="text-[15px] font-semibold text-navy tabular-nums">
+                  {suggestedMin.toLocaleString('vi')} – {suggestedMax.toLocaleString('vi')} đ
+                </p>
+              ) : (
+                <p className="text-[13px] text-neutral-gray">
+                  {activeConfig ? 'Chọn điểm đón & đến' : 'Chọn địa điểm để xem'}
+                </p>
               )}
             </div>
-            {errors.distance_km && (
-              <p className="text-danger-red text-xs -mt-2">{errors.distance_km.message}</p>
-            )}
+          </div>
+          {errors.distance_km && (
+            <p className="text-danger-red text-xs px-4 pb-3 -mt-1">{errors.distance_km.message}</p>
+          )}
+        </div>
 
-            <div>
-              <p className="text-caption text-neutral-gray mb-2">Giá bạn muốn trả</p>
-              <div className="flex items-center border border-border-gray rounded-input overflow-hidden">
-                <span className="px-3 py-3 text-neutral-gray text-sm bg-light-green border-r border-border-gray">đ</span>
-                <input
-                  type="number"
-                  {...register('price')}
-                  placeholder="Tự động tính khi chọn địa điểm"
-                  className="flex-1 px-3 py-3 outline-none text-navy text-sm"
-                />
-              </div>
-              {errors.price && <p className="text-danger-red text-xs mt-1">{errors.price.message}</p>}
+        {/* ── GIÁ BẠN MUỐN TRẢ ────────────────────────────── */}
+        <SectionLabel>Giá bạn muốn trả</SectionLabel>
+        <div className="bg-white rounded-card shadow-card border border-border-soft flex items-center px-4 h-14">
+          <input
+            type="number"
+            {...register('price')}
+            placeholder="Tự động tính khi chọn địa điểm"
+            className="flex-1 outline-none text-navy text-[18px] font-semibold tabular-nums min-w-0"
+            style={{ color: '#1E3A8A' }}
+          />
+          <span className="text-neutral-gray text-sm font-medium ml-2 shrink-0">đ</span>
+        </div>
+        {errors.price && <p className="text-danger-red text-xs mt-1">{errors.price.message}</p>}
+
+        {/* ── VOUCHER ──────────────────────────────────────── */}
+        <SectionLabel>Voucher</SectionLabel>
+        <div className="bg-white rounded-card shadow-card border border-border-soft flex items-center gap-3 px-4 py-3">
+          <span className="material-symbols-outlined text-neutral-gray text-[20px]">confirmation_number</span>
+          {discount > 0 ? (
+            <>
+              <span className="text-sm text-navy flex-1">Voucher đã áp dụng</span>
+              <span className="bg-primary-tint text-primary text-[12px] font-semibold rounded-pill px-3 py-1">
+                -{discount.toLocaleString('vi')} đ
+              </span>
+            </>
+          ) : (
+            <>
+              <input
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                placeholder="Nhập mã voucher..."
+                className="flex-1 outline-none text-sm text-navy"
+              />
+              {voucherCode && (
+                <button type="button" onClick={() => voucherMutation.mutate()}
+                  className="text-primary text-[13px] font-semibold shrink-0">
+                  Áp dụng
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="h-4" />
+      </div>
+
+      {/* ── Sticky footer — sits above bottom nav ──────── */}
+      <div className="above-nav fixed left-0 w-full bg-white/[0.96] backdrop-blur-[10px] border-t border-border-soft shadow-card-up px-4 pt-3 pb-4 z-30">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] text-neutral-gray">Tổng thanh toán</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[22px] font-bold text-navy tabular-nums">{total.toLocaleString('vi')} đ</span>
+              {discount > 0 && (
+                <span className="text-[12px] font-semibold text-success-green">-{discount.toLocaleString('vi')}đ</span>
+              )}
             </div>
           </div>
-
-          {/* Voucher */}
-          <div className="bg-white rounded-card shadow-card p-4">
-            {discount > 0 ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary text-xl">confirmation_number</span>
-                  <span className="text-sm text-navy">Voucher đã áp dụng</span>
-                </div>
-                <span className="bg-light-green text-primary text-xs font-semibold rounded-pill px-3 py-1">
-                  -{discount.toLocaleString('vi')} đ
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-neutral-gray text-xl">confirmation_number</span>
-                <input
-                  value={voucherCode}
-                  onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                  placeholder="Nhập mã voucher"
-                  className="flex-1 outline-none text-sm text-navy"
-                />
-                {voucherCode && (
-                  <button
-                    type="button"
-                    onClick={() => voucherMutation.mutate()}
-                    className="text-primary text-sm font-medium"
-                  >
-                    Áp dụng
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sticky footer */}
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white shadow-card-up border-t border-border-gray px-4 py-4 safe-bottom">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-neutral-gray">Tổng thanh toán</span>
-            <span className="text-xl font-bold text-primary">{total.toLocaleString('vi')} đ</span>
-          </div>
-          <Button type="submit" fullWidth size="lg" loading={bookingMutation.isPending}>
-            Đặt xe ngay →
+          <Button type="submit" size="lg" loading={bookingMutation.isPending} className="shrink-0">
+            Đặt xe →
           </Button>
         </div>
-      </form>
-
-    </div>
+      </div>
+    </form>
   )
 }

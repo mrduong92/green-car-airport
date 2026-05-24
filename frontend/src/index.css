@@ -15,4 +15,9 @@
 @layer utilities {
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
   .safe-top    { padding-top:    env(safe-area-inset-top);    }
+
+  /* Nav height ≈ 68px + safe-area-inset-bottom. Use these to position
+     content above the fixed bottom nav on all devices including notched phones. */
+  .pb-nav  { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  .above-nav { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
 }

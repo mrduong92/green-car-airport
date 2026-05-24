@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->string('vehicle_color');
             $table->enum('status', ['active', 'pending', 'blocked'])->default('pending');
             $table->boolean('is_verified')->default(false);
-            $table->boolean('is_online')->default(false);
+            $table->boolean('is_online')->default(true);
             $table->decimal('rating', 3, 2)->default(5.00);
             $table->unsignedInteger('trips_count')->default(0);
             $table->unsignedInteger('months_active')->default(0);

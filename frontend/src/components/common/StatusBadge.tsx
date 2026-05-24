@@ -1,15 +1,16 @@
 import clsx from 'clsx'
 
 const MAP: Record<string, { label: string; cls: string }> = {
-  pending:        { label: 'Chờ xử lý',       cls: 'bg-yellow-100 text-yellow-800' },
-  finding_driver: { label: 'Đang tìm tài xế', cls: 'bg-orange-100 text-orange-700' },
-  accepted:       { label: 'Đã nhận',          cls: 'bg-blue-100 text-blue-700' },
-  in_progress:    { label: 'Đang chạy',        cls: 'bg-primary text-white' },
-  completed:      { label: 'Hoàn thành',       cls: 'bg-gray-100 text-gray-600' },
-  cancelled:      { label: 'Đã huỷ',           cls: 'bg-danger-red text-white' },
-  active:         { label: 'Đang hoạt động',   cls: 'bg-success-green text-white' },
-  blocked:        { label: 'Đã block',          cls: 'bg-red-900 text-white' },
-  waiting_approval: { label: 'Chờ duyệt',      cls: 'bg-yellow-100 text-yellow-800' },
+  pending:          { label: 'Chờ xử lý',       cls: 'bg-alert-orange/15 text-alert-orange' },
+  finding_driver:   { label: 'Đang tìm tài xế', cls: 'bg-alert-orange/15 text-alert-orange' },
+  accepted:         { label: 'Đã nhận',          cls: 'bg-primary-tint text-primary' },
+  picking_up:       { label: 'Đang đến đón',     cls: 'bg-primary-tint text-primary' },
+  in_progress:      { label: 'Đang chạy',        cls: 'bg-primary text-white' },
+  completed:        { label: 'Hoàn thành',       cls: 'bg-success-green/15 text-success-green' },
+  cancelled:        { label: 'Đã huỷ',           cls: 'bg-danger-red text-white' },
+  active:           { label: 'Đang hoạt động',   cls: 'bg-success-green text-white' },
+  blocked:          { label: 'Đã block',          cls: 'bg-danger-red text-white' },
+  waiting_approval: { label: 'Chờ duyệt',        cls: 'bg-alert-orange/15 text-alert-orange' },
 }
 
 export default function StatusBadge({ status }: { status: string }) {

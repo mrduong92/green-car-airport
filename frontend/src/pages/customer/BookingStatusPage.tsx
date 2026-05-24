@@ -41,7 +41,7 @@ export default function BookingStatusPage() {
   if (!booking) return <div className="flex items-center justify-center h-40"><span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span></div>
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-4">
+    <div className="w-full flex flex-col gap-4 px-4 py-4">
       {/* Booking ref + status */}
       <div className="flex items-center justify-between">
         <span className="text-caption text-neutral-gray">Đơn #{booking.id}</span>

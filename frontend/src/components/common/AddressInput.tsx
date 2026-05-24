@@ -8,11 +8,12 @@ interface Props {
   onChange: (val: string) => void
   onPlaceSelect: (addr: string, latlng: LatLng) => void
   placeholder: string
-  icon: string
+  icon?: string
+  label?: string
   error?: string
 }
 
-export default function AddressInput({ value, onChange, onPlaceSelect, placeholder, icon, error }: Props) {
+export default function AddressInput({ value, onChange, onPlaceSelect, placeholder, icon, label, error }: Props) {
   const { query, setQuery, setQuerySilent, predictions, setPredictions, loading, sessionToken } = useGoongAutocomplete()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -50,20 +51,24 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative flex-1 min-w-0">
       <div className="flex items-center gap-3">
-        <span className="material-symbols-outlined text-primary shrink-0">{icon}</span>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)   // normal setQuery so typing triggers autocomplete
-            onChange(e.target.value)
-          }}
-          placeholder={placeholder}
-          className="flex-1 outline-none text-navy text-sm"
-          autoComplete="off"
-        />
+        {icon && <span className="material-symbols-outlined text-primary shrink-0">{icon}</span>}
+        <div className="flex-1 min-w-0">
+          {label && <p className="text-[11px] text-neutral-gray mb-0.5">{label}</p>}
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              onChange(e.target.value)
+            }}
+            placeholder={placeholder}
+            className="w-full outline-none text-navy text-[14px] font-medium"
+            style={{ fontWeight: query ? 600 : 400 }}
+            autoComplete="off"
+          />
+        </div>
         {loading && (
           <span className="material-symbols-outlined text-neutral-gray text-base shrink-0 animate-spin">
             progress_activity
@@ -72,14 +77,14 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
       </div>
 
       {predictions.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full mt-1 bg-white rounded-card shadow-card border border-border-gray z-50 max-h-60 overflow-y-auto">
+        <ul className="absolute left-0 right-0 top-full mt-1 bg-white rounded-card shadow-float border border-border-soft z-[100] max-h-[340px] overflow-y-auto">
           {predictions.map((p) => (
             <li key={p.place_id}>
               <button
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(p.place_id, p.description)}
-                className="w-full text-left px-4 py-3 flex flex-col gap-0.5 hover:bg-light-green active:bg-light-green border-b border-border-gray last:border-0"
+                className="w-full text-left px-4 py-3 flex flex-col gap-0.5 hover:bg-primary-tint active:bg-primary-tint border-b border-border-soft last:border-0"
               >
                 <span className="text-sm text-navy font-medium line-clamp-1">
                   {p.structured_formatting.main_text}
