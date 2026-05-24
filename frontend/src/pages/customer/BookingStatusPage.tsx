@@ -14,15 +14,25 @@ const GoongTripMap = lazy(() => import('@/components/driver/GoongTripMap'))
 const STEPS: { key: App.BookingStatus; label: string }[] = [
   { key: 'pending',        label: 'Đã đặt xe' },
   { key: 'finding_driver', label: 'Đang tìm tài xế' },
-  { key: 'accepted',       label: 'Tài xế đã nhận' },
+  { key: 'accepted',       label: 'Tài xế đang đón' },
+  { key: 'in_progress',   label: 'Đang di chuyển' },
   { key: 'completed',      label: 'Hoàn thành' },
 ]
 const ORDER: App.BookingStatus[] = ['pending', 'finding_driver', 'accepted', 'in_progress', 'completed']
 
-const STATUS_INFO: Record<string, { label: string; icon: string; color: string }> = {
-  accepted:    { label: 'Tài xế đã nhận cuốc',        icon: 'check_circle',   color: '#1E3A8A' },
-  picking_up:  { label: 'Tài xế đang đến đón bạn',    icon: 'directions_car', color: '#1E3A8A' },
-  in_progress: { label: 'Bạn đang trên đường',         icon: 'route',          color: '#006a36' },
+const STATUS_INFO: Record<string, { label: string; icon: string; bg: string; step: string }> = {
+  accepted:    {
+    label: 'Tài xế đang trên đường đến đón bạn',
+    icon:  'directions_car',
+    bg:    'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)',
+    step:  'Bước 1/2 · Đang đón',
+  },
+  in_progress: {
+    label: 'Bạn đang trên đường đến sân bay',
+    icon:  'route',
+    bg:    'linear-gradient(135deg, #059669 0%, #047857 100%)',
+    step:  'Bước 2/2 · Đang di chuyển',
+  },
 }
 
 export default function BookingStatusPage() {
@@ -33,7 +43,7 @@ export default function BookingStatusPage() {
   const { data, refetch } = useQuery({
     queryKey: ['booking', id],
     queryFn: () => getBooking(Number(id)).then((r) => r.data),
-    refetchInterval: 10_000,
+    refetchInterval: 5_000,
   })
 
   const cancelMutation = useMutation({
@@ -53,36 +63,50 @@ export default function BookingStatusPage() {
     </div>
   )
 
-  const isActive = ['accepted', 'picking_up', 'in_progress'].includes(booking.status)
+  const isActive = ['accepted', 'in_progress'].includes(booking.status)
   const statusInfo = STATUS_INFO[booking.status]
   const hasMap = booking.pickup_lat && booking.pickup_lng && booking.destination_lat && booking.destination_lng
 
   // ── In-progress view ─────────────────────────────────────────────────────
   if (isActive) {
+    const progressPct = booking.status === 'in_progress' ? 100 : 50
     return (
       <div className="w-full flex flex-col gap-4 pb-6">
         {/* Status header */}
-        <div
-          className="px-4 py-5 flex flex-col gap-2"
-          style={{ background: `linear-gradient(135deg, ${statusInfo.color} 0%, ${statusInfo.color}CC 100%)` }}
-        >
+        <div className="px-4 py-5 flex flex-col gap-2" style={{ background: statusInfo.bg }}>
+          {/* Top row */}
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-white/80 animate-pulse" />
-            <span className="text-white/80 text-[12px] font-semibold uppercase tracking-widest">
-              Cuốc đang thực hiện
+            <span className="inline-block w-2 h-2 rounded-full bg-white/80 animate-pulse" />
+            <span className="text-white/70 text-[11px] font-semibold uppercase tracking-widest flex-1">
+              {statusInfo.step}
             </span>
-            <div className="ml-auto">
-              <StatusBadge status={booking.status} />
-            </div>
+            <StatusBadge status={booking.status} />
           </div>
+
+          {/* Progress bar */}
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex-1 h-1.5 rounded-full bg-white/25 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-white transition-all duration-700 ease-out"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <span className="text-white/60 text-[11px] shrink-0">{progressPct}%</span>
+          </div>
+
+          {/* Main label + icon */}
           <div className="flex items-center gap-3 mt-1">
             <span className="material-symbols-outlined text-white text-[28px]"
                   style={{ fontVariationSettings: "'FILL' 1" }}>
               {statusInfo.icon}
             </span>
-            <p className="text-white text-[17px] font-bold leading-snug">{statusInfo.label}</p>
+            <div>
+              <p className="text-white text-[16px] font-bold leading-snug">{statusInfo.label}</p>
+              <p className="text-white/50 text-[11px] mt-0.5">
+                Đơn #{booking.id} · {booking.date} {booking.time}
+              </p>
+            </div>
           </div>
-          <p className="text-white/60 text-[12px]">Đơn #{booking.id} · {booking.date} {booking.time}</p>
         </div>
 
         {/* Map */}
@@ -176,20 +200,32 @@ export default function BookingStatusPage() {
       {/* Progress stepper */}
       <div className="bg-white rounded-card shadow-card p-4">
         {STEPS.map((step, i) => {
-          const done = currentIdx > i
-          const active = currentIdx === i
+          const allDone = booking.status === 'completed'
+          const done   = allDone || currentIdx > i
+          const active = !allDone && currentIdx === i
           return (
-            <div key={step.key} className="flex items-center gap-3 mb-3 last:mb-0">
-              <div className={clsx('w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                done ? 'bg-success-green text-white' : active ? 'bg-primary text-white' : 'bg-border-gray text-neutral-gray')}>
-                {done ? <span className="material-symbols-outlined text-sm">check</span> : i + 1}
+            <div key={step.key} className="flex items-start gap-3 mb-3 last:mb-0">
+              <div className={clsx(
+                'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5',
+                done ? 'bg-success-green text-white' : active ? 'bg-primary text-white' : 'bg-border-gray text-neutral-gray',
+              )}>
+                {done
+                  ? <span className="material-symbols-outlined text-sm">check</span>
+                  : <span>{i + 1}</span>
+                }
               </div>
               <div className="flex-1">
-                <span className={clsx('text-sm', active ? 'font-semibold text-navy' : done ? 'text-neutral-gray line-through' : 'text-neutral-gray')}>
+                <span className={clsx('text-sm',
+                  active ? 'font-semibold text-navy' : done ? 'text-neutral-gray' : 'text-neutral-gray/60',
+                )}>
                   {step.label}
                 </span>
               </div>
-              {active && <span className="material-symbols-outlined text-primary animate-spin text-sm">progress_activity</span>}
+              {active && (
+                <span className="material-symbols-outlined text-primary animate-spin text-sm mt-0.5">
+                  progress_activity
+                </span>
+              )}
             </div>
           )
         })}

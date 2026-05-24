@@ -31,7 +31,7 @@ export default function TripListPage() {
     queryFn: () => getMyTrips().then((r) => r.data),
     refetchInterval: 10_000,
   })
-  const activeTrip = myTrips[0] ?? null
+  const atCapacity = myTrips.length >= 3
 
   const { data: history = [] } = useQuery({
     queryKey: ['trip-history'],
@@ -43,8 +43,8 @@ export default function TripListPage() {
   const { data: trips = [] } = useQuery({
     queryKey: ['trips', sort],
     queryFn: () => getAvailableTrips({ sort }).then((r) => r.data),
-    refetchInterval: isOnline && !activeTrip ? 15_000 : false,
-    enabled: isOnline && !activeTrip,
+    refetchInterval: isOnline && !atCapacity ? 15_000 : false,
+    enabled: isOnline && !atCapacity,
   })
 
   const toggleMutation = useMutation({
@@ -88,8 +88,12 @@ export default function TripListPage() {
 
   const acceptMutation = useMutation({
     mutationFn: (id: number) => acceptTrip(id),
-    onSuccess: (_, id) => {
+    onSuccess: (res, id) => {
       showToast('Đã nhận cuốc!', 'success')
+      // Write the accepted trip into cache immediately so TripDetailPage
+      // has data the instant it mounts — no spinner, no reload needed.
+      qc.setQueryData<App.Trip[]>(['my-trips'], (prev = []) => [res.data, ...prev])
+      qc.invalidateQueries({ queryKey: ['my-trips'] })
       qc.invalidateQueries({ queryKey: ['trips'] })
       navigate(`/driver/trips/${id}`)
     },
@@ -143,50 +147,53 @@ export default function TripListPage() {
         </button>
       </div>
 
-      {/* Active trip banner */}
-      {activeTrip && (
-        <div className="mx-4 mt-3 rounded-card overflow-hidden"
-             style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)' }}>
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-3">
+      {/* Active trips section */}
+      {myTrips.length > 0 && (
+        <div className="mx-4 mt-3">
+          <div className="flex items-center justify-between mb-2 px-0.5">
+            <div className="flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-success-green animate-pulse" />
-              <span className="text-white/70 text-[11px] font-semibold uppercase tracking-widest flex-1">
-                Cuốc đang thực hiện
-              </span>
-              <span className="bg-white/20 text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-pill">
-                {activeTrip.status === 'picking_up'  ? 'Đang đến đón'
-                : activeTrip.status === 'in_progress' ? 'Đang chạy'
-                :                                        'Đã nhận'}
-              </span>
+              <span className="text-[13px] font-semibold text-navy">Cuốc đang thực hiện</span>
             </div>
-
-            <div className="flex gap-2.5 mb-3">
-              <div className="flex flex-col items-center pt-0.5 shrink-0">
-                <span className="material-symbols-outlined text-white text-[14px]"
-                      style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-                <div className="w-[2px] flex-1 bg-white/20 my-0.5 min-h-[12px]" />
-                <span className="material-symbols-outlined text-gold text-[14px]"
-                      style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
+            <span className="text-[12px] font-bold text-primary bg-primary-tint px-2.5 py-0.5 rounded-pill">
+              {myTrips.length}/3 cuốc
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {myTrips.map((trip) => (
+              <div key={trip.id} className="rounded-card overflow-hidden"
+                   style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)' }}>
+                <div className="p-3.5 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="inline-block text-[10px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-pill mb-1.5">
+                      {trip.status === 'in_progress' ? 'Đang di chuyển' : 'Đang đón'}
+                    </span>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="material-symbols-outlined text-white text-[12px]"
+                            style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+                      <p className="text-white text-[13px] font-semibold truncate">{trip.pickup}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-gold text-[12px]"
+                            style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
+                      <p className="text-white/80 text-[13px] truncate">{trip.destination}</p>
+                    </div>
+                    <p className="text-white/50 text-[11px] mt-1">{trip.distance_km} km · {trip.date} {trip.time}</p>
+                  </div>
+                  <div className="shrink-0 flex flex-col items-end gap-2">
+                    <p className="text-white font-bold text-[15px] tabular-nums">
+                      {trip.net_earning.toLocaleString('vi')} đ
+                    </p>
+                    <button
+                      onClick={() => navigate(`/driver/trips/${trip.id}`)}
+                      className="bg-white text-primary rounded-pill px-3 py-1.5 text-[12px] font-bold whitespace-nowrap"
+                    >
+                      Hoàn thành →
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-[13px] font-semibold truncate">{activeTrip.pickup}</p>
-                <p className="text-white/50 text-[11px] my-1">{activeTrip.distance_km} km</p>
-                <p className="text-white text-[13px] font-semibold truncate">{activeTrip.destination}</p>
-              </div>
-              <div className="shrink-0 text-right self-center">
-                <p className="text-white/60 text-[10px]">Thu nhập</p>
-                <p className="text-white font-bold text-[16px] tabular-nums">
-                  {activeTrip.net_earning.toLocaleString('vi')} đ
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate(`/driver/trips/${activeTrip.id}`)}
-              className="w-full bg-white text-primary rounded-pill py-2.5 text-[14px] font-bold"
-            >
-              Tiếp tục chuyến →
-            </button>
+            ))}
           </div>
         </div>
       )}
@@ -214,7 +221,7 @@ export default function TripListPage() {
       {/* Sort row */}
       <div className="px-4 py-4 flex items-center justify-between">
         <p className="text-[14px] font-semibold text-navy">
-          {isOnline ? `${trips.length} cuốc gần đây` : 'Cuốc xe'}
+          {isOnline && !atCapacity ? `${trips.length} cuốc đang chờ` : 'Cuốc xe'}
         </p>
         <button className="flex items-center gap-1 text-[12px] text-primary font-semibold">
           <span className="material-symbols-outlined text-[14px]">filter_list</span>
@@ -235,15 +242,15 @@ export default function TripListPage() {
           <EmptyState icon="toggle_off" title="Bạn đang offline"
             description="Bật sẵn sàng nhận cuốc để thấy danh sách chuyến" />
         )}
-        {isOnline && activeTrip && (
-          <EmptyState icon="do_not_disturb_on" title="Bạn đang có cuốc chạy"
-            description="Hoàn thành chuyến hiện tại trước khi nhận cuốc mới" />
+        {isOnline && atCapacity && (
+          <EmptyState icon="do_not_disturb_on" title="Đã đạt tối đa 3 cuốc"
+            description="Hoàn thành một chuyến để nhận thêm cuốc mới" />
         )}
-        {isOnline && !activeTrip && trips.length === 0 && (
+        {isOnline && !atCapacity && trips.length === 0 && (
           <EmptyState icon="directions_car" title="Chưa có cuốc xe nào"
             description="Hãy chờ khách đặt!" />
         )}
-        {isOnline && !activeTrip && trips.map((trip) => (
+        {isOnline && !atCapacity && trips.map((trip) => (
           <div key={trip.id} className="bg-white rounded-card shadow-card overflow-hidden border-l-[4px] border-l-primary border border-border-soft">
             <div className="p-3.5 flex flex-col gap-2.5">
               {/* Time + badges */}

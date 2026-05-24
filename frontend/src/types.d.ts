@@ -187,6 +187,17 @@ declare namespace App {
     sort_order: number
   }
 
+  interface CustomerProfile {
+    id: number
+    name: string
+    phone: string
+    total: number
+    completed: number
+    cancelled: number
+    total_spent: number
+    member_since: string
+  }
+
   interface AdminCustomer {
     id: number
     name: string

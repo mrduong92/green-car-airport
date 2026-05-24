@@ -8,11 +8,10 @@ import { lazy, Suspense } from 'react'
 
 const GoongTripMap = lazy(() => import('@/components/driver/GoongTripMap'))
 
-const STATUS_FLOW: { status: App.TripStatus; label: string }[] = [
-  { status: 'picking_up',  label: 'Đang đến đón' },
-  { status: 'in_progress', label: 'Đang chạy' },
-  { status: 'completed',   label: 'Hoàn thành' },
-]
+const NEXT_STEP: Partial<Record<App.TripStatus, { status: App.TripStatus; label: string }>> = {
+  accepted:    { status: 'in_progress', label: 'Đã đón khách' },
+  in_progress: { status: 'completed',   label: 'Hoàn thành chuyến' },
+}
 
 export default function TripDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -20,11 +19,12 @@ export default function TripDetailPage() {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
 
-  const { data: trips = [] } = useQuery({
+  const { data: trips, isPending } = useQuery({
     queryKey: ['my-trips'],
     queryFn: () => getMyTrips().then((r) => r.data),
+    refetchOnMount: 'always',
   })
-  const trip = trips.find((t) => t.id === Number(id))
+  const trip = trips?.find((t) => t.id === Number(id))
 
   const statusMutation = useMutation({
     mutationFn: (status: App.TripStatus) => updateTripStatus(Number(id), status),
@@ -40,17 +40,23 @@ export default function TripDetailPage() {
     onError: () => showToast('Cập nhật thất bại', 'error'),
   })
 
-  if (!trip) return (
+  if (isPending) return (
     <div className="flex items-center justify-center h-40">
       <span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span>
     </div>
   )
 
-  const nextStep = STATUS_FLOW.find((s) =>
-    trip.status === 'accepted'    ? s.status === 'picking_up'  :
-    trip.status === 'picking_up'  ? s.status === 'in_progress' :
-    trip.status === 'in_progress' ? s.status === 'completed'   : false
+  if (!trip) return (
+    <div className="flex flex-col items-center justify-center h-40 gap-2 px-6 text-center">
+      <span className="material-symbols-outlined text-4xl text-neutral-dim">search_off</span>
+      <p className="text-sm text-neutral-gray">Không tìm thấy cuốc xe này</p>
+      <button onClick={() => navigate('/driver/trips')} className="text-primary text-sm font-medium">
+        Quay lại danh sách
+      </button>
+    </div>
   )
+
+  const nextStep = NEXT_STEP[trip.status] ?? null
 
   const hasMap = trip.pickup_lat && trip.pickup_lng && trip.destination_lat && trip.destination_lng
 
@@ -139,9 +145,6 @@ export default function TripDetailPage() {
           onClick={() => statusMutation.mutate(nextStep.status)}>
           {nextStep.label}
         </Button>
-      )}
-      {trip.status === 'accepted' && (
-        <Button fullWidth variant="ghost" onClick={() => navigate(-1)}>Bỏ qua</Button>
       )}
     </div>
   )

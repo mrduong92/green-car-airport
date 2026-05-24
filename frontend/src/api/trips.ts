@@ -9,7 +9,7 @@ export const getMyTrips = () =>
 export const getTripHistory = () =>
   api.get<App.Trip[]>('/driver/trips/history')
 
-export const acceptTrip = (id: number) => api.post(`/driver/trips/${id}/accept`)
+export const acceptTrip = (id: number) => api.post<App.Trip>(`/driver/trips/${id}/accept`)
 
 export const updateTripStatus = (id: number, status: App.TripStatus) =>
   api.patch(`/driver/trips/${id}/status`, { status })

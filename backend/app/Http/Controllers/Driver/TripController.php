@@ -37,12 +37,12 @@ class TripController extends Controller
             return response()->json(['message' => 'Chuyến này đã được nhận hoặc không còn khả dụng.'], 422);
         }
 
-        $hasActive = Booking::where('driver_id', $request->user()->id)
-            ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
-            ->exists();
+        $activeCount = Booking::where('driver_id', $request->user()->id)
+            ->whereIn('status', ['accepted', 'in_progress'])
+            ->count();
 
-        if ($hasActive) {
-            return response()->json(['message' => 'Bạn đang có chuyến chưa hoàn thành.'], 422);
+        if ($activeCount >= 3) {
+            return response()->json(['message' => 'Bạn đã đạt tối đa 3 cuốc đang thực hiện.'], 422);
         }
 
         $booking->update([
@@ -61,16 +61,16 @@ class TripController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        $map = [
-            'picking_up'  => 'picking_up',
-            'in_progress' => 'in_progress',
-            'completed'   => 'completed',
+        // accepted → in_progress → completed
+        $transitions = [
+            'accepted'    => 'in_progress',
+            'in_progress' => 'completed',
         ];
 
-        $newStatus = $map[$request->status] ?? null;
+        $newStatus = $transitions[$booking->status] ?? null;
 
-        if (! $newStatus) {
-            return response()->json(['message' => 'Trạng thái không hợp lệ.'], 422);
+        if (! $newStatus || $newStatus !== $request->status) {
+            return response()->json(['message' => 'Chuyển trạng thái không hợp lệ.'], 422);
         }
 
         $booking->update(['status' => $newStatus]);
@@ -105,7 +105,7 @@ class TripController extends Controller
     {
         $trips = Booking::with('customer')
             ->where('driver_id', $request->user()->id)
-            ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
+            ->whereIn('status', ['accepted', 'in_progress'])
             ->latest()
             ->get()
             ->map(fn ($b) => $this->formatTrip($b));

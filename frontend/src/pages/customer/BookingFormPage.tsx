@@ -222,9 +222,8 @@ export default function BookingFormPage() {
 
   const ACTIVE_STATUS_LABEL: Partial<Record<App.BookingStatus, string>> = {
     finding_driver: 'Đang tìm tài xế...',
-    accepted:       'Tài xế đã nhận cuốc',
-    picking_up:     'Tài xế đang đến đón bạn',
-    in_progress:    'Bạn đang trên đường',
+    accepted:       'Tài xế đang trên đường đến đón bạn',
+    in_progress:    'Bạn đang trên đường đến sân bay',
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -240,9 +239,10 @@ export default function BookingFormPage() {
           onClick={() => navigate(`/customer/booking/${activeBooking.id}`)}
           className="mx-4 mt-4 rounded-card overflow-hidden text-left"
           style={{
-            background: activeBooking.status === 'finding_driver'
-              ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
-              : 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)',
+            background:
+              activeBooking.status === 'finding_driver' ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' :
+              activeBooking.status === 'in_progress'    ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' :
+                                                          'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)',
           }}
         >
           <div className="px-4 py-3.5 flex items-center gap-3">
