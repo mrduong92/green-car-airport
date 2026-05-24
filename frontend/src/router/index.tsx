@@ -12,6 +12,7 @@ import CustomerProfilePage from '@/pages/customer/ProfilePage'
 import CustomerNotificationsPage from '@/pages/customer/NotificationsPage'
 import TripListPage from '@/pages/driver/TripListPage'
 import TripDetailPage from '@/pages/driver/TripDetailPage'
+import TripHistoryPage from '@/pages/driver/TripHistoryPage'
 import WalletPage from '@/pages/driver/WalletPage'
 import DriverProfilePage from '@/pages/driver/ProfilePage'
 import AdminDashboardPage from '@/pages/admin/DashboardPage'
@@ -67,6 +68,7 @@ export const router = createBrowserRouter([
         element: <DriverLayout />,
         children: [
           { path: '/driver/trips', element: <TripListPage /> },
+          { path: '/driver/trips/history', element: <TripHistoryPage /> },
           { path: '/driver/trips/:id', element: <TripDetailPage /> },
           { path: '/driver/wallet', element: <WalletPage /> },
           { path: '/driver/notifications', element: <DriverNotificationsPage /> },

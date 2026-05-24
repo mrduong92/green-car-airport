@@ -5,6 +5,7 @@ import clsx from 'clsx'
 
 const TABS = [
   { to: '/driver/trips',         icon: 'list_alt',               label: 'Cuốc xe' },
+  { to: '/driver/trips/history', icon: 'receipt_long',           label: 'Lịch sử' },
   { to: '/driver/wallet',        icon: 'account_balance_wallet',  label: 'Ví điểm' },
   { to: '/driver/notifications', icon: 'notifications',           label: 'Thông báo' },
   { to: '/driver/profile',       icon: 'person',                 label: 'Hồ sơ' },

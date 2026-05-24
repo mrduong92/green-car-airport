@@ -6,6 +6,9 @@ export const getAvailableTrips = (params?: { sort?: string }) =>
 export const getMyTrips = () =>
   api.get<App.Trip[]>('/driver/trips/mine')
 
+export const getTripHistory = () =>
+  api.get<App.Trip[]>('/driver/trips/history')
+
 export const acceptTrip = (id: number) => api.post(`/driver/trips/${id}/accept`)
 
 export const updateTripStatus = (id: number, status: App.TripStatus) =>

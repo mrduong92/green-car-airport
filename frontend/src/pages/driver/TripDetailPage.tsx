@@ -4,6 +4,9 @@ import { getMyTrips, updateTripStatus } from '@/api/trips'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 import StatusBadge from '@/components/common/StatusBadge'
+import { lazy, Suspense } from 'react'
+
+const GoongTripMap = lazy(() => import('@/components/driver/GoongTripMap'))
 
 const STATUS_FLOW: { status: App.TripStatus; label: string }[] = [
   { status: 'picking_up',  label: 'Đang đến đón' },
@@ -26,8 +29,13 @@ export default function TripDetailPage() {
   const statusMutation = useMutation({
     mutationFn: (status: App.TripStatus) => updateTripStatus(Number(id), status),
     onSuccess: (_, status) => {
+      qc.invalidateQueries({ queryKey: ['my-trips'] })
       qc.invalidateQueries({ queryKey: ['trips'] })
-      if (status === 'completed') { showToast('Hoàn thành chuyến!', 'success'); navigate('/driver/trips') }
+      if (status === 'completed') {
+        qc.invalidateQueries({ queryKey: ['trip-history'] })
+        showToast('Hoàn thành chuyến!', 'success')
+        navigate('/driver/trips')
+      }
     },
     onError: () => showToast('Cập nhật thất bại', 'error'),
   })
@@ -39,10 +47,12 @@ export default function TripDetailPage() {
   )
 
   const nextStep = STATUS_FLOW.find((s) =>
-    trip.status === 'accepted' ? s.status === 'picking_up' :
-    trip.status === 'picking_up' ? s.status === 'in_progress' :
-    trip.status === 'in_progress' ? s.status === 'completed' : false
+    trip.status === 'accepted'    ? s.status === 'picking_up'  :
+    trip.status === 'picking_up'  ? s.status === 'in_progress' :
+    trip.status === 'in_progress' ? s.status === 'completed'   : false
   )
+
+  const hasMap = trip.pickup_lat && trip.pickup_lng && trip.destination_lat && trip.destination_lng
 
   return (
     <div className="w-full flex flex-col gap-4 px-4 py-4">
@@ -51,20 +61,50 @@ export default function TripDetailPage() {
         <StatusBadge status={trip.status} />
       </div>
 
-      {/* Map placeholder */}
-      <div className="bg-light-green rounded-card h-40 flex items-center justify-center">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-4xl text-primary">map</span>
-          <p className="text-caption text-neutral-gray mt-1">Bản đồ tuyến đường</p>
+      {/* Map */}
+      <div className="rounded-card overflow-hidden h-48 bg-primary-tint">
+        {hasMap ? (
+          <Suspense fallback={
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span className="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
+              <p className="text-caption text-neutral-gray">Đang tải bản đồ...</p>
+            </div>
+          }>
+            <GoongTripMap
+              pickupLat={trip.pickup_lat!}
+              pickupLng={trip.pickup_lng!}
+              destLat={trip.destination_lat!}
+              destLng={trip.destination_lng!}
+            />
+          </Suspense>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+            <span className="material-symbols-outlined text-4xl text-primary">map</span>
+            <p className="text-caption text-neutral-gray">Không có tọa độ tuyến đường</p>
+          </div>
+        )}
+      </div>
+
+      {/* Route summary */}
+      <div className="bg-white rounded-card shadow-card p-4 flex gap-3">
+        <div className="flex flex-col items-center pt-1 shrink-0">
+          <span className="material-symbols-outlined text-primary text-base" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+          <div className="w-[2px] flex-1 bg-border-gray my-0.5 min-h-[20px]" />
+          <span className="material-symbols-outlined text-gold text-base" style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-navy truncate">{trip.pickup}</p>
+          <p className="text-[11px] text-neutral-gray my-1.5">{trip.distance_km} km · ~{trip.duration_min} phút</p>
+          <p className="text-sm font-semibold text-navy truncate">{trip.destination}</p>
         </div>
       </div>
 
       {/* Customer info */}
       <div className="bg-white rounded-card shadow-card p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-light-green flex items-center justify-center text-primary font-bold">K</div>
+        <div className="w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center text-primary font-bold shrink-0">K</div>
         <span className="flex-1 text-sm text-navy">{trip.customer_phone_masked}</span>
         <a href={`tel:${trip.customer_phone_masked}`}
-          className="w-10 h-10 rounded-full bg-light-green flex items-center justify-center">
+          className="w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center">
           <span className="material-symbols-outlined text-primary text-xl">call</span>
         </a>
       </div>
@@ -72,13 +112,13 @@ export default function TripDetailPage() {
       {/* Trip specs */}
       <div className="bg-white rounded-card shadow-card p-4 grid grid-cols-2 gap-3">
         {[
-          { icon: 'calendar_today', label: 'Ngày giờ', value: `${trip.date} ${trip.time}` },
-          { icon: 'straighten',     label: 'Khoảng cách', value: `${trip.distance_km} km` },
+          { icon: 'calendar_today', label: 'Ngày giờ',      value: `${trip.date} · ${trip.time}` },
+          { icon: 'straighten',     label: 'Khoảng cách',   value: `${trip.distance_km} km` },
           { icon: 'payments',       label: 'Giá khách trả', value: `${trip.price.toLocaleString('vi')} đ` },
           { icon: 'receipt',        label: 'Phí app (20%)', value: `${trip.app_fee.toLocaleString('vi')} đ` },
         ].map(({ icon, label, value }) => (
           <div key={label} className="flex flex-col gap-1">
-            <div className="flex items-center gap-1 text-caption text-neutral-gray">
+            <div className="flex items-center gap-1 text-[11px] text-neutral-gray">
               <span className="material-symbols-outlined text-sm">{icon}</span>
               {label}
             </div>
@@ -88,12 +128,12 @@ export default function TripDetailPage() {
       </div>
 
       {/* Net earnings */}
-      <div className="bg-light-green rounded-card p-4 text-center">
-        <p className="text-caption text-neutral-gray mb-1">Bạn nhận</p>
+      <div className="bg-primary-tint rounded-card p-4 text-center">
+        <p className="text-[12px] text-neutral-gray mb-1">Bạn nhận</p>
         <p className="text-3xl font-bold text-primary">{trip.net_earning.toLocaleString('vi')} đ</p>
       </div>
 
-      {/* Action */}
+      {/* Actions */}
       {nextStep && (
         <Button fullWidth size="lg" loading={statusMutation.isPending}
           onClick={() => statusMutation.mutate(nextStep.status)}>

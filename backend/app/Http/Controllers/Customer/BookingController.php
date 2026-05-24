@@ -78,6 +78,17 @@ class BookingController extends Controller
         return response()->json($this->formatBooking($booking->load('driver.driverProfile')), 201);
     }
 
+    public function active(Request $request): JsonResponse
+    {
+        $booking = Booking::with(['driver.driverProfile'])
+            ->where('customer_id', $request->user()->id)
+            ->whereIn('status', ['finding_driver', 'accepted', 'picking_up', 'in_progress'])
+            ->latest()
+            ->first();
+
+        return response()->json($booking ? $this->formatBooking($booking) : null);
+    }
+
     public function show(Request $request, Booking $booking): JsonResponse
     {
         if ($booking->customer_id !== $request->user()->id) {
@@ -108,21 +119,26 @@ class BookingController extends Controller
         $profile = $driver?->driverProfile;
 
         return [
-            'id'          => $b->id,
-            'pickup'      => $b->pickup,
-            'destination' => $b->destination,
-            'date'        => $b->date,
-            'time'        => $b->time,
-            'distance_km' => (float) $b->distance_km,
-            'price'       => $b->price,
-            'discount'    => $b->discount,
-            'final_price' => $b->price - $b->discount,
-            'status'      => $b->status,
-            'vehicle_type' => $b->vehicle_type,
-            'created_at'  => $b->created_at?->toISOString(),
-            'driver'      => $driver ? [
+            'id'              => $b->id,
+            'pickup'          => $b->pickup,
+            'pickup_lat'      => $b->pickup_lat ? (float) $b->pickup_lat : null,
+            'pickup_lng'      => $b->pickup_lng ? (float) $b->pickup_lng : null,
+            'destination'     => $b->destination,
+            'destination_lat' => $b->destination_lat ? (float) $b->destination_lat : null,
+            'destination_lng' => $b->destination_lng ? (float) $b->destination_lng : null,
+            'date'            => $b->date,
+            'time'            => $b->time,
+            'distance_km'     => (float) $b->distance_km,
+            'price'           => $b->price,
+            'discount'        => $b->discount,
+            'final_price'     => $b->price - $b->discount,
+            'status'          => $b->status,
+            'vehicle_type'    => $b->vehicle_type,
+            'created_at'      => $b->created_at?->toISOString(),
+            'driver'          => $driver ? [
                 'id'            => $driver->id,
                 'name'          => $driver->name,
+                'phone'         => $driver->phone,
                 'vehicle_make'  => $profile?->vehicle_make,
                 'vehicle_model' => $profile?->vehicle_model,
                 'vehicle_plate' => $profile?->vehicle_plate,

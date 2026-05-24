@@ -14,13 +14,29 @@ declare namespace App {
   interface Booking {
     id: number
     pickup: string
+    pickup_lat?: number | null
+    pickup_lng?: number | null
     destination: string
+    destination_lat?: number | null
+    destination_lng?: number | null
     date: string
     time: string
     distance_km: number
     price: number
+    discount?: number
+    final_price?: number
+    vehicle_type?: VehicleType
     status: BookingStatus
-    driver?: DriverProfile
+    driver?: {
+      id: number
+      name: string
+      phone?: string
+      vehicle_make?: string
+      vehicle_model?: string
+      vehicle_plate?: string
+      vehicle_color?: string
+      rating?: number
+    }
     created_at: string
   }
 
@@ -48,6 +64,8 @@ declare namespace App {
     pickup_lat?: number | null
     pickup_lng?: number | null
     destination: string
+    destination_lat?: number | null
+    destination_lng?: number | null
     date: string
     time: string
     distance_km: number
@@ -139,7 +157,22 @@ declare namespace App {
     app_fee: number
     trips_completed: number
     avg_per_trip: number
+    revenue_change: number
+    trips_change: number
     chart: { label: string; revenue: number; fee: number }[]
+    vehicle_breakdown: { type: string; label: string; revenue: number; trips: number }[]
+    top_drivers: { name: string; revenue: number; trips: number }[]
+    recent_trips: {
+      id: number
+      pickup: string
+      destination: string
+      price: number
+      vehicle_type: string
+      driver_name: string
+      customer_name: string
+      date: string
+      time: string
+    }[]
   }
 
   interface PriceConfig {
@@ -152,6 +185,16 @@ declare namespace App {
     max_price: number
     is_active: boolean
     sort_order: number
+  }
+
+  interface AdminCustomer {
+    id: number
+    name: string
+    phone: string
+    total_bookings: number
+    completed_bookings: number
+    total_spent: number
+    created_at: string
   }
 
   interface Paginated<T> {

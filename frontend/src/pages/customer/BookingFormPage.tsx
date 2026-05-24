@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import clsx from 'clsx'
 import dayjs from 'dayjs'
-import { createBooking, applyVoucher } from '@/api/bookings'
+import { createBooking, applyVoucher, getActiveBooking } from '@/api/bookings'
 import { getPriceConfigs } from '@/api/priceConfig'
 import { goongDistanceMatrix } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
@@ -214,12 +214,52 @@ export default function BookingFormPage() {
     onError: () => showToast('Đặt xe thất bại, vui lòng thử lại', 'error'),
   })
 
+  const { data: activeBooking } = useQuery({
+    queryKey: ['active-booking'],
+    queryFn: () => getActiveBooking().then((r) => r.data),
+    refetchInterval: 15_000,
+  })
+
+  const ACTIVE_STATUS_LABEL: Partial<Record<App.BookingStatus, string>> = {
+    finding_driver: 'Đang tìm tài xế...',
+    accepted:       'Tài xế đã nhận cuốc',
+    picking_up:     'Tài xế đang đến đón bạn',
+    in_progress:    'Bạn đang trên đường',
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <form
       onSubmit={handleSubmit((d) => bookingMutation.mutate(d))}
       className="flex flex-col min-h-full pb-44"
     >
+      {/* Active booking banner */}
+      {activeBooking && (
+        <button
+          type="button"
+          onClick={() => navigate(`/customer/booking/${activeBooking.id}`)}
+          className="mx-4 mt-4 rounded-card overflow-hidden text-left"
+          style={{
+            background: activeBooking.status === 'finding_driver'
+              ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+              : 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)',
+          }}
+        >
+          <div className="px-4 py-3.5 flex items-center gap-3">
+            <span className="inline-block w-2 h-2 rounded-full bg-white/80 animate-pulse shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-[13px] font-bold">
+                {ACTIVE_STATUS_LABEL[activeBooking.status] ?? 'Cuốc đang thực hiện'}
+              </p>
+              <p className="text-white/70 text-[11px] truncate mt-0.5">
+                {activeBooking.pickup} → {activeBooking.destination}
+              </p>
+            </div>
+            <span className="material-symbols-outlined text-white/80 text-[18px] shrink-0">arrow_forward_ios</span>
+          </div>
+        </button>
+      )}
+
       <div className="px-4 pt-4 flex flex-col">
 
         {/* ── Location card ─────────────────────────────────── */}

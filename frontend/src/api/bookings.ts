@@ -3,6 +3,9 @@ import api from './axios'
 export const createBooking = (data: App.BookingPayload) =>
   api.post<App.Booking>('/bookings', data)
 
+export const getActiveBooking = () =>
+  api.get<App.Booking | null>('/bookings/active')
+
 export const getBooking = (id: number) => api.get<App.Booking>(`/bookings/${id}`)
 
 export const getBookingHistory = (params?: { status?: string; page?: number }) =>

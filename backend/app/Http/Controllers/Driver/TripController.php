@@ -37,6 +37,14 @@ class TripController extends Controller
             return response()->json(['message' => 'Chuyến này đã được nhận hoặc không còn khả dụng.'], 422);
         }
 
+        $hasActive = Booking::where('driver_id', $request->user()->id)
+            ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
+            ->exists();
+
+        if ($hasActive) {
+            return response()->json(['message' => 'Bạn đang có chuyến chưa hoàn thành.'], 422);
+        }
+
         $booking->update([
             'driver_id' => $request->user()->id,
             'status'    => 'accepted',
@@ -54,6 +62,7 @@ class TripController extends Controller
         }
 
         $map = [
+            'picking_up'  => 'picking_up',
             'in_progress' => 'in_progress',
             'completed'   => 'completed',
         ];
@@ -104,6 +113,18 @@ class TripController extends Controller
         return response()->json($trips);
     }
 
+    public function history(Request $request): JsonResponse
+    {
+        $trips = Booking::with('customer')
+            ->where('driver_id', $request->user()->id)
+            ->where('status', 'completed')
+            ->latest()
+            ->get()
+            ->map(fn ($b) => $this->formatTrip($b));
+
+        return response()->json($trips);
+    }
+
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
         $appFee      = (int) round($b->price * 0.20);
@@ -136,6 +157,8 @@ class TripController extends Controller
             'pickup_lat'            => $b->pickup_lat ? (float) $b->pickup_lat : null,
             'pickup_lng'            => $b->pickup_lng ? (float) $b->pickup_lng : null,
             'destination'           => $b->destination,
+            'destination_lat'       => $b->destination_lat ? (float) $b->destination_lat : null,
+            'destination_lng'       => $b->destination_lng ? (float) $b->destination_lng : null,
             'date'                  => $b->date,
             'time'                  => $b->time,
             'distance_km'           => (float) $b->distance_km,

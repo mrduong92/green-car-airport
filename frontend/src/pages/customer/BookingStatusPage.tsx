@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getBooking, cancelBooking } from '@/api/bookings'
@@ -8,6 +9,8 @@ import Button from '@/components/common/Button'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 
+const GoongTripMap = lazy(() => import('@/components/driver/GoongTripMap'))
+
 const STEPS: { key: App.BookingStatus; label: string }[] = [
   { key: 'pending',        label: 'Đã đặt xe' },
   { key: 'finding_driver', label: 'Đang tìm tài xế' },
@@ -15,6 +18,12 @@ const STEPS: { key: App.BookingStatus; label: string }[] = [
   { key: 'completed',      label: 'Hoàn thành' },
 ]
 const ORDER: App.BookingStatus[] = ['pending', 'finding_driver', 'accepted', 'in_progress', 'completed']
+
+const STATUS_INFO: Record<string, { label: string; icon: string; color: string }> = {
+  accepted:    { label: 'Tài xế đã nhận cuốc',        icon: 'check_circle',   color: '#1E3A8A' },
+  picking_up:  { label: 'Tài xế đang đến đón bạn',    icon: 'directions_car', color: '#1E3A8A' },
+  in_progress: { label: 'Bạn đang trên đường',         icon: 'route',          color: '#006a36' },
+}
 
 export default function BookingStatusPage() {
   const { id } = useParams<{ id: string }>()
@@ -38,8 +47,124 @@ export default function BookingStatusPage() {
   const minutesSinceBooking = booking ? dayjs().diff(dayjs(booking.created_at), 'minute') : 0
   const canCancel = booking && !['completed', 'cancelled'].includes(booking.status) && minutesSinceBooking < 60
 
-  if (!booking) return <div className="flex items-center justify-center h-40"><span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span></div>
+  if (!booking) return (
+    <div className="flex items-center justify-center h-40">
+      <span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span>
+    </div>
+  )
 
+  const isActive = ['accepted', 'picking_up', 'in_progress'].includes(booking.status)
+  const statusInfo = STATUS_INFO[booking.status]
+  const hasMap = booking.pickup_lat && booking.pickup_lng && booking.destination_lat && booking.destination_lng
+
+  // ── In-progress view ─────────────────────────────────────────────────────
+  if (isActive) {
+    return (
+      <div className="w-full flex flex-col gap-4 pb-6">
+        {/* Status header */}
+        <div
+          className="px-4 py-5 flex flex-col gap-2"
+          style={{ background: `linear-gradient(135deg, ${statusInfo.color} 0%, ${statusInfo.color}CC 100%)` }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-white/80 animate-pulse" />
+            <span className="text-white/80 text-[12px] font-semibold uppercase tracking-widest">
+              Cuốc đang thực hiện
+            </span>
+            <div className="ml-auto">
+              <StatusBadge status={booking.status} />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="material-symbols-outlined text-white text-[28px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>
+              {statusInfo.icon}
+            </span>
+            <p className="text-white text-[17px] font-bold leading-snug">{statusInfo.label}</p>
+          </div>
+          <p className="text-white/60 text-[12px]">Đơn #{booking.id} · {booking.date} {booking.time}</p>
+        </div>
+
+        {/* Map */}
+        <div className="mx-4 rounded-card overflow-hidden h-52 bg-primary-tint">
+          {hasMap ? (
+            <Suspense fallback={
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                <span className="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
+                <p className="text-caption text-neutral-gray">Đang tải bản đồ...</p>
+              </div>
+            }>
+              <GoongTripMap
+                pickupLat={booking.pickup_lat!}
+                pickupLng={booking.pickup_lng!}
+                destLat={booking.destination_lat!}
+                destLng={booking.destination_lng!}
+              />
+            </Suspense>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-4xl text-primary">map</span>
+              <p className="text-caption text-neutral-gray">Không có tọa độ tuyến đường</p>
+            </div>
+          )}
+        </div>
+
+        {/* Driver card */}
+        {booking.driver && (
+          <div className="mx-4 bg-white rounded-card shadow-card p-4 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-primary-tint flex items-center justify-center text-primary font-bold text-lg shrink-0">
+              {booking.driver.name[0]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-navy text-[14px]">{booking.driver.name}</p>
+              {booking.driver.rating != null && (
+                <div className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-gold text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                  <span className="text-[12px] text-neutral-gray">{booking.driver.rating}</span>
+                </div>
+              )}
+              <p className="text-[12px] text-neutral-gray truncate">
+                {[booking.driver.vehicle_color, booking.driver.vehicle_make, booking.driver.vehicle_model].filter(Boolean).join(' ')}
+                {booking.driver.vehicle_plate ? ` · ${booking.driver.vehicle_plate}` : ''}
+              </p>
+            </div>
+            {booking.driver.phone && (
+              <a href={`tel:${booking.driver.phone}`}
+                className="w-11 h-11 rounded-full bg-primary-tint flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-primary text-xl">call</span>
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Route card */}
+        <div className="mx-4 bg-white rounded-card shadow-card p-4 flex gap-3">
+          <div className="flex flex-col items-center pt-1 shrink-0">
+            <span className="material-symbols-outlined text-primary text-base"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+            <div className="w-[2px] flex-1 bg-border-gray my-0.5 min-h-[20px]" />
+            <span className="material-symbols-outlined text-gold text-base"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-navy truncate">{booking.pickup}</p>
+            <p className="text-[11px] text-neutral-gray my-1.5">{booking.distance_km} km</p>
+            <p className="text-sm font-semibold text-navy truncate">{booking.destination}</p>
+          </div>
+        </div>
+
+        {/* Price */}
+        <div className="mx-4 bg-primary-tint rounded-card p-4 flex items-center justify-between">
+          <span className="text-[13px] text-neutral-gray">Tổng thanh toán</span>
+          <span className="text-[18px] font-bold text-primary tabular-nums">
+            {(booking.final_price ?? booking.price).toLocaleString('vi')} đ
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Standard status view ─────────────────────────────────────────────────
   return (
     <div className="w-full flex flex-col gap-4 px-4 py-4">
       {/* Booking ref + status */}
@@ -95,18 +220,22 @@ export default function BookingStatusPage() {
           </div>
           <div className="flex-1">
             <p className="font-semibold text-navy text-sm">{booking.driver.name}</p>
-            <div className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-gold text-sm">star</span>
-              <span className="text-caption text-neutral-gray">{booking.driver.rating}</span>
-            </div>
-            <p className="text-caption text-neutral-gray">{booking.driver.vehicle_make} {booking.driver.vehicle_model} · {booking.driver.vehicle_plate}</p>
+            {booking.driver.rating != null && (
+              <div className="flex items-center gap-1">
+                <span className="material-symbols-outlined text-gold text-sm">star</span>
+                <span className="text-caption text-neutral-gray">{booking.driver.rating}</span>
+              </div>
+            )}
+            <p className="text-caption text-neutral-gray">
+              {booking.driver.vehicle_make} {booking.driver.vehicle_model} · {booking.driver.vehicle_plate}
+            </p>
           </div>
-          <div className="flex gap-2">
+          {booking.driver.phone && (
             <a href={`tel:${booking.driver.phone}`}
               className="w-10 h-10 rounded-full bg-light-green flex items-center justify-center">
               <span className="material-symbols-outlined text-primary text-xl">call</span>
             </a>
-          </div>
+          )}
         </div>
       )}
 

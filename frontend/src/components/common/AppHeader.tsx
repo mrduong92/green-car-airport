@@ -6,7 +6,7 @@ import { useMutation } from '@tanstack/react-query'
 
 const ROOT_TABS = new Set([
   '/customer/booking', '/customer/history', '/customer/notifications', '/customer/profile',
-  '/driver/trips', '/driver/wallet', '/driver/notifications', '/driver/profile',
+  '/driver/trips', '/driver/trips/history', '/driver/wallet', '/driver/notifications', '/driver/profile',
   '/admin/dashboard', '/admin/drivers', '/admin/vouchers',
   '/admin/revenue', '/admin/prices', '/admin/customers',
 ])
@@ -18,6 +18,7 @@ const ROUTE_TITLES: [string, string, boolean][] = [
   ['/customer/history',         'Lịch sử',         true],
   ['/customer/notifications',   'Thông báo',       true],
   ['/customer/profile',         'Hồ sơ',           true],
+  ['/driver/trips/history',     'Lịch sử cuốc xe', true],
   ['/driver/trips/',            'Chi tiết cuốc',   false],
   ['/driver/trips',             'Cuốc xe',          true],
   ['/driver/wallet',            'Ví điểm',         true],

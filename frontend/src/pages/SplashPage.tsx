@@ -5,7 +5,7 @@ export default function SplashPage() {
   const navigate = useNavigate()
   return (
     <div
-      className="min-h-svh flex flex-col items-center justify-center gap-7 px-8 relative overflow-hidden max-w-[430px] mx-auto"
+      className="min-h-svh w-full flex flex-col items-center justify-center gap-7 px-8 relative overflow-hidden"
       style={{ background: 'linear-gradient(160deg, #1E3A8A 0%, #162C6B 100%)', color: '#fff', fontFamily: 'Inter, sans-serif' }}
     >
       {/* Logo mark */}

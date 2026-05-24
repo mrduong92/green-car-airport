@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAvailableTrips, getWallet, toggleOnline, acceptTrip, getDriverProfile } from '@/api/trips'
+import { getAvailableTrips, getMyTrips, getTripHistory, getWallet, toggleOnline, acceptTrip, getDriverProfile } from '@/api/trips'
+import dayjs from 'dayjs'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
@@ -25,11 +26,25 @@ export default function TripListPage() {
     queryFn: () => getWallet().then((r) => r.data),
   })
 
+  const { data: myTrips = [] } = useQuery({
+    queryKey: ['my-trips'],
+    queryFn: () => getMyTrips().then((r) => r.data),
+    refetchInterval: 10_000,
+  })
+  const activeTrip = myTrips[0] ?? null
+
+  const { data: history = [] } = useQuery({
+    queryKey: ['trip-history'],
+    queryFn: () => getTripHistory().then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const todayCount = history.filter((t) => dayjs(t.date).isSame(dayjs(), 'day')).length
+
   const { data: trips = [] } = useQuery({
     queryKey: ['trips', sort],
     queryFn: () => getAvailableTrips({ sort }).then((r) => r.data),
-    refetchInterval: isOnline ? 15_000 : false,
-    enabled: isOnline,
+    refetchInterval: isOnline && !activeTrip ? 15_000 : false,
+    enabled: isOnline && !activeTrip,
   })
 
   const toggleMutation = useMutation({
@@ -128,10 +143,64 @@ export default function TripListPage() {
         </button>
       </div>
 
+      {/* Active trip banner */}
+      {activeTrip && (
+        <div className="mx-4 mt-3 rounded-card overflow-hidden"
+             style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)' }}>
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="inline-block w-2 h-2 rounded-full bg-success-green animate-pulse" />
+              <span className="text-white/70 text-[11px] font-semibold uppercase tracking-widest flex-1">
+                Cuốc đang thực hiện
+              </span>
+              <span className="bg-white/20 text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-pill">
+                {activeTrip.status === 'picking_up'  ? 'Đang đến đón'
+                : activeTrip.status === 'in_progress' ? 'Đang chạy'
+                :                                        'Đã nhận'}
+              </span>
+            </div>
+
+            <div className="flex gap-2.5 mb-3">
+              <div className="flex flex-col items-center pt-0.5 shrink-0">
+                <span className="material-symbols-outlined text-white text-[14px]"
+                      style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+                <div className="w-[2px] flex-1 bg-white/20 my-0.5 min-h-[12px]" />
+                <span className="material-symbols-outlined text-gold text-[14px]"
+                      style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-[13px] font-semibold truncate">{activeTrip.pickup}</p>
+                <p className="text-white/50 text-[11px] my-1">{activeTrip.distance_km} km</p>
+                <p className="text-white text-[13px] font-semibold truncate">{activeTrip.destination}</p>
+              </div>
+              <div className="shrink-0 text-right self-center">
+                <p className="text-white/60 text-[10px]">Thu nhập</p>
+                <p className="text-white font-bold text-[16px] tabular-nums">
+                  {activeTrip.net_earning.toLocaleString('vi')} đ
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate(`/driver/trips/${activeTrip.id}`)}
+              className="w-full bg-white text-primary rounded-pill py-2.5 text-[14px] font-bold"
+            >
+              Tiếp tục chuyến →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Today stats */}
       <div className="mx-4 mt-3 grid grid-cols-3 gap-2">
+        <button
+          onClick={() => navigate('/driver/trips/history')}
+          className="bg-white rounded-[10px] border border-border-soft text-center px-2 py-2.5 active:bg-light-green transition-colors"
+        >
+          <p className="font-bold text-[16px] tabular-nums text-primary">{todayCount}</p>
+          <p className="text-[11px] text-neutral-gray mt-0.5">Cuốc hôm nay</p>
+        </button>
         {[
-          { val: trips.length.toString(), label: 'Cuốc hôm nay', color: 'text-primary' },
           { val: '—', label: 'Doanh thu', color: 'text-success-green' },
           { val: wallet ? wallet.points.toLocaleString('vi') : '—', label: 'Điểm còn lại', color: 'text-gold' },
         ].map((s) => (
@@ -166,11 +235,15 @@ export default function TripListPage() {
           <EmptyState icon="toggle_off" title="Bạn đang offline"
             description="Bật sẵn sàng nhận cuốc để thấy danh sách chuyến" />
         )}
-        {isOnline && trips.length === 0 && (
+        {isOnline && activeTrip && (
+          <EmptyState icon="do_not_disturb_on" title="Bạn đang có cuốc chạy"
+            description="Hoàn thành chuyến hiện tại trước khi nhận cuốc mới" />
+        )}
+        {isOnline && !activeTrip && trips.length === 0 && (
           <EmptyState icon="directions_car" title="Chưa có cuốc xe nào"
             description="Hãy chờ khách đặt!" />
         )}
-        {isOnline && trips.map((trip) => (
+        {isOnline && !activeTrip && trips.map((trip) => (
           <div key={trip.id} className="bg-white rounded-card shadow-card overflow-hidden border-l-[4px] border-l-primary border border-border-soft">
             <div className="p-3.5 flex flex-col gap-2.5">
               {/* Time + badges */}

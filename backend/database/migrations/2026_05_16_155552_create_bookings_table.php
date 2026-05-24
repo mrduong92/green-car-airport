@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->decimal('distance_km', 6, 2);
             $table->unsignedInteger('price');
             $table->unsignedInteger('discount')->default(0);
-            $table->enum('status', ['pending','finding_driver','accepted','in_progress','completed','cancelled'])->default('finding_driver');
+            $table->enum('status', ['pending','finding_driver','accepted','picking_up','in_progress','completed','cancelled'])->default('finding_driver');
             $table->timestamp('cancelled_at')->nullable();
             $table->timestamps();
         });

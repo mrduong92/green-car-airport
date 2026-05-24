@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { getDashboard } from '@/api/admin'
+import { getDashboard, clearDashboardCache } from '@/api/admin'
+import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import dayjs from 'dayjs'
 
@@ -20,10 +21,36 @@ function KpiCard({ icon, label, value, sub, color = 'text-primary' }: KpiCardPro
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const showToast = useUiStore((s) => s.showToast)
   const { data } = useQuery({ queryKey: ['dashboard'], queryFn: () => getDashboard().then((r) => r.data) })
+
+  const clearCacheMutation = useMutation({
+    mutationFn: clearDashboardCache,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      showToast('Đã xoá cache, đang tải dữ liệu mới', 'success')
+    },
+    onError: () => showToast('Xoá cache thất bại', 'error'),
+  })
 
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-neutral-gray">Cập nhật mỗi 15 phút</p>
+        <button
+          onClick={() => clearCacheMutation.mutate()}
+          disabled={clearCacheMutation.isPending}
+          className="flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 rounded-pill px-3 py-1.5 disabled:opacity-50"
+        >
+          <span className={`material-symbols-outlined text-[14px] ${clearCacheMutation.isPending ? 'animate-spin' : ''}`}>
+            refresh
+          </span>
+          Làm mới
+        </button>
+      </div>
+
       {/* KPI Grid */}
       <div className="grid grid-cols-2 gap-3">
         <KpiCard icon="directions_car" label="Cuốc hôm nay"

@@ -9,13 +9,24 @@ use Illuminate\Http\Request;
 
 class DriverController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $drivers = User::with('driverProfile')
-            ->where('role', 'driver')
-            ->latest()
-            ->get()
-            ->map(fn ($u) => $this->formatDriver($u));
+        $query = User::with('driverProfile')->where('role', 'driver');
+
+        if ($request->status) {
+            $query->whereHas('driverProfile', fn ($q) => $q->where('status', $request->status));
+        }
+
+        if ($request->search) {
+            $s = '%' . $request->search . '%';
+            $query->where(fn ($q) => $q
+                ->where('name', 'like', $s)
+                ->orWhere('phone', 'like', $s)
+                ->orWhereHas('driverProfile', fn ($q2) => $q2->where('vehicle_plate', 'like', $s))
+            );
+        }
+
+        $drivers = $query->latest()->get()->map(fn ($u) => $this->formatDriver($u));
 
         return response()->json($drivers);
     }
@@ -29,6 +40,33 @@ class DriverController extends Controller
         $user->driverProfile()->updateOrCreate(
             ['user_id' => $user->id],
             ['status'  => 'blocked'],
+        );
+
+        return response()->json($this->formatDriver($user->load('driverProfile')));
+    }
+
+    public function update(Request $request, User $user): JsonResponse
+    {
+        if ($user->role !== 'driver') {
+            return response()->json(['message' => 'User is not a driver.'], 422);
+        }
+
+        $data = $request->validate([
+            'name'          => 'sometimes|string|max:100',
+            'vehicle_make'  => 'sometimes|string|max:50',
+            'vehicle_model' => 'sometimes|string|max:50',
+            'vehicle_plate' => 'sometimes|string|max:20',
+            'vehicle_year'  => 'sometimes|integer|min:1990|max:2030',
+            'vehicle_color' => 'sometimes|string|max:30',
+        ]);
+
+        if (isset($data['name'])) {
+            $user->update(['name' => $data['name']]);
+        }
+
+        $user->driverProfile()->updateOrCreate(
+            ['user_id' => $user->id],
+            collect($data)->except('name')->toArray(),
         );
 
         return response()->json($this->formatDriver($user->load('driverProfile')));
