@@ -47,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/trips/history',              [TripController::class, 'history']);
         Route::post('/driver/trips/{booking}/accept',    [TripController::class, 'accept']);
         Route::patch('/driver/trips/{booking}/status',   [TripController::class, 'updateStatus']);
+        Route::patch('/driver/trips/{booking}/cancel',   [TripController::class, 'cancel']);
         Route::get('/driver/wallet',                     [WalletController::class, 'show']);
         Route::get('/driver/wallet/transactions',        [WalletController::class, 'transactions']);
         Route::get('/driver/profile',                    [ProfileController::class, 'show']);

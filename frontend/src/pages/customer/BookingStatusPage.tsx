@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getBooking, cancelBooking } from '@/api/bookings'
@@ -6,6 +6,8 @@ import { useMutation } from '@tanstack/react-query'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
+import { fmtDateTime } from '@/utils/date'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 
@@ -39,6 +41,7 @@ export default function BookingStatusPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const showToast = useUiStore((s) => s.showToast)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const { data, refetch } = useQuery({
     queryKey: ['booking', id],
@@ -48,14 +51,16 @@ export default function BookingStatusPage() {
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelBooking(Number(id)),
-    onSuccess: () => { showToast('Đã huỷ chuyến', 'info'); refetch() },
-    onError: () => showToast('Không thể huỷ chuyến', 'error'),
+    onSuccess: () => { showToast('Đã huỷ chuyến', 'info'); setConfirmOpen(false); refetch() },
+    onError: () => { showToast('Không thể huỷ chuyến', 'error'); setConfirmOpen(false) },
   })
 
   const booking = data
   const currentIdx = ORDER.indexOf(booking?.status ?? 'pending')
   const minutesSinceBooking = booking ? dayjs().diff(dayjs(booking.created_at), 'minute') : 0
-  const canCancel = booking && !['completed', 'cancelled'].includes(booking.status) && minutesSinceBooking < 60
+  const canCancel = booking && ['pending', 'finding_driver'].includes(booking.status)
+  const isFreeCancel = minutesSinceBooking < 60
+  const minutesLeft = Math.max(0, 60 - minutesSinceBooking)
 
   if (!booking) return (
     <div className="flex items-center justify-center h-40">
@@ -103,7 +108,7 @@ export default function BookingStatusPage() {
             <div>
               <p className="text-white text-[16px] font-bold leading-snug">{statusInfo.label}</p>
               <p className="text-white/50 text-[11px] mt-0.5">
-                Đơn #{booking.id} · {booking.date} {booking.time}
+                Đơn #{booking.id} · {fmtDateTime(booking.date, booking.time)}
               </p>
             </div>
           </div>
@@ -243,7 +248,7 @@ export default function BookingStatusPage() {
         </div>
         <div className="h-px bg-border-gray my-1" />
         <div className="flex justify-between text-sm">
-          <span className="text-neutral-gray">{dayjs(booking.date).format('DD/MM/YYYY')} · {booking.time}</span>
+          <span className="text-neutral-gray">{fmtDateTime(booking.date, booking.time)}</span>
           <span className="font-bold text-primary">{booking.price.toLocaleString('vi')} đ</span>
         </div>
       </div>
@@ -277,16 +282,45 @@ export default function BookingStatusPage() {
 
       {/* Actions */}
       {canCancel && (
-        <button onClick={() => cancelMutation.mutate()}
-          className="text-danger-red text-sm text-center underline">
-          Huỷ chuyến (còn {60 - minutesSinceBooking} phút)
-        </button>
+        <div className="flex flex-col items-center gap-2">
+          {isFreeCancel ? (
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-success-green bg-light-green px-3 py-1 rounded-pill">
+              <span className="material-symbols-outlined text-[14px]">timer</span>
+              Huỷ miễn phí · còn {minutesLeft} phút
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-danger-red bg-red-50 px-3 py-1 rounded-pill">
+              <span className="material-symbols-outlined text-[14px]">warning</span>
+              Huỷ sẽ bị phạt 50,000đ
+            </span>
+          )}
+          <button
+            onClick={() => setConfirmOpen(true)}
+            className="text-danger-red text-sm text-center underline"
+          >
+            Huỷ chuyến
+          </button>
+        </div>
       )}
       {booking.status === 'completed' && (
         <Button fullWidth variant="outline" onClick={() => navigate('/customer/booking')}>
           Đặt xe mới
         </Button>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title={isFreeCancel ? 'Xác nhận huỷ chuyến?' : 'Huỷ chuyến · Phạt 50,000đ'}
+        description={
+          isFreeCancel
+            ? 'Chuyến sẽ bị huỷ và tài xế sẽ không được phân công.'
+            : 'Bạn đã quá 1 giờ kể từ khi đặt. Phí phạt 50,000đ sẽ được cộng vào cuốc xe tiếp theo.'
+        }
+        confirmLabel="Xác nhận huỷ"
+        loading={cancelMutation.isPending}
+        onConfirm={() => cancelMutation.mutate()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

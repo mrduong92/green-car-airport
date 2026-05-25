@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getAvailableTrips, getMyTrips, getTripHistory, getWallet, toggleOnline, acceptTrip, getDriverProfile } from '@/api/trips'
 import dayjs from 'dayjs'
+import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
@@ -178,7 +179,7 @@ export default function TripListPage() {
                             style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
                       <p className="text-white/80 text-[13px] truncate">{trip.destination}</p>
                     </div>
-                    <p className="text-white/50 text-[11px] mt-1">{trip.distance_km} km · {trip.date} {trip.time}</p>
+                    <p className="text-white/50 text-[11px] mt-1">{trip.distance_km} km · {fmtDateTime(trip.date, trip.time)}</p>
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-2">
                     <p className="text-white font-bold text-[15px] tabular-nums">
@@ -253,7 +254,7 @@ export default function TripListPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-[13px] font-semibold text-navy">
                   <span className="material-symbols-outlined text-neutral-gray text-[14px]">schedule</span>
-                  <span>{trip.time} · {trip.date}</span>
+                  <span>{fmtDateTime(trip.date, trip.time)}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {trip.distance_to_driver != null && (

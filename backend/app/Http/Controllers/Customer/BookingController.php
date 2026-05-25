@@ -41,6 +41,11 @@ class BookingController extends Controller
 
         $discount   = 0;
         $voucherId  = null;
+        $customer   = $request->user();
+        $surcharge  = $customer->pending_penalty;
+        if ($surcharge > 0) {
+            $customer->update(['pending_penalty' => 0]);
+        }
 
         if (! empty($data['voucher_code'])) {
             $voucher = Voucher::where('code', $data['voucher_code'])
@@ -71,6 +76,7 @@ class BookingController extends Controller
             'distance_km'     => $data['distance_km'],
             'price'           => $data['price'],
             'discount'        => $discount,
+            'surcharge'       => $surcharge,
             'voucher_id'      => $voucherId,
             'status'          => 'finding_driver',
             'vehicle_type'    => $data['vehicle_type'],
@@ -115,7 +121,16 @@ class BookingController extends Controller
             return response()->json(['message' => 'Không thể huỷ chuyến ở trạng thái này.'], 422);
         }
 
-        $booking->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+        // Phạt 50,000đ nếu huỷ sau 1h
+        if (now()->diffInMinutes($booking->created_at, false) < -60) {
+            $request->user()->increment('pending_penalty', 50_000);
+        }
+
+        $booking->update([
+            'status'       => 'cancelled',
+            'cancelled_at' => now(),
+            'cancelled_by' => 'customer',
+        ]);
 
         return response()->json($this->formatBooking($booking->fresh('driver.driverProfile')));
     }
@@ -138,7 +153,8 @@ class BookingController extends Controller
             'distance_km'     => (float) $b->distance_km,
             'price'           => $b->price,
             'discount'        => $b->discount,
-            'final_price'     => $b->price - $b->discount,
+            'surcharge'       => $b->surcharge,
+            'final_price'     => $b->price - $b->discount + $b->surcharge,
             'status'          => $b->status,
             'vehicle_type'    => $b->vehicle_type,
             'created_at'      => $b->created_at?->toISOString(),

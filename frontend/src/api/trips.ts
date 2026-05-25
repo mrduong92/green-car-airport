@@ -23,5 +23,8 @@ export const getDriverProfile = () => api.get<App.DriverProfile>('/driver/profil
 export const updateDriverProfile = (data: Partial<App.DriverProfile>) =>
   api.put('/driver/profile', data)
 
+export const cancelTrip = (id: number) =>
+  api.patch(`/driver/trips/${id}/cancel`)
+
 export const toggleOnline = (online: boolean, latitude?: number, longitude?: number) =>
   api.patch('/driver/status', { is_online: online, latitude, longitude })

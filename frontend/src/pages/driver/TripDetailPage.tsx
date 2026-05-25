@@ -1,10 +1,12 @@
+import { useState, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getMyTrips, updateTripStatus } from '@/api/trips'
+import { getMyTrips, updateTripStatus, cancelTrip } from '@/api/trips'
+import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
-import { lazy, Suspense } from 'react'
 
 const GoongTripMap = lazy(() => import('@/components/driver/GoongTripMap'))
 
@@ -18,6 +20,8 @@ export default function TripDetailPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
+
+  const [cancelOpen, setCancelOpen] = useState(false)
 
   const { data: trips, isPending } = useQuery({
     queryKey: ['my-trips'],
@@ -33,11 +37,24 @@ export default function TripDetailPage() {
       qc.invalidateQueries({ queryKey: ['trips'] })
       if (status === 'completed') {
         qc.invalidateQueries({ queryKey: ['trip-history'] })
+        qc.invalidateQueries({ queryKey: ['wallet'] })
         showToast('Hoàn thành chuyến!', 'success')
         navigate('/driver/trips')
       }
     },
     onError: () => showToast('Cập nhật thất bại', 'error'),
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelTrip(Number(id)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-trips'] })
+      qc.invalidateQueries({ queryKey: ['trips'] })
+      qc.invalidateQueries({ queryKey: ['wallet'] })
+      showToast('Đã huỷ cuốc', 'info')
+      navigate('/driver/trips', { replace: true })
+    },
+    onError: () => { showToast('Huỷ cuốc thất bại', 'error'); setCancelOpen(false) },
   })
 
   if (isPending) return (
@@ -118,7 +135,7 @@ export default function TripDetailPage() {
       {/* Trip specs */}
       <div className="bg-white rounded-card shadow-card p-4 grid grid-cols-2 gap-3">
         {[
-          { icon: 'calendar_today', label: 'Ngày giờ',      value: `${trip.date} · ${trip.time}` },
+          { icon: 'calendar_today', label: 'Ngày giờ',      value: fmtDateTime(trip.date, trip.time) },
           { icon: 'straighten',     label: 'Khoảng cách',   value: `${trip.distance_km} km` },
           { icon: 'payments',       label: 'Giá khách trả', value: `${trip.price.toLocaleString('vi')} đ` },
           { icon: 'receipt',        label: 'Phí app (20%)', value: `${trip.app_fee.toLocaleString('vi')} đ` },
@@ -146,6 +163,24 @@ export default function TripDetailPage() {
           {nextStep.label}
         </Button>
       )}
+      {['accepted', 'picking_up'].includes(trip.status) && (
+        <button
+          onClick={() => setCancelOpen(true)}
+          className="w-full text-center text-[13px] text-danger-red underline py-1"
+        >
+          Huỷ cuốc
+        </button>
+      )}
+
+      <ConfirmDialog
+        open={cancelOpen}
+        title="Xác nhận huỷ cuốc?"
+        description={`Phí app 20% (${Math.round(trip.price * 0.2).toLocaleString('vi')}đ) đã trừ khi nhận sẽ không được hoàn lại.`}
+        confirmLabel="Xác nhận huỷ"
+        loading={cancelMutation.isPending}
+        onConfirm={() => cancelMutation.mutate()}
+        onCancel={() => setCancelOpen(false)}
+      />
     </div>
   )
 }

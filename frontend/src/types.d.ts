@@ -24,6 +24,7 @@ declare namespace App {
     distance_km: number
     price: number
     discount?: number
+    surcharge?: number
     final_price?: number
     vehicle_type?: VehicleType
     status: BookingStatus

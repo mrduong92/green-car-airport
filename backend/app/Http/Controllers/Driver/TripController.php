@@ -50,6 +50,18 @@ class TripController extends Controller
             'status'    => 'accepted',
         ]);
 
+        // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
+        $feePoints = (int) round($booking->price * 0.20 / 1000);
+        $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
+        $wallet->decrement('points', $feePoints);
+        WalletTransaction::create([
+            'wallet_id'   => $wallet->id,
+            'booking_id'  => $booking->id,
+            'type'        => 'debit',
+            'description' => "Phí app 20% cuốc #{$booking->id}",
+            'points'      => $feePoints,
+        ]);
+
         return response()->json($this->formatTrip($booking->fresh('customer')));
     }
 
@@ -84,21 +96,40 @@ class TripController extends Controller
 
     private function creditEarning($driver, Booking $booking): void
     {
-        $appFee    = (int) round($booking->price * 0.20);
-        $netPoints = (int) round(($booking->price - $appFee) / 1000);
+        // 20% phí app đã trừ khi nhận cuốc — credit toàn bộ 100% khi hoàn thành
+        $totalPoints = (int) round($booking->price / 1000);
 
         $wallet = $driver->wallet()->firstOrCreate(['user_id' => $driver->id], ['points' => 0]);
-        $wallet->increment('points', $netPoints);
+        $wallet->increment('points', $totalPoints);
 
         WalletTransaction::create([
             'wallet_id'   => $wallet->id,
             'booking_id'  => $booking->id,
             'type'        => 'credit',
-            'description' => "Hoàn thành chuyến #{$booking->id}",
-            'points'      => $netPoints,
+            'description' => "Thu nhập chuyến #{$booking->id}",
+            'points'      => $totalPoints,
         ]);
 
         $driver->driverProfile?->increment('trips_count');
+    }
+
+    public function cancel(Request $request, Booking $booking): JsonResponse
+    {
+        if ($booking->driver_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        if (! in_array($booking->status, ['accepted', 'picking_up'])) {
+            return response()->json(['message' => 'Không thể huỷ ở trạng thái này.'], 422);
+        }
+
+        // Phí app 20% đã trừ khi nhận — không hoàn, booking trở lại hàng đợi
+        $booking->update([
+            'driver_id' => null,
+            'status'    => 'finding_driver',
+        ]);
+
+        return response()->json($this->formatTrip($booking->fresh('customer')));
     }
 
     public function mine(Request $request): JsonResponse
