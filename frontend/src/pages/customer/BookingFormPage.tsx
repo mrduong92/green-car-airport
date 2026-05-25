@@ -192,7 +192,7 @@ export default function BookingFormPage() {
   }
 
   const voucherMutation = useMutation({
-    mutationFn: () => applyVoucher(voucherCode),
+    mutationFn: () => applyVoucher(voucherCode, Number(watch('price')) || 0),
     onSuccess: ({ data }) => {
       setDiscount(data.discount)
       showToast('Áp dụng voucher thành công', 'success')
@@ -216,15 +216,15 @@ export default function BookingFormPage() {
 
   const { data: activeBooking } = useQuery({
     queryKey: ['active-booking'],
-    queryFn: () => getActiveBooking().then((r) => r.data),
+    queryFn: () => getActiveBooking().then((r) => (r.data && 'id' in r.data ? r.data : null)),
     refetchInterval: 15_000,
   })
 
-  const ACTIVE_STATUS_LABEL: Partial<Record<App.BookingStatus, string>> = {
-    finding_driver: 'Đang tìm tài xế...',
-    accepted:       'Tài xế đang trên đường đến đón bạn',
-    in_progress:    'Bạn đang trên đường đến sân bay',
-  }
+  useEffect(() => {
+    if (activeBooking?.id) {
+      navigate(`/customer/booking/${activeBooking.id}`, { replace: true })
+    }
+  }, [activeBooking, navigate])
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -232,34 +232,6 @@ export default function BookingFormPage() {
       onSubmit={handleSubmit((d) => bookingMutation.mutate(d))}
       className="flex flex-col min-h-full pb-44"
     >
-      {/* Active booking banner */}
-      {activeBooking && (
-        <button
-          type="button"
-          onClick={() => navigate(`/customer/booking/${activeBooking.id}`)}
-          className="mx-4 mt-4 rounded-card overflow-hidden text-left"
-          style={{
-            background:
-              activeBooking.status === 'finding_driver' ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' :
-              activeBooking.status === 'in_progress'    ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' :
-                                                          'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)',
-          }}
-        >
-          <div className="px-4 py-3.5 flex items-center gap-3">
-            <span className="inline-block w-2 h-2 rounded-full bg-white/80 animate-pulse shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-[13px] font-bold">
-                {ACTIVE_STATUS_LABEL[activeBooking.status] ?? 'Cuốc đang thực hiện'}
-              </p>
-              <p className="text-white/70 text-[11px] truncate mt-0.5">
-                {activeBooking.pickup} → {activeBooking.destination}
-              </p>
-            </div>
-            <span className="material-symbols-outlined text-white/80 text-[18px] shrink-0">arrow_forward_ios</span>
-          </div>
-        </button>
-      )}
-
       <div className="px-4 pt-4 flex flex-col">
 
         {/* ── Location card ─────────────────────────────────── */}
@@ -410,7 +382,7 @@ export default function BookingFormPage() {
               <p className="text-[12px] text-neutral-gray mb-0.5">Mức giá tham khảo</p>
               {activeConfig && suggestedMin > 0 ? (
                 <p className="text-[15px] font-semibold text-navy tabular-nums">
-                  {suggestedMin.toLocaleString('vi')} – {suggestedMax.toLocaleString('vi')} đ
+                  {Number(suggestedMin || 0).toLocaleString('vi')} – {Number(suggestedMax || 0).toLocaleString('vi')} đ
                 </p>
               ) : (
                 <p className="text-[13px] text-neutral-gray">

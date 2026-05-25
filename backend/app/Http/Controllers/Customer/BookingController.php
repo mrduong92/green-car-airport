@@ -14,6 +14,7 @@ class BookingController extends Controller
     {
         $bookings = Booking::with(['driver.driverProfile'])
             ->where('customer_id', $request->user()->id)
+            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->latest()
             ->get()
             ->map(fn ($b) => $this->formatBooking($b));
@@ -86,7 +87,13 @@ class BookingController extends Controller
             ->latest()
             ->first();
 
-        return response()->json($booking ? $this->formatBooking($booking) : null);
+        if (!$booking) {
+            // response()->json(null) returns "{}" in some Symfony versions;
+            // setContent bypasses that to produce the proper JSON null literal.
+            return (new JsonResponse())->setContent('null');
+        }
+
+        return response()->json($this->formatBooking($booking));
     }
 
     public function show(Request $request, Booking $booking): JsonResponse

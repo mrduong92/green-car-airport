@@ -20,7 +20,7 @@ export default function BookingHistoryPage() {
 
   const { data } = useQuery({
     queryKey: ['bookings', filter],
-    queryFn: () => getBookingHistory({ status: filter || undefined }).then((r) => r.data.data),
+    queryFn: () => getBookingHistory({ status: filter || undefined }).then((r) => r.data),
   })
 
   return (

@@ -8,10 +8,10 @@ export const getActiveBooking = () =>
 
 export const getBooking = (id: number) => api.get<App.Booking>(`/bookings/${id}`)
 
-export const getBookingHistory = (params?: { status?: string; page?: number }) =>
-  api.get<App.Paginated<App.Booking>>('/bookings', { params })
+export const getBookingHistory = (params?: { status?: string }) =>
+  api.get<App.Booking[]>('/bookings', { params })
 
 export const cancelBooking = (id: number) => api.patch(`/bookings/${id}/cancel`)
 
-export const applyVoucher = (code: string) =>
-  api.post<{ discount: number }>('/vouchers/apply', { code })
+export const applyVoucher = (code: string, price: number) =>
+  api.post<{ discount: number }>('/vouchers/apply', { code, price })

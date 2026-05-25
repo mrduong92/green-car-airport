@@ -43,8 +43,8 @@ export default function TripListPage() {
   const { data: trips = [] } = useQuery({
     queryKey: ['trips', sort],
     queryFn: () => getAvailableTrips({ sort }).then((r) => r.data),
-    refetchInterval: isOnline && !atCapacity ? 15_000 : false,
-    enabled: isOnline && !atCapacity,
+    refetchInterval: isOnline ? 15_000 : false,
+    enabled: isOnline,
   })
 
   const toggleMutation = useMutation({
@@ -221,7 +221,7 @@ export default function TripListPage() {
       {/* Sort row */}
       <div className="px-4 py-4 flex items-center justify-between">
         <p className="text-[14px] font-semibold text-navy">
-          {isOnline && !atCapacity ? `${trips.length} cuốc đang chờ` : 'Cuốc xe'}
+          {isOnline ? `${trips.length} cuốc đang chờ` : 'Cuốc xe'}
         </p>
         <button className="flex items-center gap-1 text-[12px] text-primary font-semibold">
           <span className="material-symbols-outlined text-[14px]">filter_list</span>
@@ -242,15 +242,11 @@ export default function TripListPage() {
           <EmptyState icon="toggle_off" title="Bạn đang offline"
             description="Bật sẵn sàng nhận cuốc để thấy danh sách chuyến" />
         )}
-        {isOnline && atCapacity && (
-          <EmptyState icon="do_not_disturb_on" title="Đã đạt tối đa 3 cuốc"
-            description="Hoàn thành một chuyến để nhận thêm cuốc mới" />
-        )}
-        {isOnline && !atCapacity && trips.length === 0 && (
+        {isOnline && trips.length === 0 && (
           <EmptyState icon="directions_car" title="Chưa có cuốc xe nào"
             description="Hãy chờ khách đặt!" />
         )}
-        {isOnline && !atCapacity && trips.map((trip) => (
+        {isOnline && trips.map((trip) => (
           <div key={trip.id} className="bg-white rounded-card shadow-card overflow-hidden border-l-[4px] border-l-primary border border-border-soft">
             <div className="p-3.5 flex flex-col gap-2.5">
               {/* Time + badges */}
@@ -308,11 +304,16 @@ export default function TripListPage() {
               </div>
 
               <button
-                onClick={() => acceptMutation.mutate(trip.id)}
-                disabled={acceptMutation.isPending}
-                className="w-full bg-primary text-white rounded-pill py-2.5 text-[14px] font-semibold disabled:opacity-50"
+                onClick={() => !atCapacity && acceptMutation.mutate(trip.id)}
+                disabled={acceptMutation.isPending || atCapacity}
+                className={clsx(
+                  'w-full rounded-pill py-2.5 text-[14px] font-semibold transition-colors',
+                  atCapacity
+                    ? 'bg-border-gray text-neutral-gray cursor-not-allowed'
+                    : 'bg-primary text-white disabled:opacity-50',
+                )}
               >
-                Nhận cuốc
+                {atCapacity ? 'Đã đủ 3 cuốc' : 'Nhận cuốc'}
               </button>
             </div>
           </div>

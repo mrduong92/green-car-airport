@@ -38,7 +38,7 @@ class TripController extends Controller
         }
 
         $activeCount = Booking::where('driver_id', $request->user()->id)
-            ->whereIn('status', ['accepted', 'in_progress'])
+            ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
             ->count();
 
         if ($activeCount >= 3) {
@@ -105,7 +105,7 @@ class TripController extends Controller
     {
         $trips = Booking::with('customer')
             ->where('driver_id', $request->user()->id)
-            ->whereIn('status', ['accepted', 'in_progress'])
+            ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
             ->latest()
             ->get()
             ->map(fn ($b) => $this->formatTrip($b));
