@@ -61,12 +61,23 @@ export default function BookingHistoryPage() {
                 </div>
                 <StatusBadge status={b.status} />
               </div>
-              <span className="font-bold text-primary text-sm shrink-0">{b.price.toLocaleString('vi')} đ</span>
+              <span className="font-bold text-primary text-sm shrink-0">{(b.final_price ?? b.price).toLocaleString('vi')} đ</span>
             </div>
             {expanded === b.id && (
               <div className="border-t border-border-gray px-4 py-3 bg-light-green/30 flex flex-col gap-1">
                 <p className="text-caption text-neutral-gray">Tài xế: {b.driver?.name ?? 'Chưa có'}</p>
                 <p className="text-caption text-neutral-gray">Khoảng cách: {b.distance_km} km</p>
+                <p className="text-caption text-neutral-gray">Giá gốc: {b.price.toLocaleString('vi')}đ</p>
+                {(b.discount ?? 0) > 0 && (
+                  <p className="text-caption text-success-green">
+                    Voucher {b.voucher_code}: -{(b.discount ?? 0).toLocaleString('vi')}đ
+                  </p>
+                )}
+                {(b.surcharge ?? 0) > 0 && (
+                  <p className="text-caption text-danger-red">
+                    Phụ phí: +{(b.surcharge ?? 0).toLocaleString('vi')}đ
+                  </p>
+                )}
                 <p className="text-caption text-neutral-gray">Mã đặt: #{b.id}</p>
               </div>
             )}

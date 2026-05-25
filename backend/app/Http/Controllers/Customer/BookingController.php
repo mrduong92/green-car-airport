@@ -12,7 +12,7 @@ class BookingController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $bookings = Booking::with(['driver.driverProfile'])
+        $bookings = Booking::with(['driver.driverProfile', 'voucher'])
             ->where('customer_id', $request->user()->id)
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->latest()
@@ -82,12 +82,12 @@ class BookingController extends Controller
             'vehicle_type'    => $data['vehicle_type'],
         ]);
 
-        return response()->json($this->formatBooking($booking->load('driver.driverProfile')), 201);
+        return response()->json($this->formatBooking($booking->load(['driver.driverProfile', 'voucher'])), 201);
     }
 
     public function active(Request $request): JsonResponse
     {
-        $booking = Booking::with(['driver.driverProfile'])
+        $booking = Booking::with(['driver.driverProfile', 'voucher'])
             ->where('customer_id', $request->user()->id)
             ->whereIn('status', ['finding_driver', 'accepted', 'picking_up', 'in_progress'])
             ->latest()
@@ -108,7 +108,7 @@ class BookingController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        return response()->json($this->formatBooking($booking->load('driver.driverProfile')));
+        return response()->json($this->formatBooking($booking->load(['driver.driverProfile', 'voucher'])));
     }
 
     public function cancel(Request $request, Booking $booking): JsonResponse
@@ -132,7 +132,8 @@ class BookingController extends Controller
             'cancelled_by' => 'customer',
         ]);
 
-        return response()->json($this->formatBooking($booking->fresh('driver.driverProfile')));
+        // Voucher usage_count đã tăng khi đặt; huỷ chuyến KHÔNG hoàn lại — đây là thiết kế có chủ đích.
+        return response()->json($this->formatBooking($booking->fresh(['driver.driverProfile', 'voucher'])));
     }
 
     private function formatBooking(Booking $b): array
@@ -155,6 +156,7 @@ class BookingController extends Controller
             'discount'        => $b->discount,
             'surcharge'       => $b->surcharge,
             'final_price'     => $b->price - $b->discount + $b->surcharge,
+            'voucher_code'    => $b->voucher?->code,
             'status'          => $b->status,
             'vehicle_type'    => $b->vehicle_type,
             'created_at'      => $b->created_at?->toISOString(),

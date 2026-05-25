@@ -6,6 +6,7 @@ import { getCustomerProfile, updateCustomerProfile } from '@/api/customer'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
+import VoucherSheet from '@/components/common/VoucherSheet'
 
 export default function CustomerProfilePage() {
   const { user, setAuth, token, clearAuth } = useAuthStore()
@@ -16,6 +17,7 @@ export default function CustomerProfilePage() {
   const [showEdit, setShowEdit] = useState(false)
   const [editName, setEditName] = useState('')
   const [showContact, setShowContact] = useState(false)
+  const [showVouchers, setShowVouchers] = useState(false)
 
   const { data: profile } = useQuery({
     queryKey: ['customer-profile'],
@@ -45,7 +47,7 @@ export default function CustomerProfilePage() {
 
   const MENU = [
     { icon: 'person',           label: 'Thông tin cá nhân',   onClick: openEdit },
-    { icon: 'confirmation_number', label: 'Voucher của tôi',  onClick: () => navigate('/customer/booking') },
+    { icon: 'confirmation_number', label: 'Voucher của tôi',  onClick: () => setShowVouchers(true) },
     { icon: 'notifications',    label: 'Thông báo',            onClick: () => navigate('/customer/notifications') },
     { icon: 'help',             label: 'Trợ giúp & Liên hệ',  onClick: () => setShowContact(true) },
   ]
@@ -184,6 +186,9 @@ export default function CustomerProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Voucher sheet */}
+      <VoucherSheet open={showVouchers} onClose={() => setShowVouchers(false)} />
 
       {/* Contact bottom sheet */}
       {showContact && (

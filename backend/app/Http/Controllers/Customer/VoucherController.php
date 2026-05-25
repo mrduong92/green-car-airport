@@ -9,6 +9,25 @@ use Illuminate\Http\Request;
 
 class VoucherController extends Controller
 {
+    public function index(Request $request): JsonResponse
+    {
+        $vouchers = Voucher::where('is_active', true)
+            ->where('expires_at', '>=', today())
+            ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
+            ->whereDoesntHave('bookings', fn ($q) => $q->where('customer_id', $request->user()->id))
+            ->orderBy('expires_at')
+            ->get()
+            ->map(fn ($v) => [
+                'id'         => $v->id,
+                'code'       => $v->code,
+                'type'       => $v->type,
+                'value'      => $v->value,
+                'expires_at' => $v->expires_at->format('d/m/Y'),
+            ]);
+
+        return response()->json($vouchers);
+    }
+
     public function apply(Request $request): JsonResponse
     {
         $request->validate([

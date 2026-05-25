@@ -236,20 +236,87 @@ export default function BookingStatusPage() {
         })}
       </div>
 
+      {/* Map */}
+      <div className="rounded-card overflow-hidden h-48 bg-primary-tint">
+        {hasMap ? (
+          <Suspense fallback={
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span className="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
+              <p className="text-caption text-neutral-gray">Đang tải bản đồ...</p>
+            </div>
+          }>
+            <GoongTripMap
+              pickupLat={booking.pickup_lat!}
+              pickupLng={booking.pickup_lng!}
+              destLat={booking.destination_lat!}
+              destLng={booking.destination_lng!}
+            />
+          </Suspense>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+            <span className="material-symbols-outlined text-4xl text-primary">map</span>
+            <p className="text-caption text-neutral-gray">Không có tọa độ tuyến đường</p>
+          </div>
+        )}
+      </div>
+
       {/* Trip summary */}
-      <div className="bg-white rounded-card shadow-card p-4 flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary text-lg">location_on</span>
-          <span className="text-sm text-navy">{booking.pickup}</span>
+      <div className="bg-white rounded-card shadow-card p-4 flex flex-col gap-2.5">
+        {/* Route */}
+        <div className="flex gap-3">
+          <div className="flex flex-col items-center pt-0.5 shrink-0">
+            <span className="material-symbols-outlined text-primary text-base"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+            <div className="w-[2px] flex-1 bg-border-gray my-0.5 min-h-[14px]" />
+            <span className="material-symbols-outlined text-orange-500 text-base"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>flight_takeoff</span>
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+            <p className="text-sm text-navy leading-tight">{booking.pickup}</p>
+            <p className="text-sm text-navy leading-tight">{booking.destination}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-orange-500 text-lg">flight_takeoff</span>
-          <span className="text-sm text-navy">{booking.destination}</span>
+
+        <div className="h-px bg-border-gray" />
+
+        {/* Thời gian + khoảng cách */}
+        <div className="flex justify-between text-[12px] text-neutral-gray">
+          <span>{fmtDateTime(booking.date, booking.time)}</span>
+          <span>{booking.distance_km} km</span>
         </div>
-        <div className="h-px bg-border-gray my-1" />
-        <div className="flex justify-between text-sm">
-          <span className="text-neutral-gray">{fmtDateTime(booking.date, booking.time)}</span>
-          <span className="font-bold text-primary">{booking.price.toLocaleString('vi')} đ</span>
+
+        <div className="h-px bg-border-gray" />
+
+        {/* Price breakdown */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex justify-between text-[13px]">
+            <span className="text-neutral-gray">Giá cuốc</span>
+            <span className="text-navy font-medium">{booking.price.toLocaleString('vi')}đ</span>
+          </div>
+
+          {(booking.discount ?? 0) > 0 && (
+            <div className="flex justify-between text-[13px]">
+              <div className="flex items-center gap-1.5 text-neutral-gray">
+                <span className="material-symbols-outlined text-[13px]">confirmation_number</span>
+                <span className="font-mono">{booking.voucher_code}</span>
+              </div>
+              <span className="text-success-green font-medium">-{(booking.discount ?? 0).toLocaleString('vi')}đ</span>
+            </div>
+          )}
+
+          {(booking.surcharge ?? 0) > 0 && (
+            <div className="flex justify-between text-[13px]">
+              <span className="text-neutral-gray">Phụ phí huỷ trước</span>
+              <span className="text-danger-red font-medium">+{(booking.surcharge ?? 0).toLocaleString('vi')}đ</span>
+            </div>
+          )}
+
+          <div className="h-px bg-border-gray mt-0.5" />
+
+          <div className="flex justify-between">
+            <span className="text-[13px] font-semibold text-navy">Tổng thanh toán</span>
+            <span className="text-[16px] font-bold text-primary">{(booking.final_price ?? booking.price).toLocaleString('vi')}đ</span>
+          </div>
         </div>
       </div>
 
@@ -311,11 +378,14 @@ export default function BookingStatusPage() {
       <ConfirmDialog
         open={confirmOpen}
         title={isFreeCancel ? 'Xác nhận huỷ chuyến?' : 'Huỷ chuyến · Phạt 50,000đ'}
-        description={
+        description={[
           isFreeCancel
             ? 'Chuyến sẽ bị huỷ và tài xế sẽ không được phân công.'
-            : 'Bạn đã quá 1 giờ kể từ khi đặt. Phí phạt 50,000đ sẽ được cộng vào cuốc xe tiếp theo.'
-        }
+            : 'Bạn đã quá 1 giờ kể từ khi đặt. Phí phạt 50,000đ sẽ được cộng vào cuốc xe tiếp theo.',
+          booking.voucher_code
+            ? `Voucher ${booking.voucher_code} đã dùng sẽ không được hoàn lại.`
+            : '',
+        ].filter(Boolean).join(' ')}
         confirmLabel="Xác nhận huỷ"
         loading={cancelMutation.isPending}
         onConfirm={() => cancelMutation.mutate()}

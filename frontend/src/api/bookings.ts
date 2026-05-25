@@ -15,3 +15,6 @@ export const cancelBooking = (id: number) => api.patch(`/bookings/${id}/cancel`)
 
 export const applyVoucher = (code: string, price: number) =>
   api.post<{ discount: number }>('/vouchers/apply', { code, price })
+
+export const getVouchers = () =>
+  api.get<App.VoucherListItem[]>('/vouchers')

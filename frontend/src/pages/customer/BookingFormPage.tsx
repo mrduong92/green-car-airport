@@ -1,19 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import clsx from 'clsx'
 import dayjs from 'dayjs'
-import { createBooking, applyVoucher, getActiveBooking } from '@/api/bookings'
+import { createBooking, getActiveBooking } from '@/api/bookings'
 import { getPriceConfigs } from '@/api/priceConfig'
 import { goongDistanceMatrix } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 import AddressInput from '@/components/common/AddressInput'
+import VoucherSheet from '@/components/common/VoucherSheet'
 
 // ─── Vehicle types ────────────────────────────────────────────────────────────
 
@@ -82,11 +83,13 @@ type FormData = z.infer<typeof schema>
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function BookingFormPage() {
-  const navigate   = useNavigate()
-  const showToast  = useUiStore((s) => s.showToast)
+  const navigate     = useNavigate()
+  const showToast    = useUiStore((s) => s.showToast)
+  const queryClient  = useQueryClient()
 
-  const [voucherCode, setVoucherCode] = useState('')
-  const [discount,    setDiscount]    = useState(0)
+  const [voucherCode,   setVoucherCode]   = useState('')
+  const [discount,      setDiscount]      = useState(0)
+  const [showVouchers,  setShowVouchers]  = useState(false)
   const [vehicleType, setVehicleType] = useState<VehicleType>('sedan_4')
   const [pickupLatLng,   setPickupLatLng]   = useState<LatLng | null>(null)
   const [destLatLng,     setDestLatLng]     = useState<LatLng | null>(null)
@@ -191,15 +194,6 @@ export default function BookingFormPage() {
     }
   }
 
-  const voucherMutation = useMutation({
-    mutationFn: () => applyVoucher(voucherCode, Number(watch('price')) || 0),
-    onSuccess: ({ data }) => {
-      setDiscount(data.discount)
-      showToast('Áp dụng voucher thành công', 'success')
-    },
-    onError: () => showToast('Mã voucher không hợp lệ', 'error'),
-  })
-
   const bookingMutation = useMutation({
     mutationFn: (data: FormData) =>
       createBooking({
@@ -210,7 +204,10 @@ export default function BookingFormPage() {
         destination_lng: destLatLng?.lng,
         voucher_code:    voucherCode || undefined,
       }),
-    onSuccess: ({ data }) => navigate(`/customer/booking/${data.id}`),
+    onSuccess: ({ data }) => {
+      queryClient.invalidateQueries({ queryKey: ['vouchers-list'] })
+      navigate(`/customer/booking/${data.id}`)
+    },
     onError: () => showToast('Đặt xe thất bại, vui lòng thử lại', 'error'),
   })
 
@@ -412,32 +409,49 @@ export default function BookingFormPage() {
 
         {/* ── VOUCHER ──────────────────────────────────────── */}
         <SectionLabel>Voucher</SectionLabel>
-        <div className="bg-white rounded-card shadow-card border border-border-soft flex items-center gap-3 px-4 py-3">
-          <span className="material-symbols-outlined text-neutral-gray text-[20px]">confirmation_number</span>
+        <button
+          type="button"
+          onClick={() => setShowVouchers(true)}
+          className="bg-white rounded-card shadow-card border border-border-soft w-full flex items-center gap-3 px-4 py-3 text-left"
+        >
+          <span
+            className={clsx(
+              'material-symbols-outlined text-[20px]',
+              discount > 0 ? 'text-primary' : 'text-neutral-gray',
+            )}
+            style={{ fontVariationSettings: discount > 0 ? "'FILL' 1" : undefined }}
+          >
+            confirmation_number
+          </span>
           {discount > 0 ? (
             <>
-              <span className="text-sm text-navy flex-1">Voucher đã áp dụng</span>
-              <span className="bg-primary-tint text-primary text-[12px] font-semibold rounded-pill px-3 py-1">
-                -{discount.toLocaleString('vi')} đ
-              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-navy">{voucherCode}</p>
+                <p className="text-[11px] text-success-green">Tiết kiệm {discount.toLocaleString('vi')}đ</p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setVoucherCode(''); setDiscount(0) }}
+                className="w-6 h-6 rounded-full bg-border-gray flex items-center justify-center shrink-0"
+              >
+                <span className="material-symbols-outlined text-[14px] text-neutral-gray">close</span>
+              </button>
             </>
           ) : (
             <>
-              <input
-                value={voucherCode}
-                onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                placeholder="Nhập mã voucher..."
-                className="flex-1 outline-none text-sm text-navy"
-              />
-              {voucherCode && (
-                <button type="button" onClick={() => voucherMutation.mutate()}
-                  className="text-primary text-[13px] font-semibold shrink-0">
-                  Áp dụng
-                </button>
-              )}
+              <span className="flex-1 text-sm text-neutral-gray">Chọn hoặc nhập mã voucher...</span>
+              <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
             </>
           )}
-        </div>
+        </button>
+
+        <VoucherSheet
+          open={showVouchers}
+          onClose={() => setShowVouchers(false)}
+          currentPrice={Number(watch('price')) || 0}
+          selectedCode={voucherCode}
+          onSelect={(v, disc) => { setVoucherCode(v.code); setDiscount(disc) }}
+        />
 
         <div className="h-4" />
       </div>

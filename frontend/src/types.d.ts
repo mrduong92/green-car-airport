@@ -26,6 +26,7 @@ declare namespace App {
     discount?: number
     surcharge?: number
     final_price?: number
+    voucher_code?: string | null
     vehicle_type?: VehicleType
     status: BookingStatus
     driver?: {
@@ -129,6 +130,14 @@ declare namespace App {
     route: string
     status: BookingStatus
     created_at: string
+  }
+
+  interface VoucherListItem {
+    id: number
+    code: string
+    type: 'fixed' | 'percent'
+    value: number
+    expires_at: string
   }
 
   interface Voucher {
