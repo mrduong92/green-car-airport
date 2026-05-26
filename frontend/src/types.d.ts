@@ -88,10 +88,32 @@ declare namespace App {
 
   interface Transaction {
     id: number
-    type: 'credit' | 'debit'
+    type: 'credit' | 'debit' | 'topup'
     description: string
     points: number
     created_at: string
+  }
+
+  interface TopUpInfo {
+    bank: {
+      name: string
+      account_number: string
+      account_holder: string
+    }
+    payment_code: string
+    min_amount_vnd: number
+    suggested_amounts: number[]
+    qr_template_url: string | null
+  }
+
+  interface TopUpEvent {
+    id: number
+    amount_vnd: number
+    points_credited: number
+    status: 'processed' | 'unmatched' | 'ignored'
+    gateway: string | null
+    reference_code: string | null
+    transaction_date: string | null
   }
 
   interface DriverProfile {

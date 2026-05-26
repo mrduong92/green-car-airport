@@ -18,6 +18,10 @@ export const getWallet = () => api.get<App.Wallet>('/driver/wallet')
 
 export const getTransactions = () => api.get<App.Transaction[]>('/driver/wallet/transactions')
 
+export const getTopUpInfo = () => api.get<App.TopUpInfo>('/driver/wallet/topup-info')
+
+export const getTopUpHistory = () => api.get<App.TopUpEvent[]>('/driver/wallet/topups')
+
 export const getDriverProfile = () => api.get<App.DriverProfile>('/driver/profile')
 
 export const updateDriverProfile = (data: Partial<App.DriverProfile>) =>

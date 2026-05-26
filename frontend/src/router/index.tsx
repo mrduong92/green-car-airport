@@ -14,6 +14,7 @@ import TripListPage from '@/pages/driver/TripListPage'
 import TripDetailPage from '@/pages/driver/TripDetailPage'
 import TripHistoryPage from '@/pages/driver/TripHistoryPage'
 import WalletPage from '@/pages/driver/WalletPage'
+import TopUpPage from '@/pages/driver/TopUpPage'
 import DriverProfilePage from '@/pages/driver/ProfilePage'
 import AdminDashboardPage from '@/pages/admin/DashboardPage'
 import DriversPage from '@/pages/admin/DriversPage'
@@ -71,6 +72,7 @@ export const router = createBrowserRouter([
           { path: '/driver/trips/history', element: <TripHistoryPage /> },
           { path: '/driver/trips/:id', element: <TripDetailPage /> },
           { path: '/driver/wallet', element: <WalletPage /> },
+          { path: '/driver/wallet/topup', element: <TopUpPage /> },
           { path: '/driver/notifications', element: <DriverNotificationsPage /> },
           { path: '/driver/profile', element: <DriverProfilePage /> },
         ],

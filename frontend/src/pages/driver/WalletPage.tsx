@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getWallet, getTransactions } from '@/api/trips'
 import dayjs from 'dayjs'
@@ -37,13 +38,14 @@ export default function WalletPage() {
             ≈ {(wallet?.equivalent_vnd ?? 0).toLocaleString('vi')} đ · 1.000đ = 1 điểm
           </p>
           <div className="flex gap-2 mt-5">
-            <button
+            <Link
+              to="/driver/wallet/topup"
               className="flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-semibold"
               style={{ background: '#fff', color: '#C8A24A' }}
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
               Nạp điểm
-            </button>
+            </Link>
             <button
               type="button"
               onClick={scrollToHistory}
@@ -84,27 +86,24 @@ export default function WalletPage() {
             <p className="text-caption text-neutral-gray text-center py-8">Chưa có giao dịch nào</p>
           )}
           {txs.map((tx, i) => {
-            const positive = tx.type === 'credit'
+            const isTopUp   = tx.type === 'topup'
+            const positive  = tx.type === 'credit' || isTopUp
+            const tintClass = isTopUp ? 'bg-primary/10' : positive ? 'bg-success-green/10' : 'bg-danger-red/10'
+            const textClass = isTopUp ? 'text-primary'   : positive ? 'text-success-green' : 'text-danger-red'
+            const icon      = isTopUp ? 'account_balance' : positive ? 'add' : 'remove'
             return (
               <div
                 key={tx.id}
                 className={clsx('flex items-center gap-3 px-4 py-4', i < txs.length - 1 && 'border-b border-border-soft')}
               >
-                <div className={clsx(
-                  'w-[34px] h-[34px] rounded-full flex items-center justify-center shrink-0',
-                  positive ? 'bg-success-green/10' : 'bg-danger-red/10'
-                )}>
-                  <span className={clsx('material-symbols-outlined text-[16px]',
-                    positive ? 'text-success-green' : 'text-danger-red')}>
-                    {positive ? 'add' : 'remove'}
-                  </span>
+                <div className={clsx('w-[34px] h-[34px] rounded-full flex items-center justify-center shrink-0', tintClass)}>
+                  <span className={clsx('material-symbols-outlined text-[16px]', textClass)}>{icon}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] text-navy font-medium truncate">{tx.description}</p>
                   <p className="text-[11px] text-neutral-gray mt-0.5">{dayjs(tx.created_at).format('DD/MM · HH:mm')}</p>
                 </div>
-                <span className={clsx('font-bold text-sm tabular-nums',
-                  positive ? 'text-success-green' : 'text-danger-red')}>
+                <span className={clsx('font-bold text-sm tabular-nums', textClass)}>
                   {positive ? '+' : '-'}{tx.points} đ
                 </span>
               </div>

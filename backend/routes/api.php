@@ -19,11 +19,13 @@ use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigControll
 use App\Http\Controllers\PriceConfigController;
 use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Webhooks\SepayWebhookController;
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send',   [OtpController::class, 'send']);
 Route::post('/auth/otp/verify', [OtpController::class, 'verify']);
 Route::get('/price-configs',    [PriceConfigController::class, 'index']);
+Route::post('/webhooks/sepay',  [SepayWebhookController::class, 'handle']);
 
 // ── Authenticated ─────────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -61,6 +63,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/driver/trips/{booking}/cancel',   [TripController::class, 'cancel']);
         Route::get('/driver/wallet',                     [WalletController::class, 'show']);
         Route::get('/driver/wallet/transactions',        [WalletController::class, 'transactions']);
+        Route::get('/driver/wallet/topup-info',          [WalletController::class, 'topupInfo']);
+        Route::get('/driver/wallet/topups',              [WalletController::class, 'topups']);
         Route::get('/driver/profile',                    [ProfileController::class, 'show']);
         Route::put('/driver/profile',                    [ProfileController::class, 'update']);
         Route::patch('/driver/status',                   [StatusController::class, 'update']);
