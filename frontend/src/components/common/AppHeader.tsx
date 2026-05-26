@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
 import { logout as logoutApi } from '@/api/auth'
+import { unregisterPushSubscription } from '@/push'
 import { useMutation } from '@tanstack/react-query'
 
 const ROOT_TABS = new Set([
@@ -69,7 +70,10 @@ export default function AppHeader() {
 
   const logoutMutation = useMutation({
     mutationFn: logoutApi,
-    onSettled: clearAuth,
+    onSettled: () => {
+      unregisterPushSubscription()
+      clearAuth()
+    },
   })
 
   const { title, isRoot } = getRouteInfo(pathname)

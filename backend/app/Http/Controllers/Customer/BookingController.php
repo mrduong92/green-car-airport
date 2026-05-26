@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendNewBookingBroadcastJob;
 use App\Models\Booking;
 use App\Models\Voucher;
+use App\Notifications\BookingCreatedNotification;
+use App\Notifications\CustomerCancelledNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -82,6 +85,9 @@ class BookingController extends Controller
             'vehicle_type'    => $data['vehicle_type'],
         ]);
 
+        $request->user()->notify(new BookingCreatedNotification($booking));
+        SendNewBookingBroadcastJob::dispatch($booking);
+
         return response()->json($this->formatBooking($booking->load(['driver.driverProfile', 'voucher'])), 201);
     }
 
@@ -131,6 +137,8 @@ class BookingController extends Controller
             'cancelled_at' => now(),
             'cancelled_by' => 'customer',
         ]);
+
+        $request->user()->notify(new CustomerCancelledNotification($booking));
 
         // Voucher usage_count đã tăng khi đặt; huỷ chuyến KHÔNG hoàn lại — đây là thiết kế có chủ đích.
         return response()->json($this->formatBooking($booking->fresh(['driver.driverProfile', 'voucher'])));

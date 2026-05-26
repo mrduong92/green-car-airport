@@ -17,6 +17,8 @@ use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
 use App\Http\Controllers\PriceConfigController;
+use App\Http\Controllers\DeviceTokenController;
+use App\Http\Controllers\NotificationController;
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send',   [OtpController::class, 'send']);
@@ -27,6 +29,14 @@ Route::get('/price-configs',    [PriceConfigController::class, 'index']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me',      [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+    // Shared (any authenticated role)
+    Route::post('/device-token',   [DeviceTokenController::class, 'store']);
+    Route::delete('/device-token', [DeviceTokenController::class, 'destroy']);
+    Route::get('/notifications',             [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch('/notifications/read-all',   [NotificationController::class, 'readAll']);
+    Route::patch('/notifications/{id}/read',  [NotificationController::class, 'markRead']);
 
     // Customer
     Route::middleware('role:customer')->group(function () {

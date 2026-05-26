@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Booking;
+use App\Notifications\BookingExpiredNotification;
 use Illuminate\Console\Command;
 
 class ExpireStaleBookings extends Command
@@ -12,14 +13,20 @@ class ExpireStaleBookings extends Command
 
     public function handle(): void
     {
-        $count = Booking::where('status', 'finding_driver')
+        $staleBookings = Booking::with('customer')
+            ->where('status', 'finding_driver')
             ->where('created_at', '<=', now()->subHours(24))
-            ->update([
+            ->get();
+
+        foreach ($staleBookings as $booking) {
+            $booking->update([
                 'status'       => 'cancelled',
                 'cancelled_at' => now(),
                 'cancelled_by' => 'system',
             ]);
+            $booking->customer?->notify(new BookingExpiredNotification($booking));
+        }
 
-        $this->info("Expired {$count} stale booking(s).");
+        $this->info("Expired {$staleBookings->count()} stale booking(s).");
     }
 }

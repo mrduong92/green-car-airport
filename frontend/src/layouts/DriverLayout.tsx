@@ -1,6 +1,7 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import ToastContainer from '@/components/common/Toast'
 import AppHeader from '@/components/common/AppHeader'
+import { useNotifications } from '@/hooks/useNotifications'
 import clsx from 'clsx'
 
 const TABS = [
@@ -12,6 +13,8 @@ const TABS = [
 ]
 
 export default function DriverLayout() {
+  const { unreadCount } = useNotifications()
+
   return (
     <div className="flex flex-col min-h-svh w-full bg-warm-white">
       <AppHeader />
@@ -31,9 +34,16 @@ export default function DriverLayout() {
             >
               {({ isActive }) => (
                 <>
-                  <span className="material-symbols-outlined text-[22px]"
-                    style={{ fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400" }}>
-                    {tab.icon}
+                  <span className="relative">
+                    <span className="material-symbols-outlined text-[22px]"
+                      style={{ fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400" }}>
+                      {tab.icon}
+                    </span>
+                    {tab.icon === 'notifications' && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-danger-red text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-[3px]">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                   </span>
                   <span className={clsx('text-[11px]', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
                 </>

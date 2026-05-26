@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import { sendOtp, verifyOtp } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { registerPushSubscription } from '@/push'
 import Button from '@/components/common/Button'
 
 const DEV_OTP  = '000000'
@@ -39,6 +40,7 @@ export default function LoginPage() {
         : verifyOtp(payload.phone, payload.otp),
     onSuccess: ({ data }) => {
       setAuth(data.user, data.token)
+      registerPushSubscription()
       const role = data.user.role
       if (role === 'customer') navigate('/customer/booking')
       else if (role === 'driver') navigate('/driver/trips')

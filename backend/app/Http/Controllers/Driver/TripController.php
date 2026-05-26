@@ -5,6 +5,12 @@ namespace App\Http\Controllers\Driver;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\WalletTransaction;
+use App\Notifications\BookingAcceptedNotification;
+use App\Notifications\BookingCompletedCustomerNotification;
+use App\Notifications\DriverCancelledNotification;
+use App\Notifications\TripAcceptedDriverNotification;
+use App\Notifications\TripCompletedDriverNotification;
+use App\Notifications\TripStartedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -62,6 +68,11 @@ class TripController extends Controller
             'points'      => $feePoints,
         ]);
 
+        // K2 — notify customer that a driver accepted
+        $booking->customer?->notify(new BookingAcceptedNotification($booking, $request->user()));
+        // T2 — confirm acceptance to the driver
+        $request->user()->notify(new TripAcceptedDriverNotification($booking));
+
         return response()->json($this->formatTrip($booking->fresh('customer')));
     }
 
@@ -87,8 +98,17 @@ class TripController extends Controller
 
         $booking->update(['status' => $newStatus]);
 
+        if ($newStatus === 'in_progress') {
+            // K3 — notify customer trip has started
+            $booking->customer?->notify(new TripStartedNotification($booking));
+        }
+
         if ($newStatus === 'completed') {
             $this->creditEarning($request->user(), $booking);
+            // K4 — notify customer trip completed
+            $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
+            // T4 — notify driver of earnings
+            $request->user()->notify(new TripCompletedDriverNotification($booking));
         }
 
         return response()->json($this->formatTrip($booking->fresh('customer')));
@@ -128,6 +148,9 @@ class TripController extends Controller
             'driver_id' => null,
             'status'    => 'finding_driver',
         ]);
+
+        // K5 — notify customer that driver cancelled, searching for new driver
+        $booking->customer?->notify(new DriverCancelledNotification($booking));
 
         return response()->json($this->formatTrip($booking->fresh('customer')));
     }
