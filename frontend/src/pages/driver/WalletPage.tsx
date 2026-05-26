@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getWallet, getTransactions } from '@/api/trips'
 import dayjs from 'dayjs'
@@ -6,6 +7,9 @@ import clsx from 'clsx'
 export default function WalletPage() {
   const { data: wallet } = useQuery({ queryKey: ['wallet'], queryFn: () => getWallet().then((r) => r.data) })
   const { data: txs = [] } = useQuery({ queryKey: ['transactions'], queryFn: () => getTransactions().then((r) => r.data) })
+
+  const historyRef = useRef<HTMLDivElement>(null)
+  const scrollToHistory = () => historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   return (
     <div className="w-full flex flex-col gap-4 px-4 py-4">
@@ -41,6 +45,8 @@ export default function WalletPage() {
               Nạp điểm
             </button>
             <button
+              type="button"
+              onClick={scrollToHistory}
               className="flex items-center gap-1.5 px-4 py-2 rounded-pill text-sm font-semibold text-white"
               style={{ background: 'rgba(255,255,255,0.18)' }}
             >
@@ -69,7 +75,7 @@ export default function WalletPage() {
       </div>
 
       {/* Transaction history */}
-      <div>
+      <div ref={historyRef} className="scroll-mt-4">
         <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-widest mb-3">
           Lịch sử giao dịch
         </p>

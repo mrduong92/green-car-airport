@@ -39,7 +39,9 @@ export default function TripListPage() {
     queryFn: () => getTripHistory().then((r) => r.data),
     staleTime: 60_000,
   })
-  const todayCount = history.filter((t) => dayjs(t.date).isSame(dayjs(), 'day')).length
+  const todayTrips = history.filter((t) => dayjs(t.date).isSame(dayjs(), 'day'))
+  const todayCount = todayTrips.length
+  const todayRevenue = todayTrips.reduce((sum, t) => sum + (t.net_earning ?? 0), 0)
 
   const { data: trips = [] } = useQuery({
     queryKey: ['trips', sort],
@@ -162,8 +164,13 @@ export default function TripListPage() {
           </div>
           <div className="flex flex-col gap-2">
             {myTrips.map((trip) => (
-              <div key={trip.id} className="rounded-card overflow-hidden"
-                   style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)' }}>
+              <button
+                key={trip.id}
+                type="button"
+                onClick={() => navigate(`/driver/trips/${trip.id}`)}
+                className="rounded-card overflow-hidden text-left w-full active:opacity-90 transition-opacity"
+                style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)' }}
+              >
                 <div className="p-3.5 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <span className="inline-block text-[10px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-pill mb-1.5">
@@ -185,15 +192,12 @@ export default function TripListPage() {
                     <p className="text-white font-bold text-[15px] tabular-nums">
                       {trip.net_earning.toLocaleString('vi')} đ
                     </p>
-                    <button
-                      onClick={() => navigate(`/driver/trips/${trip.id}`)}
-                      className="bg-white text-primary rounded-pill px-3 py-1.5 text-[12px] font-bold whitespace-nowrap"
-                    >
-                      Hoàn thành →
-                    </button>
+                    <span className="bg-white text-primary rounded-pill px-3 py-1.5 text-[12px] font-bold whitespace-nowrap">
+                      Chi tiết →
+                    </span>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -209,7 +213,7 @@ export default function TripListPage() {
           <p className="text-[11px] text-neutral-gray mt-0.5">Cuốc hôm nay</p>
         </button>
         {[
-          { val: '—', label: 'Doanh thu', color: 'text-success-green' },
+          { val: todayRevenue > 0 ? `${todayRevenue.toLocaleString('vi')}đ` : '—', label: 'Doanh thu', color: 'text-success-green' },
           { val: wallet ? wallet.points.toLocaleString('vi') : '—', label: 'Điểm còn lại', color: 'text-gold' },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-[10px] border border-border-soft text-center px-2 py-2.5">
