@@ -12,17 +12,27 @@ type Purpose = 'register' | 'reset'
 
 const IS_DEV = import.meta.env.DEV
 const DEV_PASS = '000000'
+const DEV_MOCK_KEY = 'dev_mock_login'
 
 const DEV_ACCOUNTS = [
-  { label: 'Khách Hàng Demo', phone: '0901234567', role: 'customer' as App.Role },
-  { label: 'Tài Xế Demo',     phone: '0912345678', role: 'driver'   as App.Role },
-  { label: 'Admin Demo',      phone: '0923456789', role: 'admin'    as App.Role },
+  { label: 'Khách Hàng', phone: '0901234567', role: 'customer' as App.Role },
+  { label: 'Tài Xế',     phone: '0912345678', role: 'driver'   as App.Role },
+  { label: 'Admin',      phone: '0923456789', role: 'admin'    as App.Role },
 ]
 
 export default function LoginPage() {
   const navigate  = useNavigate()
   const setAuth   = useAuthStore((s) => s.setAuth)
   const showToast = useUiStore((s) => s.showToast)
+
+  const [devMock, setDevMock]   = useState(() =>
+    IS_DEV ? (localStorage.getItem(DEV_MOCK_KEY) ?? 'true') === 'true' : false,
+  )
+  const toggleDevMock = () => setDevMock((v) => {
+    const next = !v
+    localStorage.setItem(DEV_MOCK_KEY, String(next))
+    return next
+  })
 
   const [step, setStep]         = useState<Step>('phone')
   const [purpose, setPurpose]   = useState<Purpose>('register')
@@ -137,10 +147,25 @@ export default function LoginPage() {
   return (
     <div className="min-h-svh bg-white flex flex-col max-w-[430px] mx-auto">
       {/* Top bar */}
-      <div className="px-4 pt-14 pb-2 safe-top flex items-center">
+      <div className="px-4 pt-14 pb-2 safe-top flex items-center justify-between">
         <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center text-navy">
           <span className="material-symbols-outlined">arrow_back</span>
         </button>
+        {IS_DEV && (
+          <button
+            onClick={toggleDevMock}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[11px] font-semibold border transition-colors ${
+              devMock
+                ? 'bg-amber-100 text-amber-700 border-amber-300'
+                : 'bg-warm-white text-neutral-gray border-border-gray'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[13px]">
+              {devMock ? 'flash_on' : 'flash_off'}
+            </span>
+            {devMock ? 'Mock ON' : 'Mock OFF'}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 px-6 pt-4 flex flex-col gap-6">
@@ -158,9 +183,8 @@ export default function LoginPage() {
         {/* ── step: phone ── */}
         {step === 'phone' && (
           <>
-            {IS_DEV && (
+            {IS_DEV && devMock && (
               <div className="flex flex-col gap-2">
-                <p className="text-xs text-center text-neutral-gray">🛠 Dev — đăng nhập nhanh</p>
                 {DEV_ACCOUNTS.map((acc) => (
                   <button
                     key={acc.role}
@@ -178,7 +202,7 @@ export default function LoginPage() {
                 ))}
                 <div className="flex items-center gap-2 my-1">
                   <div className="flex-1 h-px bg-border-gray" />
-                  <span className="text-xs text-neutral-gray">hoặc nhập số điện thoại</span>
+                  <span className="text-xs text-neutral-gray">hoặc nhập thủ công</span>
                   <div className="flex-1 h-px bg-border-gray" />
                 </div>
               </div>
@@ -221,6 +245,18 @@ export default function LoginPage() {
                 Đăng ký tài khoản mới
               </button>
             </div>
+
+            {IS_DEV && !devMock && (
+              <div className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col gap-1.5">
+                <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Tài khoản demo (mật khẩu: 000000)</p>
+                {DEV_ACCOUNTS.map((acc) => (
+                  <div key={acc.role} className="flex justify-between text-[12px]">
+                    <span className="text-amber-800 font-medium">{acc.label}</span>
+                    <span className="text-amber-700 font-mono">{acc.phone}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
