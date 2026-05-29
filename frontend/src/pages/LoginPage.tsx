@@ -63,9 +63,9 @@ export default function LoginPage() {
   const onAuthSuccess = ({ data }: { data: { user: App.User; token: string } }) => {
     setAuth(data.user, data.token)
     registerPushSubscription()
-    const role = data.user.role
+    const { role, needs_onboarding } = data.user
     if (role === 'customer') navigate('/customer/booking')
-    else if (role === 'driver') navigate('/driver/trips')
+    else if (role === 'driver') navigate(needs_onboarding ? '/driver/profile' : '/driver/trips')
     else navigate('/admin/dashboard')
   }
 
@@ -74,11 +74,15 @@ export default function LoginPage() {
     mutationFn: () => loginApi(phone, password),
     onSuccess: onAuthSuccess,
     onError: (err: { response?: { data?: { code?: string; message?: string } } }) => {
-      if (err.response?.data?.code === 'no_password') {
+      const code = err.response?.data?.code
+      const msg  = err.response?.data?.message
+      if (code === 'no_password') {
         showToast('Tài khoản chưa có mật khẩu. Vui lòng đặt lại mật khẩu.', 'info')
         doSendOtp('reset')
+      } else if (code === 'blocked') {
+        showToast(msg ?? 'Tài khoản đã bị khoá.', 'error')
       } else {
-        showToast(err.response?.data?.message ?? 'Mật khẩu không đúng.', 'error')
+        showToast(msg ?? 'Mật khẩu không đúng.', 'error')
       }
     },
   })

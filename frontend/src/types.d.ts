@@ -6,6 +6,7 @@ declare namespace App {
     name: string
     phone: string
     role: Role
+    needs_onboarding?: boolean
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'

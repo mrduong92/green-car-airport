@@ -35,6 +35,12 @@ export default function DriverProfilePage() {
     queryFn: () => getDriverProfile().then((r) => r.data),
   })
 
+  const isNewDriver = profile !== undefined && !profile?.vehicle_plate
+
+  useEffect(() => {
+    if (isNewDriver) setEditing(true)
+  }, [isNewDriver])
+
   useEffect(() => {
     if (profile) {
       setForm({
@@ -91,6 +97,21 @@ export default function DriverProfilePage() {
         <p className="text-caption text-neutral-gray mb-2">{profile?.phone ?? '—'}</p>
         <StatusBadge status={profile?.is_verified ? 'active' : 'waiting_approval'} />
       </div>
+
+      {/* Onboarding banner — new driver without vehicle info */}
+      {isNewDriver && (
+        <div className="mx-4 mt-4 rounded-card border border-alert-orange/30 bg-alert-orange/10 p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-alert-orange text-[20px] mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>
+            info
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-navy">Hoàn tất hồ sơ tài xế</p>
+            <p className="text-[13px] text-neutral-gray mt-0.5">
+              Vui lòng điền thông tin xe để bắt đầu nhận cuốc.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="bg-white mx-4 mt-4 rounded-card shadow-card p-4 grid grid-cols-3 gap-2 text-center">

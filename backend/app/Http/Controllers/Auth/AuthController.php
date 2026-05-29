@@ -24,6 +24,18 @@ class AuthController extends Controller
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
         }
 
+        // Block check (driver role only — customer block not yet implemented)
+        if ($user->role === 'driver') {
+            $user->loadMissing('driverProfile');
+            if ($user->driverProfile?->status === 'blocked') {
+                $reason = $user->driverProfile->blocked_reason;
+                $msg    = $reason
+                    ? "Tài khoản bị khoá: {$reason}"
+                    : 'Tài khoản đã bị khoá bởi admin.';
+                return response()->json(['message' => $msg, 'code' => 'blocked'], 403);
+            }
+        }
+
         $bypass = app()->environment('local') || $request->password === '000000';
 
         if (! $bypass) {
@@ -37,6 +49,10 @@ class AuthController extends Controller
             if (! Hash::check($request->password, $user->password)) {
                 return response()->json(['message' => 'Mật khẩu không đúng.'], 422);
             }
+        }
+
+        if ($user->role === 'driver') {
+            $user->loadMissing('driverProfile');
         }
 
         $token = $user->createToken('api')->plainTextToken;
@@ -103,7 +119,11 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json($this->userPayload($request->user()));
+        $user = $request->user();
+        if ($user->role === 'driver') {
+            $user->loadMissing('driverProfile');
+        }
+        return response()->json($this->userPayload($user));
     }
 
     public function logout(Request $request): JsonResponse
@@ -130,11 +150,17 @@ class AuthController extends Controller
 
     private function userPayload(User $user): array
     {
-        return [
+        $payload = [
             'id'    => $user->id,
             'name'  => $user->name,
             'phone' => $user->phone,
             'role'  => $user->role,
         ];
+
+        if ($user->role === 'driver') {
+            $payload['needs_onboarding'] = ! $user->driverProfile?->vehicle_plate;
+        }
+
+        return $payload;
     }
 }

@@ -11,7 +11,7 @@ class DriverController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = User::with('driverProfile')->where('role', 'driver');
+        $query = User::with(['driverProfile', 'wallet'])->where('role', 'driver');
 
         if ($request->status) {
             $query->whereHas('driverProfile', fn ($q) => $q->where('status', $request->status));
@@ -37,12 +37,14 @@ class DriverController extends Controller
             return response()->json(['message' => 'User is not a driver.'], 422);
         }
 
+        $request->validate(['reason' => 'nullable|string|max:255']);
+
         $user->driverProfile()->updateOrCreate(
             ['user_id' => $user->id],
-            ['status'  => 'blocked'],
+            ['status' => 'blocked', 'blocked_reason' => $request->reason],
         );
 
-        return response()->json($this->formatDriver($user->load('driverProfile')));
+        return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
     }
 
     public function update(Request $request, User $user): JsonResponse
@@ -69,7 +71,7 @@ class DriverController extends Controller
             collect($data)->except('name')->toArray(),
         );
 
-        return response()->json($this->formatDriver($user->load('driverProfile')));
+        return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
     }
 
     public function approve(Request $request, User $user): JsonResponse
@@ -91,18 +93,20 @@ class DriverController extends Controller
         $p = $u->driverProfile;
 
         return [
-            'id'            => $u->id,
-            'name'          => $u->name,
-            'phone'         => $u->phone,
-            'vehicle_make'  => $p?->vehicle_make,
-            'vehicle_model' => $p?->vehicle_model,
-            'vehicle_plate' => $p?->vehicle_plate,
-            'vehicle_color' => $p?->vehicle_color,
-            'status'        => $p?->status ?? 'pending',
-            'is_verified'   => (bool) ($p?->is_verified),
-            'is_online'     => (bool) ($p?->is_online),
-            'rating'        => $p ? (float) $p->rating : null,
-            'trips_count'   => $p?->trips_count ?? 0,
+            'id'             => $u->id,
+            'name'           => $u->name,
+            'phone'          => $u->phone,
+            'vehicle_make'   => $p?->vehicle_make,
+            'vehicle_model'  => $p?->vehicle_model,
+            'vehicle_plate'  => $p?->vehicle_plate,
+            'vehicle_color'  => $p?->vehicle_color,
+            'status'         => $p?->status ?? 'pending',
+            'blocked_reason' => $p?->blocked_reason,
+            'is_verified'    => (bool) ($p?->is_verified),
+            'is_online'      => (bool) ($p?->is_online),
+            'rating'         => $p ? (float) $p->rating : null,
+            'trips_count'    => $p?->trips_count ?? 0,
+            'points'         => $u->wallet?->points ?? 0,
         ];
     }
 }

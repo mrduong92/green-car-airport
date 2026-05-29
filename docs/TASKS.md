@@ -6,12 +6,17 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 ## A1 — Auth / Đăng nhập
 
-| | Việc cần làm |
-|---|---|
-| `[x]` | OTP send + verify (BE + FE) |
-| `[x]` | Dev bypass: OTP `000000` luôn thành công |
-| `[x]` | Sanctum token, logout |
-| `[x]` | Role guard: customer / driver / admin redirect đúng trang |
+| | Việc cần làm | Ghi chú |
+|---|---|---|
+| `[x]` | OTP gửi mã (BE + FE) | `POST /api/auth/otp/send` |
+| `[x]` | Đăng nhập bằng mật khẩu 6 số | `POST /api/auth/login` — không tốn OTP |
+| `[x]` | Đăng ký: xác minh OTP → đặt mật khẩu | `POST /api/auth/register` |
+| `[x]` | Quên mật khẩu: xác minh OTP → đặt lại | `POST /api/auth/reset-password` |
+| `[x]` | Dev bypass: OTP/mật khẩu `000000` luôn pass | `APP_ENV=local` hoặc giá trị `000000` |
+| `[x]` | Dev mock toggle: bật/tắt quick-login buttons | Persist localStorage `dev_mock_login` |
+| `[x]` | Sanctum token, logout | |
+| `[x]` | Role guard: customer / driver / admin redirect đúng trang | |
+| `[x]` | Chặn user bị block đăng nhập | `AuthController::login()` check `driver_profiles.status = blocked` → 403 |
 
 ---
 
@@ -19,15 +24,15 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 | | Việc cần làm | Ghi chú |
 |---|---|---|
-| `[x]` | Address autocomplete (Goong) — pickup + destination | Suppress re-fire sau khi chọn |
+| `[x]` | Address autocomplete (Goong) — pickup + destination | |
 | `[x]` | Chọn loại xe (sedan_4 / suv_5 / mpv_7) | |
 | `[x]` | Date chips (7 ngày kể từ hôm nay) | |
 | `[x]` | Time grid (0h–23h30, 30 phút/chip, 3 hàng scroll ngang) | |
 | `[x]` | Tính khoảng cách (Goong Distance Matrix + Haversine fallback) | |
 | `[x]` | Giá tham khảo từ API price-configs + auto-fill giá trung bình | |
 | `[x]` | Áp dụng voucher | |
-| `[x]` | Tạo booking với GPS coords (pickup_lat/lng, destination_lat/lng) | |
-| `[ ]` | Banner cảnh báo nếu khách đang có penalty 50k chưa trả | Cần BE trả `pending_penalty` trong user info |
+| `[x]` | Tạo booking với GPS coords | |
+| `[ ]` | Banner cảnh báo nếu khách đang có penalty 50k chưa trả | BE trả `pending_penalty` trong `/auth/me` nhưng FE chưa hiển thị cảnh báo |
 
 ---
 
@@ -44,10 +49,10 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 ## A4 — Lịch sử đặt xe (Khách — BookingHistoryPage)
 
-| | Việc cần làm | Ghi chú |
-|---|---|---|
-| `[!]` | FE gọi `r.data.data` (paginated), BE trả plain array → list luôn rỗng | Sửa BE để paginate hoặc FE đổi thành `r.data` |
-| `[ ]` | Filter theo trạng thái (Tất cả / Hoàn thành / Đã huỷ) hoạt động | Phụ thuộc vào fix trên |
+| | Việc cần làm |
+|---|---|
+| `[x]` | Danh sách lịch sử (BE trả plain array, FE dùng `r.data`) |
+| `[x]` | Filter theo trạng thái (Tất cả / Hoàn thành / Đã huỷ) |
 
 ---
 
@@ -61,7 +66,7 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 | `[x]` | Sort mới nhất / gần nhất (Haversine BE) |
 | `[x]` | Badge `~X km tới điểm đón` khi có vị trí |
 | `[x]` | Hiển thị điểm ví thực từ API |
-| `[ ]` | Push notification khi có cuốc mới (Phase 1 spec) |
+| `[x]` | Push notification khi có cuốc mới |
 
 ---
 
@@ -70,21 +75,22 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 | | Việc cần làm | Ghi chú |
 |---|---|---|
 | `[x]` | Xem chi tiết cuốc (pickup, destination, giá, phí app, thực nhận) | |
-| `[x]` | Flow trạng thái: accepted → picking_up → in_progress → completed (FE) | |
-| `[!]` | BE `updateStatus()` chưa xử lý `picking_up` → FE gọi sẽ lỗi 422 | Thêm `picking_up` vào `$map` trong TripController |
-| `[ ]` | Giới hạn tài xế nhận tối đa 3 cuốc active | Check trong `TripController::accept()` |
+| `[x]` | Flow trạng thái: accepted → picking_up → in_progress → completed | |
+| `[x]` | Giới hạn tài xế nhận tối đa 3 cuốc active | `TripController::accept()` check `$activeCount >= 3` |
 | `[ ]` | Placeholder bản đồ tuyến đường (Phase 2) | |
 
 ---
 
-## B3 — Ví điểm (Tài xế — WalletPage)
+## B3 — Ví điểm (Tài xế — WalletPage + TopUpPage)
 
 | | Việc cần làm | Ghi chú |
 |---|---|---|
 | `[x]` | Hiển thị số điểm + lịch sử giao dịch | |
-| `[!]` | Logic điểm **sai spec**: hiện đang CỘNG điểm sau cuốc | Spec: tài xế pre-fund ví → hoàn thành cuốc → **TRỪ** phí 20% |
-| `[ ]` | Endpoint admin nạp điểm: `PATCH /admin/drivers/{id}/topup` | Admin nhập số tiền → quy đổi 1.000đ = 1 điểm |
-| `[ ]` | Kiểm tra số dư tối thiểu trước khi nhận cuốc (nếu áp dụng pre-fund) | |
+| `[x]` | Tài xế nạp điểm qua chuyển khoản ngân hàng (Sepay webhook) | Auto-credit khi tiền vào TK công ty; idempotent theo `sepay_id` |
+| `[x]` | TopUpPage: QR VietQR + mã chuyển khoản + lịch sử nạp | Polling 15 giây |
+| `[x]` | Trừ phí app 20% khi tài xế nhận cuốc | `TripController` debit khi accept |
+| `[x]` | Credit 80% thu nhập khi hoàn thành cuốc | `TripController::creditEarning()` |
+| `[ ]` | Admin nạp điểm thủ công cho tài xế | `PATCH /admin/drivers/{id}/topup` — chưa có; Sepay tự động đã thay thế phần lớn nhu cầu này |
 
 ---
 
@@ -93,17 +99,18 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 | | Việc cần làm | Ghi chú |
 |---|---|---|
 | `[x]` | Xem thông tin xe + hồ sơ | |
-| `[ ]` | Form chỉnh sửa thông tin xe (inline edit) | |
-| `[ ]` | Màn hình onboarding cho tài xế mới chưa có profile | Sau OTP verify → redirect nếu chưa có `driverProfile` |
+| `[x]` | Form chỉnh sửa thông tin xe (bottom sheet) | |
+| `[x]` | Onboarding tài xế mới chưa có profile | Login → `needs_onboarding` → redirect `/driver/profile` + auto-open edit sheet + banner |
 
 ---
 
 ## C1 — Dashboard Admin
 
-| | Việc cần làm | Ghi chú |
-|---|---|---|
-| `[!]` | BE trả stats tổng cộng dồn; FE cần stats **hôm nay** | FE dùng: `trips_today`, `trips_today_change`, `revenue_today`, `drivers_online`, `drivers_total`, `app_fee_today`, `recent_trips[]` |
-| `[!]` | BE không trả `drivers_online`, `recent_trips[]` | Sửa `DashboardController::index()` |
+| | Việc cần làm |
+|---|---|
+| `[x]` | Stats hôm nay: `trips_today`, `trips_today_change`, `revenue_today`, `app_fee_today` |
+| `[x]` | `drivers_online`, `drivers_total` |
+| `[x]` | `recent_trips[]` |
 
 ---
 
@@ -111,12 +118,12 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 | | Việc cần làm | Ghi chú |
 |---|---|---|
-| `[!]` | FE gọi `r.data.data` (paginated), BE trả plain array → list rỗng | Sửa BE để trả paginated hoặc FE đổi thành `r.data` |
-| `[!]` | BE `formatDriver()` không có trường `points` → FE hiển thị undefined | Thêm wallet points vào response |
-| `[!]` | BE không xử lý search (name/phone/biển số) và filter by status | Thêm `where` clause vào `DriverController::index()` |
-| `[!]` | `blockDriver()` gửi `reason` nhưng BE bỏ qua, không lưu DB | Thêm `blocked_reason` vào `driver_profiles`, lưu khi block |
-| `[ ]` | Admin nạp điểm cho tài xế (button + modal) | Gọi `PATCH /admin/drivers/{id}/topup` |
+| `[x]` | Danh sách tài xế (BE `->get()`, FE `r.data`) | |
+| `[x]` | Search (name / phone) và filter by status | |
+| `[x]` | `formatDriver()` trả `points` (wallet) | Eager load wallet + `$u->wallet?->points ?? 0` |
+| `[x]` | `blockDriver()` lưu `blocked_reason` vào DB | Migration + fillable + lưu khi block |
 | `[ ]` | Unblock tài xế | |
+| `[ ]` | Admin nạp điểm thủ công cho tài xế (button + modal) | Phụ thuộc `PATCH /admin/drivers/{id}/topup` |
 
 ---
 
@@ -141,10 +148,11 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 ## C5 — Báo cáo doanh thu (Admin — RevenuePage)
 
-| | Việc cần làm | Ghi chú |
-|---|---|---|
-| `[!]` | BE trả `{rows, total, total_fee, total_trips}` với param `?days=30` | FE dùng: `{total_revenue, app_fee, trips_completed, avg_per_trip, chart:[{label, revenue, fee}]}` với param `?period=today/week/month` |
-| `[ ]` | Nút "Xuất Excel" chưa có chức năng | |
+| | Việc cần làm |
+|---|---|
+| `[x]` | BE hỗ trợ `?period=today/week/month` |
+| `[x]` | Trả đúng fields: `total_revenue`, `app_fee`, `trips_completed`, `avg_per_trip`, `chart[]` |
+| `[ ]` | Nút "Xuất Excel" |
 
 ---
 
@@ -152,10 +160,10 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 | | Việc cần làm | Ghi chú |
 |---|---|---|
-| `[ ]` | Tạo `admin/CustomersPage.tsx` + route `/admin/customers` | Danh sách khách, tìm kiếm, xem lịch sử đặt xe |
-| `[ ]` | Thêm vào nav `AdminLayout` | |
-| `[ ]` | `GET /admin/customers` — list với search, filter | |
-| `[ ]` | `PATCH /admin/customers/{id}/block` — block khách | |
+| `[x]` | Trang `CustomersPage.tsx` + route `/admin/customers` | |
+| `[x]` | Danh sách khách + search | `GET /admin/customers?search=` |
+| `[ ]` | Xem lịch sử đặt xe của khách | |
+| `[ ]` | `PATCH /admin/customers/{id}/block` — block khách | BE `CustomerController` chưa có action block |
 
 ---
 
@@ -163,9 +171,9 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 | | Việc cần làm | Ghi chú |
 |---|---|---|
-| `[ ]` | Penalty 50k khi khách huỷ sau 1h | BE: check `created_at` trong `cancel()` → ghi `penalty_amount` → cộng vào cuốc tiếp |
-| `[ ]` | Auto-expiry cuốc sau 24h không có tài xế nhận | Tạo `ExpireBookingsJob` + schedule mỗi 5 phút |
-| `[ ]` | Chặn tài xế/khách bị block đăng nhập lại | `OtpController::verify()` check `status=blocked` → 403 |
+| `[x]` | Penalty 50k khi khách huỷ sau 1h | `BookingController::cancel()`: check `diffInMinutes > 60` → `increment('pending_penalty', 50_000)` |
+| `[x]` | Auto-expiry cuốc sau 24h không có tài xế nhận | `ExpireStaleBookings` command + `Schedule::command()->hourly()` trong `console.php` |
+| `[x]` | Chặn user bị block đăng nhập | `AuthController::login()` check `driver_profiles.status = blocked` → 403 |
 | `[ ]` | Chặn tài xế bị block đăng ký lại bằng biển số đã block | `ProfileController::update()` check biển số |
 
 ---
@@ -174,13 +182,13 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 | | Việc cần làm |
 |---|---|
-| `[ ]` | Migration: bảng `push_subscriptions` |
-| `[ ]` | `POST /driver/push-subscription` — lưu Web Push subscription |
-| `[ ]` | Install `minishlink/web-push` |
-| `[ ]` | `SendPushNotificationJob` — gửi push đến tài xế online khi booking mới |
-| `[ ]` | Dispatch job trong `BookingController::store()` |
-| `[ ]` | FE service worker xử lý push event |
-| `[ ]` | FE xin quyền notification + đăng ký subscription khi bật online |
+| `[x]` | Bảng `push_subscriptions` + `POST /push/subscribe` |
+| `[x]` | `minishlink/web-push` + WebPushChannel |
+| `[x]` | Push khi có cuốc mới (tài xế online) |
+| `[x]` | Push khi cuốc được nhận / cập nhật trạng thái |
+| `[x]` | Push khi nạp điểm thành công (Sepay) |
+| `[x]` | FE service worker: nhận push, hiện OS notification khi background |
+| `[x]` | FE xin quyền notification + đăng ký subscription khi login |
 
 ---
 
@@ -188,9 +196,11 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 
 | | Việc cần làm |
 |---|---|
-| `[ ]` | Kiểm tra `manifest.json`: name, icons 192/512px, `theme_color: #006a36`, `display: standalone` |
-| `[ ]` | Service worker hoạt động (offline fallback) |
-| `[ ]` | Lighthouse PWA audit đạt installable |
+| `[x]` | Icons 192/512px, `theme_color: #006a36`, `display: standalone` |
+| `[x]` | Service worker: precache offline + push handler |
+| `[x]` | Trang `/install`: hướng dẫn Android / iOS / Desktop |
+| `[x]` | Install banner trên SplashPage + row trong Profile pages |
+| `[x]` | `canInstall` ẩn khi đang chạy standalone mode |
 
 ---
 
@@ -209,25 +219,23 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 ## Thứ tự ưu tiên gợi ý
 
 ```
-Đợt 1 — Sửa lỗi hiển thị (broken UX):
-  A4  Fix BookingHistoryPage (r.data.data → r.data hoặc paginate BE)
-  B2  Fix picking_up status trong TripController
-  C1  Fix DashboardController (stats hôm nay + drivers_online + recent_trips)
-  C2  Fix DriversPage (paginate + search/filter + points + block reason)
-  C5  Fix RevenueController (period=today/week/month + đúng field names)
+Đợt 1 — Lỗi còn lại (broken UX / data sai):
+  C2  formatDriver() thiếu wallet points
+  C2  blockDriver() không lưu blocked_reason
+  A1  Chặn user bị block đăng nhập (login() check status)
 
 Đợt 2 — Nghiệp vụ thiếu:
-  B3  Sửa logic điểm (deduct thay vì credit) + admin topup endpoint
-  B2  Giới hạn 3 cuốc/tài xế
-  N1  Penalty 50k + auto-expiry 24h
+  N1  Penalty 50k khi huỷ sau 1h
+  N1  Auto-expiry cuốc 24h (ExpireBookingsJob)
+  B4  Driver onboarding (redirect nếu chưa có driverProfile)
 
 Đợt 3 — Tính năng còn thiếu:
-  C6  Quản lý khách hàng (Admin)
-  B4  Driver onboarding + edit profile
-  N1  Block check khi login/đăng ký lại
+  C6  Block khách hàng (Admin)
+  C6  Xem lịch sử đặt xe của khách
+  A2/A3  Hiển thị & cảnh báo penalty trên FE
+  C5  Xuất Excel
 
 Đợt 4 — Nâng cao:
-  N2  Push Notification
-  N3  PWA audit
-  Phase 2  Bản đồ tương tác
+  B4  Driver onboarding flow
+  Phase 2  Bản đồ tương tác Goong
 ```
