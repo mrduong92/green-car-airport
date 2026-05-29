@@ -11,7 +11,9 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable, HasApiTokens;
 
-    protected $fillable = ['name', 'phone', 'role', 'pending_penalty'];
+    protected $fillable = ['name', 'phone', 'role', 'password', 'pending_penalty'];
+
+    protected $hidden = ['password'];
 
     public function driverProfile()
     {

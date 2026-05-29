@@ -23,6 +23,7 @@ import RevenuePage from '@/pages/admin/RevenuePage'
 import PriceConfigPage from '@/pages/admin/PriceConfigPage'
 import AdminCustomersPage from '@/pages/admin/CustomersPage'
 import DriverNotificationsPage from '@/pages/driver/NotificationsPage'
+import InstallPage from '@/pages/InstallPage'
 
 function RequireRole({ role }: { role: App.Role }) {
   const user = useAuthStore((s) => s.user)
@@ -95,5 +96,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
+  { path: '/install', element: <InstallPage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ])

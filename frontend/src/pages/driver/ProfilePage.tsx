@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { getDriverProfile, updateDriverProfile } from '@/api/trips'
 import { logout } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
 
@@ -20,6 +22,8 @@ export default function DriverProfilePage() {
   const clearAuth = useAuthStore((s) => s.clearAuth)
   const showToast = useUiStore((s) => s.showToast)
   const qc = useQueryClient()
+  const navigate = useNavigate()
+  const { canInstall } = usePwaInstall()
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<EditForm>({
     name: '', vehicle_make: '', vehicle_model: '',
@@ -135,6 +139,16 @@ export default function DriverProfilePage() {
 
       {/* Actions */}
       <div className="bg-white mx-4 mt-3 rounded-card shadow-card divide-y divide-border-gray">
+        {canInstall && (
+          <button
+            onClick={() => navigate('/install')}
+            className="w-full flex items-center gap-3 px-4 py-4 text-navy"
+          >
+            <span className="material-symbols-outlined text-primary">install_mobile</span>
+            <span className="text-sm font-medium flex-1 text-left">Cài đặt ứng dụng</span>
+            <span className="material-symbols-outlined text-neutral-gray text-[16px]">chevron_right</span>
+          </button>
+        )}
         <button
           onClick={() => logoutMutation.mutate()}
           className="w-full flex items-center gap-3 px-4 py-4 text-danger-red"

@@ -5,6 +5,7 @@ import { logout } from '@/api/auth'
 import { getCustomerProfile, updateCustomerProfile } from '@/api/customer'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
 import Button from '@/components/common/Button'
 import VoucherSheet from '@/components/common/VoucherSheet'
 
@@ -13,6 +14,7 @@ export default function CustomerProfilePage() {
   const showToast = useUiStore((s) => s.showToast)
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { canInstall } = usePwaInstall()
 
   const [showEdit, setShowEdit] = useState(false)
   const [editName, setEditName] = useState('')
@@ -50,6 +52,7 @@ export default function CustomerProfilePage() {
     { icon: 'confirmation_number', label: 'Voucher của tôi',  onClick: () => setShowVouchers(true) },
     { icon: 'notifications',    label: 'Thông báo',            onClick: () => navigate('/customer/notifications') },
     { icon: 'help',             label: 'Trợ giúp & Liên hệ',  onClick: () => setShowContact(true) },
+    ...(canInstall ? [{ icon: 'install_mobile', label: 'Cài đặt ứng dụng', onClick: () => navigate('/install') }] : []),
   ]
 
   return (

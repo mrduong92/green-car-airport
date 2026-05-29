@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
@@ -34,8 +35,13 @@ class UserSeeder extends Seeder
             ['phone' => '0927345678', 'role' => 'driver', 'name' => 'Lý Thị Lan'],
         ];
 
+        $defaultPassword = Hash::make('000000');
+
         foreach ($users as $data) {
-            User::updateOrCreate(['phone' => $data['phone']], $data);
+            User::updateOrCreate(
+                ['phone' => $data['phone']],
+                array_merge($data, ['password' => $defaultPassword]),
+            );
         }
     }
 }

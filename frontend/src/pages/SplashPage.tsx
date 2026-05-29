@@ -1,8 +1,19 @@
 import { useNavigate } from 'react-router-dom'
 import Button from '@/components/common/Button'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
 
 export default function SplashPage() {
   const navigate = useNavigate()
+  const { canInstall, isIos, triggerInstall } = usePwaInstall()
+
+  const handleInstallClick = async () => {
+    if (isIos) {
+      navigate('/install')
+    } else {
+      const ok = await triggerInstall()
+      if (!ok) navigate('/install')
+    }
+  }
   return (
     <div
       className="min-h-svh w-full flex flex-col items-center justify-center gap-7 px-8 relative overflow-hidden"
@@ -63,6 +74,18 @@ export default function SplashPage() {
       <p className="text-white/60 text-[13px] text-center">
         Nhanh · Minh bạch · Tiện lợi
       </p>
+
+      {/* Install banner */}
+      {canInstall && (
+        <button
+          onClick={handleInstallClick}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-pill border border-white/30 text-white/90 text-sm font-medium"
+          style={{ background: 'rgba(255,255,255,0.10)', backdropFilter: 'blur(8px)' }}
+        >
+          <span className="material-symbols-outlined text-[16px]">install_mobile</span>
+          Cài đặt ứng dụng
+        </button>
+      )}
 
       {/* Spinner */}
       <div
