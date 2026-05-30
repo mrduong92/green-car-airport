@@ -169,7 +169,7 @@ export default function TripListPage() {
                 type="button"
                 onClick={() => navigate(`/driver/trips/${trip.id}`)}
                 className="rounded-card overflow-hidden text-left w-full active:opacity-90 transition-opacity"
-                style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)' }}
+                style={{ background: 'linear-gradient(135deg, #006a36 0%, #004d27 100%)' }}
               >
                 <div className="p-3.5 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
@@ -206,7 +206,7 @@ export default function TripListPage() {
       {/* Today stats */}
       <div className="mx-4 mt-3 grid grid-cols-3 gap-2">
         <button
-          onClick={() => navigate('/driver/trips/history')}
+          onClick={() => navigate('/driver/trips/history?tab=today')}
           className="bg-white rounded-[10px] border border-border-soft text-center px-2 py-2.5 active:bg-light-green transition-colors"
         >
           <p className="font-bold text-[16px] tabular-nums text-primary">{todayCount}</p>

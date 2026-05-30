@@ -5,7 +5,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import clsx from 'clsx'
 
 const TABS = [
-  { to: '/driver/trips',         icon: 'list_alt',               label: 'Cuốc xe' },
+  { to: '/driver/trips',         icon: 'list_alt',               label: 'Cuốc xe',  end: true },
   { to: '/driver/trips/history', icon: 'receipt_long',           label: 'Lịch sử' },
   { to: '/driver/wallet',        icon: 'account_balance_wallet',  label: 'Ví điểm' },
   { to: '/driver/notifications', icon: 'notifications',           label: 'Thông báo' },
@@ -27,6 +27,7 @@ export default function DriverLayout() {
             <NavLink
               key={tab.to}
               to={tab.to}
+              end={'end' in tab ? tab.end : undefined}
               className={({ isActive }) =>
                 clsx('flex-1 flex flex-col items-center py-1.5 gap-[3px] transition-colors',
                   isActive ? 'text-primary' : 'text-neutral-dim')

@@ -5,12 +5,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Brand — Skyline Indigo
-        primary:           '#1E3A8A',
-        'primary-dark':    '#162C6B',
-        'primary-tint':    '#EEF2FD',
-        'light-green':     '#EEF2FD', // alias for primary-tint — keeps old class names working
-        'primary-ring':    'rgba(30,58,138,0.18)',
+        // Brand — Green
+        primary:           '#006a36',
+        'primary-dark':    '#004d27',
+        'primary-tint':    '#E8F5EE',
+        'light-green':     '#E8F5EE',
+        'primary-ring':    'rgba(0,106,54,0.18)',
         gold:              '#C8A24A',
         'gold-tint':       '#FBF5E4',
         // Neutrals

@@ -26,7 +26,7 @@ const STATUS_INFO: Record<string, { label: string; icon: string; bg: string; ste
   accepted:    {
     label: 'Tài xế đang trên đường đến đón bạn',
     icon:  'directions_car',
-    bg:    'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)',
+    bg:    'linear-gradient(135deg, #006a36 0%, #004d27 100%)',
     step:  'Bước 1/2 · Đang đón',
   },
   in_progress: {

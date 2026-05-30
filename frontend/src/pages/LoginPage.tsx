@@ -194,7 +194,7 @@ export default function LoginPage() {
               <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mb-2">Số điện thoại</p>
               <div
                 className="flex items-center bg-white overflow-hidden h-[52px]"
-                style={{ border: '1.5px solid #1E3A8A', borderRadius: 8, boxShadow: '0 0 0 4px rgba(30,58,138,0.18)' }}
+                style={{ border: '1.5px solid #006a36', borderRadius: 8, boxShadow: '0 0 0 4px rgba(0,106,54,0.18)' }}
               >
                 <span className="px-4 text-navy font-semibold text-sm border-r border-border-gray h-full flex items-center">🇻🇳 +84</span>
                 <input
@@ -257,7 +257,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   onKeyDown={(e) => e.key === 'Enter' && pwdValid && loginMutation.mutate()}
                   placeholder="••••••"
-                  className="w-full h-[52px] border-[1.5px] border-primary rounded-input px-4 pr-12 text-navy text-2xl tracking-[0.4em] outline-none focus:shadow-[0_0_0_4px_rgba(30,58,138,0.18)] transition-shadow"
+                  className="w-full h-[52px] border-[1.5px] border-primary rounded-input px-4 pr-12 text-navy text-2xl tracking-[0.4em] outline-none focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
                   style={{ fontFamily: 'monospace' }}
                 />
                 <button
@@ -307,7 +307,7 @@ export default function LoginPage() {
                   value={d}
                   onChange={(e) => handleOtpChange(i, e.target.value)}
                   onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                  className="w-12 h-14 text-center text-xl font-bold border-[1.5px] border-border-gray rounded-input outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(30,58,138,0.18)] text-navy transition-shadow"
+                  className="w-12 h-14 text-center text-xl font-bold border-[1.5px] border-border-gray rounded-input outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] text-navy transition-shadow"
                 />
               ))}
             </div>
@@ -346,7 +346,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   onKeyDown={(e) => e.key === 'Enter' && pwdValid && finishMutation.mutate()}
                   placeholder="••••••"
-                  className="w-full h-[52px] border-[1.5px] border-primary rounded-input px-4 pr-12 text-navy text-2xl tracking-[0.4em] outline-none focus:shadow-[0_0_0_4px_rgba(30,58,138,0.18)] transition-shadow"
+                  className="w-full h-[52px] border-[1.5px] border-primary rounded-input px-4 pr-12 text-navy text-2xl tracking-[0.4em] outline-none focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
                   style={{ fontFamily: 'monospace' }}
                 />
                 <button

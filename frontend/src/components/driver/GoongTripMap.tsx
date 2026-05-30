@@ -44,7 +44,7 @@ export default function GoongTripMap({ pickupLat, pickupLng, destLat, destLng }:
     })
     mapRef.current = map
 
-    new mapboxgl.Marker({ color: '#1E3A8A' })
+    new mapboxgl.Marker({ color: '#006a36' })
       .setLngLat([pickupLng, pickupLat])
       .addTo(map)
 
@@ -79,7 +79,7 @@ export default function GoongTripMap({ pickupLat, pickupLng, destLat, destLng }:
           id: 'route',
           type: 'line',
           source: 'route',
-          paint: { 'line-color': '#1E3A8A', 'line-width': 4, 'line-opacity': 0.85 },
+          paint: { 'line-color': '#006a36', 'line-width': 4, 'line-opacity': 0.85 },
         })
       } catch { /* silently ignore */ }
     })

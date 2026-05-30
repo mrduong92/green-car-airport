@@ -89,9 +89,13 @@ export default function AppHeader() {
         {/* Left — brand logo square or back button */}
         <div className="w-9 flex items-center shrink-0">
           {inRootSet ? (
-            <div className="w-9 h-9 rounded-logo bg-primary-tint flex items-center justify-center">
+            <button
+              onClick={() => navigate(user?.role === 'customer' ? '/customer/booking' : user?.role === 'driver' ? '/driver/trips' : '/admin/dashboard')}
+              className="w-9 h-9 rounded-logo bg-primary-tint flex items-center justify-center"
+              aria-label="Trang chủ"
+            >
               <span className="material-symbols-outlined text-primary" style={{ fontSize: 20 }}>directions_car</span>
-            </div>
+            </button>
           ) : (
             <button
               onClick={() => navigate(-1)}
@@ -106,7 +110,7 @@ export default function AppHeader() {
         {/* Center — page title */}
         <div className="flex-1 text-center px-2 min-w-0">
           {inRootSet ? (
-            <span className="text-navy font-semibold text-[15px] tracking-tight">Green Car</span>
+            <span className="text-navy font-semibold text-[15px] tracking-tight">Green Car Airport</span>
           ) : (
             <span className="text-navy font-semibold text-[15px] truncate block">{title}</span>
           )}

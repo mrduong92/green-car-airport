@@ -61,7 +61,7 @@ export default function CustomerProfilePage() {
       <div className="rounded-card overflow-hidden shadow-card">
         <div
           className="px-5 py-6 flex items-center gap-4"
-          style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #162C6B 100%)' }}
+          style={{ background: 'linear-gradient(135deg, #006a36 0%, #004d27 100%)' }}
         >
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-2xl text-white shrink-0"

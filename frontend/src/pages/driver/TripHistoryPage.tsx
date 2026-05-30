@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getTripHistory } from '@/api/trips'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
@@ -50,7 +50,16 @@ function groupByDate(trips: App.Trip[]): { date: string; label: string; trips: A
 
 export default function TripHistoryPage() {
   const navigate = useNavigate()
-  const [filter, setFilter] = useState<Filter>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as Filter | null
+  const [filter, setFilter] = useState<Filter>(
+    tabParam && FILTERS.some((f) => f.key === tabParam) ? tabParam : 'all',
+  )
+
+  const handleSetFilter = (f: Filter) => {
+    setFilter(f)
+    setSearchParams(f === 'all' ? {} : { tab: f }, { replace: true })
+  }
 
   const { data: allTrips = [], isLoading } = useQuery({
     queryKey: ['trip-history'],
@@ -70,7 +79,7 @@ export default function TripHistoryPage() {
           {FILTERS.map((f) => (
             <button
               key={f.key}
-              onClick={() => setFilter(f.key)}
+              onClick={() => handleSetFilter(f.key)}
               className={clsx(
                 'rounded-pill px-4 py-1.5 text-sm font-medium whitespace-nowrap transition-colors',
                 filter === f.key ? 'bg-primary text-white' : 'bg-light-green text-primary',

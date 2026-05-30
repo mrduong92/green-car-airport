@@ -292,7 +292,7 @@ export default function BookingFormPage() {
                 className={clsx(
                   'flex flex-col items-center gap-1 py-3 rounded-card border transition-all',
                   active
-                    ? 'border-primary bg-primary-tint shadow-[0_0_0_3px_rgba(30,58,138,0.18)]'
+                    ? 'border-primary bg-primary-tint shadow-[0_0_0_3px_rgba(0,106,54,0.18)]'
                     : 'border-border-gray bg-white'
                 )}
               >
@@ -401,7 +401,7 @@ export default function BookingFormPage() {
             {...register('price')}
             placeholder="Tự động tính khi chọn địa điểm"
             className="flex-1 outline-none text-navy text-[18px] font-semibold tabular-nums min-w-0"
-            style={{ color: '#1E3A8A' }}
+            style={{ color: '#006a36' }}
           />
           <span className="text-neutral-gray text-sm font-medium ml-2 shrink-0">đ</span>
         </div>

@@ -59,7 +59,7 @@ export default function RevenuePage() {
       {
         label: 'Doanh thu',
         data: data?.chart?.map((c) => c.revenue / 1000) ?? [],
-        backgroundColor: '#1E3A8A',
+        backgroundColor: '#006a36',
         borderRadius: 6,
         borderSkipped: false,
       },
