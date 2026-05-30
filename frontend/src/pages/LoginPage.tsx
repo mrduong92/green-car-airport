@@ -12,7 +12,7 @@ type Purpose = 'register' | 'reset'
 
 const IS_DEV = import.meta.env.DEV
 const DEV_PASS = '000000'
-const DEV_MOCK_KEY = 'dev_mock_login'
+const DEV_MOCK = true // đổi thành false để tắt quick-login buttons
 
 const DEV_ACCOUNTS = [
   { label: 'Khách Hàng', phone: '0901234567', role: 'customer' as App.Role },
@@ -25,14 +25,7 @@ export default function LoginPage() {
   const setAuth   = useAuthStore((s) => s.setAuth)
   const showToast = useUiStore((s) => s.showToast)
 
-  const [devMock, setDevMock]   = useState(() =>
-    IS_DEV ? (localStorage.getItem(DEV_MOCK_KEY) ?? 'true') === 'true' : false,
-  )
-  const toggleDevMock = () => setDevMock((v) => {
-    const next = !v
-    localStorage.setItem(DEV_MOCK_KEY, String(next))
-    return next
-  })
+  const devMock = IS_DEV && DEV_MOCK
 
   const [step, setStep]         = useState<Step>('phone')
   const [purpose, setPurpose]   = useState<Purpose>('register')
@@ -151,25 +144,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-svh bg-white flex flex-col max-w-[430px] mx-auto">
       {/* Top bar */}
-      <div className="px-4 pt-14 pb-2 safe-top flex items-center justify-between">
+      <div className="px-4 pt-14 pb-2 safe-top flex items-center">
         <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center text-navy">
           <span className="material-symbols-outlined">arrow_back</span>
         </button>
-        {IS_DEV && (
-          <button
-            onClick={toggleDevMock}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-pill text-[11px] font-semibold border transition-colors ${
-              devMock
-                ? 'bg-amber-100 text-amber-700 border-amber-300'
-                : 'bg-warm-white text-neutral-gray border-border-gray'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[13px]">
-              {devMock ? 'flash_on' : 'flash_off'}
-            </span>
-            {devMock ? 'Mock ON' : 'Mock OFF'}
-          </button>
-        )}
       </div>
 
       <div className="flex-1 px-6 pt-4 flex flex-col gap-6">

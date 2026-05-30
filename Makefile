@@ -24,6 +24,9 @@ logs:
 logs-fe:
 	$(DOCKER_COMPOSE) logs -f frontend
 
+logs-worker:
+	$(DOCKER_COMPOSE) logs -f worker
+
 # ── Backend (Laravel) ───────────────────────────────────────────────────────────
 shell:
 	$(DOCKER_COMPOSE) exec app bash

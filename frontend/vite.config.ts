@@ -31,6 +31,10 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
     }),
   ],
   resolve: {
@@ -39,7 +43,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    allowedHosts: ['6204-2402-800-61b2-1c96-51d5-62c5-6eee-469.ngrok-free.app'],
+    allowedHosts: ['.ngrok-free.app', '.ngrok.io'],
     proxy: {
       '/api': { target: 'http://nginx', changeOrigin: true },
     },

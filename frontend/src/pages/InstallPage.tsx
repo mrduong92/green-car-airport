@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useUiStore } from '@/stores/ui'
@@ -59,27 +59,11 @@ export default function InstallPage() {
     }
   }
 
-  if (isStandalone) {
-    return (
-      <div className="min-h-svh flex flex-col items-center justify-center gap-4 px-6 bg-warm-white">
-        <div className="w-16 h-16 rounded-full bg-success-green/10 flex items-center justify-center">
-          <span className="material-symbols-outlined text-success-green" style={{ fontSize: 36, fontVariationSettings: "'FILL' 1" }}>
-            check_circle
-          </span>
-        </div>
-        <p className="text-navy font-bold text-lg text-center">Đã cài đặt ứng dụng</p>
-        <p className="text-neutral-gray text-sm text-center">
-          GreenCar đang chạy ở chế độ ứng dụng. Bạn có thể mở từ màn hình chính của thiết bị.
-        </p>
-        <button
-          onClick={() => navigate(-1)}
-          className="px-6 py-2.5 rounded-pill bg-primary text-white text-sm font-semibold"
-        >
-          Quay lại
-        </button>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (isStandalone) navigate('/', { replace: true })
+  }, [isStandalone, navigate])
+
+  if (isStandalone) return null
 
   const steps = STEPS[tab]
 
