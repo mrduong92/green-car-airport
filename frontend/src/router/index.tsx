@@ -23,6 +23,8 @@ import RevenuePage from '@/pages/admin/RevenuePage'
 import PriceConfigPage from '@/pages/admin/PriceConfigPage'
 import AdminCustomersPage from '@/pages/admin/CustomersPage'
 import DriverNotificationsPage from '@/pages/driver/NotificationsPage'
+import DriverStatsPage from '@/pages/driver/StatsPage'
+import CustomerStatsPage from '@/pages/customer/StatsPage'
 import InstallPage from '@/pages/InstallPage'
 
 function RequireRole({ role }: { role: App.Role }) {
@@ -57,6 +59,7 @@ export const router = createBrowserRouter([
           { path: '/customer/booking', element: <BookingFormPage /> },
           { path: '/customer/booking/:id', element: <BookingStatusPage /> },
           { path: '/customer/history', element: <BookingHistoryPage /> },
+          { path: '/customer/stats', element: <CustomerStatsPage /> },
           { path: '/customer/notifications', element: <CustomerNotificationsPage /> },
           { path: '/customer/profile', element: <CustomerProfilePage /> },
         ],
@@ -74,6 +77,7 @@ export const router = createBrowserRouter([
           { path: '/driver/trips/:id', element: <TripDetailPage /> },
           { path: '/driver/wallet', element: <WalletPage /> },
           { path: '/driver/wallet/topup', element: <TopUpPage /> },
+          { path: '/driver/stats', element: <DriverStatsPage /> },
           { path: '/driver/notifications', element: <DriverNotificationsPage /> },
           { path: '/driver/profile', element: <DriverProfilePage /> },
         ],

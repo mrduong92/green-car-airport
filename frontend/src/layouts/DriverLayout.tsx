@@ -6,10 +6,11 @@ import clsx from 'clsx'
 
 const TABS = [
   { to: '/driver/trips',         icon: 'list_alt',               label: 'Cuốc xe',  end: true },
-  { to: '/driver/trips/history', icon: 'receipt_long',           label: 'Lịch sử' },
-  { to: '/driver/wallet',        icon: 'account_balance_wallet',  label: 'Ví điểm' },
-  { to: '/driver/notifications', icon: 'notifications',           label: 'Thông báo' },
-  { to: '/driver/profile',       icon: 'person',                 label: 'Hồ sơ' },
+  { to: '/driver/trips/history', icon: 'receipt_long',           label: 'Lịch sử',  end: true },
+  { to: '/driver/stats',         icon: 'bar_chart',              label: 'Thống kê', end: true },
+  { to: '/driver/wallet',        icon: 'account_balance_wallet',  label: 'Ví điểm', end: true },
+  { to: '/driver/notifications', icon: 'notifications',           label: 'Thông báo', end: true },
+  { to: '/driver/profile',       icon: 'person',                 label: 'Hồ sơ',   end: true },
 ]
 
 export default function DriverLayout() {
@@ -36,7 +37,7 @@ export default function DriverLayout() {
               {({ isActive }) => (
                 <>
                   <span className="relative">
-                    <span className="material-symbols-outlined text-[22px]"
+                    <span className="material-symbols-outlined text-[18px]"
                       style={{ fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400" }}>
                       {tab.icon}
                     </span>
@@ -46,7 +47,7 @@ export default function DriverLayout() {
                       </span>
                     )}
                   </span>
-                  <span className={clsx('text-[11px]', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
+                  <span className={clsx('text-[10px]', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
                 </>
               )}
             </NavLink>

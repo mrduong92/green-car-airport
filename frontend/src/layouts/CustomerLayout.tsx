@@ -7,6 +7,7 @@ import clsx from 'clsx'
 const TABS = [
   { to: '/customer/booking',       icon: 'directions_car', label: 'Đặt xe' },
   { to: '/customer/history',       icon: 'receipt_long',   label: 'Lịch sử' },
+  { to: '/customer/stats',         icon: 'bar_chart',      label: 'Thống kê' },
   { to: '/customer/notifications', icon: 'notifications',  label: 'Thông báo' },
   { to: '/customer/profile',       icon: 'person',         label: 'Hồ sơ' },
 ]
@@ -34,7 +35,7 @@ export default function CustomerLayout() {
               {({ isActive }) => (
                 <>
                   <span className="relative">
-                    <span className="material-symbols-outlined text-[22px]"
+                    <span className="material-symbols-outlined text-[20px]"
                       style={{ fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400" }}>
                       {tab.icon}
                     </span>
@@ -44,7 +45,7 @@ export default function CustomerLayout() {
                       </span>
                     )}
                   </span>
-                  <span className={clsx('text-[11px]', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
+                  <span className={clsx('text-[10px]', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
                 </>
               )}
             </NavLink>

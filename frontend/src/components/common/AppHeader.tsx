@@ -6,8 +6,8 @@ import { unregisterPushSubscription } from '@/push'
 import { useMutation } from '@tanstack/react-query'
 
 const ROOT_TABS = new Set([
-  '/customer/booking', '/customer/history', '/customer/notifications', '/customer/profile',
-  '/driver/trips', '/driver/trips/history', '/driver/wallet', '/driver/notifications', '/driver/profile',
+  '/customer/booking', '/customer/history', '/customer/stats', '/customer/notifications', '/customer/profile',
+  '/driver/trips', '/driver/trips/history', '/driver/stats', '/driver/wallet', '/driver/notifications', '/driver/profile',
   '/admin/dashboard', '/admin/drivers', '/admin/vouchers',
   '/admin/revenue', '/admin/prices', '/admin/customers',
 ])
@@ -20,6 +20,8 @@ const ROUTE_TITLES: [string, string, boolean][] = [
   ['/customer/notifications',   'Thông báo',       true],
   ['/customer/profile',         'Hồ sơ',           true],
   ['/driver/trips/history',     'Lịch sử cuốc xe', true],
+  ['/driver/stats',             'Thống kê',        true],
+  ['/customer/stats',           'Thống kê',        true],
   ['/driver/trips/',            'Chi tiết cuốc',   false],
   ['/driver/trips',             'Cuốc xe',          true],
   ['/driver/wallet/topup',      'Nạp điểm',        false],
