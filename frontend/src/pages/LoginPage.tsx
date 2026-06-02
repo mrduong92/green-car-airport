@@ -10,9 +10,9 @@ import Button from '@/components/common/Button'
 type Step = 'phone' | 'password' | 'otp' | 'set-password'
 type Purpose = 'register' | 'reset'
 
-const IS_DEV = import.meta.env.DEV
+const IS_DEV = import.meta.env.DEV || import.meta.env.VITE_MOCK === 'true'
 const DEV_PASS = '000000'
-const DEV_MOCK = true // đổi thành false để tắt quick-login buttons
+const DEV_MOCK = true
 
 const DEV_ACCOUNTS = [
   { label: 'Khách Hàng', phone: '0901234567', role: 'customer' as App.Role },
