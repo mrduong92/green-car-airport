@@ -79,7 +79,7 @@ export default function AppHeader() {
     },
   })
 
-  const { title, isRoot } = getRouteInfo(pathname)
+  const { title } = getRouteInfo(pathname)
   const inRootSet = ROOT_TABS.has(pathname)
 
   const regulations = user?.role === 'driver' ? DRIVER_QUY_DINH : CUSTOMER_QUY_DINH

@@ -31,7 +31,7 @@ interface Props {
 
 export default function GoongTripMap({ pickupLat, pickupLng, destLat, destLng }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<mapboxgl.Map | null>(null)
+  const mapRef = useRef<InstanceType<typeof mapboxgl.Map> | null>(null)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return

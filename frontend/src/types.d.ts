@@ -248,3 +248,8 @@ declare namespace App {
     total: number
   }
 }
+
+declare module 'mapbox-gl' {
+  const mapboxgl: { Map: any; Marker: any; accessToken: string; [key: string]: any }
+  export default mapboxgl
+}

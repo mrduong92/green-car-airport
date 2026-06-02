@@ -118,7 +118,6 @@ export default function BookingFormPage() {
   const destination  = watch('destination') ?? ''
   const selectedDate = watch('date')
   const selectedTime = watch('time')
-  const currentVehicle   = VEHICLE_TYPES.find((v) => v.value === vehicleType) ?? VEHICLE_TYPES[0]
   const detectedService  = detectServiceType(pickup, destination)
   const total = Math.max(0, price - discount)
 
