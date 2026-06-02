@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import mapboxgl from '@goongmaps/goong-js'
+import '@goongmaps/goong-js/dist/goong-js.css'
 
 const MAP_KEY = import.meta.env.VITE_GOONG_MAP_KEY as string
 const API_KEY = import.meta.env.VITE_GOONG_API_KEY as string

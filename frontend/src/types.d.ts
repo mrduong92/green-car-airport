@@ -249,7 +249,7 @@ declare namespace App {
   }
 }
 
-declare module 'mapbox-gl' {
-  const mapboxgl: { Map: any; Marker: any; accessToken: string; [key: string]: any }
+declare module '@goongmaps/goong-js' {
+  const mapboxgl: { Map: any; Marker: any; LngLatBounds: any; accessToken: string; [key: string]: any }
   export default mapboxgl
 }
