@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Otp;
 use App\Models\User;
+use App\Services\ZaloZnsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -25,9 +26,18 @@ class OtpController extends Controller
             'expires_at' => now()->addMinutes(5),
         ]);
 
-        Log::info("OTP for {$request->phone}: {$code}");
+        if (app()->environment('local')) {
+            Log::info("OTP for {$request->phone}: {$code}");
+            return response()->json(['message' => 'OTP đã được gửi.']);
+        }
 
-        return response()->json(['message' => 'OTP sent.']);
+        $sent = app(ZaloZnsService::class)->sendOtp($request->phone, $code);
+
+        if (! $sent) {
+            return response()->json(['message' => 'Không thể gửi OTP. Vui lòng thử lại.'], 503);
+        }
+
+        return response()->json(['message' => 'OTP đã được gửi.']);
     }
 
     public function verify(Request $request): JsonResponse

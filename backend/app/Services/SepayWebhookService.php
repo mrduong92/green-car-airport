@@ -55,6 +55,11 @@ class SepayWebhookService
             'raw_payload'      => $payload,
         ];
 
+        // Feature flag: auto top-up tắt → ghi nhận sự kiện nhưng không cộng điểm
+        if (! config('features.auto_topup')) {
+            return SepayWebhookEvent::create([...$base, 'status' => 'ignored']);
+        }
+
         // Trường hợp 1: không phải tiền vào → ignored
         if ($base['transfer_type'] !== 'in') {
             return SepayWebhookEvent::create([...$base, 'status' => 'ignored']);

@@ -33,3 +33,6 @@ export const deactivateVoucher = (id: number) =>
 
 export const getRevenue = (params: { period: string; from?: string; to?: string }) =>
   api.get<App.RevenueReport>('/admin/revenue', { params })
+
+export const topupDriver = (id: number, data: { points: number; description?: string }) =>
+  api.post<{ points_added: number; new_balance: number }>(`/admin/drivers/${id}/topup`, data)

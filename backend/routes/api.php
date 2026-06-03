@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\AdminVoucherController;
+use App\Http\Controllers\Admin\AdminWalletController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
 use App\Http\Controllers\PriceConfigController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\Webhooks\SepayWebhookController;
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send',      [OtpController::class,  'send']);
+Route::post('/auth/otp/verify',    [OtpController::class,  'verify']);
 Route::post('/auth/login',         [AuthController::class, 'login']);
 Route::post('/auth/register',      [AuthController::class, 'register']);
 Route::post('/auth/reset-password',[AuthController::class, 'resetPassword']);
@@ -86,6 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/revenue',                          [RevenueController::class, 'index']);
         Route::get('/admin/customers',                        [AdminCustomerController::class, 'index']);
         Route::patch('/admin/customers/{user}',               [AdminCustomerController::class, 'update']);
+        Route::post('/admin/drivers/{user}/topup',            [AdminWalletController::class, 'topup']);
         Route::apiResource('/admin/price-configs', AdminPriceConfigController::class)->except(['show']);
     });
 });

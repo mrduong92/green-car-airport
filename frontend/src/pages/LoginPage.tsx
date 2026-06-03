@@ -10,9 +10,8 @@ import Button from '@/components/common/Button'
 type Step = 'phone' | 'password' | 'otp' | 'set-password'
 type Purpose = 'register' | 'reset'
 
-const IS_DEV = import.meta.env.DEV || import.meta.env.VITE_MOCK === 'true'
+const DEV_MOCK = import.meta.env.VITE_MOCK === 'true' || false
 const DEV_PASS = '000000'
-const DEV_MOCK = true
 
 const DEV_ACCOUNTS = [
   { label: 'Khách Hàng', phone: '0901234567', role: 'customer' as App.Role },
@@ -24,8 +23,6 @@ export default function LoginPage() {
   const navigate  = useNavigate()
   const setAuth   = useAuthStore((s) => s.setAuth)
   const showToast = useUiStore((s) => s.showToast)
-
-  const devMock = IS_DEV && DEV_MOCK
 
   const [step, setStep]         = useState<Step>('phone')
   const [purpose, setPurpose]   = useState<Purpose>('register')
@@ -96,7 +93,9 @@ export default function LoginPage() {
   const sendMutation = useMutation({
     mutationFn: () => sendOtp(phone),
     onSuccess: () => setCountdown(45),
-    onError: () => showToast('Gửi OTP thất bại. Kiểm tra lại số điện thoại.', 'error'),
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      showToast(err.response?.data?.message ?? 'Gửi OTP thất bại. Vui lòng thử lại.', 'error')
+    },
   })
 
   const doSendOtp = (p: Purpose) => {
@@ -165,7 +164,7 @@ export default function LoginPage() {
         {/* ── step: phone ── */}
         {step === 'phone' && (
           <>
-            {IS_DEV && devMock && (
+            {DEV_MOCK && (
               <div className="flex flex-col gap-2">
                 {DEV_ACCOUNTS.map((acc) => (
                   <button
@@ -228,7 +227,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {IS_DEV && !devMock && (
+            {!DEV_MOCK && (
               <div className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col gap-1.5">
                 <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Tài khoản demo (mật khẩu: 000000)</p>
                 {DEV_ACCOUNTS.map((acc) => (

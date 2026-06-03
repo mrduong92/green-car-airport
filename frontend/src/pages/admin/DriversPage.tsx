@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getDrivers, updateDriver, blockDriver, approveDriver } from '@/api/admin'
+import { getDrivers, updateDriver, blockDriver, approveDriver, topupDriver } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
@@ -32,6 +32,9 @@ export default function DriversPage() {
   const [blockReason, setBlockReason] = useState('')
   const [editTarget, setEditTarget] = useState<App.DriverProfile | null>(null)
   const [form, setForm] = useState<EditForm>(emptyForm())
+  const [topupTarget, setTopupTarget] = useState<App.DriverProfile | null>(null)
+  const [topupPoints, setTopupPoints] = useState('')
+  const [topupDesc, setTopupDesc] = useState('')
 
   const { data: drivers = [] } = useQuery({
     queryKey: ['drivers', filter, search],
@@ -86,6 +89,25 @@ export default function DriversPage() {
     onError: () => showToast('Thao tác thất bại', 'error'),
   })
 
+  const topupMutation = useMutation({
+    mutationFn: () => topupDriver(topupTarget!.id, {
+      points: Number(topupPoints),
+      description: topupDesc || undefined,
+    }),
+    onSuccess: (res) => {
+      showToast(`Đã nạp ${res.data.points_added} điểm`, 'success')
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+      setTopupTarget(null)
+    },
+    onError: () => showToast('Nạp điểm thất bại', 'error'),
+  })
+
+  const openTopup = (d: App.DriverProfile) => {
+    setTopupTarget(d)
+    setTopupPoints('')
+    setTopupDesc('')
+  }
+
   const inputCls = 'border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors'
 
   return (
@@ -132,6 +154,9 @@ export default function DriversPage() {
                   {d.rating != null && (
                     <span className="text-caption text-neutral-gray">★ {d.rating}</span>
                   )}
+                  {d.points != null && (
+                    <span className="text-caption font-semibold text-gold">{d.points.toLocaleString('vi-VN')} đ.</span>
+                  )}
                 </div>
               </div>
               {/* Action buttons */}
@@ -139,6 +164,10 @@ export default function DriversPage() {
                 <button onClick={() => openEdit(d)}
                   className="text-xs bg-primary/10 text-primary rounded-pill px-3 py-1.5 font-medium">
                   Sửa
+                </button>
+                <button onClick={() => openTopup(d)}
+                  className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
+                  Nạp điểm
                 </button>
                 {d.status === 'pending' && (
                   <button onClick={() => approveMutation.mutate(d.id)}
@@ -217,6 +246,93 @@ export default function DriversPage() {
             <div className="px-4 pb-6 pt-3 flex gap-3 shrink-0 border-t border-border-soft">
               <Button fullWidth variant="outline" onClick={() => setEditTarget(null)}>Huỷ</Button>
               <Button fullWidth loading={editMutation.isPending} onClick={() => editMutation.mutate()}>Lưu</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top-up modal */}
+      {topupTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setTopupTarget(null)}>
+          <div className="bg-white w-full rounded-t-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border-gray shrink-0">
+              <p className="text-[15px] font-semibold text-navy">Nạp điểm thủ công</p>
+              <button onClick={() => setTopupTarget(null)}>
+                <span className="material-symbols-outlined text-neutral-gray text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-4 py-4 flex flex-col gap-4">
+              {/* Driver info + current balance */}
+              <div className="bg-light-green rounded-card p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
+                  {topupTarget.name[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-navy">{topupTarget.name}</p>
+                  <p className="text-caption text-neutral-gray">{topupTarget.phone}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] text-neutral-gray">Số dư</p>
+                  <p className="text-sm font-bold text-gold">{(topupTarget.points ?? 0).toLocaleString('vi-VN')} đ.</p>
+                </div>
+              </div>
+
+              {/* Quick amounts */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[12px] text-neutral-gray font-medium">Chọn nhanh</p>
+                <div className="flex gap-2">
+                  {[100, 500, 1000].map((preset) => (
+                    <button key={preset} onClick={() => setTopupPoints(String(preset))}
+                      className={clsx(
+                        'flex-1 py-2 rounded-input text-sm font-semibold border transition-colors',
+                        topupPoints === String(preset)
+                          ? 'border-gold bg-amber-50 text-gold'
+                          : 'border-border-gray text-neutral-gray',
+                      )}>
+                      {preset.toLocaleString('vi-VN')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Points input */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] text-neutral-gray font-medium">Số điểm <span className="text-danger-red">*</span></label>
+                <input
+                  type="number" min={1} inputMode="numeric"
+                  placeholder="Nhập số điểm cần nạp"
+                  className={inputCls + ' [appearance:textfield]'}
+                  value={topupPoints}
+                  onChange={(e) => setTopupPoints(e.target.value)}
+                />
+                {topupPoints && Number(topupPoints) > 0 && (
+                  <p className="text-[11px] text-neutral-gray">≈ {(Number(topupPoints) * 1000).toLocaleString('vi-VN')}đ</p>
+                )}
+              </div>
+
+              {/* Description */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] text-neutral-gray font-medium">Ghi chú (tuỳ chọn)</label>
+                <input
+                  className={inputCls}
+                  placeholder="Nạp thủ công tháng 6/2026"
+                  value={topupDesc}
+                  onChange={(e) => setTopupDesc(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="px-4 pb-6 pt-3 flex gap-3 shrink-0 border-t border-border-gray">
+              <Button fullWidth variant="outline" onClick={() => setTopupTarget(null)}>Huỷ</Button>
+              <Button
+                fullWidth
+                loading={topupMutation.isPending}
+                disabled={!topupPoints || Number(topupPoints) < 1}
+                onClick={() => topupMutation.mutate()}
+              >
+                Nạp điểm
+              </Button>
             </div>
           </div>
         </div>
