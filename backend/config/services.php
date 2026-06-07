@@ -41,11 +41,8 @@ return [
         'private_key' => env('VAPID_PRIVATE_KEY'),
     ],
 
-    'zalo_zns' => [
-        'app_id'        => env('ZALO_APP_ID'),
-        'app_secret'    => env('ZALO_APP_SECRET'),
-        'refresh_token' => env('ZALO_REFRESH_TOKEN'),
-        'template_id'   => env('ZALO_OTP_TEMPLATE_ID'),
+    'firebase' => [
+        'credentials' => env('FIREBASE_CREDENTIALS'),
     ],
 
 ];

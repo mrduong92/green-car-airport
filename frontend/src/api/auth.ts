@@ -1,15 +1,13 @@
 import api from './axios'
 
-export const sendOtp = (phone: string) => api.post('/auth/otp/send', { phone })
+export const verifyFirebaseToken = (firebaseToken: string, password?: string) =>
+  api.post<{ token: string; user: App.User }>('/auth/firebase/verify', { firebase_token: firebaseToken, password })
+
+export const devMockLogin = (phone: string) =>
+  api.post<{ token: string; user: App.User }>('/auth/dev/mock-login', { phone })
 
 export const loginApi = (phone: string, password: string) =>
   api.post<{ token: string; user: App.User }>('/auth/login', { phone, password })
-
-export const registerApi = (phone: string, otp: string, password: string) =>
-  api.post<{ token: string; user: App.User }>('/auth/register', { phone, otp, password })
-
-export const resetPasswordApi = (phone: string, otp: string, password: string) =>
-  api.post<{ token: string; user: App.User }>('/auth/reset-password', { phone, otp, password })
 
 export const getMe = () => api.get<App.User>('/auth/me')
 

@@ -1,8 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\DevAuthController;
+use App\Http\Controllers\Auth\FirebaseAuthController;
 use App\Http\Controllers\Customer\BookingController;
 use App\Http\Controllers\Customer\CustomerProfileController;
 use App\Http\Controllers\Customer\VoucherController;
@@ -23,9 +24,9 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Webhooks\SepayWebhookController;
 
 // ── Public ────────────────────────────────────────────────────────────────────
-Route::post('/auth/otp/send',      [OtpController::class,  'send']);
-Route::post('/auth/otp/verify',    [OtpController::class,  'verify']);
-Route::post('/auth/login',         [AuthController::class, 'login']);
+Route::post('/auth/firebase/verify', [FirebaseAuthController::class, 'verify']);
+Route::post('/auth/dev/mock-login',  [DevAuthController::class,      'login']);
+Route::post('/auth/login',           [AuthController::class,         'login']);
 Route::post('/auth/register',      [AuthController::class, 'register']);
 Route::post('/auth/reset-password',[AuthController::class, 'resetPassword']);
 Route::get('/price-configs',    [PriceConfigController::class, 'index']);

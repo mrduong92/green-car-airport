@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { sendOtp, loginApi, registerApi, resetPasswordApi } from '@/api/auth'
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth'
+import { firebaseAuth } from '@/firebase'
+import { verifyFirebaseToken, loginApi, devMockLogin } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { registerPushSubscription } from '@/push'
@@ -11,7 +13,6 @@ type Step = 'phone' | 'password' | 'otp' | 'set-password'
 type Purpose = 'register' | 'reset'
 
 const DEV_MOCK = import.meta.env.VITE_MOCK === 'true' || false
-const DEV_PASS = '000000'
 
 const DEV_ACCOUNTS = [
   { label: 'Khách Hàng', phone: '0901234567', role: 'customer' as App.Role },
@@ -19,20 +20,31 @@ const DEV_ACCOUNTS = [
   { label: 'Admin',      phone: '0923456789', role: 'admin'    as App.Role },
 ]
 
+const toE164 = (phone: string) => '+84' + phone.replace(/^0/, '')
+
 export default function LoginPage() {
   const navigate  = useNavigate()
   const setAuth   = useAuthStore((s) => s.setAuth)
   const showToast = useUiStore((s) => s.showToast)
 
-  const [step, setStep]         = useState<Step>('phone')
-  const [purpose, setPurpose]   = useState<Purpose>('register')
-  const [phone, setPhone]       = useState('')
+  const [step, setStep]       = useState<Step>('phone')
+  const [purpose, setPurpose] = useState<Purpose>('register')
+  const [phone, setPhone]     = useState('')
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd]   = useState(false)
   const [otp, setOtp]           = useState(['', '', '', '', '', ''])
   const [countdown, setCountdown] = useState(0)
+  const [otpLoading, setOtpLoading] = useState(false)
+
+  const confirmationRef = useRef<ConfirmationResult | null>(null)
+  const firebaseTokenRef = useRef<string | null>(null)
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
   const pwdRef  = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => { recaptchaRef.current?.clear() }
+  }, [])
 
   useEffect(() => {
     if (countdown <= 0) return
@@ -40,7 +52,6 @@ export default function LoginPage() {
     return () => clearTimeout(t)
   }, [countdown])
 
-  // Focus password input when step changes
   useEffect(() => {
     if (step === 'password' || step === 'set-password') {
       setTimeout(() => pwdRef.current?.focus(), 100)
@@ -59,7 +70,7 @@ export default function LoginPage() {
     else navigate('/admin/dashboard')
   }
 
-  // ── Login ──────────────────────────────────────────────────────────────────
+  // ── Password login (unchanged) ─────────────────────────────────────────────
   const loginMutation = useMutation({
     mutationFn: () => loginApi(phone, password),
     onSuccess: onAuthSuccess,
@@ -77,59 +88,81 @@ export default function LoginPage() {
     },
   })
 
-  // ── Register / Reset (after OTP) ──────────────────────────────────────────
+  // ── Set password after Firebase OTP verified ───────────────────────────────
   const finishMutation = useMutation({
-    mutationFn: () =>
-      purpose === 'register'
-        ? registerApi(phone, otp.join(''), password)
-        : resetPasswordApi(phone, otp.join(''), password),
+    mutationFn: () => verifyFirebaseToken(firebaseTokenRef.current!, password),
     onSuccess: onAuthSuccess,
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Có lỗi xảy ra.', 'error')
     },
   })
 
-  // ── Send OTP ───────────────────────────────────────────────────────────────
-  const sendMutation = useMutation({
-    mutationFn: () => sendOtp(phone),
-    onSuccess: () => setCountdown(45),
-    onError: (err: { response?: { data?: { message?: string } } }) => {
-      showToast(err.response?.data?.message ?? 'Gửi OTP thất bại. Vui lòng thử lại.', 'error')
-    },
-  })
+  // ── Firebase: send OTP ─────────────────────────────────────────────────────
+  const [sendingOtp, setSendingOtp] = useState(false)
 
-  const doSendOtp = (p: Purpose) => {
+  const doSendOtp = async (p: Purpose) => {
+    setSendingOtp(true)
     setPurpose(p)
     setOtp(['', '', '', '', '', ''])
     setPassword('')
-    sendMutation.mutate(undefined, {
-      onSuccess: () => setStep('otp'),
-    })
+
+    try {
+      if (!recaptchaRef.current) {
+        recaptchaRef.current = new RecaptchaVerifier(firebaseAuth, 'recaptcha-div', { size: 'invisible' })
+      }
+      const result = await signInWithPhoneNumber(firebaseAuth, toE164(phone), recaptchaRef.current)
+      confirmationRef.current = result
+      setStep('otp')
+      setCountdown(45)
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? ''
+      if (msg.includes('too-many-requests')) {
+        showToast('Quá nhiều yêu cầu. Vui lòng thử lại sau.', 'error')
+      } else {
+        showToast('Không thể gửi OTP. Kiểm tra lại số điện thoại.', 'error')
+      }
+      recaptchaRef.current?.clear()
+      recaptchaRef.current = null
+    } finally {
+      setSendingOtp(false)
+    }
   }
 
-  // ── OTP input handlers ────────────────────────────────────────────────────
-  const handleOtpChange = (idx: number, val: string) => {
+  // ── Firebase: confirm OTP ──────────────────────────────────────────────────
+  const handleOtpChange = async (idx: number, val: string) => {
     if (!/^\d?$/.test(val)) return
     const next = [...otp]
     next[idx] = val
     setOtp(next)
     if (val && idx < 5) otpRefs.current[idx + 1]?.focus()
-    if (next.every((d) => d !== '')) setStep('set-password')
+
+    if (next.every((d) => d !== '')) {
+      setOtpLoading(true)
+      try {
+        const credential = await confirmationRef.current!.confirm(next.join(''))
+        firebaseTokenRef.current = await credential.user.getIdToken()
+        setStep('set-password')
+      } catch {
+        showToast('Mã OTP không đúng. Vui lòng thử lại.', 'error')
+        setOtp(['', '', '', '', '', ''])
+        setTimeout(() => otpRefs.current[0]?.focus(), 50)
+      } finally {
+        setOtpLoading(false)
+      }
+    }
   }
 
   const handleOtpKeyDown = (idx: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !otp[idx] && idx > 0) otpRefs.current[idx - 1]?.focus()
   }
 
-  // ── Back navigation ───────────────────────────────────────────────────────
   const handleBack = () => {
-    if (step === 'phone')        navigate(-1)
-    else if (step === 'otp')     setStep('phone')
+    if (step === 'phone')             navigate(-1)
+    else if (step === 'otp')          setStep('phone')
     else if (step === 'set-password') setStep('otp')
-    else                         setStep('phone') // password
+    else                              setStep('phone')
   }
 
-  // ── Step headings ─────────────────────────────────────────────────────────
   const heading: Record<Step, { title: string; sub: string }> = {
     'phone':        { title: 'Chào mừng', sub: 'Nhập số điện thoại để tiếp tục' },
     'password':     { title: 'Nhập mật khẩu', sub: `Mật khẩu 6 chữ số của tài khoản ${phone}` },
@@ -142,6 +175,9 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-svh bg-white flex flex-col max-w-[430px] mx-auto">
+      {/* Hidden reCAPTCHA anchor */}
+      <div id="recaptcha-div" />
+
       {/* Top bar */}
       <div className="px-4 pt-14 pb-2 safe-top flex items-center">
         <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center text-navy">
@@ -169,12 +205,7 @@ export default function LoginPage() {
                 {DEV_ACCOUNTS.map((acc) => (
                   <button
                     key={acc.role}
-                    disabled={loginMutation.isPending}
-                    onClick={() => {
-                      setPhone(acc.phone)
-                      setPassword(DEV_PASS)
-                      loginApi(acc.phone, DEV_PASS).then(onAuthSuccess)
-                    }}
+                    onClick={() => devMockLogin(acc.phone).then(onAuthSuccess)}
                     className="w-full py-3 rounded-card border border-border-soft bg-primary-tint text-navy text-sm font-medium flex items-center justify-between px-4 disabled:opacity-50"
                   >
                     <span>{acc.label}</span>
@@ -208,21 +239,15 @@ export default function LoginPage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <Button
-                fullWidth size="lg"
-                disabled={phone.length < 9}
-                onClick={() => setStep('password')}
-              >
+              <Button fullWidth size="lg" disabled={phone.length < 9} onClick={() => setStep('password')}>
                 Đăng nhập
               </Button>
               <button
-                disabled={phone.length < 9 || sendMutation.isPending}
+                disabled={phone.length < 9 || sendingOtp}
                 onClick={() => doSendOtp('register')}
                 className="w-full h-[52px] rounded-pill border border-border-gray text-navy text-[15px] font-semibold disabled:opacity-40 flex items-center justify-center gap-2"
               >
-                {sendMutation.isPending ? (
-                  <span className="w-4 h-4 border-2 border-navy/30 border-t-navy rounded-full animate-spin" />
-                ) : null}
+                {sendingOtp ? <span className="w-4 h-4 border-2 border-navy/30 border-t-navy rounded-full animate-spin" /> : null}
                 Đăng ký tài khoản mới
               </button>
             </div>
@@ -259,11 +284,8 @@ export default function LoginPage() {
                   className="w-full h-[52px] border-[1.5px] border-primary rounded-input px-4 pr-12 text-navy text-2xl tracking-[0.4em] outline-none focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
                   style={{ fontFamily: 'monospace' }}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-gray"
-                >
+                <button type="button" onClick={() => setShowPwd((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-gray">
                   <span className="material-symbols-outlined text-[20px]">
                     {showPwd ? 'visibility_off' : 'visibility'}
                   </span>
@@ -271,23 +293,17 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button
-              fullWidth size="lg"
-              loading={loginMutation.isPending}
-              disabled={!pwdValid}
-              onClick={() => loginMutation.mutate()}
-            >
+            <Button fullWidth size="lg" loading={loginMutation.isPending} disabled={!pwdValid}
+              onClick={() => loginMutation.mutate()}>
               Đăng nhập
             </Button>
 
             <button
-              disabled={sendMutation.isPending}
+              disabled={sendingOtp}
               onClick={() => doSendOtp('reset')}
               className="text-primary text-sm font-medium text-center disabled:opacity-50 flex items-center justify-center gap-1"
             >
-              {sendMutation.isPending
-                ? <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                : null}
+              {sendingOtp ? <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /> : null}
               Quên mật khẩu?
             </button>
           </>
@@ -304,29 +320,33 @@ export default function LoginPage() {
                   type="tel"
                   maxLength={1}
                   value={d}
+                  disabled={otpLoading}
                   onChange={(e) => handleOtpChange(i, e.target.value)}
                   onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                  className="w-12 h-14 text-center text-xl font-bold border-[1.5px] border-border-gray rounded-input outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] text-navy transition-shadow"
+                  className="w-12 h-14 text-center text-xl font-bold border-[1.5px] border-border-gray rounded-input outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] text-navy transition-shadow disabled:opacity-50"
                 />
               ))}
             </div>
 
-            <p className="text-center text-sm text-neutral-gray">
-              {countdown > 0
-                ? `Gửi lại mã sau ${countdown}s`
-                : (
-                  <button
-                    onClick={() => {
-                      setOtp(['', '', '', '', '', ''])
-                      sendMutation.mutate(undefined, { onSuccess: () => setCountdown(45) })
-                    }}
-                    className="text-primary font-medium"
-                  >
-                    Gửi lại mã OTP
-                  </button>
-                )
-              }
-            </p>
+            {otpLoading && (
+              <p className="text-center text-sm text-neutral-gray flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                Đang xác thực...
+              </p>
+            )}
+
+            {!otpLoading && (
+              <p className="text-center text-sm text-neutral-gray">
+                {countdown > 0
+                  ? `Gửi lại mã sau ${countdown}s`
+                  : (
+                    <button onClick={() => doSendOtp(purpose)} className="text-primary font-medium">
+                      Gửi lại mã OTP
+                    </button>
+                  )
+                }
+              </p>
+            )}
           </>
         )}
 
@@ -348,11 +368,8 @@ export default function LoginPage() {
                   className="w-full h-[52px] border-[1.5px] border-primary rounded-input px-4 pr-12 text-navy text-2xl tracking-[0.4em] outline-none focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
                   style={{ fontFamily: 'monospace' }}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-gray"
-                >
+                <button type="button" onClick={() => setShowPwd((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-gray">
                   <span className="material-symbols-outlined text-[20px]">
                     {showPwd ? 'visibility_off' : 'visibility'}
                   </span>
@@ -361,12 +378,8 @@ export default function LoginPage() {
               <p className="text-[11px] text-neutral-gray mt-1.5">Nhập đúng 6 chữ số</p>
             </div>
 
-            <Button
-              fullWidth size="lg"
-              loading={finishMutation.isPending}
-              disabled={!pwdValid}
-              onClick={() => finishMutation.mutate()}
-            >
+            <Button fullWidth size="lg" loading={finishMutation.isPending} disabled={!pwdValid}
+              onClick={() => finishMutation.mutate()}>
               {purpose === 'register' ? 'Hoàn tất đăng ký' : 'Đặt lại mật khẩu'}
             </Button>
           </>
