@@ -66,7 +66,7 @@ export default function AdminCustomersPage() {
         {customers.map((c) => (
           <div key={c.id} className="bg-white rounded-card shadow-card p-4 flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-primary-tint flex items-center justify-center text-primary font-bold shrink-0">
-              {c.name[0]}
+              {c.name?.[0] ?? '?'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[14px] font-semibold text-navy truncate">{c.name}</p>

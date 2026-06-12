@@ -57,7 +57,9 @@ class TripController extends Controller
         ]);
 
         // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
-        $feePoints = (int) round($booking->price * 0.20 / 1000);
+        // Tính trên giá sau khi đã trừ voucher
+        $effectivePrice = $booking->price - $booking->discount;
+        $feePoints = (int) round($effectivePrice * 0.20 / 1000);
         $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
         $wallet->decrement('points', $feePoints);
         WalletTransaction::create([
@@ -116,8 +118,9 @@ class TripController extends Controller
 
     private function creditEarning($driver, Booking $booking): void
     {
-        // 20% phí app đã trừ khi nhận cuốc — credit toàn bộ 100% khi hoàn thành
-        $totalPoints = (int) round($booking->price / 1000);
+        // 20% phí app đã trừ khi nhận cuốc — credit toàn bộ 100% giá sau voucher khi hoàn thành
+        $effectivePrice = $booking->price - $booking->discount;
+        $totalPoints = (int) round($effectivePrice / 1000);
 
         $wallet = $driver->wallet()->firstOrCreate(['user_id' => $driver->id], ['points' => 0]);
         $wallet->increment('points', $totalPoints);
@@ -181,8 +184,9 @@ class TripController extends Controller
 
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
-        $appFee      = (int) round($b->price * 0.20);
-        $netEarning  = $b->price - $appFee;
+        $effectivePrice = $b->price - $b->discount;
+        $appFee         = (int) round($effectivePrice * 0.20);
+        $netEarning     = $effectivePrice - $appFee;
         $phone       = $b->customer?->phone ?? '';
         $durationMin = (int) round((float) $b->distance_km / 30 * 60);
 
@@ -224,6 +228,7 @@ class TripController extends Controller
             'is_new'                => $b->created_at?->gt(now()->subMinutes(30)) ?? false,
             'customer_name'         => $b->customer?->name,
             'customer_phone_masked' => $phone ? substr($phone, 0, -3) . '***' : '',
+            'customer_note'         => $b->note,
             'created_at'            => $b->created_at?->toISOString(),
             'distance_to_driver'    => $distanceToDriver,
         ];

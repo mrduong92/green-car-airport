@@ -77,6 +77,7 @@ const schema = z.object({
   time:         z.string().min(1),
   distance_km:  z.number({ coerce: true }).min(0.1, 'Vui lòng chọn điểm đón và điểm đến'),
   price:        z.number({ coerce: true }).min(1, 'Vui lòng nhập giá'),
+  note:         z.string().max(500).optional(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -202,6 +203,7 @@ export default function BookingFormPage() {
         destination_lat: destLatLng?.lat,
         destination_lng: destLatLng?.lng,
         voucher_code:    voucherCode || undefined,
+        note:            data.note || undefined,
       }),
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['vouchers-list'] })
@@ -452,6 +454,23 @@ export default function BookingFormPage() {
           onSelect={(v, disc) => { setVoucherCode(v.code); setDiscount(disc) }}
         />
 
+        {/* ── GHI CHÚ CHO TÀI XẾ ──────────────────────────── */}
+        <SectionLabel>Ghi chú cho tài xế</SectionLabel>
+        <div className="bg-white rounded-card shadow-card border border-border-soft">
+          <textarea
+            {...register('note')}
+            rows={3}
+            maxLength={500}
+            placeholder="Ví dụ: có 2 vali lớn, gọi trước 30 phút, đón tại cổng B..."
+            className="w-full px-4 py-3 text-sm text-navy outline-none resize-none rounded-card placeholder:text-neutral-gray/70"
+          />
+          <div className="px-4 pb-2 text-right">
+            <span className="text-[11px] text-neutral-gray tabular-nums">
+              {(watch('note') ?? '').length}/500
+            </span>
+          </div>
+        </div>
+
         <div className="h-4" />
       </div>
 
@@ -466,6 +485,11 @@ export default function BookingFormPage() {
                 <span className="text-[12px] font-semibold text-success-green">-{discount.toLocaleString('vi')}đ</span>
               )}
             </div>
+            {price > 0 && (
+              <p className="text-[11px] text-neutral-gray mt-0.5">
+                Tài xế nhận: {Math.round(total * 0.8).toLocaleString('vi')}đ
+              </p>
+            )}
           </div>
           <Button type="submit" size="lg" loading={bookingMutation.isPending} className="shrink-0">
             Đặt xe →

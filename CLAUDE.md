@@ -149,7 +149,7 @@ app/Http/Controllers/
 No API Resource classes — controllers return plain arrays directly.
 
 ### Business rules
-- **App fee = 20%** of `booking.price`; driver nets 80% converted to points (1 point = 1,000 VND).
+- **App fee = 20%** of `booking.price - booking.discount` (effective price after voucher); driver nets 80% of effective price converted to points (1 point = 1,000 VND). Example: price=500k, discount=50k → effective=450k → fee=90k, driver earns=360k.
 - `TripController::index()` only returns bookings with `status=finding_driver`.
 - `TripController::updateStatus()` to `completed` → creates `WalletTransaction` and increments `driver_profiles.trips_count`.
 - `RevenueController` groups completed bookings by `DATE(created_at)` — must use `groupByRaw` to avoid MySQL `only_full_group_by` error.

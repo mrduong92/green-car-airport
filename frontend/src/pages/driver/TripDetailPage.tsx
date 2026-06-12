@@ -132,6 +132,18 @@ export default function TripDetailPage() {
         </a>
       </div>
 
+      {/* Customer note */}
+      {trip.customer_note && (
+        <div className="bg-alert-orange/10 rounded-card p-4 flex gap-3">
+          <span className="material-symbols-outlined text-alert-orange text-xl shrink-0"
+            style={{ fontVariationSettings: "'FILL' 1" }}>sticky_note_2</span>
+          <div>
+            <p className="text-[11px] font-semibold text-alert-orange mb-0.5">Ghi chú của khách</p>
+            <p className="text-sm text-navy">{trip.customer_note}</p>
+          </div>
+        </div>
+      )}
+
       {/* Trip specs */}
       <div className="bg-white rounded-card shadow-card p-4 grid grid-cols-2 gap-3">
         {[

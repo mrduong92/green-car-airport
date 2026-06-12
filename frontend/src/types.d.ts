@@ -28,6 +28,7 @@ declare namespace App {
     surcharge?: number
     final_price?: number
     voucher_code?: string | null
+    note?: string | null
     vehicle_type?: VehicleType
     status: BookingStatus
     driver?: {
@@ -58,6 +59,7 @@ declare namespace App {
     price: number
     vehicle_type: VehicleType
     voucher_code?: string
+    note?: string
   }
 
   interface Trip {
@@ -77,6 +79,7 @@ declare namespace App {
     app_fee: number
     net_earning: number
     status: TripStatus
+    customer_note?: string | null
     is_new: boolean
     customer_phone_masked: string
     distance_to_driver?: number | null

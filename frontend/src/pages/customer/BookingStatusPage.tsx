@@ -189,6 +189,18 @@ export default function BookingStatusPage() {
             {(booking.final_price ?? booking.price).toLocaleString('vi')} đ
           </span>
         </div>
+
+        {/* Note */}
+        {booking.note && (
+          <div className="mx-4 bg-white rounded-card shadow-card p-4 flex gap-3">
+            <span className="material-symbols-outlined text-neutral-gray text-xl shrink-0"
+              style={{ fontVariationSettings: "'FILL' 1" }}>sticky_note_2</span>
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-gray mb-0.5">Ghi chú cho tài xế</p>
+              <p className="text-sm text-navy">{booking.note}</p>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -319,6 +331,18 @@ export default function BookingStatusPage() {
           </div>
         </div>
       </div>
+
+      {/* Note */}
+      {booking.note && (
+        <div className="bg-white rounded-card shadow-card p-4 flex gap-3">
+          <span className="material-symbols-outlined text-neutral-gray text-xl shrink-0"
+            style={{ fontVariationSettings: "'FILL' 1" }}>sticky_note_2</span>
+          <div>
+            <p className="text-[11px] font-semibold text-neutral-gray mb-0.5">Ghi chú cho tài xế</p>
+            <p className="text-sm text-navy">{booking.note}</p>
+          </div>
+        </div>
+      )}
 
       {/* Driver card (appears after accepted) */}
       {booking.driver && (

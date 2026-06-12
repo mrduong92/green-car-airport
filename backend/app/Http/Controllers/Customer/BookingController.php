@@ -40,6 +40,7 @@ class BookingController extends Controller
             'distance_km'     => 'required|numeric|min:0',
             'price'           => 'required|integer|min:0',
             'voucher_code'    => 'nullable|string',
+            'note'            => 'nullable|string|max:500',
         ]);
 
         $discount   = 0;
@@ -83,6 +84,7 @@ class BookingController extends Controller
             'voucher_id'      => $voucherId,
             'status'          => 'finding_driver',
             'vehicle_type'    => $data['vehicle_type'],
+            'note'            => $data['note'] ?? null,
         ]);
 
         $request->user()->notify(new BookingCreatedNotification($booking));
@@ -165,6 +167,7 @@ class BookingController extends Controller
             'surcharge'       => $b->surcharge,
             'final_price'     => $b->price - $b->discount + $b->surcharge,
             'voucher_code'    => $b->voucher?->code,
+            'note'            => $b->note,
             'status'          => $b->status,
             'vehicle_type'    => $b->vehicle_type,
             'created_at'      => $b->created_at?->toISOString(),

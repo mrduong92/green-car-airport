@@ -78,6 +78,9 @@ export default function BookingHistoryPage() {
                     Phụ phí: +{(b.surcharge ?? 0).toLocaleString('vi')}đ
                   </p>
                 )}
+                {b.note && (
+                  <p className="text-caption text-neutral-gray">Ghi chú: {b.note}</p>
+                )}
                 <p className="text-caption text-neutral-gray">Mã đặt: #{b.id}</p>
               </div>
             )}

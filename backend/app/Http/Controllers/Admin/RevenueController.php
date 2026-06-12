@@ -36,7 +36,7 @@ class RevenueController extends Controller
         // ── Current period ────────────────────────────────────────────────────
         $rows = Booking::where('status', 'completed')
             ->whereBetween('created_at', [$from, $to])
-            ->selectRaw("{$expr} as label, SUM(price) as revenue, COUNT(*) as trips")
+            ->selectRaw("{$expr} as label, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips")
             ->groupByRaw($expr)
             ->orderByRaw($expr)
             ->get();
@@ -47,7 +47,7 @@ class RevenueController extends Controller
         // ── Previous period for % change ──────────────────────────────────────
         $prev = Booking::where('status', 'completed')
             ->whereBetween('created_at', [$prevFrom, $prevTo])
-            ->selectRaw('SUM(price) as revenue, COUNT(*) as trips')
+            ->selectRaw('SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips')
             ->first();
 
         $prevRevenue = (int) ($prev->revenue ?? 0);
@@ -64,7 +64,7 @@ class RevenueController extends Controller
         // ── Vehicle breakdown ─────────────────────────────────────────────────
         $vehicleRows = Booking::where('status', 'completed')
             ->whereBetween('created_at', [$from, $to])
-            ->selectRaw('vehicle_type, SUM(price) as revenue, COUNT(*) as trips')
+            ->selectRaw('vehicle_type, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips')
             ->groupBy('vehicle_type')
             ->orderByRaw('revenue DESC')
             ->get();
@@ -76,7 +76,7 @@ class RevenueController extends Controller
             ->whereBetween('created_at', [$from, $to])
             ->whereNotNull('driver_id')
             ->join('users', 'bookings.driver_id', '=', 'users.id')
-            ->selectRaw('users.name, SUM(bookings.price) as revenue, COUNT(*) as trips')
+            ->selectRaw('users.name, SUM(bookings.price - COALESCE(bookings.discount, 0)) as revenue, COUNT(*) as trips')
             ->groupBy('users.name')
             ->orderByRaw('revenue DESC')
             ->limit(5)

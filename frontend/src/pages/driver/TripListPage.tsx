@@ -308,6 +308,14 @@ export default function TripListPage() {
                 </div>
               </div>
 
+              {trip.customer_note && (
+                <div className="flex items-start gap-2 bg-alert-orange/10 rounded-[10px] px-3 py-2">
+                  <span className="material-symbols-outlined text-alert-orange text-[14px] mt-0.5 shrink-0"
+                    style={{ fontVariationSettings: "'FILL' 1" }}>sticky_note_2</span>
+                  <p className="text-[12px] text-navy line-clamp-2">{trip.customer_note}</p>
+                </div>
+              )}
+
               <button
                 onClick={() => !atCapacity && acceptMutation.mutate(trip.id)}
                 disabled={acceptMutation.isPending || atCapacity}
