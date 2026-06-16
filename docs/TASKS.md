@@ -122,8 +122,8 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 | `[x]` | Search (name / phone) và filter by status | |
 | `[x]` | `formatDriver()` trả `points` (wallet) | Eager load wallet + `$u->wallet?->points ?? 0` |
 | `[x]` | `blockDriver()` lưu `blocked_reason` vào DB | Migration + fillable + lưu khi block |
-| `[ ]` | Unblock tài xế | |
-| `[ ]` | Admin nạp điểm thủ công cho tài xế (button + modal) | Phụ thuộc `PATCH /admin/drivers/{id}/topup` |
+| `[x]` | Unblock tài xế | `PATCH /admin/drivers/{id}/unblock` — nút "Bỏ chặn" trên card |
+| `[x]` | Admin nạp điểm thủ công cho tài xế (button + modal) | `POST /admin/drivers/{id}/topup` + modal DriversPage |
 
 ---
 
@@ -162,8 +162,8 @@ Trạng thái: `[x]` xong · `[ ]` chưa làm · `[!]` có lỗi / mismatch cầ
 |---|---|---|
 | `[x]` | Trang `CustomersPage.tsx` + route `/admin/customers` | |
 | `[x]` | Danh sách khách + search | `GET /admin/customers?search=` |
-| `[ ]` | Xem lịch sử đặt xe của khách | |
-| `[ ]` | `PATCH /admin/customers/{id}/block` — block khách | BE `CustomerController` chưa có action block |
+| `[x]` | Xem lịch sử đặt xe của khách | `GET /admin/customers/{id}/bookings` + bottom sheet |
+| `[x]` | `PATCH /admin/customers/{id}/block` — block khách | block + unblock + login check |
 
 ---
 

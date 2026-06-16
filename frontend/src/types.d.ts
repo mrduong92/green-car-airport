@@ -7,6 +7,7 @@ declare namespace App {
     phone: string
     role: Role
     needs_onboarding?: boolean
+    pending_penalty?: number
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
@@ -238,9 +239,21 @@ declare namespace App {
     id: number
     name: string
     phone: string
+    is_blocked: boolean
     total_bookings: number
     completed_bookings: number
     total_spent: number
+    created_at: string
+  }
+
+  interface AdminCustomerBooking {
+    id: number
+    pickup: string
+    destination: string
+    date: string
+    time: string
+    price: number
+    status: BookingStatus
     created_at: string
   }
 

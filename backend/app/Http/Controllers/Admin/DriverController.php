@@ -47,6 +47,20 @@ class DriverController extends Controller
         return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
     }
 
+    public function unblock(User $user): JsonResponse
+    {
+        if ($user->role !== 'driver') {
+            return response()->json(['message' => 'User is not a driver.'], 422);
+        }
+
+        $user->driverProfile()->updateOrCreate(
+            ['user_id' => $user->id],
+            ['status' => 'active', 'blocked_reason' => null],
+        );
+
+        return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
+    }
+
     public function update(Request $request, User $user): JsonResponse
     {
         if ($user->role !== 'driver') {

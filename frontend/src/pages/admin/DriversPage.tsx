@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getDrivers, updateDriver, blockDriver, approveDriver, topupDriver } from '@/api/admin'
+import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, topupDriver } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
@@ -84,6 +84,15 @@ export default function DriversPage() {
     mutationFn: (id: number) => approveDriver(id),
     onSuccess: () => {
       showToast('Đã duyệt tài xế', 'success')
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+    },
+    onError: () => showToast('Thao tác thất bại', 'error'),
+  })
+
+  const unblockMutation = useMutation({
+    mutationFn: (id: number) => unblockDriver(id),
+    onSuccess: () => {
+      showToast('Đã bỏ chặn tài xế', 'success')
       qc.invalidateQueries({ queryKey: ['drivers'] })
     },
     onError: () => showToast('Thao tác thất bại', 'error'),
@@ -173,6 +182,12 @@ export default function DriversPage() {
                   <button onClick={() => approveMutation.mutate(d.id)}
                     className="text-xs bg-success-green text-white rounded-pill px-3 py-1.5 font-medium">
                     Duyệt
+                  </button>
+                )}
+                {d.status === 'blocked' && (
+                  <button onClick={() => unblockMutation.mutate(d.id)}
+                    className="text-xs bg-success-green/10 text-success-green rounded-pill px-3 py-1.5 font-medium">
+                    Bỏ chặn
                   </button>
                 )}
                 {d.status !== 'blocked' && (

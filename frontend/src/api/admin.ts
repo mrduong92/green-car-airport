@@ -18,6 +18,9 @@ export const updateDriver = (id: number, data: {
 export const blockDriver = (id: number, reason: string) =>
   api.patch(`/admin/drivers/${id}/block`, { reason })
 
+export const unblockDriver = (id: number) =>
+  api.patch(`/admin/drivers/${id}/unblock`)
+
 export const approveDriver = (id: number) => api.patch(`/admin/drivers/${id}/approve`)
 
 export const updateCustomer = (id: number, data: { name: string }) =>
@@ -36,3 +39,12 @@ export const getRevenue = (params: { period: string; from?: string; to?: string 
 
 export const topupDriver = (id: number, data: { points: number; description?: string }) =>
   api.post<{ points_added: number; new_balance: number }>(`/admin/drivers/${id}/topup`, data)
+
+export const getCustomerBookings = (id: number) =>
+  api.get<App.AdminCustomerBooking[]>(`/admin/customers/${id}/bookings`)
+
+export const blockCustomer = (id: number) =>
+  api.patch(`/admin/customers/${id}/block`)
+
+export const unblockCustomer = (id: number) =>
+  api.patch(`/admin/customers/${id}/unblock`)

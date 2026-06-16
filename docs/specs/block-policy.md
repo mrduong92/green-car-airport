@@ -1,128 +1,116 @@
-# Chính sách Khoá Tài Khoản (Block)
+# Chính sách Khoá Tài Khoản (Block/Unblock)
 
 ## Tổng quan
 
-Admin có quyền khoá tài khoản khách hàng hoặc tài xế vi phạm. Tài khoản bị khoá sẽ mất toàn bộ quyền truy cập dịch vụ, điểm ví bị đóng băng, và không thể đăng ký lại bằng số điện thoại hoặc biển số xe đã bị khoá.
+Admin có quyền khoá tài khoản tài xế hoặc khách hàng vi phạm. Tài khoản bị khoá không thể đăng nhập. Admin có thể bỏ chặn bất kỳ lúc nào.
 
 ---
 
-## Trạng thái hiện tại
+## Trạng thái đã implement
 
-| Yêu cầu | Trạng thái |
-|---|---|
-| Admin block/unblock driver | ⚠️ Chỉ có block, thiếu enforcement & unblock |
-| Admin block/unblock customer | ❌ Chưa có |
-| Lưu lý do block | ❌ Backend nhận `reason` nhưng không lưu |
-| Tài khoản bị khoá không dùng được API | ❌ Chưa enforce |
-| Điểm ví bị đóng băng | ❌ Chưa có |
-| Không đăng ký lại bằng SĐT đã block | ❌ Chưa có |
-| Không đăng ký lại bằng biển số xe đã block | ❌ Chưa có |
+### Tài xế
 
----
-
-## Hệ quả khi bị khoá
-
-### Với mọi tài khoản bị block
-
-- Toàn bộ API call (trừ OTP) trả về `403 ACCOUNT_BLOCKED`
-- Ví điểm bị đóng băng (không xem, không giao dịch được)
-- Không gửi/xác thực OTP được bằng SĐT đã bị block
-
-### Với tài xế bị block
-
-- `driver_profiles.status` → `'blocked'`; `is_online` → `false`
-- Trip đang ở `accepted` / `picking_up` → trả về `finding_driver` (tách khỏi tài xế)
-
-### Với khách hàng bị block
-
-- Booking đang ở `pending` / `finding_driver` → tự động `cancelled` (cancelled_by = system)
-
----
-
-## Ngăn đăng ký lại
-
-| Phương thức | Cách ngăn |
-|---|---|
-| Đăng ký SĐT đã bị block | `OtpController::send()` + `verify()` check `users.status = 'blocked'` → 403 |
-| Dùng biển số xe đã bị block | `ProfileController::update()` check `driver_profiles.vehicle_plate` thuộc user đã block → 422 |
-
----
-
-## Schema (`users` table — migration mới)
-
-| Cột | Kiểu | Mô tả |
+| Hành động | Cơ chế | Trạng thái |
 |---|---|---|
-| `status` | `enum('active','blocked')` default `active` | Trạng thái tài khoản |
-| `blocked_reason` | `string` nullable | Lý do khoá (admin nhập) |
-| `blocked_at` | `timestamp` nullable | Thời điểm bị khoá |
+| Block | `driver_profiles.status = 'blocked'`, lưu `blocked_reason` | ✅ |
+| Unblock | `driver_profiles.status = 'active'`, xoá `blocked_reason` | ✅ |
+| Chặn đăng nhập | `AuthController::login()` kiểm tra `driverProfile.status === 'blocked'` → 403 | ✅ |
+| Hiển thị lý do | Response 403 kèm theo `blocked_reason` nếu có | ✅ |
 
-> `driver_profiles.status` giữ nguyên để quản lý trạng thái `pending`/`active`. Khi block driver: sync cả `users.status` và `driver_profiles.status`. Khi unblock: cả hai về `active`.
+### Khách hàng
+
+| Hành động | Cơ chế | Trạng thái |
+|---|---|---|
+| Block | `users.is_blocked = true`, xoá toàn bộ token | ✅ |
+| Unblock | `users.is_blocked = false` | ✅ |
+| Chặn đăng nhập | `AuthController::login()` kiểm tra `is_blocked` → 403 | ✅ |
+
+---
+
+## Schema
+
+### Tài xế — `driver_profiles`
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `status` | `enum('pending','active','blocked')` | Đã có từ đầu |
+| `blocked_reason` | `string` nullable | Lý do admin nhập khi block |
+
+### Khách hàng — `users`
+
+| Cột | Kiểu | Migration |
+|---|---|---|
+| `is_blocked` | `boolean` default `false` | `2026_06_16_000001_add_is_blocked_to_users_table` |
+
+> Hai model dùng cơ chế khác nhau: tài xế dùng enum `status` trên `driver_profiles` (vì còn có `pending`), khách hàng dùng boolean `is_blocked` trực tiếp trên `users`.
 
 ---
 
 ## API Endpoints
 
-| Method | Route | Mô tả |
+| Method | Route | Mô tả | Body |
+|---|---|---|---|
+| `PATCH` | `/admin/drivers/{user}/block` | Block tài xế | `{ reason?: string }` |
+| `PATCH` | `/admin/drivers/{user}/unblock` | Bỏ chặn tài xế | — |
+| `PATCH` | `/admin/customers/{user}/block` | Block khách hàng | — |
+| `PATCH` | `/admin/customers/{user}/unblock` | Bỏ chặn khách hàng | — |
+
+**Response 403 khi đăng nhập tài khoản bị khoá:**
+```json
+{ "message": "Tài khoản đã bị khoá bởi admin.", "code": "blocked" }
+```
+Tài xế có thể kèm lý do: `"Tài khoản bị khoá: <blocked_reason>"`.
+
+---
+
+## Luồng Admin UI
+
+```
+Trang Drivers / Customers
+    ↓
+Card tài xế/khách có trạng thái active/pending
+    → Nút "Block" (đỏ) → Modal nhập lý do (chỉ tài xế) → Confirm
+    → PATCH .../block
+
+Card đang ở trạng thái blocked
+    → Badge "Đã chặn", nút "Bỏ chặn" (xanh lá)
+    → Click trực tiếp, không cần confirm
+    → PATCH .../unblock
+```
+
+---
+
+## Hành vi phụ khi block
+
+| Đối tượng | Hành vi | Trạng thái |
 |---|---|---|
-| `PATCH` | `/admin/drivers/{user}/block` | Block tài xế (hiện có, cần hoàn thiện) |
-| `PATCH` | `/admin/drivers/{user}/unblock` | Mở khoá tài xế (mới) |
-| `PATCH` | `/admin/customers/{user}/block` | Block khách hàng (mới) |
-| `PATCH` | `/admin/customers/{user}/unblock` | Mở khoá khách hàng (mới) |
-
-**Request body (block):**
-```json
-{ "reason": "Vi phạm điều khoản sử dụng" }
-```
-
-**Response 403 khi tài khoản bị khoá (tất cả API):**
-```json
-{ "message": "Tài khoản của bạn đã bị khoá.", "code": "ACCOUNT_BLOCKED" }
-```
+| Block khách | Xoá toàn bộ Sanctum token → force logout ngay | ✅ |
+| Block tài xế | Token **không** bị xoá — tài xế vẫn online cho đến khi token hết hạn hoặc tự logout | ⚠️ Chưa xử lý |
 
 ---
 
-## Enforcement
+## Chưa implement (để sau)
 
-Block được thực thi tại **`EnsureRole` middleware** — áp dụng cho toàn bộ routes yêu cầu auth (role:customer, role:driver, role:admin). Không cần thêm logic ở từng controller.
-
-Frontend intercept `403 ACCOUNT_BLOCKED` tại `axios.ts` → tự động logout → redirect `/login`.
-
----
-
-## Luồng block/unblock (Admin UI)
-
-```
-Admin mở trang Drivers / Customers
-    ↓
-Click "Khoá" → modal nhập lý do → confirm
-    ↓
-PATCH /admin/.../block  → backend set users.status = 'blocked' + side effects
-    ↓
-Row hiển thị badge "Blocked" + nút "Mở khoá"
-    ↓
-Click "Mở khoá" → ConfirmDialog
-    ↓
-PATCH /admin/.../unblock → backend set users.status = 'active', xoá reason/at
-    ↓
-Row về trạng thái normal
-```
-
----
-
-## Files cần thay đổi (khi implement)
-
-| File | Loại thay đổi |
+| Tính năng | Ghi chú |
 |---|---|
-| `database/migrations/[ts]_add_block_fields_to_users.php` | Tạo mới |
-| `app/Models/User.php` | Thêm fillable: status, blocked_reason, blocked_at |
-| `app/Http/Middleware/EnsureRole.php` | Thêm check `status === 'blocked'` → 403 |
-| `app/Http/Controllers/Auth/OtpController.php` | Chặn SĐT bị block ở send() + verify() |
-| `app/Http/Controllers/Admin/DriverController.php` | Hoàn thiện block(), thêm unblock() |
-| `app/Http/Controllers/Admin/CustomerController.php` | Thêm block(), unblock() |
-| `app/Http/Controllers/Driver/ProfileController.php` | Validate biển số không bị block |
-| `routes/api.php` | 3 routes mới |
-| `frontend/src/types.d.ts` | Thêm status, blocked_reason vào AdminCustomer + DriverProfile |
-| `frontend/src/api/admin.ts` | Thêm unblockDriver, blockCustomer, unblockCustomer |
-| `frontend/src/pages/admin/DriversPage.tsx` | Unblock button + hiển thị lý do |
-| `frontend/src/pages/admin/CustomersPage.tsx` | Block/unblock UI + status badge |
-| `frontend/src/api/axios.ts` | Intercept ACCOUNT_BLOCKED → auto logout |
+| Block tài xế → xoá token ngay | Giống customer — thêm `$user->tokens()->delete()` vào `DriverController::block()` |
+| Block tài xế → trip đang nhận bị trả về `finding_driver` | Cần reassign trip trong `block()` |
+| Block khách → booking đang `finding_driver` bị huỷ | Cần cancel booking trong `block()` |
+| Chặn OTP với SĐT đã bị block | `OtpController::send()` check `is_blocked` / `driver status` → 403 |
+| Chặn đăng ký lại bằng biển số xe đã block | `ProfileController::update()` check biển số thuộc tài xế bị block |
+| Enforce tất cả API call (không chỉ login) | Hiện chỉ chặn ở login. Cần check trong `EnsureRole` middleware hoặc thêm middleware riêng. |
+
+---
+
+## Files liên quan
+
+| File | Vai trò |
+|---|---|
+| `backend/app/Http/Controllers/Auth/AuthController.php` | Login check — block customer + driver |
+| `backend/app/Http/Controllers/Admin/DriverController.php` | `block()`, `unblock()` |
+| `backend/app/Http/Controllers/Admin/CustomerController.php` | `block()`, `unblock()` |
+| `backend/routes/api.php` | 4 routes block/unblock |
+| `backend/database/migrations/2026_06_16_000001_add_is_blocked_to_users_table.php` | Cột `is_blocked` cho customers |
+| `frontend/src/api/admin.ts` | `blockDriver`, `unblockDriver`, `blockCustomer`, `unblockCustomer` |
+| `frontend/src/pages/admin/DriversPage.tsx` | UI block modal + nút "Bỏ chặn" |
+| `frontend/src/pages/admin/CustomersPage.tsx` | Badge "Đã chặn" + nút "Chặn/Bỏ chặn" trong history sheet |

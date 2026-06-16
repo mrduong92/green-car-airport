@@ -24,7 +24,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
         }
 
-        // Block check (driver role only — customer block not yet implemented)
+        if ($user->role === 'customer' && $user->is_blocked) {
+            return response()->json(['message' => 'Tài khoản đã bị khoá bởi admin.', 'code' => 'blocked'], 403);
+        }
+
         if ($user->role === 'driver') {
             $user->loadMissing('driverProfile');
             if ($user->driverProfile?->status === 'blocked') {
@@ -156,6 +159,10 @@ class AuthController extends Controller
             'phone' => $user->phone,
             'role'  => $user->role,
         ];
+
+        if ($user->role === 'customer' && $user->pending_penalty > 0) {
+            $payload['pending_penalty'] = (int) $user->pending_penalty;
+        }
 
         if ($user->role === 'driver') {
             $payload['needs_onboarding'] = ! $user->driverProfile?->vehicle_plate;

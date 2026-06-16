@@ -81,6 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/drivers',                          [DriverController::class, 'index']);
         Route::put('/admin/drivers/{user}',                   [DriverController::class, 'update']);
         Route::patch('/admin/drivers/{user}/block',           [DriverController::class, 'block']);
+        Route::patch('/admin/drivers/{user}/unblock',         [DriverController::class, 'unblock']);
         Route::patch('/admin/drivers/{user}/approve',         [DriverController::class, 'approve']);
         Route::get('/admin/vouchers',                         [AdminVoucherController::class, 'index']);
         Route::post('/admin/vouchers',                        [AdminVoucherController::class, 'store']);
@@ -88,6 +89,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/revenue',                          [RevenueController::class, 'index']);
         Route::get('/admin/customers',                        [AdminCustomerController::class, 'index']);
         Route::patch('/admin/customers/{user}',               [AdminCustomerController::class, 'update']);
+        Route::get('/admin/customers/{user}/bookings',        [AdminCustomerController::class, 'bookings']);
+        Route::patch('/admin/customers/{user}/block',         [AdminCustomerController::class, 'block']);
+        Route::patch('/admin/customers/{user}/unblock',       [AdminCustomerController::class, 'unblock']);
         Route::post('/admin/drivers/{user}/topup',            [AdminWalletController::class, 'topup']);
         Route::apiResource('/admin/price-configs', AdminPriceConfigController::class)->except(['show']);
     });

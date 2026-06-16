@@ -12,6 +12,7 @@ import { getPriceConfigs } from '@/api/priceConfig'
 import { goongDistanceMatrix } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
 import { useUiStore } from '@/stores/ui'
+import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/common/Button'
 import AddressInput from '@/components/common/AddressInput'
 import VoucherSheet from '@/components/common/VoucherSheet'
@@ -86,6 +87,7 @@ type FormData = z.infer<typeof schema>
 export default function BookingFormPage() {
   const navigate     = useNavigate()
   const showToast    = useUiStore((s) => s.showToast)
+  const user         = useAuthStore((s) => s.user)
   const queryClient  = useQueryClient()
 
   const [voucherCode,   setVoucherCode]   = useState('')
@@ -231,6 +233,19 @@ export default function BookingFormPage() {
       className="flex flex-col min-h-full pb-44"
     >
       <div className="px-4 pt-4 flex flex-col">
+
+        {/* ── Penalty banner ────────────────────────────────── */}
+        {(user?.pending_penalty ?? 0) > 0 && (
+          <div className="flex items-start gap-3 bg-alert-orange/10 border border-alert-orange/30 rounded-card px-4 py-3 mb-3">
+            <span className="material-symbols-outlined text-alert-orange text-xl shrink-0 mt-0.5">warning</span>
+            <div>
+              <p className="text-[13px] font-semibold text-navy">Bạn đang có khoản phạt chưa thanh toán</p>
+              <p className="text-[12px] text-neutral-gray mt-0.5">
+                Phí phạt <span className="font-semibold text-alert-orange">{(user!.pending_penalty!).toLocaleString('vi-VN')}đ</span> do huỷ chuyến muộn sẽ được cộng vào chuyến xe này.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Location card ─────────────────────────────────── */}
         <div className="bg-white rounded-card shadow-card border border-border-soft">
