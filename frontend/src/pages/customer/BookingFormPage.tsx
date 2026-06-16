@@ -250,12 +250,10 @@ export default function BookingFormPage() {
                   setValue('pickup', addr, { shouldValidate: true })
                   setPickupLatLng(latlng)
                 }}
+                onClear={() => setPickupLatLng(null)}
                 error={errors.pickup?.message}
               />
             </div>
-            <button type="button" className="text-neutral-dim shrink-0">
-              <span className="material-symbols-outlined text-[20px]">swap_vert</span>
-            </button>
           </div>
 
           <div className="h-px bg-border-soft ml-[52px]" />
@@ -275,6 +273,7 @@ export default function BookingFormPage() {
                   setValue('destination', addr, { shouldValidate: true })
                   setDestLatLng(latlng)
                 }}
+                onClear={() => setDestLatLng(null)}
                 error={errors.destination?.message}
               />
             </div>

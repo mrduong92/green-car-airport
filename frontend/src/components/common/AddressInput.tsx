@@ -2,11 +2,13 @@ import { useRef, useEffect, useState } from 'react'
 import { useGoongAutocomplete } from '@/hooks/useGoongAutocomplete'
 import { goongPlaceDetail, goongReverseGeocode } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
+import { useUiStore } from '@/stores/ui'
 
 interface Props {
   value: string
   onChange: (val: string) => void
   onPlaceSelect: (addr: string, latlng: LatLng) => void
+  onClear?: () => void
   placeholder: string
   icon?: string
   label?: string
@@ -14,11 +16,12 @@ interface Props {
   showMyLocation?: boolean
 }
 
-export default function AddressInput({ value, onChange, onPlaceSelect, placeholder, icon, label, error, showMyLocation }: Props) {
+export default function AddressInput({ value, onChange, onPlaceSelect, onClear, placeholder, icon, label, error, showMyLocation }: Props) {
   const { query, setQuery, setQuerySilent, predictions, setPredictions, loading, sessionToken } = useGoongAutocomplete()
   const containerRef = useRef<HTMLDivElement>(null)
   const [focused, setFocused] = useState(false)
   const [locLoading, setLocLoading] = useState(false)
+  const showToast = useUiStore((s) => s.showToast)
 
   // Sync external value into query when it changes externally (e.g. form reset) — silent so autocomplete doesn't re-fire
   useEffect(() => {
@@ -37,8 +40,18 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
     return () => document.removeEventListener('mousedown', handler)
   }, [setPredictions])
 
+  const handleClear = () => {
+    setQuery('')
+    onChange('')
+    setPredictions([])
+    onClear?.()
+  }
+
   const handleMyLocation = () => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      showToast('Trình duyệt không hỗ trợ định vị', 'error')
+      return
+    }
     setLocLoading(true)
     setPredictions([])
     navigator.geolocation.getCurrentPosition(
@@ -54,7 +67,10 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
           setFocused(false)
         }
       },
-      () => setLocLoading(false),
+      () => {
+        setLocLoading(false)
+        showToast('Không thể xác định vị trí. Vui lòng bật định vị và thử lại.', 'error')
+      },
       { timeout: 8000 }
     )
   }
@@ -100,6 +116,16 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
           <span className="material-symbols-outlined text-neutral-gray text-base shrink-0 animate-spin">
             progress_activity
           </span>
+        )}
+        {!loading && query.length > 0 && (
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleClear}
+            className="shrink-0 text-neutral-gray hover:text-navy active:text-navy"
+          >
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
         )}
       </div>
 
