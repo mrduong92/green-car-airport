@@ -189,6 +189,8 @@ Giá bạn muốn trả: [_________đ]
 └─────────────────────────────────┘
 ```
 
+> **Ghi chú tài xế:** Khi khách áp dụng voucher, tài xế chỉ thấy **giá hiệu lực sau giảm** (`price - discount`) trên card cuốc và màn hình chi tiết. Phí app 20% và thu nhập ròng đều tính trên giá hiệu lực đó, không phải giá gốc. Ví dụ: giá gốc 500k, voucher 50k → giá hiệu lực 450k → phí app 90k → tài xế nhận 360k.
+
 ---
 
 ### A2 · Trạng thái đơn
@@ -364,7 +366,7 @@ Fixed bottom-center, pill shape, max-w `[280px]`. Variants: `success` (primary i
 
 ### Quy định tài xế
 
-1. **account_balance_wallet** — Phí ứng dụng 20% được trừ từ ví điểm sau mỗi chuyến hoàn thành.
+1. **account_balance_wallet** — Phí ứng dụng 20% được trừ **trên giá sau khi đã áp dụng voucher của khách**. Ví dụ: giá 500k, khách dùng voucher 50k → phí app = (500k − 50k) × 20% = 90k, không phải 100k.
 2. **paid** — Cần nạp điểm vào ví trước khi nhận cuốc (1.000đ = 1 điểm).
 3. **checklist** — Tối đa 3 cuốc đang thực hiện cùng lúc.
 4. **schedule** — Cập nhật trạng thái cuốc kịp thời — không để khách chờ.
