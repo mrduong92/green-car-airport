@@ -1,6 +1,6 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useGoongAutocomplete } from '@/hooks/useGoongAutocomplete'
-import { goongPlaceDetail } from '@/api/goong'
+import { goongPlaceDetail, goongReverseGeocode } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
 
 interface Props {
@@ -11,11 +11,14 @@ interface Props {
   icon?: string
   label?: string
   error?: string
+  showMyLocation?: boolean
 }
 
-export default function AddressInput({ value, onChange, onPlaceSelect, placeholder, icon, label, error }: Props) {
+export default function AddressInput({ value, onChange, onPlaceSelect, placeholder, icon, label, error, showMyLocation }: Props) {
   const { query, setQuery, setQuerySilent, predictions, setPredictions, loading, sessionToken } = useGoongAutocomplete()
   const containerRef = useRef<HTMLDivElement>(null)
+  const [focused, setFocused] = useState(false)
+  const [locLoading, setLocLoading] = useState(false)
 
   // Sync external value into query when it changes externally (e.g. form reset) — silent so autocomplete doesn't re-fire
   useEffect(() => {
@@ -33,6 +36,28 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [setPredictions])
+
+  const handleMyLocation = () => {
+    if (!navigator.geolocation) return
+    setLocLoading(true)
+    setPredictions([])
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const latlng = { lat: coords.latitude, lng: coords.longitude }
+          const address = await goongReverseGeocode(latlng)
+          onChange(address)
+          setQuerySilent(address)
+          onPlaceSelect(address, latlng)
+        } finally {
+          setLocLoading(false)
+          setFocused(false)
+        }
+      },
+      () => setLocLoading(false),
+      { timeout: 8000 }
+    )
+  }
 
   const handleSelect = async (placeId: string, description: string) => {
     onChange(description)
@@ -63,6 +88,8 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
               setQuery(e.target.value)
               onChange(e.target.value)
             }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             placeholder={placeholder}
             className="w-full outline-none text-navy text-[14px] font-medium"
             style={{ fontWeight: query ? 600 : 400 }}
@@ -75,6 +102,30 @@ export default function AddressInput({ value, onChange, onPlaceSelect, placehold
           </span>
         )}
       </div>
+
+      {showMyLocation && focused && query.length === 0 && (
+        <ul className="absolute left-0 right-0 top-full mt-1 bg-white rounded-card shadow-float border border-border-soft z-[100]">
+          <li>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleMyLocation}
+              className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-primary-tint active:bg-primary-tint"
+            >
+              <span className="material-symbols-outlined text-primary text-xl shrink-0">my_location</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-primary font-semibold">Vị trí của tôi</span>
+                <p className="text-xs text-neutral-gray">Dùng GPS hiện tại</p>
+              </div>
+              {locLoading && (
+                <span className="material-symbols-outlined animate-spin text-primary text-base shrink-0">
+                  progress_activity
+                </span>
+              )}
+            </button>
+          </li>
+        </ul>
+      )}
 
       {predictions.length > 0 && (
         <ul className="absolute left-0 right-0 top-full mt-1 bg-white rounded-card shadow-float border border-border-soft z-[100] max-h-[340px] overflow-y-auto">

@@ -243,6 +243,7 @@ export default function BookingFormPage() {
               <AddressInput
                 label="Điểm đón"
                 placeholder="Tìm địa điểm đón..."
+                showMyLocation
                 value={watch('pickup') ?? ''}
                 onChange={(v) => setValue('pickup', v, { shouldValidate: true })}
                 onPlaceSelect={(addr, latlng) => {

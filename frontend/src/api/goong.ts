@@ -23,6 +23,12 @@ export async function goongPlaceDetail(placeId: string, sessionToken: string): P
   return { address: data.result.formatted_address, lat: loc.lat, lng: loc.lng }
 }
 
+export async function goongReverseGeocode(latlng: LatLng): Promise<string> {
+  const res  = await fetch(`${BASE}/geocode?latlng=${latlng.lat},${latlng.lng}&api_key=${KEY}`)
+  const data = await res.json()
+  return data.results?.[0]?.formatted_address ?? `${latlng.lat}, ${latlng.lng}`
+}
+
 export async function goongDistanceMatrix(origin: LatLng, dest: LatLng): Promise<number> {
   const res  = await fetch(`${BASE}/DistanceMatrix?origins=${origin.lat},${origin.lng}&destinations=${dest.lat},${dest.lng}&vehicle=car&api_key=${KEY}`)
   const data = await res.json()
