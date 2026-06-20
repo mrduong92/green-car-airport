@@ -149,7 +149,7 @@ export default function TripDetailPage() {
         {[
           { icon: 'calendar_today', label: 'Ngày giờ',      value: fmtDateTime(trip.date, trip.time) },
           { icon: 'straighten',     label: 'Khoảng cách',   value: `${trip.distance_km} km` },
-          { icon: 'payments',       label: 'Giá khách trả', value: `${trip.price.toLocaleString('vi')} đ` },
+          { icon: 'payments',       label: 'Giá khách trả', value: `${trip.final_price.toLocaleString('vi')} đ` },
           { icon: 'receipt',        label: 'Phí app (20%)', value: `${trip.app_fee.toLocaleString('vi')} đ` },
         ].map(({ icon, label, value }) => (
           <div key={label} className="flex flex-col gap-1">
@@ -187,7 +187,7 @@ export default function TripDetailPage() {
       <ConfirmDialog
         open={cancelOpen}
         title="Xác nhận huỷ cuốc?"
-        description={`Phí app 20% (${Math.round(trip.price * 0.2).toLocaleString('vi')}đ) đã trừ khi nhận sẽ không được hoàn lại.`}
+        description={`Phí app 20% (${Math.round(trip.final_price * 0.2).toLocaleString('vi')}đ) đã trừ khi nhận sẽ không được hoàn lại.`}
         confirmLabel="Xác nhận huỷ"
         loading={cancelMutation.isPending}
         onConfirm={() => cancelMutation.mutate()}
