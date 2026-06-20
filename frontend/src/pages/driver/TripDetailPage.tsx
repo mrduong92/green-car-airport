@@ -162,12 +162,6 @@ export default function TripDetailPage() {
         ))}
       </div>
 
-      {/* Net earnings */}
-      <div className="bg-primary-tint rounded-card p-4 text-center">
-        <p className="text-[12px] text-neutral-gray mb-1">Bạn nhận</p>
-        <p className="text-3xl font-bold text-primary">{trip.net_earning.toLocaleString('vi')} đ</p>
-      </div>
-
       {/* Actions */}
       {nextStep && (
         <Button fullWidth size="lg" loading={statusMutation.isPending}
@@ -187,7 +181,7 @@ export default function TripDetailPage() {
       <ConfirmDialog
         open={cancelOpen}
         title="Xác nhận huỷ cuốc?"
-        description={`Phí app 20% (${Math.round(trip.final_price * 0.2).toLocaleString('vi')}đ) đã trừ khi nhận sẽ không được hoàn lại.`}
+        description={`Phí app 20% (${trip.app_fee.toLocaleString('vi')}đ) đã trừ khi nhận sẽ không được hoàn lại.`}
         confirmLabel="Xác nhận huỷ"
         loading={cancelMutation.isPending}
         onConfirm={() => cancelMutation.mutate()}

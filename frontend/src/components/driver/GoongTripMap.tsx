@@ -1,11 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import mapboxgl from '@goongmaps/goong-js'
 import '@goongmaps/goong-js/dist/goong-js.css'
 
 const MAP_KEY = import.meta.env.VITE_GOONG_MAP_KEY as string
 const API_KEY = import.meta.env.VITE_GOONG_API_KEY as string
 
-// mapbox-gl requires a token; set once at module level
 ;(mapboxgl as unknown as { accessToken: string }).accessToken = MAP_KEY
 
 function decodePolyline(encoded: string): [number, number][] {
@@ -32,16 +31,28 @@ interface Props {
 export default function GoongTripMap({ pickupLat, pickupLng, destLat, destLng }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<InstanceType<typeof mapboxgl.Map> | null>(null)
+  const [webglError, setWebglError] = useState(false)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: `https://tiles.goong.io/assets/goong_map_web.json?api_key=${MAP_KEY}`,
-      center: [(pickupLng + destLng) / 2, (pickupLat + destLat) / 2],
-      zoom: 11,
-    })
+    if (!(mapboxgl as unknown as { supported: () => boolean }).supported()) {
+      setWebglError(true)
+      return
+    }
+
+    let map: InstanceType<typeof mapboxgl.Map>
+    try {
+      map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: `https://tiles.goong.io/assets/goong_map_web.json?api_key=${MAP_KEY}`,
+        center: [(pickupLng + destLng) / 2, (pickupLat + destLat) / 2],
+        zoom: 11,
+      })
+    } catch {
+      setWebglError(true)
+      return
+    }
     mapRef.current = map
 
     new mapboxgl.Marker({ color: '#006a36' })
@@ -89,6 +100,15 @@ export default function GoongTripMap({ pickupLat, pickupLng, destLat, destLng }:
       mapRef.current = null
     }
   }, [pickupLat, pickupLng, destLat, destLng])
+
+  if (webglError) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+        <span className="material-symbols-outlined text-4xl text-neutral-gray">map</span>
+        <p className="text-caption text-neutral-gray text-center px-4">Trình duyệt không hỗ trợ bản đồ</p>
+      </div>
+    )
+  }
 
   return <div ref={containerRef} className="w-full h-full" />
 }

@@ -190,7 +190,7 @@ export default function TripListPage() {
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-2">
                     <p className="text-white font-bold text-[15px] tabular-nums">
-                      {trip.net_earning.toLocaleString('vi')} đ
+                      {trip.final_price.toLocaleString('vi')} đ
                     </p>
                     <span className="bg-white text-primary rounded-pill px-3 py-1.5 text-[12px] font-bold whitespace-nowrap">
                       Chi tiết →
@@ -292,19 +292,12 @@ export default function TripListPage() {
               <div className="flex items-center justify-between bg-warm-white rounded-[10px] px-3 py-2.5">
                 <div>
                   <p className="text-[11px] text-neutral-gray">Khách trả</p>
-                  <p className="text-[15px] font-semibold text-navy tabular-nums">{trip.price.toLocaleString('vi')} đ</p>
+                  <p className="text-[15px] font-semibold text-navy tabular-nums">{trip.final_price.toLocaleString('vi')} đ</p>
                 </div>
                 <span className="material-symbols-outlined text-neutral-dim text-[14px]">arrow_forward</span>
-                <div>
+                <div className="text-right">
                   <p className="text-[11px] text-neutral-gray">Phí app 20%</p>
                   <p className="text-[13px] font-semibold text-danger-red tabular-nums">-{trip.app_fee.toLocaleString('vi')}</p>
-                </div>
-                <div className="w-[1px] h-8 bg-border-gray" />
-                <div className="text-right">
-                  <p className="text-[11px] text-neutral-gray">Bạn nhận</p>
-                  <p className="text-[15px] font-semibold text-success-green tabular-nums">
-                    {Math.round(trip.price * 0.8).toLocaleString('vi')} đ
-                  </p>
                 </div>
               </div>
 

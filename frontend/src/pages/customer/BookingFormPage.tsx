@@ -503,15 +503,10 @@ export default function BookingFormPage() {
                   <span className="text-[12px] font-semibold text-success-green">-{discount.toLocaleString('vi')}đ</span>
                 )}
               </div>
-              {isCapped && (
+              {discount > 0 && (
                 <span className="text-[11px] text-neutral-gray">Giảm tối đa 10% giá cuốc</span>
               )}
             </div>
-            {price > 0 && (
-              <p className="text-[11px] text-neutral-gray mt-0.5">
-                Tài xế nhận: {Math.round(total * 0.8).toLocaleString('vi')}đ
-              </p>
-            )}
           </div>
           <Button type="submit" size="lg" loading={bookingMutation.isPending} className="shrink-0">
             Đặt xe →

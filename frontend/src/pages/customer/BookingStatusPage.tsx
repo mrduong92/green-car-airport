@@ -307,13 +307,16 @@ export default function BookingStatusPage() {
           </div>
 
           {(booking.discount ?? 0) > 0 && (
-            <div className="flex justify-between text-[13px]">
-              <div className="flex items-center gap-1.5 text-neutral-gray">
-                <span className="material-symbols-outlined text-[13px]">confirmation_number</span>
-                <span className="font-mono">{booking.voucher_code}</span>
+            <>
+              <div className="flex justify-between text-[13px]">
+                <div className="flex items-center gap-1.5 text-neutral-gray">
+                  <span className="material-symbols-outlined text-[13px]">confirmation_number</span>
+                  <span className="font-mono">{booking.voucher_code}</span>
+                </div>
+                <span className="text-success-green font-medium">-{(booking.discount ?? 0).toLocaleString('vi')}đ</span>
               </div>
-              <span className="text-success-green font-medium">-{(booking.discount ?? 0).toLocaleString('vi')}đ</span>
-            </div>
+              <p className="text-[11px] text-neutral-gray">Giảm tối đa 10% giá cuốc</p>
+            </>
           )}
 
           {(booking.surcharge ?? 0) > 0 && (
