@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 
 class VoucherController extends Controller
 {
+    private const VOUCHER_MAX_RATE = 0.10;
+
     public function index(Request $request): JsonResponse
     {
         $vouchers = Voucher::where('is_active', true)
@@ -48,7 +50,7 @@ class VoucherController extends Controller
         $raw         = $voucher->type === 'fixed'
             ? $voucher->value
             : (int) round($request->price * $voucher->value / 100);
-        $maxDiscount = (int) floor($request->price * 0.10);
+        $maxDiscount = (int) floor($request->price * self::VOUCHER_MAX_RATE);
         $discount    = min($raw, $maxDiscount);
 
         return response()->json([

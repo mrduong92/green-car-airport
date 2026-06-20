@@ -92,6 +92,7 @@ export default function BookingFormPage() {
 
   const [voucherCode,   setVoucherCode]   = useState('')
   const [discount,      setDiscount]      = useState(0)
+  const [voucherIsCapped, setVoucherIsCapped] = useState(false)
   const [showVouchers,  setShowVouchers]  = useState(false)
   const [vehicleType, setVehicleType] = useState<VehicleType>('sedan_4')
   const [pickupLatLng,   setPickupLatLng]   = useState<LatLng | null>(null)
@@ -123,8 +124,7 @@ export default function BookingFormPage() {
   const selectedTime = watch('time')
   const detectedService  = detectServiceType(pickup, destination)
   const total = Math.max(0, price - discount)
-  const VOUCHER_MAX_RATE = 0.10
-  const isCapped = discount > 0 && discount === Math.floor(price * VOUCHER_MAX_RATE)
+  const isCapped = voucherIsCapped
 
   // Bảng giá từ API
   const { data: priceConfigs = [] } = useQuery({
@@ -449,7 +449,7 @@ export default function BookingFormPage() {
               </div>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setVoucherCode(''); setDiscount(0) }}
+                onClick={(e) => { e.stopPropagation(); setVoucherCode(''); setDiscount(0); setVoucherIsCapped(false) }}
                 className="w-6 h-6 rounded-full bg-border-gray flex items-center justify-center shrink-0"
               >
                 <span className="material-symbols-outlined text-[14px] text-neutral-gray">close</span>
@@ -468,7 +468,7 @@ export default function BookingFormPage() {
           onClose={() => setShowVouchers(false)}
           currentPrice={Number(watch('price')) || 0}
           selectedCode={voucherCode}
-          onSelect={(v, disc) => { setVoucherCode(v.code); setDiscount(disc) }}
+          onSelect={(v, disc, capped) => { setVoucherCode(v.code); setDiscount(disc); setVoucherIsCapped(capped) }}
         />
 
         {/* ── GHI CHÚ CHO TÀI XẾ ──────────────────────────── */}

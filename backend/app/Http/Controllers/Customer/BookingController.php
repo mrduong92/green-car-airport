@@ -13,6 +13,8 @@ use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
+    private const VOUCHER_MAX_RATE = 0.10;
+
     public function index(Request $request): JsonResponse
     {
         $bookings = Booking::with(['driver.driverProfile', 'voucher'])
@@ -62,7 +64,7 @@ class BookingController extends Controller
                 $raw       = $voucher->type === 'fixed'
                     ? $voucher->value
                     : (int) round($data['price'] * $voucher->value / 100);
-                $discount  = min($raw, (int) floor($data['price'] * 0.10));
+                $discount  = min($raw, (int) floor($data['price'] * self::VOUCHER_MAX_RATE));
                 $voucherId = $voucher->id;
                 $voucher->increment('usage_count');
             }

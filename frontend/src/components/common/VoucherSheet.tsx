@@ -7,7 +7,7 @@ interface Props {
   open: boolean
   onClose: () => void
   /** Nếu truyền vào thì hiện nút "Dùng ngay" và tính discount preview */
-  onSelect?: (voucher: App.VoucherListItem, discount: number) => void
+  onSelect?: (voucher: App.VoucherListItem, discount: number, isCapped: boolean) => void
   currentPrice?: number
   selectedCode?: string
 }
@@ -129,7 +129,7 @@ export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0
                         </span>
                       ) : (
                         <button
-                          onClick={() => { onSelect(v, calcDiscount(v, currentPrice)); onClose() }}
+                          onClick={() => { onSelect(v, calcDiscount(v, currentPrice), isCapped); onClose() }}
                           className="bg-primary text-white text-[12px] font-semibold rounded-pill px-3 py-1.5 shrink-0 whitespace-nowrap"
                         >
                           Dùng ngay
