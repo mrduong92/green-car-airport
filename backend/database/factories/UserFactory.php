@@ -18,9 +18,10 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name'  => fake()->name(),
-            'phone' => fake()->unique()->numerify('09########'),
-            'role'  => 'customer',
+            'name'            => fake()->name(),
+            'phone'           => fake()->unique()->numerify('09########'),
+            'role'            => 'customer',
+            'pending_penalty' => 0,
         ];
     }
 }

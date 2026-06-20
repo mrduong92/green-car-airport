@@ -59,9 +59,10 @@ class BookingController extends Controller
                 ->first();
 
             if ($voucher) {
-                $discount  = $voucher->type === 'fixed'
+                $raw       = $voucher->type === 'fixed'
                     ? $voucher->value
                     : (int) round($data['price'] * $voucher->value / 100);
+                $discount  = min($raw, (int) floor($data['price'] * 0.10));
                 $voucherId = $voucher->id;
                 $voucher->increment('usage_count');
             }
