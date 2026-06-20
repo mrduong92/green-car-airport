@@ -12,8 +12,11 @@ interface Props {
   selectedCode?: string
 }
 
+const VOUCHER_MAX_RATE = 0.10
+
 function calcDiscount(v: App.VoucherListItem, price: number) {
-  return v.type === 'fixed' ? v.value : Math.round(price * v.value / 100)
+  const raw = v.type === 'fixed' ? v.value : Math.round(price * v.value / 100)
+  return Math.min(raw, Math.floor(price * VOUCHER_MAX_RATE))
 }
 
 export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0, selectedCode }: Props) {
@@ -69,6 +72,9 @@ export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0
           {vouchers.map((v) => {
             const isSelected = v.code === selectedCode
             const discount = onSelect ? calcDiscount(v, currentPrice) : null
+            const raw = v.type === 'fixed' ? v.value : Math.round(currentPrice * v.value / 100)
+            const maxDiscount = Math.floor(currentPrice * VOUCHER_MAX_RATE)
+            const isCapped = currentPrice > 0 && raw > maxDiscount
 
             return (
               <div
@@ -102,9 +108,16 @@ export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0
                       </p>
                       <p className="text-[11px] text-neutral-gray mt-0.5">Hết hạn {v.expires_at}</p>
                       {discount !== null && currentPrice > 0 && (
-                        <p className="text-[11px] text-success-green font-medium mt-0.5">
-                          Tiết kiệm {discount.toLocaleString('vi')}đ
-                        </p>
+                        <>
+                          <p className="text-[11px] text-success-green font-medium mt-0.5">
+                            Tiết kiệm {discount.toLocaleString('vi')}đ
+                          </p>
+                          {isCapped && (
+                            <p className="text-[11px] text-neutral-gray mt-0.5">
+                              Tối đa {maxDiscount.toLocaleString('vi')}đ (10% cuốc này)
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
 
