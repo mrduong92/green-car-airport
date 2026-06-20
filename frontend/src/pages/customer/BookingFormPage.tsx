@@ -92,7 +92,7 @@ export default function BookingFormPage() {
 
   const [voucherCode,   setVoucherCode]   = useState('')
   const [discount,      setDiscount]      = useState(0)
-  const [voucherIsCapped, setVoucherIsCapped] = useState(false)
+  const [, setVoucherIsCapped] = useState(false)
   const [showVouchers,  setShowVouchers]  = useState(false)
   const [vehicleType, setVehicleType] = useState<VehicleType>('sedan_4')
   const [pickupLatLng,   setPickupLatLng]   = useState<LatLng | null>(null)
@@ -124,7 +124,6 @@ export default function BookingFormPage() {
   const selectedTime = watch('time')
   const detectedService  = detectServiceType(pickup, destination)
   const total = Math.max(0, price - discount)
-  const isCapped = voucherIsCapped
 
   // Bảng giá từ API
   const { data: priceConfigs = [] } = useQuery({
