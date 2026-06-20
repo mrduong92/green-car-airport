@@ -45,15 +45,18 @@ class VoucherController extends Controller
             return response()->json(['message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn.'], 422);
         }
 
-        $discount = $voucher->type === 'fixed'
+        $raw         = $voucher->type === 'fixed'
             ? $voucher->value
             : (int) round($request->price * $voucher->value / 100);
+        $maxDiscount = (int) floor($request->price * 0.10);
+        $discount    = min($raw, $maxDiscount);
 
         return response()->json([
-            'code'     => $voucher->code,
-            'type'     => $voucher->type,
-            'value'    => $voucher->value,
-            'discount' => $discount,
+            'code'         => $voucher->code,
+            'type'         => $voucher->type,
+            'value'        => $voucher->value,
+            'discount'     => $discount,
+            'max_discount' => $maxDiscount,
         ]);
     }
 }
