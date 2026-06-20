@@ -77,6 +77,8 @@ declare namespace App {
     distance_km: number
     duration_min: number
     price: number
+    discount: number
+    final_price: number
     app_fee: number
     net_earning: number
     status: TripStatus
