@@ -123,6 +123,8 @@ export default function BookingFormPage() {
   const selectedTime = watch('time')
   const detectedService  = detectServiceType(pickup, destination)
   const total = Math.max(0, price - discount)
+  const VOUCHER_MAX_RATE = 0.10
+  const isCapped = discount > 0 && discount === Math.floor(price * VOUCHER_MAX_RATE)
 
   // Bảng giá từ API
   const { data: priceConfigs = [] } = useQuery({
@@ -494,10 +496,15 @@ export default function BookingFormPage() {
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-[12px] text-neutral-gray">Tổng thanh toán</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-[22px] font-bold text-navy tabular-nums">{total.toLocaleString('vi')} đ</span>
-              {discount > 0 && (
-                <span className="text-[12px] font-semibold text-success-green">-{discount.toLocaleString('vi')}đ</span>
+            <div className="flex flex-col">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[22px] font-bold text-navy tabular-nums">{total.toLocaleString('vi')} đ</span>
+                {discount > 0 && (
+                  <span className="text-[12px] font-semibold text-success-green">-{discount.toLocaleString('vi')}đ</span>
+                )}
+              </div>
+              {isCapped && (
+                <span className="text-[11px] text-neutral-gray">Giảm tối đa 10% giá cuốc</span>
               )}
             </div>
             {price > 0 && (
