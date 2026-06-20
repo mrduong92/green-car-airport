@@ -222,6 +222,8 @@ class TripController extends Controller
             'distance_km'           => (float) $b->distance_km,
             'duration_min'          => $durationMin,
             'price'                 => $b->price,
+            'discount'              => $b->discount,
+            'final_price'           => $b->price - $b->discount,
             'app_fee'               => $appFee,
             'net_earning'           => $netEarning,
             'status'                => $statusMap[$b->status] ?? $b->status,
