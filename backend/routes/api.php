@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/bookings/{booking}',        [BookingController::class, 'show']);
         Route::patch('/bookings/{booking}/cancel', [BookingController::class, 'cancel']);
         Route::get('/customer/vouchers',         [VoucherController::class, 'index']);
+        Route::get('/customer/my-vouchers',      [VoucherController::class, 'myVouchers']);
         Route::post('/customer/vouchers/apply',  [VoucherController::class, 'apply']);
     });
 

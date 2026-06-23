@@ -4,3 +4,6 @@ export const getCustomerProfile = () => api.get<App.CustomerProfile>('/customer/
 
 export const updateCustomerProfile = (data: { name: string }) =>
   api.patch('/customer/profile', data)
+
+export const getMyVouchers = () =>
+  api.get<App.PersonalVoucher[]>('/customer/my-vouchers')

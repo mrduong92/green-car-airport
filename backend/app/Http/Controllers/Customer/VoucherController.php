@@ -15,8 +15,28 @@ class VoucherController extends Controller
     {
         $vouchers = Voucher::where('is_active', true)
             ->where('expires_at', '>=', today())
+            ->whereNull('user_id')
             ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
             ->whereDoesntHave('bookings', fn ($q) => $q->where('customer_id', $request->user()->id))
+            ->orderBy('expires_at')
+            ->get()
+            ->map(fn ($v) => [
+                'id'         => $v->id,
+                'code'       => $v->code,
+                'type'       => $v->type,
+                'value'      => $v->value,
+                'expires_at' => $v->expires_at->format('d/m/Y'),
+            ]);
+
+        return response()->json($vouchers);
+    }
+
+    public function myVouchers(Request $request): JsonResponse
+    {
+        $vouchers = Voucher::where('user_id', $request->user()->id)
+            ->where('is_active', true)
+            ->where('expires_at', '>=', today())
+            ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
             ->orderBy('expires_at')
             ->get()
             ->map(fn ($v) => [
@@ -41,6 +61,7 @@ class VoucherController extends Controller
             ->where('is_active', true)
             ->where('expires_at', '>=', today())
             ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $request->user()->id))
             ->first();
 
         if (! $voucher) {
