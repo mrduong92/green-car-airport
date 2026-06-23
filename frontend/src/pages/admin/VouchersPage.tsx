@@ -45,7 +45,7 @@ export default function VouchersPage() {
     onSuccess: () => { showToast('Đã vô hiệu hoá voucher', 'info'); qc.invalidateQueries({ queryKey: ['vouchers'] }) },
   })
 
-  const genCode = () => setValue('code', `GCA${Math.random().toString(36).slice(2, 8).toUpperCase()}`)
+  const genCode = () => setValue('code', `${import.meta.env.VITE_CODE_PREFIX}${Math.random().toString(36).slice(2, 8).toUpperCase()}`)
 
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
