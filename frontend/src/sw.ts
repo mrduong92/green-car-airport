@@ -17,12 +17,12 @@ self.addEventListener('push', (event) => {
         clients.forEach((c) => c.postMessage({ type: 'PUSH_RECEIVED', ...data }))
         // Show OS notification anyway so the user always gets it
       }
-      return self.registration.showNotification(data.title ?? 'Green Car', {
+      return self.registration.showNotification(data.title ?? 'Save Go', {
         body:  data.body ?? '',
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  data.data ?? {},
-        tag:   'green-car-notification',
+        tag:   'savego-notification',
       })
     })
 

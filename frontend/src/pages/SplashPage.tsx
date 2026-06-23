@@ -49,7 +49,7 @@ export default function SplashPage() {
       {/* Text */}
       <div className="text-center">
         <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-          Green Car
+          Save Go
         </div>
         <div style={{ fontSize: 14, fontWeight: 500, opacity: 0.75, marginTop: 6, letterSpacing: '0.05em' }}>
           AIRPORT TRANSFER · VIETNAM

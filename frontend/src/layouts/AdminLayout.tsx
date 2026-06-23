@@ -29,7 +29,7 @@ export default function AdminLayout() {
               <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>directions_car</span>
             </div>
             <div>
-              <p className="text-white font-bold text-[16px] leading-tight">Green Car</p>
+              <p className="text-white font-bold text-[16px] leading-tight">Save Go</p>
               <p className="text-white/50 text-[11px]">Admin Portal</p>
             </div>
           </div>
