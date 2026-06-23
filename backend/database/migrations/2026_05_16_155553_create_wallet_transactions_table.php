@@ -9,7 +9,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('wallet_id')->constrained()->cascadeOnDelete();
             $table->foreignId('booking_id')->nullable()->constrained()->nullOnDelete();
-            $table->enum('type', ['credit', 'debit']);
+            $table->enum('type', ['credit', 'debit', 'topup', 'referral']);
             $table->string('description');
             $table->unsignedInteger('points');
             $table->timestamps();
