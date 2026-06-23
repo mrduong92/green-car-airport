@@ -15,7 +15,7 @@ class UserReferralCodeTest extends TestCase
         $user = User::factory()->create();
 
         $this->assertNotNull($user->referral_code);
-        $this->assertStringStartsWith('GCA-', $user->referral_code);
+        $this->assertStringStartsWith('SGO-', $user->referral_code);
         $this->assertEquals(10, strlen($user->referral_code));
     }
 

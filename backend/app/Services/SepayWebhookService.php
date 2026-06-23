@@ -31,10 +31,11 @@ class SepayWebhookService
         $amount       = (int) ($payload['transferAmount'] ?? 0);
         $code         = trim((string) ($payload['code'] ?? ''));
 
-        // Fallback: extract GCA\d{6} từ content nếu Sepay chưa gửi field code
+        // Fallback: extract payment code từ content nếu Sepay chưa gửi field code
         if ($code === '') {
             $content = (string) ($payload['content'] ?? '');
-            if (preg_match('/GCA\d{6}/', $content, $m)) {
+            $prefix  = preg_quote(config('app.code_prefix'), '/');
+            if (preg_match('/' . $prefix . '\d{6}/', $content, $m)) {
                 $code = $m[0];
             }
         }

@@ -15,7 +15,7 @@ class DriverProfile extends Model
     {
         static::creating(function (DriverProfile $profile) {
             if (! $profile->payment_code && $profile->user_id) {
-                $profile->payment_code = 'GCA' . str_pad((string) $profile->user_id, 6, '0', STR_PAD_LEFT);
+                $profile->payment_code = config('app.code_prefix') . str_pad((string) $profile->user_id, 6, '0', STR_PAD_LEFT);
             }
         });
     }

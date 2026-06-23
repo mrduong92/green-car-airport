@@ -24,7 +24,7 @@ class User extends Authenticatable
         static::creating(function (User $user) {
             if (! $user->referral_code) {
                 do {
-                    $code = 'GCA-' . strtoupper(Str::random(6));
+                    $code = config('app.code_prefix') . '-' . strtoupper(Str::random(6));
                 } while (static::where('referral_code', $code)->exists());
                 $user->referral_code = $code;
             }

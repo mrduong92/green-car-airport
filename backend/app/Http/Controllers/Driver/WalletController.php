@@ -48,7 +48,7 @@ class WalletController extends Controller
     {
         $user    = $request->user();
         $profile = $user->driverProfile;
-        $code    = $profile?->payment_code ?? ('GCA' . str_pad((string) $user->id, 6, '0', STR_PAD_LEFT));
+        $code    = $profile?->payment_code ?? (config('app.code_prefix') . str_pad((string) $user->id, 6, '0', STR_PAD_LEFT));
 
         $bankCode      = (string) config('sepay.bank.bank_code', 'VCB');
         $accountNumber = (string) config('sepay.bank.account_number', '');
