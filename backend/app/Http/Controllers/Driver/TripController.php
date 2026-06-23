@@ -107,7 +107,6 @@ class TripController extends Controller
         }
 
         if ($newStatus === 'completed') {
-            // Old: $this->creditEarning($request->user(), $booking);
             $request->user()->driverProfile?->increment('trips_count');
             // K4 — notify customer trip completed
             $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
@@ -130,8 +129,9 @@ class TripController extends Controller
 
         // Phí app 20% đã trừ khi nhận — không hoàn, booking trở lại hàng đợi
         $booking->update([
-            'driver_id' => null,
-            'status'    => 'finding_driver',
+            'driver_id'   => null,
+            'status'      => 'finding_driver',
+            'accepted_at' => null,
         ]);
 
         // K5 — notify customer that driver cancelled, searching for new driver

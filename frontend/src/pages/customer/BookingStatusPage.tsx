@@ -385,7 +385,7 @@ export default function BookingStatusPage() {
           {isFreeCancel ? (
             <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-success-green bg-light-green px-3 py-1 rounded-pill">
               <span className="material-symbols-outlined text-[14px]">timer</span>
-              Huỷ miễn phí · còn {minutesLeft} phút
+              {booking?.accepted_at ? `Huỷ miễn phí · còn ${minutesLeft} phút` : 'Huỷ miễn phí'}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-danger-red bg-red-50 px-3 py-1 rounded-pill">

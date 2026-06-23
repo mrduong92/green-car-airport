@@ -78,6 +78,34 @@ class BookingCancelPenaltyTest extends TestCase
         $this->assertEquals(50_000, $customer->fresh()->pending_penalty);
     }
 
+    /** Driver huỷ → accepted_at bị xoá, khách huỷ sau đó không bị phạt */
+    public function test_no_penalty_after_driver_cancel_resets_accepted_at(): void
+    {
+        Notification::fake();
+
+        $driver   = User::factory()->create(['role' => 'driver']);
+        $booking  = $this->makeBooking([
+            'driver_id'   => $driver->id,
+            'status'      => 'accepted',
+            'accepted_at' => now()->subMinutes(90),
+        ]);
+        $customer = $booking->customer;
+
+        // Driver cancels — accepted_at should be cleared
+        $this->actingAs($driver, 'sanctum')
+            ->patchJson("/api/driver/trips/{$booking->id}/cancel")
+            ->assertOk();
+
+        $this->assertNull($booking->fresh()->accepted_at);
+
+        // Customer now cancels the re-queued booking — no penalty
+        $this->actingAs($customer, 'sanctum')
+            ->patchJson("/api/bookings/{$booking->id}/cancel")
+            ->assertOk();
+
+        $this->assertEquals(0, $customer->fresh()->pending_penalty);
+    }
+
     /** formatBooking trả về accepted_at */
     public function test_booking_response_includes_accepted_at(): void
     {

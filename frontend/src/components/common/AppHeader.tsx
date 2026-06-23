@@ -48,8 +48,8 @@ function getRouteInfo(pathname: string): { title: string; isRoot: boolean } {
 
 const CUSTOMER_QUY_DINH = [
   { icon: 'schedule',      text: 'Đặt xe trước ít nhất 30 phút giờ khởi hành.' },
-  { icon: 'cancel',        text: 'Hủy miễn phí trong vòng 1 giờ sau khi đặt.' },
-  { icon: 'payments',      text: 'Hủy sau 1 giờ bị phạt 50.000đ, áp dụng cho chuyến tiếp theo.' },
+  { icon: 'cancel',        text: 'Hủy miễn phí trong vòng 1 giờ sau khi tài xế nhận cuốc.' },
+  { icon: 'payments',      text: 'Hủy sau 1 giờ kể từ khi tài xế nhận cuốc bị phạt 50.000đ.' },
   { icon: 'timer_off',     text: 'Chuyến tự động hủy sau 24 giờ nếu không có tài xế nhận.' },
   { icon: 'local_parking', text: 'Giá chưa bao gồm phí cầu đường và bãi đỗ sân bay.' },
   { icon: 'phone',         text: 'Tài xế sẽ chủ động liên hệ trước giờ đón để xác nhận.' },

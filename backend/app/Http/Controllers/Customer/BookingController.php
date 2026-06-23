@@ -177,6 +177,7 @@ class BookingController extends Controller
             'voucher_code'    => $b->voucher?->code,
             'note'            => $b->note,
             'status'          => $b->status,
+            'cancel_reason'   => $b->cancel_reason,
             'vehicle_type'    => $b->vehicle_type,
             'created_at'      => $b->created_at?->toISOString(),
             'accepted_at'     => $b->accepted_at?->toISOString(),
