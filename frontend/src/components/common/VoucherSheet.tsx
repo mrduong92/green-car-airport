@@ -70,7 +70,7 @@ export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0
             </div>
           )}
 
-          {!isLoading && vouchers.length === 0 && (
+          {!isLoading && vouchers.length === 0 && !(showPersonal && personalVouchers.length > 0) && (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <span className="material-symbols-outlined text-4xl text-neutral-dim">confirmation_number</span>
               <p className="text-sm font-semibold text-navy">Không có voucher nào</p>
