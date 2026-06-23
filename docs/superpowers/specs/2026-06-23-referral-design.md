@@ -38,7 +38,7 @@ referral_rewarded_at TIMESTAMP NULL                 -- null = chưa phát thư�
 user_id  BIGINT UNSIGNED NULL FK→users  -- null = voucher công khai; có giá trị = voucher cá nhân
 ```
 
-Khi validate voucher tại booking: nếu `user_id IS NOT NULL`, phải khớp `auth()->id()`.
+Khi validate voucher tại booking (`VoucherController::apply()`): thêm điều kiện `whereNull('user_id')->orWhere('user_id', auth()->id())` vào query. Endpoint `GET /api/customer/vouchers` (voucher công khai) giữ nguyên logic hiện tại, thêm filter `whereNull('user_id')`.
 
 ### 1.3 Bảng `wallet_transactions` — mở rộng enum `type`
 
@@ -78,8 +78,8 @@ Thêm vào response:
 { "referral_code": "GCA-A1B2C3", "referral_link": "https://app.example.com/login?ref=GCA-A1B2C3" }
 ```
 
-#### `GET /api/customer/vouchers` *(mới)*
-Trả danh sách voucher cá nhân của customer đang đăng nhập:
+#### `GET /api/customer/my-vouchers` *(mới)*
+Trả danh sách voucher cá nhân của customer đang đăng nhập (khác với `GET /api/customer/vouchers` là voucher công khai):
 ```json
 [{ "id": 1, "code": "REF-42-X7K2", "value": 50000, "expires_at": "2026-07-23", "is_active": true }]
 ```
@@ -93,10 +93,12 @@ Route: `auth:sanctum` → `role:customer`
 
 ```
 Guards (return sớm nếu không đủ điều kiện):
-  1. $driver->referral_rewarded_at !== null  → đã phát rồi, bỏ qua
-  2. $driver->referred_by_user_id === null   → không có người giới thiệu
-  3. $driver->driverProfile->trips_count < 1 → chưa hoàn thành chuyến nào
-  4. $driver->driverProfile->status !== 'active' → chưa được kích hoạt
+  1. $driver->referral_rewarded_at !== null     → đã phát rồi, bỏ qua
+  2. $driver->referred_by_user_id === null      → không có người giới thiệu
+  3. $driver->referredBy->role !== 'driver'     → người giới thiệu không phải tài xế
+     (vì tại OTP verify user mới luôn tạo với role=customer, chưa biết role cuối)
+  4. $driver->driverProfile->trips_count < 1    → chưa hoàn thành chuyến nào
+  5. $driver->driverProfile->status !== 'active'→ chưa được kích hoạt
 
 Thực hiện (trong DB transaction):
   - Credit 100k điểm cho referrer (wallet + WalletTransaction type=referral)
@@ -162,7 +164,7 @@ Thêm section **"Giới thiệu tài xế"**:
 - Mô tả: *"Mời bạn bè — họ nhận 4 voucher 50k, bạn nhận 2 voucher 50k sau chuyến đầu tiên của họ"*
 
 **Danh sách voucher cá nhân** trong flow đặt xe (sau bước chọn voucher):
-- Gọi `GET /api/customer/vouchers`
+- Gọi `GET /api/customer/my-vouchers`
 - Hiển thị từng voucher: giá trị 50k, ngày hết hạn, nút áp dụng
 
 ---
