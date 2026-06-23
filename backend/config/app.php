@@ -123,4 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'code_prefix' => env('APP_CODE_PREFIX', 'SGO'),
+
 ];
