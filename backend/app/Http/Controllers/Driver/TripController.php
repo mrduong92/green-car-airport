@@ -107,7 +107,8 @@ class TripController extends Controller
         }
 
         if ($newStatus === 'completed') {
-            $this->creditEarning($request->user(), $booking);
+            // Old: $this->creditEarning($request->user(), $booking);
+            $request->user()->driverProfile?->increment('trips_count');
             // K4 — notify customer trip completed
             $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
             // T4 — notify driver of earnings
@@ -115,26 +116,6 @@ class TripController extends Controller
         }
 
         return response()->json($this->formatTrip($booking->fresh('customer')));
-    }
-
-    private function creditEarning($driver, Booking $booking): void
-    {
-        // 20% phí app đã trừ khi nhận cuốc — credit toàn bộ 100% giá sau voucher khi hoàn thành
-        $effectivePrice = $booking->price - $booking->discount;
-        $totalPoints = (int) round($effectivePrice / 1000);
-
-        $wallet = $driver->wallet()->firstOrCreate(['user_id' => $driver->id], ['points' => 0]);
-        $wallet->increment('points', $totalPoints);
-
-        WalletTransaction::create([
-            'wallet_id'   => $wallet->id,
-            'booking_id'  => $booking->id,
-            'type'        => 'credit',
-            'description' => "Thu nhập chuyến #{$booking->id}",
-            'points'      => $totalPoints,
-        ]);
-
-        $driver->driverProfile?->increment('trips_count');
     }
 
     public function cancel(Request $request, Booking $booking): JsonResponse
