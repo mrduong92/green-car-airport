@@ -31,6 +31,15 @@ export default function LoginPage() {
   const [showPwd, setShowPwd]   = useState(false)
   const [otp, setOtp]           = useState(['', '', '', '', '', ''])
   const [countdown, setCountdown] = useState(0)
+  const [referralCode] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const ref = params.get('ref')
+    if (ref) {
+      localStorage.setItem('referral_code', ref)
+      return ref
+    }
+    return localStorage.getItem('referral_code')
+  })
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
   const pwdRef  = useRef<HTMLInputElement>(null)
 
@@ -53,6 +62,7 @@ export default function LoginPage() {
   const onAuthSuccess = ({ data }: { data: { user: App.User; token: string } }) => {
     setAuth(data.user, data.token)
     registerPushSubscription()
+    localStorage.removeItem('referral_code')
     const { role, needs_onboarding } = data.user
     if (role === 'customer') navigate('/customer/booking')
     else if (role === 'driver') navigate(needs_onboarding ? '/driver/profile' : '/driver/trips')
@@ -81,7 +91,7 @@ export default function LoginPage() {
   const finishMutation = useMutation({
     mutationFn: () =>
       purpose === 'register'
-        ? registerApi(phone, otp.join(''), password)
+        ? registerApi(phone, otp.join(''), password, referralCode ?? undefined)
         : resetPasswordApi(phone, otp.join(''), password),
     onSuccess: onAuthSuccess,
     onError: (err: { response?: { data?: { message?: string } } }) => {
