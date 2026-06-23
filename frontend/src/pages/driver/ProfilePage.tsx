@@ -19,7 +19,7 @@ interface EditForm {
 }
 
 export default function DriverProfilePage() {
-  const clearAuth = useAuthStore((s) => s.clearAuth)
+  const { clearAuth, user } = useAuthStore()
   const showToast = useUiStore((s) => s.showToast)
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -178,6 +178,48 @@ export default function DriverProfilePage() {
           <span className="text-sm font-medium">Đăng xuất</span>
         </button>
       </div>
+
+      {/* Referral section */}
+      {user?.referral_code && (
+        <div className="bg-white mx-4 mt-3 rounded-card shadow-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-primary text-[18px]"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>group_add</span>
+            <p className="text-sm font-semibold text-navy">Giới thiệu tài xế</p>
+          </div>
+          <p className="text-[12px] text-neutral-gray mb-3">
+            Mời tài xế mới — cả hai nhận 100.000 điểm khi họ hoàn thành chuyến đầu tiên
+          </p>
+          <div className="bg-light-green rounded-input px-3 py-2.5 flex items-center mb-3">
+            <span className="text-primary font-bold text-sm tracking-wider flex-1">{user.referral_code}</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/login?ref=${user.referral_code}`)
+                showToast('Đã sao chép link giới thiệu', 'success')
+              }}
+              className="flex-1 h-10 rounded-pill border border-primary text-primary text-[13px] font-semibold flex items-center justify-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[15px]">content_copy</span>
+              Sao chép link
+            </button>
+            {typeof navigator.share === 'function' && (
+              <button
+                onClick={() => navigator.share({
+                  title: 'Green Car Airport',
+                  text: 'Tham gia Green Car Airport và nhận 100.000 điểm!',
+                  url: `${window.location.origin}/login?ref=${user.referral_code}`,
+                })}
+                className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[15px]">share</span>
+                Chia sẻ
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Edit bottom sheet */}
       {editing && (

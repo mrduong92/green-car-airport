@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getVouchers } from '@/api/bookings'
+import { getMyVouchers } from '@/api/customer'
 import clsx from 'clsx'
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
   onSelect?: (voucher: App.VoucherListItem, discount: number, isCapped: boolean) => void
   currentPrice?: number
   selectedCode?: string
+  showPersonal?: boolean
 }
 
 const VOUCHER_MAX_RATE = 0.10
@@ -19,7 +21,7 @@ function calcDiscount(v: App.VoucherListItem, price: number) {
   return Math.min(raw, Math.floor(price * VOUCHER_MAX_RATE))
 }
 
-export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0, selectedCode }: Props) {
+export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0, selectedCode, showPersonal }: Props) {
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
@@ -29,6 +31,13 @@ export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0
     queryKey: ['vouchers-list'],
     queryFn: () => getVouchers().then((r) => r.data),
     enabled: open,
+    staleTime: 60_000,
+  })
+
+  const { data: personalVouchers = [] } = useQuery({
+    queryKey: ['my-vouchers'],
+    queryFn: () => getMyVouchers().then((r) => r.data),
+    enabled: open && !!showPersonal,
     staleTime: 60_000,
   })
 
@@ -67,6 +76,55 @@ export default function VoucherSheet({ open, onClose, onSelect, currentPrice = 0
               <p className="text-sm font-semibold text-navy">Không có voucher nào</p>
               <p className="text-[12px] text-neutral-gray">Hiện chưa có mã giảm giá khả dụng</p>
             </div>
+          )}
+
+          {showPersonal && personalVouchers.length > 0 && (
+            <>
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider">Voucher giới thiệu của tôi</p>
+              {personalVouchers.map((v) => {
+                const discount = onSelect ? Math.min(v.value, Math.floor(currentPrice * VOUCHER_MAX_RATE)) : null
+                return (
+                  <div key={v.id} className="rounded-card border border-primary/30 overflow-hidden">
+                    <div className="flex items-stretch">
+                      <div className="w-1.5 bg-primary shrink-0" />
+                      <div className="flex-1 px-3.5 py-3 flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[10px] bg-primary-tint flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-primary text-[18px]"
+                                style={{ fontVariationSettings: "'FILL' 1" }}>redeem</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="inline-block bg-primary text-white text-[11px] font-bold px-2 py-0.5 rounded mb-1">
+                            {v.code}
+                          </span>
+                          <p className="text-[14px] font-semibold text-navy">Giảm {v.value.toLocaleString('vi')}đ</p>
+                          <p className="text-[11px] text-neutral-gray mt-0.5">Hết hạn {v.expires_at}</p>
+                          {discount !== null && currentPrice > 0 && (
+                            <p className="text-[11px] text-success-green font-medium mt-0.5">
+                              Tiết kiệm {discount.toLocaleString('vi')}đ
+                            </p>
+                          )}
+                        </div>
+                        {onSelect && (
+                          <button
+                            onClick={() => {
+                              const d = Math.min(v.value, Math.floor(currentPrice * VOUCHER_MAX_RATE))
+                              onSelect({ ...v, type: 'fixed' }, d, v.value > Math.floor(currentPrice * VOUCHER_MAX_RATE))
+                              onClose()
+                            }}
+                            className="bg-primary text-white text-[12px] font-semibold rounded-pill px-3 py-1.5 shrink-0"
+                          >
+                            Dùng ngay
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {vouchers.length > 0 && (
+                <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mt-1">Voucher công khai</p>
+              )}
+            </>
           )}
 
           {vouchers.map((v) => {

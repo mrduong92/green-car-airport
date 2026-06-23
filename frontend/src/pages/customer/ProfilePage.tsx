@@ -20,6 +20,7 @@ export default function CustomerProfilePage() {
   const [editName, setEditName] = useState('')
   const [showContact, setShowContact] = useState(false)
   const [showVouchers, setShowVouchers] = useState(false)
+  const [showReferral, setShowReferral] = useState(false)
 
   const { data: profile } = useQuery({
     queryKey: ['customer-profile'],
@@ -48,10 +49,11 @@ export default function CustomerProfilePage() {
   const initials = displayName.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
   const MENU = [
-    { icon: 'person',           label: 'Thông tin cá nhân',   onClick: openEdit },
-    { icon: 'confirmation_number', label: 'Voucher của tôi',  onClick: () => setShowVouchers(true) },
-    { icon: 'notifications',    label: 'Thông báo',            onClick: () => navigate('/customer/notifications') },
-    { icon: 'help',             label: 'Trợ giúp & Liên hệ',  onClick: () => setShowContact(true) },
+    { icon: 'person',              label: 'Thông tin cá nhân',   onClick: openEdit },
+    { icon: 'group_add',           label: 'Giới thiệu bạn bè',   onClick: () => setShowReferral(true) },
+    { icon: 'confirmation_number', label: 'Voucher của tôi',     onClick: () => setShowVouchers(true) },
+    { icon: 'notifications',       label: 'Thông báo',           onClick: () => navigate('/customer/notifications') },
+    { icon: 'help',                label: 'Trợ giúp & Liên hệ', onClick: () => setShowContact(true) },
     ...(canInstall ? [{ icon: 'install_mobile', label: 'Cài đặt ứng dụng', onClick: () => navigate('/install') }] : []),
   ]
 
@@ -191,7 +193,66 @@ export default function CustomerProfilePage() {
       )}
 
       {/* Voucher sheet */}
-      <VoucherSheet open={showVouchers} onClose={() => setShowVouchers(false)} />
+      <VoucherSheet open={showVouchers} onClose={() => setShowVouchers(false)} showPersonal />
+
+      {/* Referral bottom sheet */}
+      {showReferral && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setShowReferral(false)}>
+          <div className="bg-white w-full rounded-t-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border-soft">
+              <p className="text-[15px] font-semibold text-navy">Giới thiệu bạn bè</p>
+              <button onClick={() => setShowReferral(false)}>
+                <span className="material-symbols-outlined text-neutral-gray text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="px-4 py-5 flex flex-col gap-4">
+              <p className="text-[13px] text-neutral-gray">
+                Mời bạn bè đặt chuyến — họ nhận 4 voucher 50k, bạn nhận 2 voucher 50k sau chuyến đầu tiên của họ
+              </p>
+              {user?.referral_code && (
+                <>
+                  <div className="bg-light-green rounded-input px-3 py-2.5 flex items-center">
+                    <span className="text-primary font-bold text-sm tracking-wider flex-1">{user.referral_code}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/login?ref=${user.referral_code}`)
+                        showToast('Đã sao chép link giới thiệu', 'success')
+                      }}
+                      className="flex-1 h-10 rounded-pill border border-primary text-primary text-[13px] font-semibold flex items-center justify-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">content_copy</span>
+                      Sao chép link
+                    </button>
+                    {typeof navigator.share === 'function' && (
+                      <button
+                        onClick={() => navigator.share({
+                          title: 'Green Car Airport',
+                          text: 'Tham gia Green Car Airport và nhận voucher ngay!',
+                          url: `${window.location.origin}/login?ref=${user.referral_code}`,
+                        })}
+                        className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">share</span>
+                        Chia sẻ
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="px-4 pb-8">
+              <button
+                onClick={() => setShowReferral(false)}
+                className="w-full h-11 rounded-pill bg-primary text-white text-sm font-semibold"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Contact bottom sheet */}
       {showContact && (
