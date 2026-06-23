@@ -43,7 +43,7 @@ function getRouteInfo(pathname: string): { title: string; isRoot: boolean } {
       : pathname === prefix
     if (matches) return { title, isRoot }
   }
-  return { title: 'Green Car', isRoot: true }
+  return { title: 'Save Go', isRoot: true }
 }
 
 const CUSTOMER_QUY_DINH = [
@@ -112,7 +112,7 @@ export default function AppHeader() {
         {/* Center — page title */}
         <div className="flex-1 text-center px-2 min-w-0">
           {inRootSet ? (
-            <span className="text-navy font-semibold text-[15px] tracking-tight">Green Car Airport</span>
+            <span className="text-navy font-semibold text-[15px] tracking-tight">Save Go</span>
           ) : (
             <span className="text-navy font-semibold text-[15px] truncate block">{title}</span>
           )}

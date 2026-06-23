@@ -207,8 +207,8 @@ export default function DriverProfilePage() {
             {typeof navigator.share === 'function' && (
               <button
                 onClick={() => navigator.share({
-                  title: 'Green Car Airport',
-                  text: 'Tham gia Green Car Airport và nhận 100.000 điểm!',
+                  title: 'Save Go',
+                  text: 'Tham gia Save Go và nhận 100.000 điểm!',
                   url: `${window.location.origin}/login?ref=${user.referral_code}`,
                 })}
                 className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"

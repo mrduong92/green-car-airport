@@ -78,7 +78,7 @@ export default function InstallPage() {
           <span className="material-symbols-outlined text-navy text-[20px]">arrow_back</span>
         </button>
         <div>
-          <p className="text-navy font-bold text-[15px]">Cài đặt GreenCar</p>
+          <p className="text-navy font-bold text-[15px]">Cài đặt SaveGo</p>
           <p className="text-neutral-gray text-[11px]">Thêm vào màn hình chính</p>
         </div>
       </div>
@@ -98,7 +98,7 @@ export default function InstallPage() {
             </span>
           </div>
           <div>
-            <p className="font-bold text-lg leading-tight">Green Car Airport</p>
+            <p className="font-bold text-lg leading-tight">Save Go</p>
             <p className="text-white/80 text-[13px] mt-0.5">Đặt xe sân bay</p>
             <p className="text-white/60 text-[11px] mt-1.5">Miễn phí · Không cần cài từ Store</p>
           </div>

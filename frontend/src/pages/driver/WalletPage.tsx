@@ -64,7 +64,7 @@ export default function WalletPage() {
         <p className="text-primary font-semibold text-sm mb-3">Hướng dẫn nạp điểm</p>
         <div className="flex flex-col gap-3">
           {[
-            { icon: 'account_balance', text: 'Chuyển khoản đến Green Car Airport Co.' },
+            { icon: 'account_balance', text: 'Chuyển khoản đến Save Go Co.' },
             { icon: 'credit_card',     text: 'STK: 1234 5678 90 · Vietcombank' },
             { icon: 'bolt',            text: 'Điểm tự động cộng sau khi nhận tiền' },
           ].map((row) => (

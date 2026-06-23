@@ -13,8 +13,8 @@ export default defineConfig({
       filename: 'sw.ts',
       includeAssets: ['favicon.ico', 'icons/*.png'],
       manifest: {
-        name: 'Green Car Airport',
-        short_name: 'GreenCar',
+        name: 'Save Go',
+        short_name: 'SaveGo',
         description: 'Đặt xe sân bay — Nhanh, minh bạch, tiện lợi',
         theme_color: '#006a36',
         background_color: '#F8FAF9',
