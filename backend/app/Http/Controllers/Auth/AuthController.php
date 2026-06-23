@@ -69,9 +69,10 @@ class AuthController extends Controller
     public function register(Request $request): JsonResponse
     {
         $request->validate([
-            'phone'    => 'required|string|max:20',
-            'otp'      => 'required|string|size:6',
-            'password' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'phone'         => 'required|string|max:20',
+            'otp'           => 'required|string|size:6',
+            'password'      => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'referral_code' => 'nullable|string|max:10',
         ]);
 
         if (User::where('phone', $request->phone)->exists()) {
@@ -80,10 +81,19 @@ class AuthController extends Controller
 
         $this->consumeOtp($request->phone, $request->otp);
 
+        $referredById = null;
+        if ($request->referral_code) {
+            $referrer = User::where('referral_code', $request->referral_code)->first();
+            if ($referrer) {
+                $referredById = $referrer->id;
+            }
+        }
+
         $user = User::create([
-            'phone'    => $request->phone,
-            'password' => Hash::make($request->password),
-            'role'     => 'customer',
+            'phone'               => $request->phone,
+            'password'            => Hash::make($request->password),
+            'role'                => 'customer',
+            'referred_by_user_id' => $referredById,
         ]);
 
         $token = $user->createToken('api')->plainTextToken;
@@ -154,10 +164,11 @@ class AuthController extends Controller
     private function userPayload(User $user): array
     {
         $payload = [
-            'id'    => $user->id,
-            'name'  => $user->name,
-            'phone' => $user->phone,
-            'role'  => $user->role,
+            'id'            => $user->id,
+            'name'          => $user->name,
+            'phone'         => $user->phone,
+            'role'          => $user->role,
+            'referral_code' => $user->referral_code,
         ];
 
         if ($user->role === 'customer' && $user->pending_penalty > 0) {

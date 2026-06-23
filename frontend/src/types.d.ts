@@ -8,6 +8,7 @@ declare namespace App {
     role: Role
     needs_onboarding?: boolean
     pending_penalty?: number
+    referral_code?: string
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
@@ -96,7 +97,7 @@ declare namespace App {
 
   interface Transaction {
     id: number
-    type: 'credit' | 'debit' | 'topup'
+    type: 'credit' | 'debit' | 'topup' | 'referral'
     description: string
     points: number
     created_at: string
@@ -151,6 +152,8 @@ declare namespace App {
     drivers_total: number
     app_fee_today: number
     recent_trips: RecentTrip[]
+    driver_referral_points_total: number
+    customer_referral_vouchers_total: number
   }
 
   interface RecentTrip {
@@ -163,6 +166,14 @@ declare namespace App {
   }
 
   interface VoucherListItem {
+    id: number
+    code: string
+    type: 'fixed' | 'percent'
+    value: number
+    expires_at: string
+  }
+
+  interface PersonalVoucher {
     id: number
     code: string
     type: 'fixed' | 'percent'
