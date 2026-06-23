@@ -11,6 +11,7 @@ use App\Notifications\DriverCancelledNotification;
 use App\Notifications\TripAcceptedDriverNotification;
 use App\Notifications\TripCompletedDriverNotification;
 use App\Notifications\TripStartedNotification;
+use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -108,10 +109,21 @@ class TripController extends Controller
 
         if ($newStatus === 'completed') {
             $request->user()->driverProfile?->increment('trips_count');
+
+            app(ReferralService::class)->processDriverReferral(
+                $request->user()->fresh(['driverProfile', 'referredBy'])
+            );
+
             // K4 — notify customer trip completed
             $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
             // T4 — notify driver of earnings
             $request->user()->notify(new TripCompletedDriverNotification($booking));
+
+            if ($booking->customer) {
+                app(ReferralService::class)->processCustomerReferral(
+                    $booking->customer->fresh(['bookingsAsCustomer', 'referredBy'])
+                );
+            }
         }
 
         return response()->json($this->formatTrip($booking->fresh('customer')));

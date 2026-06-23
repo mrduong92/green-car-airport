@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -97,6 +98,10 @@ class DriverController extends Controller
         $user->driverProfile()->updateOrCreate(
             ['user_id' => $user->id],
             ['status'  => 'active', 'is_verified' => true],
+        );
+
+        app(ReferralService::class)->processDriverReferral(
+            $user->fresh(['driverProfile', 'referredBy'])
         );
 
         return response()->json($this->formatDriver($user->load('driverProfile')));
