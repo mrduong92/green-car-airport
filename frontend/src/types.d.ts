@@ -43,6 +43,7 @@ declare namespace App {
       rating?: number
     }
     created_at: string
+    accepted_at?: string | null
   }
 
   type VehicleType = 'sedan_4' | 'suv_5' | 'mpv_7'

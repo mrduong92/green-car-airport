@@ -11,7 +11,8 @@ export const getBooking = (id: number) => api.get<App.Booking>(`/bookings/${id}`
 export const getBookingHistory = (params?: { status?: string }) =>
   api.get<App.Booking[]>('/bookings', { params })
 
-export const cancelBooking = (id: number) => api.patch(`/bookings/${id}/cancel`)
+export const cancelBooking = (id: number, cancelReason?: string) =>
+  api.patch(`/bookings/${id}/cancel`, cancelReason ? { cancel_reason: cancelReason } : {})
 
 export const applyVoucher = (code: string, price: number) =>
   api.post<{ discount: number; max_discount: number }>('/customer/vouchers/apply', { code, price })
