@@ -132,15 +132,20 @@ class BookingController extends Controller
             return response()->json(['message' => 'Không thể huỷ chuyến ở trạng thái này.'], 422);
         }
 
+        $data = $request->validate([
+            'cancel_reason' => 'nullable|string|max:255',
+        ]);
+
         // Phạt 50,000đ nếu huỷ sau 60 phút kể từ khi tài xế nhận cuốc
         if ($booking->accepted_at && now()->diffInMinutes($booking->accepted_at, false) < -60) {
             $request->user()->increment('pending_penalty', 50_000);
         }
 
         $booking->update([
-            'status'       => 'cancelled',
-            'cancelled_at' => now(),
-            'cancelled_by' => 'customer',
+            'status'        => 'cancelled',
+            'cancelled_at'  => now(),
+            'cancelled_by'  => 'customer',
+            'cancel_reason' => $data['cancel_reason'] ?? null,
         ]);
 
         $request->user()->notify(new CustomerCancelledNotification($booking));
