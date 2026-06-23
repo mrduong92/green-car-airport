@@ -132,8 +132,8 @@ class BookingController extends Controller
             return response()->json(['message' => 'Không thể huỷ chuyến ở trạng thái này.'], 422);
         }
 
-        // Phạt 50,000đ nếu huỷ sau 1h
-        if (now()->diffInMinutes($booking->created_at, false) < -60) {
+        // Phạt 50,000đ nếu huỷ sau 60 phút kể từ khi tài xế nhận cuốc
+        if ($booking->accepted_at && now()->diffInMinutes($booking->accepted_at, false) < -60) {
             $request->user()->increment('pending_penalty', 50_000);
         }
 
@@ -174,6 +174,7 @@ class BookingController extends Controller
             'status'          => $b->status,
             'vehicle_type'    => $b->vehicle_type,
             'created_at'      => $b->created_at?->toISOString(),
+            'accepted_at'     => $b->accepted_at?->toISOString(),
             'driver'          => $driver ? [
                 'id'            => $driver->id,
                 'name'          => $driver->name,

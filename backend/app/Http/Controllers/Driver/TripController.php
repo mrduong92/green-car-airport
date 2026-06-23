@@ -52,8 +52,9 @@ class TripController extends Controller
         }
 
         $booking->update([
-            'driver_id' => $request->user()->id,
-            'status'    => 'accepted',
+            'driver_id'   => $request->user()->id,
+            'status'      => 'accepted',
+            'accepted_at' => now(),
         ]);
 
         // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
