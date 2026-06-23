@@ -62,6 +62,17 @@ export default function AdminDashboardPage() {
           value={data ? `${data.drivers_online}/${data.drivers_total}` : '—'} />
         <KpiCard icon="confirmation_number" label="Phí app thu" color="text-gold"
           value={data ? `${(data.app_fee_today / 1_000_000).toFixed(1)}M đ` : '—'} />
+        <KpiCard
+          icon="group_add"
+          label="Điểm giới thiệu TX"
+          value={data ? `${((data.driver_referral_points_total ?? 0) / 1_000_000).toFixed(1)}M đ` : '—'}
+        />
+        <KpiCard
+          icon="redeem"
+          label="Voucher giới thiệu KH"
+          color="text-gold"
+          value={data ? `${((data.customer_referral_vouchers_total ?? 0) / 1_000_000).toFixed(1)}M đ` : '—'}
+        />
       </div>
 
       {/* Quick actions */}

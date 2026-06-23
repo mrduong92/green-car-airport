@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\DriverProfile;
 use App\Models\User;
+use App\Models\Voucher;
+use App\Models\WalletTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 
@@ -66,13 +68,15 @@ class DashboardController extends Controller
             ->toArray();
 
         return [
-            'trips_today'        => $tripsToday,
-            'trips_today_change' => $tripsTodayChange,
-            'revenue_today'      => $revenueToday,
-            'drivers_online'     => $driversOnline,
-            'drivers_total'      => $driversTotal,
-            'app_fee_today'      => (int) round($revenueToday * 0.20),
-            'recent_trips'       => $recentTrips,
+            'trips_today'                  => $tripsToday,
+            'trips_today_change'           => $tripsTodayChange,
+            'revenue_today'                => $revenueToday,
+            'drivers_online'               => $driversOnline,
+            'drivers_total'                => $driversTotal,
+            'app_fee_today'                => (int) round($revenueToday * 0.20),
+            'recent_trips'                 => $recentTrips,
+            'driver_referral_points_total' => (int) WalletTransaction::where('type', 'referral')->sum('points') * 1000,
+            'customer_referral_vouchers_total' => Voucher::whereNotNull('user_id')->count() * 50000,
         ];
     }
 }
