@@ -48,4 +48,17 @@ return [
         'template_id'   => env('ZALO_OTP_TEMPLATE_ID'),
     ],
 
+    'zns' => [
+        'provider' => env('ZNS_PROVIDER', 'southtelecom'),
+    ],
+
+    'southtelecom_zns' => [
+        'base_url'    => env('SOUTHTELECOM_ZNS_BASE_URL', 'https://api-04.worldsms.vn/apidebit'),
+        'user'        => env('SOUTHTELECOM_ZNS_USER'),
+        'password'    => env('SOUTHTELECOM_ZNS_PASSWORD'),
+        'from'        => env('SOUTHTELECOM_ZNS_FROM'),
+        'template_id' => env('SOUTHTELECOM_ZNS_TEMPLATE_ID'),
+        'dlr_token'   => env('SOUTHTELECOM_ZNS_DLR_TOKEN'),
+    ],
+
 ];
