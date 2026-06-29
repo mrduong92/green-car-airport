@@ -87,17 +87,6 @@ export default function SplashPage() {
         </button>
       )}
 
-      {/* Spinner */}
-      <div
-        className="absolute bottom-14 flex flex-col items-center gap-3"
-      >
-        <div
-          className="w-9 h-9 rounded-full border-[3px] border-white/20 border-t-white animate-spin"
-        />
-        <p style={{ fontSize: 12, opacity: 0.7, letterSpacing: '0.05em' }}>
-          Đang chuẩn bị chuyến đi của bạn...
-        </p>
-      </div>
     </div>
   )
 }

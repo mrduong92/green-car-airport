@@ -144,7 +144,7 @@ export default function LoginPage() {
   const pwdValid = /^\d{6}$/.test(password)
 
   return (
-    <div className="min-h-svh bg-white flex flex-col max-w-[430px] mx-auto">
+    <div className="min-h-svh bg-white flex flex-col w-full">
       <ToastContainer />
       {/* Top bar */}
       <div className="px-4 pt-14 pb-2 safe-top flex items-center">
