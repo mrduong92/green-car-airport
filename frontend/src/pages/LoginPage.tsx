@@ -238,15 +238,9 @@ export default function LoginPage() {
             </div>
 
             {!DEV_MOCK && (
-              <div className="rounded-card border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col gap-1.5">
-                <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">Tài khoản demo (mật khẩu: 000000)</p>
-                {DEV_ACCOUNTS.map((acc) => (
-                  <div key={acc.role} className="flex justify-between text-[12px]">
-                    <span className="text-amber-800 font-medium">{acc.label}</span>
-                    <span className="text-amber-700 font-mono">{acc.phone}</span>
-                  </div>
-                ))}
-              </div>
+              <p className="text-center text-[13px] text-neutral-gray leading-relaxed">
+                Vui lòng sử dụng số điện thoại đã đăng ký Zalo để nhận mã OTP
+              </p>
             )}
           </>
         )}
