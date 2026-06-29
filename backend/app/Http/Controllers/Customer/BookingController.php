@@ -40,7 +40,7 @@ class BookingController extends Controller
             'time'            => 'required|date_format:H:i',
             'vehicle_type'    => 'required|in:sedan_4,suv_5,mpv_7',
             'distance_km'     => 'required|numeric|min:0',
-            'price'           => 'required|integer|min:0',
+            'price'           => 'nullable|integer|min:0',
             'voucher_code'    => 'nullable|string',
             'note'            => 'nullable|string|max:500',
         ]);
@@ -61,10 +61,11 @@ class BookingController extends Controller
                 ->first();
 
             if ($voucher) {
+                $price     = $data['price'] ?? 0;
                 $raw       = $voucher->type === 'fixed'
                     ? $voucher->value
-                    : (int) round($data['price'] * $voucher->value / 100);
-                $discount  = min($raw, (int) floor($data['price'] * self::VOUCHER_MAX_RATE));
+                    : (int) round($price * $voucher->value / 100);
+                $discount  = min($raw, (int) floor($price * self::VOUCHER_MAX_RATE));
                 $voucherId = $voucher->id;
                 $voucher->increment('usage_count');
             }
@@ -81,7 +82,7 @@ class BookingController extends Controller
             'date'            => $data['date'],
             'time'            => $data['time'],
             'distance_km'     => $data['distance_km'],
-            'price'           => $data['price'],
+            'price'           => $data['price'] ?? 0,
             'discount'        => $discount,
             'surcharge'       => $surcharge,
             'voucher_id'      => $voucherId,
