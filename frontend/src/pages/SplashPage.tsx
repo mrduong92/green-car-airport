@@ -62,7 +62,7 @@ export default function SplashPage() {
           Đăng nhập
         </Button>
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/register')}
           className="w-full h-[52px] rounded-pill border border-white/40 text-white text-[16px] font-semibold"
           style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}
         >
