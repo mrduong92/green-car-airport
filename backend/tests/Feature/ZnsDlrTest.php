@@ -70,6 +70,14 @@ class ZnsDlrTest extends TestCase
             ->assertSee('OK');
     }
 
+    public function test_dlr_returns_403_when_token_not_configured(): void
+    {
+        config(['services.southtelecom_zns.dlr_token' => null]);
+
+        $this->get('/api/zns/dlr?smsid=uuid-abc-123&status=1')
+            ->assertStatus(403);
+    }
+
     public function test_dlr_can_be_called_multiple_times_for_same_otp(): void
     {
         $this->makeOtp();

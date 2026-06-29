@@ -42,13 +42,13 @@ class SouthTelecomZnsService implements ZnsSender
 
         Log::info('SouthTelecom ZNS OTP sent', [
             'phone'       => $phone,
-            'tracking_id' => $body['tracking_id'],
+            'tracking_id' => $body['tracking_id'] ?? null,
         ]);
 
         return new ZnsSendResult(
             success: true,
             clientReqId: $clientReqId,
-            trackingId: $body['tracking_id'],
+            trackingId: $body['tracking_id'] ?? null,
         );
     }
 

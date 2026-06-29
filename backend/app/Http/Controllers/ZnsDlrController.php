@@ -12,7 +12,8 @@ class ZnsDlrController extends Controller
 {
     public function handle(Request $request): Response
     {
-        if ($request->query('token') !== config('services.southtelecom_zns.dlr_token')) {
+        $configured = config('services.southtelecom_zns.dlr_token');
+        if (! $configured || $request->query('token') !== $configured) {
             abort(403);
         }
 
