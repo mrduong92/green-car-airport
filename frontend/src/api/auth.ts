@@ -6,11 +6,18 @@ export const sendOtp = (phone: string, purpose?: 'register' | 'reset') =>
 export const loginApi = (phone: string, password: string) =>
   api.post<{ token: string; user: App.User }>('/auth/login', { phone, password })
 
-export const registerApi = (phone: string, otp: string, password: string, referralCode?: string) =>
+export const registerApi = (
+  phone: string,
+  otp: string,
+  password: string,
+  name: string,
+  referralCode?: string,
+) =>
   api.post<{ token: string; user: App.User }>('/auth/register', {
     phone,
     otp,
     password,
+    name,
     ...(referralCode ? { referral_code: referralCode } : {}),
   })
 
