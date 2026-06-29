@@ -6,7 +6,6 @@ use App\Services\ZaloZnsService;
 use App\Services\Zns\ZnsSender;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class ZaloZnsServiceTest extends TestCase
@@ -67,6 +66,7 @@ class ZaloZnsServiceTest extends TestCase
         $result = $this->service->send('0901234567', '123456');
 
         $this->assertFalse($result->success);
+        $this->assertNotNull($result->clientReqId);
     }
 
     public function test_get_balance_returns_null(): void
