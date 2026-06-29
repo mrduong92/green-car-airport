@@ -101,7 +101,7 @@ export default function LoginPage() {
 
   // ── Send OTP ───────────────────────────────────────────────────────────────
   const sendMutation = useMutation({
-    mutationFn: () => sendOtp(phone),
+    mutationFn: (p: Purpose) => sendOtp(phone, p),
     onSuccess: () => setCountdown(45),
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Gửi OTP thất bại. Vui lòng thử lại.', 'error')
@@ -112,7 +112,7 @@ export default function LoginPage() {
     setPurpose(p)
     setOtp(['', '', '', '', '', ''])
     setPassword('')
-    sendMutation.mutate(undefined, {
+    sendMutation.mutate(p, {
       onSuccess: () => setStep('otp'),
     })
   }
@@ -322,7 +322,7 @@ export default function LoginPage() {
                   <button
                     onClick={() => {
                       setOtp(['', '', '', '', '', ''])
-                      sendMutation.mutate(undefined, { onSuccess: () => setCountdown(45) })
+                      sendMutation.mutate(purpose, { onSuccess: () => setCountdown(45) })
                     }}
                     className="text-primary font-medium"
                   >

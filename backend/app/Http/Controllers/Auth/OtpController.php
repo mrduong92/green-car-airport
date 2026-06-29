@@ -16,7 +16,20 @@ class OtpController extends Controller
 
     public function send(Request $request): JsonResponse
     {
-        $request->validate(['phone' => 'required|string|max:20']);
+        $request->validate([
+            'phone'   => 'required|string|max:20',
+            'purpose' => 'nullable|in:register,reset',
+        ]);
+
+        $exists = User::where('phone', $request->phone)->exists();
+
+        if ($request->purpose === 'register' && $exists) {
+            return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
+        }
+
+        if ($request->purpose === 'reset' && ! $exists) {
+            return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
+        }
 
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
