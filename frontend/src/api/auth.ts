@@ -17,7 +17,7 @@ export const registerApi = (
     phone,
     otp,
     password,
-    name,
+    ...(name ? { name } : {}),
     ...(referralCode ? { referral_code: referralCode } : {}),
   })
 

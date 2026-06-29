@@ -40,10 +40,10 @@ export default function RegisterPage() {
   }, [countdown])
 
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout>
+    let t: ReturnType<typeof setTimeout> | undefined
     if (step === 2) t = setTimeout(() => otpRefs.current[0]?.focus(), 100)
     if (step === 3) t = setTimeout(() => nameRef.current?.focus(), 100)
-    return () => clearTimeout(t)
+    return () => { if (t !== undefined) clearTimeout(t) }
   }, [step])
 
   const onAuthSuccess = ({ data }: { data: { user: App.User; token: string } }) => {
@@ -79,7 +79,6 @@ export default function RegisterPage() {
     next[idx] = val
     setOtp(next)
     if (val && idx < 5) otpRefs.current[idx + 1]?.focus()
-    if (next.every((d) => d !== '')) setStep(3)
   }
 
   const handleOtpKeyDown = (idx: number, e: React.KeyboardEvent) => {
@@ -88,7 +87,10 @@ export default function RegisterPage() {
 
   const handleBack = () => {
     if (step === 1) navigate('/')
-    else setStep((s) => (s - 1) as RegStep)
+    else {
+      if (step === 2) setOtp(['', '', '', '', '', ''])
+      setStep((s) => (s - 1) as RegStep)
+    }
   }
 
   const pwdValid    = /^\d{6}$/.test(password)
@@ -235,6 +237,15 @@ export default function RegisterPage() {
                 />
               ))}
             </div>
+
+            <Button
+              fullWidth
+              size="lg"
+              disabled={otp.some((d) => d === '')}
+              onClick={() => setStep(3)}
+            >
+              Xác nhận OTP
+            </Button>
 
             <p className="text-center text-sm text-neutral-gray">
               {countdown > 0 ? (
