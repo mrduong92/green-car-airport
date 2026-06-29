@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { sendOtp, loginApi, registerApi, resetPasswordApi } from '@/api/auth'
+import { sendOtp, loginApi, resetPasswordApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { registerPushSubscription } from '@/push'
 import Button from '@/components/common/Button'
 
 type Step = 'phone' | 'password' | 'otp' | 'set-password'
-type Purpose = 'register' | 'reset'
+type Purpose = 'reset'
 
 const DEV_MOCK = import.meta.env.VITE_MOCK === 'true' || false
 const DEV_PASS = '000000'
@@ -25,21 +25,11 @@ export default function LoginPage() {
   const showToast = useUiStore((s) => s.showToast)
 
   const [step, setStep]         = useState<Step>('phone')
-  const [purpose, setPurpose]   = useState<Purpose>('register')
   const [phone, setPhone]       = useState('')
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd]   = useState(false)
   const [otp, setOtp]           = useState(['', '', '', '', '', ''])
   const [countdown, setCountdown] = useState(0)
-  const [referralCode] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search)
-    const ref = params.get('ref')
-    if (ref) {
-      localStorage.setItem('referral_code', ref)
-      return ref
-    }
-    return localStorage.getItem('referral_code')
-  })
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
   const pwdRef  = useRef<HTMLInputElement>(null)
 
@@ -62,7 +52,6 @@ export default function LoginPage() {
   const onAuthSuccess = ({ data }: { data: { user: App.User; token: string } }) => {
     setAuth(data.user, data.token)
     registerPushSubscription()
-    localStorage.removeItem('referral_code')
     const { role, needs_onboarding } = data.user
     if (role === 'customer') navigate('/customer/booking')
     else if (role === 'driver') navigate(needs_onboarding ? '/driver/profile' : '/driver/trips')
@@ -78,7 +67,7 @@ export default function LoginPage() {
       const msg  = err.response?.data?.message
       if (code === 'no_password') {
         showToast('Tài khoản chưa có mật khẩu. Vui lòng đặt lại mật khẩu.', 'info')
-        doSendOtp('reset')
+        doSendOtp()
       } else if (code === 'blocked') {
         showToast(msg ?? 'Tài khoản đã bị khoá.', 'error')
       } else {
@@ -87,12 +76,9 @@ export default function LoginPage() {
     },
   })
 
-  // ── Register / Reset (after OTP) ──────────────────────────────────────────
-  const finishMutation = useMutation({
-    mutationFn: () =>
-      purpose === 'register'
-        ? registerApi(phone, otp.join(''), password, referralCode ?? undefined)
-        : resetPasswordApi(phone, otp.join(''), password),
+  // ── Reset password (after OTP) ────────────────────────────────────────────
+  const resetMutation = useMutation({
+    mutationFn: () => resetPasswordApi(phone, otp.join(''), password),
     onSuccess: onAuthSuccess,
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Có lỗi xảy ra.', 'error')
@@ -101,18 +87,17 @@ export default function LoginPage() {
 
   // ── Send OTP ───────────────────────────────────────────────────────────────
   const sendMutation = useMutation({
-    mutationFn: (p: Purpose) => sendOtp(phone, p),
+    mutationFn: (p: 'reset') => sendOtp(phone, p),
     onSuccess: () => setCountdown(45),
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Gửi OTP thất bại. Vui lòng thử lại.', 'error')
     },
   })
 
-  const doSendOtp = (p: Purpose) => {
-    setPurpose(p)
+  const doSendOtp = () => {
     setOtp(['', '', '', '', '', ''])
     setPassword('')
-    sendMutation.mutate(p, {
+    sendMutation.mutate('reset', {
       onSuccess: () => setStep('otp'),
     })
   }
@@ -143,8 +128,8 @@ export default function LoginPage() {
   const heading: Record<Step, { title: string; sub: string }> = {
     'phone':        { title: 'Chào mừng', sub: 'Nhập số điện thoại để tiếp tục' },
     'password':     { title: 'Nhập mật khẩu', sub: `Mật khẩu 6 chữ số của tài khoản ${phone}` },
-    'otp':          { title: purpose === 'register' ? 'Xác minh số điện thoại' : 'Xác minh để đặt lại', sub: `Nhập mã OTP được gửi đến ${phone}` },
-    'set-password': { title: purpose === 'register' ? 'Đặt mật khẩu' : 'Mật khẩu mới', sub: 'Mật khẩu gồm 6 chữ số' },
+    'otp':          { title: 'Xác minh để đặt lại', sub: `Nhập mã OTP được gửi đến ${phone}` },
+    'set-password': { title: 'Mật khẩu mới', sub: 'Mật khẩu gồm 6 chữ số' },
   }
 
   const { title, sub } = heading[step]
@@ -225,23 +210,11 @@ export default function LoginPage() {
               >
                 Đăng nhập
               </Button>
-              <button
-                disabled={phone.length < 9 || sendMutation.isPending}
-                onClick={() => doSendOtp('register')}
-                className="w-full h-[52px] rounded-pill border border-border-gray text-navy text-[15px] font-semibold disabled:opacity-40 flex items-center justify-center gap-2"
-              >
-                {sendMutation.isPending ? (
-                  <span className="w-4 h-4 border-2 border-navy/30 border-t-navy rounded-full animate-spin" />
-                ) : null}
-                Đăng ký tài khoản mới
-              </button>
-            </div>
-
-            {!DEV_MOCK && (
-              <p className="text-center text-[13px] text-neutral-gray leading-relaxed">
-                Vui lòng sử dụng số điện thoại đã đăng ký Zalo để nhận mã OTP
+              <p className="text-center text-sm text-neutral-gray">
+                Chưa có tài khoản?{' '}
+                <Link to="/register" className="text-primary font-semibold">Đăng ký</Link>
               </p>
-            )}
+            </div>
           </>
         )}
 
@@ -286,7 +259,7 @@ export default function LoginPage() {
 
             <button
               disabled={sendMutation.isPending}
-              onClick={() => doSendOtp('reset')}
+              onClick={() => doSendOtp()}
               className="text-primary text-sm font-medium text-center disabled:opacity-50 flex items-center justify-center gap-1"
             >
               {sendMutation.isPending
@@ -322,7 +295,7 @@ export default function LoginPage() {
                   <button
                     onClick={() => {
                       setOtp(['', '', '', '', '', ''])
-                      sendMutation.mutate(purpose, { onSuccess: () => setCountdown(45) })
+                      sendMutation.mutate('reset', { onSuccess: () => setCountdown(45) })
                     }}
                     className="text-primary font-medium"
                   >
@@ -347,7 +320,7 @@ export default function LoginPage() {
                   maxLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  onKeyDown={(e) => e.key === 'Enter' && pwdValid && finishMutation.mutate()}
+                  onKeyDown={(e) => e.key === 'Enter' && pwdValid && resetMutation.mutate()}
                   placeholder="••••••"
                   className="w-full h-[52px] border-[1.5px] border-primary rounded-input px-4 pr-12 text-navy text-2xl tracking-[0.4em] outline-none focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
                   style={{ fontFamily: 'monospace' }}
@@ -367,11 +340,11 @@ export default function LoginPage() {
 
             <Button
               fullWidth size="lg"
-              loading={finishMutation.isPending}
+              loading={resetMutation.isPending}
               disabled={!pwdValid}
-              onClick={() => finishMutation.mutate()}
+              onClick={() => resetMutation.mutate()}
             >
-              {purpose === 'register' ? 'Hoàn tất đăng ký' : 'Đặt lại mật khẩu'}
+              Đặt lại mật khẩu
             </Button>
           </>
         )}
