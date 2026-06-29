@@ -72,6 +72,7 @@ class AuthController extends Controller
             'phone'         => 'required|string|max:20',
             'otp'           => 'required|string|size:6',
             'password'      => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'name'          => 'nullable|string|max:100',
             'referral_code' => 'nullable|string|max:10',
         ]);
 
@@ -91,6 +92,7 @@ class AuthController extends Controller
 
         $user = User::create([
             'phone'               => $request->phone,
+            'name'                => $request->input('name'),
             'password'            => Hash::make($request->password),
             'role'                => 'customer',
             'referred_by_user_id' => $referredById,
