@@ -11,6 +11,17 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    public function checkPhone(Request $request): JsonResponse
+    {
+        $request->validate(['phone' => 'required|string|max:20']);
+
+        if (! User::where('phone', $request->phone)->exists()) {
+            return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
+        }
+
+        return response()->json(['exists' => true]);
+    }
+
     public function login(Request $request): JsonResponse
     {
         $request->validate([

@@ -3,6 +3,9 @@ import api from './axios'
 export const sendOtp = (phone: string, purpose?: 'register' | 'reset') =>
   api.post('/auth/otp/send', { phone, ...(purpose ? { purpose } : {}) })
 
+export const checkPhoneApi = (phone: string) =>
+  api.post<{ exists: boolean }>('/auth/check-phone', { phone })
+
 export const loginApi = (phone: string, password: string) =>
   api.post<{ token: string; user: App.User }>('/auth/login', { phone, password })
 

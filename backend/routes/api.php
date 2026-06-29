@@ -27,6 +27,7 @@ use App\Http\Controllers\ZnsDlrController;
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send',      [OtpController::class,  'send']);
 Route::post('/auth/otp/verify',    [OtpController::class,  'verify']);
+Route::post('/auth/check-phone',   [AuthController::class, 'checkPhone']);
 Route::post('/auth/login',         [AuthController::class, 'login']);
 Route::post('/auth/register',      [AuthController::class, 'register']);
 Route::post('/auth/reset-password',[AuthController::class, 'resetPassword']);

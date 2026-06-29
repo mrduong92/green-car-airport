@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { sendOtp, loginApi, resetPasswordApi } from '@/api/auth'
+import { sendOtp, loginApi, resetPasswordApi, checkPhoneApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { registerPushSubscription } from '@/push'
@@ -91,6 +91,14 @@ export default function LoginPage() {
     onSuccess: () => setCountdown(45),
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Gửi OTP thất bại. Vui lòng thử lại.', 'error')
+    },
+  })
+
+  const checkMutation = useMutation({
+    mutationFn: () => checkPhoneApi(phone),
+    onSuccess: () => setStep('password'),
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      showToast(err.response?.data?.message ?? 'Có lỗi xảy ra.', 'error')
     },
   })
 
@@ -196,7 +204,7 @@ export default function LoginPage() {
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && phone.length >= 9 && setStep('password')}
+                  onKeyDown={(e) => e.key === 'Enter' && phone.length >= 9 && checkMutation.mutate()}
                   placeholder="9xx xxx xxx"
                   className="flex-1 px-4 outline-none text-navy text-[17px] font-semibold tracking-wider bg-transparent"
                 />
@@ -206,8 +214,9 @@ export default function LoginPage() {
             <div className="flex flex-col gap-3">
               <Button
                 fullWidth size="lg"
+                loading={checkMutation.isPending}
                 disabled={phone.length < 9}
-                onClick={() => setStep('password')}
+                onClick={() => checkMutation.mutate()}
               >
                 Đăng nhập
               </Button>
