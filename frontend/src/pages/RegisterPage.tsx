@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { registerPushSubscription } from '@/push'
 import Button from '@/components/common/Button'
+import ToastContainer from '@/components/common/Toast'
 
 type RegStep = 1 | 2 | 3 | 4
 
@@ -99,6 +100,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-svh bg-white flex flex-col max-w-[430px] mx-auto">
+      <ToastContainer />
       {/* Top bar */}
       <div className="px-4 pt-14 pb-2 safe-top flex items-center">
         <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center text-navy">
