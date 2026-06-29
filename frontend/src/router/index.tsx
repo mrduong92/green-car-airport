@@ -5,6 +5,7 @@ import DriverLayout from '@/layouts/DriverLayout'
 import AdminLayout from '@/layouts/AdminLayout'
 import SplashPage from '@/pages/SplashPage'
 import LoginPage from '@/pages/LoginPage'
+import RegisterPage from '@/pages/RegisterPage'
 import BookingFormPage from '@/pages/customer/BookingFormPage'
 import BookingStatusPage from '@/pages/customer/BookingStatusPage'
 import BookingHistoryPage from '@/pages/customer/BookingHistoryPage'
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <SplashPage /> },
       { path: '/login', element: <LoginPage /> },
+      { path: '/register', element: <RegisterPage /> },
     ],
   },
   {
