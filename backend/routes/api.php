@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\Admin\AdminWalletController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
+use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
 use App\Http\Controllers\PriceConfigController;
 use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\NotificationController;
@@ -97,5 +98,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/customers/{user}/unblock',       [AdminCustomerController::class, 'unblock']);
         Route::post('/admin/drivers/{user}/topup',            [AdminWalletController::class, 'topup']);
         Route::apiResource('/admin/price-configs', AdminPriceConfigController::class)->except(['show']);
+        Route::get('/admin/zns/balance', [AdminZnsController::class, 'balance']);
     });
 });
