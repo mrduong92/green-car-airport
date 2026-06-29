@@ -111,13 +111,19 @@ export default function RegisterPage() {
       <div className="flex-1 px-6 pt-4 flex flex-col gap-6">
         {/* Brand */}
         <div>
-          <div className="w-16 h-16 rounded-logo bg-primary-tint flex items-center justify-center mb-7">
-            <span
-              className="material-symbols-outlined text-primary"
-              style={{ fontSize: 32, fontVariationSettings: "'FILL' 1" }}
-            >
-              directions_car
-            </span>
+          <div className="flex items-center gap-3 mb-7">
+            <div className="w-12 h-12 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
+              <span
+                className="material-symbols-outlined text-primary"
+                style={{ fontSize: 26, fontVariationSettings: "'FILL' 1" }}
+              >
+                directions_car
+              </span>
+            </div>
+            <div>
+              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">Save Go</p>
+              <p className="text-neutral-gray text-[11px] tracking-widest uppercase mt-0.5">Airport Transfer</p>
+            </div>
           </div>
           <h1 className="text-navy font-bold text-[28px] leading-tight mb-2">Tạo tài khoản</h1>
           <p className="text-neutral-gray text-sm">Đăng ký để bắt đầu hành trình</p>

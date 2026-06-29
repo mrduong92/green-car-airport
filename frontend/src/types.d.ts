@@ -59,7 +59,7 @@ declare namespace App {
     date: string
     time: string
     distance_km: number
-    price?: number
+    price: number
     vehicle_type: VehicleType
     voucher_code?: string
     note?: string

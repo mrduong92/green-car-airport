@@ -77,10 +77,7 @@ const schema = z.object({
   date:         z.string().min(1),
   time:         z.string().min(1),
   distance_km:  z.number({ coerce: true }).min(0.1, 'Vui lòng chọn điểm đón và điểm đến'),
-  price:        z.preprocess(
-    (v) => (v === '' || v == null ? undefined : Number(v)),
-    z.number().min(0).optional()
-  ),
+  price:        z.number({ coerce: true }).min(1, 'Vui lòng nhập giá'),
   note:         z.string().max(500).optional(),
 })
 type FormData = z.infer<typeof schema>
