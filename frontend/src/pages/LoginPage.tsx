@@ -8,7 +8,6 @@ import { registerPushSubscription } from '@/push'
 import Button from '@/components/common/Button'
 
 type Step = 'phone' | 'password' | 'otp' | 'set-password'
-type Purpose = 'reset'
 
 const DEV_MOCK = import.meta.env.VITE_MOCK === 'true' || false
 const DEV_PASS = '000000'
