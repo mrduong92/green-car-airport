@@ -40,8 +40,10 @@ export default function RegisterPage() {
   }, [countdown])
 
   useEffect(() => {
-    if (step === 2) setTimeout(() => otpRefs.current[0]?.focus(), 100)
-    if (step === 3) setTimeout(() => nameRef.current?.focus(), 100)
+    let t: ReturnType<typeof setTimeout>
+    if (step === 2) t = setTimeout(() => otpRefs.current[0]?.focus(), 100)
+    if (step === 3) t = setTimeout(() => nameRef.current?.focus(), 100)
+    return () => clearTimeout(t)
   }, [step])
 
   const onAuthSuccess = ({ data }: { data: { user: App.User; token: string } }) => {
@@ -172,7 +174,7 @@ export default function RegisterPage() {
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                   placeholder="9xx xxx xxx"
                   className="flex-1 px-4 outline-none text-navy text-[17px] font-semibold tracking-wider bg-transparent"
                 />
