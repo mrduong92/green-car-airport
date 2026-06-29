@@ -13,8 +13,9 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(\App\Services\Zns\ZnsSender::class, function ($app) {
             return match (config('services.zns.provider')) {
-                'zalo'  => $app->make(\App\Services\ZaloZnsService::class),
-                default => $app->make(\App\Services\SouthTelecomZnsService::class),
+                'zalo'   => $app->make(\App\Services\ZaloZnsService::class),
+                'abenla' => $app->make(\App\Services\AbenlaZnsService::class),
+                default  => $app->make(\App\Services\SouthTelecomZnsService::class),
             };
         });
     }

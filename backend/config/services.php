@@ -61,4 +61,12 @@ return [
         'dlr_token'   => env('SOUTHTELECOM_ZNS_DLR_TOKEN'),
     ],
 
+    'abenla_zns' => [
+        'base_url'        => env('ABENLA_BASE_URL', 'https://api.abenla.com/api'),
+        'login_name'      => env('ABENLA_LOGIN_NAME'),
+        'sign'            => env('ABENLA_SIGN'),
+        'service_type_id' => env('ABENLA_SERVICE_TYPE_ID'),
+        'brand_name'      => env('ABENLA_BRAND_NAME'),
+    ],
+
 ];
