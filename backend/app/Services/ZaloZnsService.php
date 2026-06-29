@@ -2,21 +2,29 @@
 
 namespace App\Services;
 
+use App\Services\Zns\ZnsSender;
+use App\Services\Zns\ZnsSendResult;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
-class ZaloZnsService
+class ZaloZnsService implements ZnsSender
 {
     private string $oauthUrl = 'https://oauth.zaloapp.com/v4/access_token';
     private string $znsUrl   = 'https://business.openapi.zalo.me/message/template';
 
-    public function sendOtp(string $phone, string $code): bool
+    public function send(string $phone, string $code): ZnsSendResult
     {
+        $clientReqId = Str::uuid()->toString();
         $token = $this->getAccessToken();
 
         if (! $token) {
-            return false;
+            return new ZnsSendResult(
+                success: false,
+                clientReqId: $clientReqId,
+                error: 'Không lấy được access token',
+            );
         }
 
         $response = Http::withHeaders(['access_token' => $token])
@@ -31,11 +39,25 @@ class ZaloZnsService
 
         if (($body['error'] ?? -1) !== 0) {
             Log::error('Zalo ZNS error', ['phone' => $phone, 'response' => $body]);
-            return false;
+
+            return new ZnsSendResult(
+                success: false,
+                clientReqId: $clientReqId,
+                error: $body['message'] ?? 'Lỗi không xác định',
+            );
         }
 
         Log::info('Zalo ZNS OTP sent', ['phone' => $phone]);
-        return true;
+
+        return new ZnsSendResult(
+            success: true,
+            clientReqId: $clientReqId,
+        );
+    }
+
+    public function getBalance(): ?int
+    {
+        return null;
     }
 
     private function getAccessToken(): ?string
