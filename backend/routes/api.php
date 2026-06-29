@@ -21,6 +21,7 @@ use App\Http\Controllers\PriceConfigController;
 use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Webhooks\SepayWebhookController;
+use App\Http\Controllers\ZnsDlrController;
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send',      [OtpController::class,  'send']);
@@ -30,6 +31,7 @@ Route::post('/auth/register',      [AuthController::class, 'register']);
 Route::post('/auth/reset-password',[AuthController::class, 'resetPassword']);
 Route::get('/price-configs',    [PriceConfigController::class, 'index']);
 Route::post('/webhooks/sepay',  [SepayWebhookController::class, 'handle']);
+Route::get('/zns/dlr',          [ZnsDlrController::class, 'handle']);
 
 // ── Authenticated ─────────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
