@@ -13,24 +13,40 @@ class SouthTelecomZnsService implements ZnsSender
     public function send(string $phone, string $code): ZnsSendResult
     {
         $clientReqId = Str::uuid()->toString();
+        $payload = [
+            'from'          => config('services.southtelecom_zns.from'),
+            'to'            => $this->toInternational($phone),
+            'template_id'   => config('services.southtelecom_zns.template_id'),
+            'template_data' => ['otp' => $code],
+            'client_req_id' => $clientReqId,
+            'dlr'           => 1,
+        ];
+
+        Log::info('[SouthTelecom] Gửi OTP', [
+            'phone'         => $phone,
+            'to'            => $payload['to'],
+            'template_id'   => $payload['template_id'],
+            'from'          => $payload['from'],
+            'client_req_id' => $clientReqId,
+        ]);
 
         $response = Http::withHeaders($this->headers())
-            ->post(config('services.southtelecom_zns.base_url') . '/sendZNS', [
-                'from'          => config('services.southtelecom_zns.from'),
-                'to'            => $this->toInternational($phone),
-                'template_id'   => config('services.southtelecom_zns.template_id'),
-                'template_data' => ['otp' => $code],
-                'client_req_id' => $clientReqId,
-                'dlr'           => 1,
-            ]);
+            ->post(config('services.southtelecom_zns.base_url') . '/sendZNS', $payload);
 
         $body = $response->json();
 
+        Log::info('[SouthTelecom] API response', [
+            'http_status'   => $response->status(),
+            'body'          => $body,
+            'client_req_id' => $clientReqId,
+        ]);
+
         if (($body['status'] ?? 0) !== 1) {
-            Log::error('SouthTelecom ZNS send failed', [
-                'phone'       => $phone,
-                'errorcode'   => $body['errorcode'] ?? null,
-                'description' => $body['description'] ?? null,
+            Log::error('[SouthTelecom] Gửi thất bại', [
+                'phone'         => $phone,
+                'errorcode'     => $body['errorcode'] ?? null,
+                'description'   => $body['description'] ?? null,
+                'client_req_id' => $clientReqId,
             ]);
 
             return new ZnsSendResult(
@@ -40,9 +56,10 @@ class SouthTelecomZnsService implements ZnsSender
             );
         }
 
-        Log::info('SouthTelecom ZNS OTP sent', [
-            'phone'       => $phone,
-            'tracking_id' => $body['tracking_id'] ?? null,
+        Log::info('[SouthTelecom] Gửi thành công', [
+            'phone'         => $phone,
+            'tracking_id'   => $body['tracking_id'] ?? null,
+            'client_req_id' => $clientReqId,
         ]);
 
         return new ZnsSendResult(

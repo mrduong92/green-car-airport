@@ -49,7 +49,8 @@ return [
     ],
 
     'zns' => [
-        'provider' => env('ZNS_PROVIDER', 'southtelecom'),
+        'provider'   => env('ZNS_PROVIDER', 'southtelecom'),
+        'force_send' => env('ZNS_FORCE_SEND', false),
     ],
 
     'southtelecom_zns' => [

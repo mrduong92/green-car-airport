@@ -28,12 +28,28 @@ class OtpController extends Controller
             'expires_at' => now()->addMinutes(5),
         ]);
 
-        if (app()->environment('local')) {
-            Log::info("OTP for {$request->phone}: {$code}");
+        if (app()->environment('local') && ! config('services.zns.force_send')) {
+            Log::info('[OTP] Local bypass — không gọi ZNS', [
+                'phone' => $request->phone,
+                'code'  => $code,
+            ]);
             return response()->json(['message' => 'OTP đã được gửi.']);
         }
 
+        Log::info('[OTP] Gửi qua ZNS', [
+            'phone'    => $request->phone,
+            'provider' => config('services.zns.provider'),
+        ]);
+
         $result = $this->zns->send($request->phone, $code);
+
+        Log::info('[OTP] Kết quả ZNS', [
+            'phone'         => $request->phone,
+            'success'       => $result->success,
+            'client_req_id' => $result->clientReqId,
+            'tracking_id'   => $result->trackingId,
+            'error'         => $result->error,
+        ]);
 
         if (! $result->success) {
             return response()->json(['message' => 'Không thể gửi OTP. Vui lòng thử lại.'], 503);

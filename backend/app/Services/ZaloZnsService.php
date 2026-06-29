@@ -17,9 +17,16 @@ class ZaloZnsService implements ZnsSender
     public function send(string $phone, string $code): ZnsSendResult
     {
         $clientReqId = Str::uuid()->toString();
+
+        Log::info('[Zalo] Gửi OTP', [
+            'phone'         => $phone,
+            'client_req_id' => $clientReqId,
+        ]);
+
         $token = $this->getAccessToken();
 
         if (! $token) {
+            Log::error('[Zalo] Không lấy được access token', ['phone' => $phone]);
             return new ZnsSendResult(
                 success: false,
                 clientReqId: $clientReqId,
@@ -37,8 +44,19 @@ class ZaloZnsService implements ZnsSender
 
         $body = $response->json();
 
+        Log::info('[Zalo] API response', [
+            'http_status'   => $response->status(),
+            'body'          => $body,
+            'client_req_id' => $clientReqId,
+        ]);
+
         if (($body['error'] ?? -1) !== 0) {
-            Log::error('Zalo ZNS error', ['phone' => $phone, 'response' => $body]);
+            Log::error('[Zalo] Gửi thất bại', [
+                'phone'         => $phone,
+                'error_code'    => $body['error'] ?? null,
+                'message'       => $body['message'] ?? null,
+                'client_req_id' => $clientReqId,
+            ]);
 
             return new ZnsSendResult(
                 success: false,
@@ -47,7 +65,10 @@ class ZaloZnsService implements ZnsSender
             );
         }
 
-        Log::info('Zalo ZNS OTP sent', ['phone' => $phone]);
+        Log::info('[Zalo] Gửi thành công', [
+            'phone'         => $phone,
+            'client_req_id' => $clientReqId,
+        ]);
 
         return new ZnsSendResult(
             success: true,
@@ -77,6 +98,8 @@ class ZaloZnsService implements ZnsSender
 
     private function refreshAccessToken(): ?string
     {
+        Log::info('[Zalo] Refresh access token');
+
         $response = Http::asForm()->post($this->oauthUrl, [
             'grant_type'    => 'refresh_token',
             'app_id'        => config('services.zalo_zns.app_id'),
@@ -86,8 +109,13 @@ class ZaloZnsService implements ZnsSender
 
         $body = $response->json();
 
+        Log::info('[Zalo] Token refresh response', [
+            'http_status' => $response->status(),
+            'has_token'   => ! empty($body['access_token']),
+        ]);
+
         if (empty($body['access_token'])) {
-            Log::error('Zalo ZNS token refresh failed', ['response' => $body]);
+            Log::error('[Zalo] Token refresh thất bại', ['response' => $body]);
             return null;
         }
 

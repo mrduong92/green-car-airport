@@ -14,6 +14,13 @@ class AbenlaZnsService implements ZnsSender
     {
         $clientReqId = Str::uuid()->toString();
 
+        Log::info('[Abenla] Gửi OTP', [
+            'phone'          => $phone,
+            'service_type'   => config('services.abenla_zns.service_type_id'),
+            'brand_name'     => config('services.abenla_zns.brand_name'),
+            'client_req_id'  => $clientReqId,
+        ]);
+
         $response = Http::get(config('services.abenla_zns.base_url') . '/SendOTP', [
             'loginName'     => config('services.abenla_zns.login_name'),
             'sign'          => config('services.abenla_zns.sign'),
@@ -26,11 +33,18 @@ class AbenlaZnsService implements ZnsSender
 
         $body = $response->json();
 
+        Log::info('[Abenla] API response', [
+            'http_status'   => $response->status(),
+            'body'          => $body,
+            'client_req_id' => $clientReqId,
+        ]);
+
         if (($body['Code'] ?? 0) !== 203) {
-            Log::error('Abenla ZNS send failed', [
-                'phone'   => $phone,
-                'code'    => $body['Code'] ?? null,
-                'message' => $body['Message'] ?? null,
+            Log::error('[Abenla] Gửi thất bại', [
+                'phone'         => $phone,
+                'code'          => $body['Code'] ?? null,
+                'message'       => $body['Message'] ?? null,
+                'client_req_id' => $clientReqId,
             ]);
 
             return new ZnsSendResult(
@@ -40,7 +54,10 @@ class AbenlaZnsService implements ZnsSender
             );
         }
 
-        Log::info('Abenla ZNS OTP sent', ['phone' => $phone]);
+        Log::info('[Abenla] Gửi thành công', [
+            'phone'         => $phone,
+            'client_req_id' => $clientReqId,
+        ]);
 
         return new ZnsSendResult(
             success: true,
