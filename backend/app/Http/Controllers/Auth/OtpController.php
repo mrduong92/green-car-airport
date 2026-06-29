@@ -5,13 +5,15 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Otp;
 use App\Models\User;
-use App\Services\ZaloZnsService;
+use App\Services\Zns\ZnsSender;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class OtpController extends Controller
 {
+    public function __construct(private ZnsSender $zns) {}
+
     public function send(Request $request): JsonResponse
     {
         $request->validate(['phone' => 'required|string|max:20']);
@@ -20,7 +22,7 @@ class OtpController extends Controller
 
         Otp::where('phone', $request->phone)->delete();
 
-        Otp::create([
+        $otp = Otp::create([
             'phone'      => $request->phone,
             'code'       => $code,
             'expires_at' => now()->addMinutes(5),
@@ -31,11 +33,17 @@ class OtpController extends Controller
             return response()->json(['message' => 'OTP đã được gửi.']);
         }
 
-        $sent = app(ZaloZnsService::class)->sendOtp($request->phone, $code);
+        $result = $this->zns->send($request->phone, $code);
 
-        if (! $sent) {
+        if (! $result->success) {
             return response()->json(['message' => 'Không thể gửi OTP. Vui lòng thử lại.'], 503);
         }
+
+        $otp->update([
+            'client_req_id'   => $result->clientReqId,
+            'tracking_id'     => $result->trackingId,
+            'delivery_status' => 'pending',
+        ]);
 
         return response()->json(['message' => 'OTP đã được gửi.']);
     }
