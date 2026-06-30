@@ -24,6 +24,9 @@ export function useNotifications() {
         showToast(event.data.body ?? event.data.title ?? 'Thông báo mới', 'info')
         queryClient.invalidateQueries({ queryKey: ['notifications-unread'] })
         queryClient.invalidateQueries({ queryKey: ['notifications'] })
+        if (event.data.data?.action === 'view_trip') {
+          queryClient.invalidateQueries({ queryKey: ['trips'] })
+        }
       }
     }
 
