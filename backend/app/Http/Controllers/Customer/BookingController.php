@@ -156,6 +156,12 @@ class BookingController extends Controller
 
         $request->user()->notify(new CustomerCancelledNotification($booking));
 
+        Redis::publish('driver.new-booking', json_encode([
+            'type'       => 'booking_cancelled',
+            'booking_id' => $booking->id,
+            'driver_id'  => $booking->driver_id,
+        ]));
+
         // Voucher usage_count đã tăng khi đặt; huỷ chuyến KHÔNG hoàn lại — đây là thiết kế có chủ đích.
         return response()->json($this->formatBooking($booking->fresh(['driver.driverProfile', 'voucher'])));
     }

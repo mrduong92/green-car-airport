@@ -27,6 +27,14 @@ export function useDriverStream(enabled: boolean) {
               { queryKey: ['trips'] },
               (old) => old?.filter((t) => t.id !== data.booking_id) ?? old,
             )
+          } else if (data.type === 'booking_cancelled') {
+            // Remove from available trips list (if still finding_driver)
+            queryClient.setQueriesData<App.Trip[]>(
+              { queryKey: ['trips'] },
+              (old) => old?.filter((t) => t.id !== data.booking_id) ?? old,
+            )
+            // Refresh active trips in case driver had already accepted this booking
+            queryClient.invalidateQueries({ queryKey: ['my-trips'] })
           } else if (data.type === 'connected') {
             // Sync on every (re)connect to catch anything missed while offline
             queryClient.invalidateQueries({ queryKey: ['trips'] })
