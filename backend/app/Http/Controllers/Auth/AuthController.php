@@ -117,6 +117,57 @@ class AuthController extends Controller
         ]);
     }
 
+    public function registerDriver(Request $request): JsonResponse
+    {
+        $request->validate([
+            'phone'         => 'required|string|max:20',
+            'otp'           => 'required|string|size:6',
+            'password'      => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'name'          => 'required|string|max:100',
+            'vehicle_make'  => 'required|string|max:50',
+            'vehicle_model' => 'required|string|max:50',
+            'vehicle_plate' => 'required|string|max:20',
+            'vehicle_year'  => 'required|integer|min:2000|max:' . now()->year,
+            'vehicle_color' => 'required|string|max:30',
+            'vehicle_type'  => 'required|in:sedan_4,suv_5,mpv_7',
+        ]);
+
+        if (User::where('phone', $request->phone)->exists()) {
+            return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
+        }
+
+        $this->consumeOtp($request->phone, $request->otp);
+
+        $user = User::create([
+            'phone'    => $request->phone,
+            'name'     => $request->name,
+            'password' => Hash::make($request->password),
+            'role'     => 'driver',
+        ]);
+
+        $user->driverProfile()->create([
+            'vehicle_make'  => $request->vehicle_make,
+            'vehicle_model' => $request->vehicle_model,
+            'vehicle_plate' => $request->vehicle_plate,
+            'vehicle_year'  => $request->vehicle_year,
+            'vehicle_color' => $request->vehicle_color,
+            'vehicle_type'  => $request->vehicle_type,
+            'is_verified'   => true,
+            'is_online'     => false,
+        ]);
+
+        $user->wallet()->create(['points' => 0]);
+
+        $user->loadMissing('driverProfile');
+
+        $token = $user->createToken('api')->plainTextToken;
+
+        return response()->json([
+            'user'  => $this->userPayload($user),
+            'token' => $token,
+        ], 201);
+    }
+
     public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
