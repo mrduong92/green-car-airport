@@ -14,6 +14,7 @@ use App\Notifications\TripStartedNotification;
 use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 
 class TripController extends Controller
 {
@@ -71,6 +72,11 @@ class TripController extends Controller
             'description' => "Phí app 20% cuốc #{$booking->id}",
             'points'      => $feePoints,
         ]);
+
+        Redis::publish('driver.new-booking', json_encode([
+            'type'       => 'trip_taken',
+            'booking_id' => $booking->id,
+        ]));
 
         // K2 — notify customer that a driver accepted
         $booking->customer?->notify(new BookingAcceptedNotification($booking, $request->user()));

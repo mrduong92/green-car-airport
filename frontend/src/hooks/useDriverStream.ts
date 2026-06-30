@@ -21,6 +21,15 @@ export function useDriverStream(enabled: boolean) {
           const data = JSON.parse(event.data as string)
           if (data.type === 'new_booking') {
             queryClient.invalidateQueries({ queryKey: ['trips'] })
+          } else if (data.type === 'trip_taken') {
+            // Optimistically remove the taken trip without a network call
+            queryClient.setQueriesData<App.Trip[]>(
+              { queryKey: ['trips'] },
+              (old) => old?.filter((t) => t.id !== data.booking_id) ?? old,
+            )
+          } else if (data.type === 'connected') {
+            // Sync on every (re)connect to catch anything missed while offline
+            queryClient.invalidateQueries({ queryKey: ['trips'] })
           }
         } catch {
           // ignore malformed JSON

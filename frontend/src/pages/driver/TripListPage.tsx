@@ -33,7 +33,6 @@ export default function TripListPage() {
   const { data: myTrips = [] } = useQuery({
     queryKey: ['my-trips'],
     queryFn: () => getMyTrips().then((r) => r.data),
-    refetchInterval: 10_000,
   })
   const atCapacity = myTrips.length >= 3
 
@@ -49,8 +48,8 @@ export default function TripListPage() {
   const { data: trips = [] } = useQuery({
     queryKey: ['trips', sort],
     queryFn: () => getAvailableTrips({ sort }).then((r) => r.data),
-    refetchInterval: isOnline ? 15_000 : false,
     enabled: isOnline,
+    refetchOnWindowFocus: true,
   })
 
   const toggleMutation = useMutation({
