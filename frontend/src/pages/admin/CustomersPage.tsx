@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCustomers, updateCustomer, getCustomerBookings, blockCustomer, unblockCustomer } from '@/api/admin'
+import { getCustomers, updateCustomer, getCustomerBookings, blockCustomer, unblockCustomer, toggleCollaborator } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import Button from '@/components/common/Button'
@@ -68,6 +68,21 @@ export default function AdminCustomersPage() {
     onError: () => showToast('Thao tác thất bại', 'error'),
   })
 
+  const toggleCollaboratorMutation = useMutation({
+    mutationFn: (c: App.AdminCustomer) => toggleCollaborator(c.id),
+    onSuccess: (res, c) => {
+      showToast(
+        res.data.is_collaborator ? 'Đã kích hoạt CTV' : 'Đã huỷ CTV',
+        'success',
+      )
+      setHistoryTarget((prev) =>
+        prev?.id === c.id ? { ...prev, is_collaborator: res.data.is_collaborator } : prev,
+      )
+      qc.invalidateQueries({ queryKey: ['admin-customers'] })
+    },
+    onError: () => showToast('Thao tác thất bại', 'error'),
+  })
+
   return (
     <div className="flex flex-col gap-0">
       {/* Search */}
@@ -114,6 +129,9 @@ export default function AdminCustomersPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-[14px] font-semibold text-navy truncate">{c.name}</p>
+                {c.is_collaborator && (
+                  <span className="ml-1.5 text-[10px] font-bold bg-primary text-white px-1.5 py-0.5 rounded-pill shrink-0">CTV</span>
+                )}
                 {c.is_blocked && (
                   <span className="text-[10px] font-semibold text-danger-red bg-danger-red/10 rounded-full px-2 py-0.5 shrink-0">Đã chặn</span>
                 )}
@@ -240,8 +258,23 @@ export default function AdminCustomersPage() {
               ))}
             </div>
 
-            {/* Block / unblock button */}
-            <div className="px-4 pb-6 pt-3 border-t border-border-soft shrink-0">
+            {/* Block / unblock + toggle CTV buttons */}
+            <div className="px-4 pb-6 pt-3 border-t border-border-soft shrink-0 flex flex-col gap-2">
+              {/* Toggle CTV button */}
+              <button
+                onClick={() => historyTarget && toggleCollaboratorMutation.mutate(historyTarget)}
+                disabled={toggleCollaboratorMutation.isPending}
+                className={`flex items-center gap-2 w-full px-4 py-3 rounded-input border text-[14px] font-medium transition-colors ${
+                  historyTarget.is_collaborator
+                    ? 'border-neutral-gray text-neutral-gray'
+                    : 'border-primary text-primary'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  {historyTarget.is_collaborator ? 'person_remove' : 'person_add'}
+                </span>
+                {historyTarget.is_collaborator ? 'Huỷ CTV' : 'Kích hoạt CTV'}
+              </button>
               <Button
                 fullWidth
                 variant="outline"
