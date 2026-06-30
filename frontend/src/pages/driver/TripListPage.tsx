@@ -7,6 +7,7 @@ import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
+import { useDriverStream } from '@/hooks/useDriverStream'
 
 export default function TripListPage() {
   const navigate = useNavigate()
@@ -21,6 +22,8 @@ export default function TripListPage() {
   })
 
   const isOnline = profile?.is_online ?? true
+
+  useDriverStream(isOnline)
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],

@@ -10,6 +10,7 @@ use App\Notifications\BookingCreatedNotification;
 use App\Notifications\CustomerCancelledNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 
 class BookingController extends Controller
 {
@@ -89,6 +90,11 @@ class BookingController extends Controller
             'vehicle_type'    => $data['vehicle_type'],
             'note'            => $data['note'] ?? null,
         ]);
+
+        Redis::publish('driver.new-booking', json_encode([
+            'type'       => 'new_booking',
+            'booking_id' => $booking->id,
+        ]));
 
         $request->user()->notify(new BookingCreatedNotification($booking));
         SendNewBookingBroadcastJob::dispatch($booking);
