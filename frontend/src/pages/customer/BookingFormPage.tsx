@@ -79,6 +79,7 @@ const schema = z.object({
   distance_km:  z.number({ coerce: true }).min(0.1, 'Vui lòng chọn điểm đón và điểm đến'),
   price:        z.number({ coerce: true }).min(1, 'Vui lòng nhập giá'),
   note:         z.string().max(500).optional(),
+  collection_fee: z.coerce.number().min(0).optional().default(0),
 })
 type FormData = z.infer<typeof schema>
 
@@ -207,6 +208,7 @@ export default function BookingFormPage() {
         destination_lng: destLatLng?.lng,
         voucher_code:    voucherCode || undefined,
         note:            data.note || undefined,
+        collection_fee:  data.collection_fee && data.collection_fee > 0 ? data.collection_fee : undefined,
       }),
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['vouchers-list'] })
@@ -486,6 +488,27 @@ export default function BookingFormPage() {
             </span>
           </div>
         </div>
+
+        {/* ── THU HỘ (chỉ hiện với cộng tác viên) ─────────── */}
+        {user?.is_collaborator && (
+          <div className="flex flex-col gap-1.5 mt-4">
+            <label className="text-[13px] font-medium text-navy">
+              Thu Hộ <span className="text-neutral-gray font-normal">(tuỳ chọn)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                placeholder="0"
+                {...register('collection_fee', { valueAsNumber: true })}
+                className="w-full rounded-input border border-border-gray px-3 py-2.5 text-[14px] text-navy pr-8 focus:outline-none focus:border-primary"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-neutral-gray pointer-events-none">đ</span>
+            </div>
+            <p className="text-[11px] text-neutral-gray">Số tiền thu hộ từ khách (không tính vào giá tài xế nhận)</p>
+          </div>
+        )}
 
         <div className="h-4" />
       </div>
