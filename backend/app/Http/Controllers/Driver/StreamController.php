@@ -22,13 +22,22 @@ class StreamController extends Controller
         return response()->stream(function () use ($user) {
             $this->emit(['type' => 'connected', 'driver_id' => $user->id]);
 
-            $host  = config('database.redis.default.host', '127.0.0.1');
-            $port  = (int) config('database.redis.default.port', 6379);
-            $maxAt = time() + 300; // 5 min max, then EventSource auto-reconnects
+            $redisCfg  = config('database.redis.default', []);
+            $host      = $redisCfg['host']     ?? '127.0.0.1';
+            $port      = (int) ($redisCfg['port']     ?? 6379);
+            $password  = $redisCfg['password'] ?? null;
+            $database  = (int) ($redisCfg['database'] ?? 0);
+            $maxAt     = time() + 300; // 5 min max, then EventSource auto-reconnects
 
             while (! connection_aborted() && time() < $maxAt) {
                 $redis = new \Redis();
                 $redis->connect($host, $port);
+                if ($password) {
+                    $redis->auth($password);
+                }
+                if ($database !== 0) {
+                    $redis->select($database);
+                }
                 $redis->setOption(\Redis::OPT_READ_TIMEOUT, 25);
 
                 try {
