@@ -20,6 +20,11 @@ class User extends Authenticatable
 
     protected $hidden = ['password'];
 
+    protected $casts = [
+        'is_blocked'      => 'boolean',
+        'is_collaborator' => 'boolean',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (User $user) {

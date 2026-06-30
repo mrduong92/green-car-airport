@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\Admin\AdminWalletController;
 use App\Http\Controllers\Admin\RevenueController;
+use App\Http\Controllers\Customer\CollaboratorWalletController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
 use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
 use App\Http\Controllers\PriceConfigController;
@@ -64,6 +65,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/customer/vouchers',         [VoucherController::class, 'index']);
         Route::get('/customer/my-vouchers',      [VoucherController::class, 'myVouchers']);
         Route::post('/customer/vouchers/apply',  [VoucherController::class, 'apply']);
+        Route::get('/customer/collaborator/wallet',              [CollaboratorWalletController::class, 'show']);
+        Route::get('/customer/collaborator/wallet/transactions', [CollaboratorWalletController::class, 'transactions']);
     });
 
     // Driver
@@ -101,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/customers/{user}/bookings',        [AdminCustomerController::class, 'bookings']);
         Route::patch('/admin/customers/{user}/block',         [AdminCustomerController::class, 'block']);
         Route::patch('/admin/customers/{user}/unblock',       [AdminCustomerController::class, 'unblock']);
+        Route::patch('/admin/customers/{user}/collaborator',  [AdminCustomerController::class, 'toggleCollaborator']);
         Route::post('/admin/drivers/{user}/topup',            [AdminWalletController::class, 'topup']);
         Route::apiResource('/admin/price-configs', AdminPriceConfigController::class)->except(['show']);
         Route::get('/admin/zns/balance', [AdminZnsController::class, 'balance']);

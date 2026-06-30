@@ -26,6 +26,7 @@ class CustomerController extends Controller
             'name'               => $u->name,
             'phone'              => $u->phone,
             'is_blocked'         => (bool) $u->is_blocked,
+            'is_collaborator'    => (bool) $u->is_collaborator,
             'total_bookings'     => $u->bookingsAsCustomer->count(),
             'completed_bookings' => $u->bookingsAsCustomer->where('status', 'completed')->count(),
             'total_spent'        => (int) $u->bookingsAsCustomer->where('status', 'completed')->sum('price'),
@@ -95,5 +96,16 @@ class CustomerController extends Controller
         $user->update(['is_blocked' => false]);
 
         return response()->json(['message' => 'Đã bỏ chặn khách hàng.']);
+    }
+
+    public function toggleCollaborator(User $user): JsonResponse
+    {
+        if ($user->role !== 'customer') {
+            return response()->json(['message' => 'User is not a customer.'], 422);
+        }
+
+        $user->update(['is_collaborator' => ! $user->is_collaborator]);
+
+        return response()->json(['is_collaborator' => (bool) $user->is_collaborator]);
     }
 }
