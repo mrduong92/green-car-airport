@@ -91,7 +91,7 @@ class BookingController extends Controller
             'note'            => $data['note'] ?? null,
         ]);
 
-        Redis::publish('driver.new-booking', json_encode([
+        Redis::publish('driver.trips.events', json_encode([
             'type'       => 'new_booking',
             'booking_id' => $booking->id,
         ]));
@@ -156,7 +156,7 @@ class BookingController extends Controller
 
         $request->user()->notify(new CustomerCancelledNotification($booking));
 
-        Redis::publish('driver.new-booking', json_encode([
+        Redis::publish('driver.trips.events', json_encode([
             'type'       => 'booking_cancelled',
             'booking_id' => $booking->id,
             'driver_id'  => $booking->driver_id,

@@ -73,7 +73,7 @@ class TripController extends Controller
             'points'      => $feePoints,
         ]);
 
-        Redis::publish('driver.new-booking', json_encode([
+        Redis::publish('driver.trips.events', json_encode([
             'type'       => 'trip_taken',
             'booking_id' => $booking->id,
         ]));
