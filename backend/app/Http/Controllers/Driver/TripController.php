@@ -155,23 +155,6 @@ class TripController extends Controller
                 }
             });
 
-            // Credit collaborator wallet (80% of collection fee)
-            if ($booking->collection_fee > 0 && $booking->collaborator_id) {
-                $collabPoints = (int) floor($booking->collection_fee * 0.80 / 1000);
-                $collabWallet = \App\Models\Wallet::firstOrCreate(
-                    ['user_id' => $booking->collaborator_id],
-                    ['points'  => 0]
-                );
-                $collabWallet->increment('points', $collabPoints);
-                \App\Models\WalletTransaction::create([
-                    'wallet_id'   => $collabWallet->id,
-                    'booking_id'  => $booking->id,
-                    'type'        => 'credit',
-                    'description' => "Thu hộ cuốc #{$booking->id}",
-                    'points'      => $collabPoints,
-                ]);
-            }
-
             app(ReferralService::class)->processDriverReferral(
                 $request->user()->fresh(['driverProfile', 'referredBy'])
             );
