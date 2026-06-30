@@ -134,7 +134,8 @@ class BookingController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        if (! in_array($booking->status, ['pending', 'finding_driver'])) {
+        // Fix 1: thêm 'accepted' vào danh sách trạng thái được phép huỷ
+        if (! in_array($booking->status, ['finding_driver', 'accepted'])) {
             return response()->json(['message' => 'Không thể huỷ chuyến ở trạng thái này.'], 422);
         }
 
@@ -145,6 +146,23 @@ class BookingController extends Controller
         // Phạt 50,000đ nếu huỷ sau 60 phút kể từ khi tài xế nhận cuốc
         if ($booking->accepted_at && now()->diffInMinutes($booking->accepted_at, false) < -60) {
             $request->user()->increment('pending_penalty', 50_000);
+        }
+
+        // Fix 2: hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc
+        if ($booking->driver_id) {
+            $effectivePrice = $booking->price - $booking->discount;
+            $feePoints      = (int) round($effectivePrice * 0.20 / 1000);
+            $driverWallet   = \App\Models\Wallet::where('user_id', $booking->driver_id)->first();
+            if ($driverWallet && $feePoints > 0) {
+                $driverWallet->increment('points', $feePoints);
+                \App\Models\WalletTransaction::create([
+                    'wallet_id'   => $driverWallet->id,
+                    'booking_id'  => $booking->id,
+                    'type'        => 'credit',
+                    'description' => "Hoàn phí app cuốc #{$booking->id} (khách huỷ)",
+                    'points'      => $feePoints,
+                ]);
+            }
         }
 
         $booking->update([

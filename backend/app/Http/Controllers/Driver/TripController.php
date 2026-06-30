@@ -116,6 +116,22 @@ class TripController extends Controller
         if ($newStatus === 'completed') {
             $request->user()->driverProfile?->increment('trips_count');
 
+            // Deduct surcharge from driver wallet — surcharge goes to company
+            if ($booking->surcharge > 0) {
+                $surchargePoints = (int) round($booking->surcharge / 1000);
+                $driverWallet    = $request->user()->wallet()->first();
+                if ($driverWallet && $surchargePoints > 0) {
+                    $driverWallet->decrement('points', $surchargePoints);
+                    WalletTransaction::create([
+                        'wallet_id'   => $driverWallet->id,
+                        'booking_id'  => $booking->id,
+                        'type'        => 'debit',
+                        'description' => "Phí phạt huỷ khách cuốc #{$booking->id}",
+                        'points'      => $surchargePoints,
+                    ]);
+                }
+            }
+
             app(ReferralService::class)->processDriverReferral(
                 $request->user()->fresh(['driverProfile', 'referredBy'])
             );
@@ -223,7 +239,8 @@ class TripController extends Controller
             'duration_min'          => $durationMin,
             'price'                 => $b->price,
             'discount'              => $b->discount,
-            'final_price'           => $b->price - $b->discount,
+            'surcharge'             => $b->surcharge,
+            'final_price'           => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
             'app_fee'               => $appFee,
             'net_earning'           => $netEarning,
             'status'                => $statusMap[$b->status] ?? $b->status,
