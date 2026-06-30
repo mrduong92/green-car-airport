@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { logout } from '@/api/auth'
 import { getCustomerProfile, updateCustomerProfile } from '@/api/customer'
+import { getCollaboratorWallet } from '@/api/collaborator'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
@@ -25,6 +26,12 @@ export default function CustomerProfilePage() {
   const { data: profile } = useQuery({
     queryKey: ['customer-profile'],
     queryFn: () => getCustomerProfile().then((r) => r.data),
+  })
+
+  const { data: collabWallet } = useQuery({
+    queryKey: ['collaborator-wallet'],
+    queryFn: () => getCollaboratorWallet().then((r) => r.data),
+    enabled: !!user?.is_collaborator,
   })
 
   const logoutMutation = useMutation({ mutationFn: logout, onSettled: clearAuth })
@@ -137,6 +144,37 @@ export default function CustomerProfilePage() {
           </button>
         ))}
       </div>
+
+      {/* Collaborator wallet section */}
+      {user?.is_collaborator && (
+        <div className="mx-4 bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-gold text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+              account_balance_wallet
+            </span>
+            <p className="font-semibold text-navy text-[15px]">Ví Cộng Tác Viên</p>
+          </div>
+          <div className="bg-warm-white rounded-[10px] px-4 py-3">
+            <p className="text-[12px] text-neutral-gray mb-0.5">Số dư</p>
+            <p className="text-[22px] font-bold text-gold tabular-nums">
+              {(collabWallet?.points ?? 0).toLocaleString('vi')} điểm
+            </p>
+            <p className="text-[11px] text-neutral-gray mt-0.5">
+              ~ {((collabWallet?.points ?? 0) * 1000).toLocaleString('vi')}đ
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/customer/collaborator/wallet')}
+            className="flex items-center justify-between text-[13px] text-primary font-medium"
+          >
+            <span>Xem lịch sử thu hộ</span>
+            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+          </button>
+          <p className="text-[11px] text-neutral-gray">
+            * Rút tiền liên hệ kế toán. Thuế TNCN sẽ được khấu trừ khi rút.
+          </p>
+        </div>
+      )}
 
       {/* Logout */}
       <button

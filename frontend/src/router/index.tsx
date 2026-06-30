@@ -26,6 +26,7 @@ import AdminCustomersPage from '@/pages/admin/CustomersPage'
 import DriverNotificationsPage from '@/pages/driver/NotificationsPage'
 import DriverStatsPage from '@/pages/driver/StatsPage'
 import CustomerStatsPage from '@/pages/customer/StatsPage'
+import CollaboratorWalletPage from '@/pages/customer/CollaboratorWalletPage'
 import InstallPage from '@/pages/InstallPage'
 
 function RequireRole({ role }: { role: App.Role }) {
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
           { path: '/customer/stats', element: <CustomerStatsPage /> },
           { path: '/customer/notifications', element: <CustomerNotificationsPage /> },
           { path: '/customer/profile', element: <CustomerProfilePage /> },
+          { path: '/customer/collaborator/wallet', element: <CollaboratorWalletPage /> },
         ],
       },
     ],
