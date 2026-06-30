@@ -44,7 +44,17 @@ class BookingController extends Controller
             'price'           => 'required|integer|min:0',
             'voucher_code'    => 'nullable|string',
             'note'            => 'nullable|string|max:500',
+            'collection_fee'  => 'nullable|integer|min:0',
         ]);
+
+        $collectionFee  = (int) ($data['collection_fee'] ?? 0);
+        $collaboratorId = null;
+        if ($collectionFee > 0) {
+            if (! $request->user()->is_collaborator) {
+                return response()->json(['message' => 'Chỉ Cộng Tác Viên mới được dùng tính năng Thu Hộ.'], 422);
+            }
+            $collaboratorId = $request->user()->id;
+        }
 
         $discount   = 0;
         $voucherId  = null;
@@ -89,6 +99,8 @@ class BookingController extends Controller
             'status'          => 'finding_driver',
             'vehicle_type'    => $data['vehicle_type'],
             'note'            => $data['note'] ?? null,
+            'collection_fee'  => $collectionFee,
+            'collaborator_id' => $collaboratorId,
         ]);
 
         Redis::publish('driver.trips.events', json_encode([
@@ -188,6 +200,7 @@ class BookingController extends Controller
             'final_price'     => $b->price - $b->discount + $b->surcharge,
             'voucher_code'    => $b->voucher?->code,
             'note'            => $b->note,
+            'collection_fee'  => $b->collection_fee ?? 0,
             'status'          => $b->status,
             'cancel_reason'   => $b->cancel_reason,
             'vehicle_type'    => $b->vehicle_type,
