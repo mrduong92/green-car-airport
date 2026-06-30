@@ -113,4 +113,37 @@ class CustomerCancelAcceptedBookingTest extends TestCase
         $feePoints = (int) round(300_000 * 0.20 / 1000);
         $this->assertEquals($pointsBefore + $feePoints, $wallet->fresh()->points);
     }
+
+    /** Hoàn phí app khi huỷ phải bao gồm collection_fee */
+    public function test_cancel_accepted_refunds_driver_fee_including_collection_fee(): void
+    {
+        Notification::fake();
+        $customer = User::factory()->create(['role' => 'customer']);
+        $driver   = User::factory()->create(['role' => 'driver']);
+        $wallet   = Wallet::create(['user_id' => $driver->id, 'points' => 500]);
+
+        $booking = Booking::create([
+            'customer_id'    => $customer->id,
+            'driver_id'      => $driver->id,
+            'pickup'         => 'Hà Nội',
+            'destination'    => 'Nội Bài',
+            'date'           => now()->addDay()->format('Y-m-d'),
+            'time'           => '08:00',
+            'vehicle_type'   => 'sedan_4',
+            'distance_km'    => 30,
+            'status'         => 'accepted',
+            'accepted_at'    => now(),
+            'price'          => 300_000,
+            'discount'       => 0,
+            'collection_fee' => 50_000,
+            'surcharge'      => 0,
+        ]);
+
+        $this->actingAs($customer, 'sanctum')->patchJson("/api/bookings/{$booking->id}/cancel")
+            ->assertOk();
+
+        // Fee charged at accept = 20% of (300k + 50k) = 70k = 70 points
+        // Refund must also be 70 points
+        $this->assertEquals(500 + 70, $wallet->fresh()->points);
+    }
 }

@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendNewBookingBroadcastJob;
 use App\Models\Booking;
 use App\Models\Voucher;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
 use App\Notifications\BookingCreatedNotification;
 use App\Notifications\CustomerCancelledNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 
 class BookingController extends Controller
@@ -44,7 +47,17 @@ class BookingController extends Controller
             'price'           => 'required|integer|min:0',
             'voucher_code'    => 'nullable|string',
             'note'            => 'nullable|string|max:500',
+            'collection_fee'  => 'nullable|integer|min:0',
         ]);
+
+        $collectionFee  = (int) ($data['collection_fee'] ?? 0);
+        $collaboratorId = null;
+        if ($collectionFee > 0) {
+            if (! $request->user()->is_collaborator) {
+                return response()->json(['message' => 'Chỉ Cộng Tác Viên mới được dùng tính năng Thu Hộ.'], 422);
+            }
+            $collaboratorId = $request->user()->id;
+        }
 
         $discount   = 0;
         $voucherId  = null;
@@ -89,6 +102,8 @@ class BookingController extends Controller
             'status'          => 'finding_driver',
             'vehicle_type'    => $data['vehicle_type'],
             'note'            => $data['note'] ?? null,
+            'collection_fee'  => $collectionFee,
+            'collaborator_id' => $collaboratorId,
         ]);
 
         Redis::publish('driver.trips.events', json_encode([
@@ -143,34 +158,36 @@ class BookingController extends Controller
             'cancel_reason' => 'nullable|string|max:255',
         ]);
 
-        // Phạt 50,000đ nếu huỷ sau 60 phút kể từ khi tài xế nhận cuốc
-        if ($booking->accepted_at && now()->diffInMinutes($booking->accepted_at, false) < -60) {
-            $request->user()->increment('pending_penalty', 50_000);
-        }
-
-        // Fix 2: hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc
-        if ($booking->driver_id) {
-            $effectivePrice = $booking->price - $booking->discount;
-            $feePoints      = (int) round($effectivePrice * 0.20 / 1000);
-            $driverWallet   = \App\Models\Wallet::where('user_id', $booking->driver_id)->first();
-            if ($driverWallet && $feePoints > 0) {
-                $driverWallet->increment('points', $feePoints);
-                \App\Models\WalletTransaction::create([
-                    'wallet_id'   => $driverWallet->id,
-                    'booking_id'  => $booking->id,
-                    'type'        => 'credit',
-                    'description' => "Hoàn phí app cuốc #{$booking->id} (khách huỷ)",
-                    'points'      => $feePoints,
-                ]);
+        DB::transaction(function () use ($booking, $request, $data) {
+            // Phạt 50,000đ nếu huỷ sau 60 phút kể từ khi tài xế nhận cuốc
+            if ($booking->accepted_at && now()->diffInMinutes($booking->accepted_at, false) < -60) {
+                $request->user()->increment('pending_penalty', 50_000);
             }
-        }
 
-        $booking->update([
-            'status'        => 'cancelled',
-            'cancelled_at'  => now(),
-            'cancelled_by'  => 'customer',
-            'cancel_reason' => $data['cancel_reason'] ?? null,
-        ]);
+            // Fix 2: hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc
+            if ($booking->driver_id) {
+                $effectivePrice = $booking->price - $booking->discount + ($booking->collection_fee ?? 0);
+                $feePoints      = (int) round($effectivePrice * 0.20 / 1000);
+                $driverWallet   = Wallet::where('user_id', $booking->driver_id)->first();
+                if ($driverWallet && $feePoints > 0) {
+                    $driverWallet->increment('points', $feePoints);
+                    WalletTransaction::create([
+                        'wallet_id'   => $driverWallet->id,
+                        'booking_id'  => $booking->id,
+                        'type'        => 'credit',
+                        'description' => "Hoàn phí app cuốc #{$booking->id} (khách huỷ)",
+                        'points'      => $feePoints,
+                    ]);
+                }
+            }
+
+            $booking->update([
+                'status'        => 'cancelled',
+                'cancelled_at'  => now(),
+                'cancelled_by'  => 'customer',
+                'cancel_reason' => $data['cancel_reason'] ?? null,
+            ]);
+        });
 
         $request->user()->notify(new CustomerCancelledNotification($booking));
 
@@ -206,6 +223,7 @@ class BookingController extends Controller
             'final_price'     => $b->price - $b->discount + $b->surcharge,
             'voucher_code'    => $b->voucher?->code,
             'note'            => $b->note,
+            'collection_fee'  => $b->collection_fee ?? 0,
             'status'          => $b->status,
             'cancel_reason'   => $b->cancel_reason,
             'vehicle_type'    => $b->vehicle_type,
