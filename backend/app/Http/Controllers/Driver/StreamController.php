@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Driver;
 
 use App\Http\Controllers\Controller;
-use App\Models\Booking;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -27,51 +26,48 @@ class StreamController extends Controller
 
             $this->emit(['type' => 'connected', 'driver_id' => $user->id]);
 
-            $since = now();
             $maxAt = time() + 300; // 5 min, then EventSource auto-reconnects
 
+            $cfg      = config('database.redis.default');
+            $host     = $cfg['host']     ?? '127.0.0.1';
+            $port     = (int) ($cfg['port']     ?? 6379);
+            $password = $cfg['password'] ?? null;
+            $database = (int) ($cfg['database'] ?? 0);
+
             while (! connection_aborted() && time() < $maxAt) {
-                sleep(3);
+                try {
+                    // Tạo fresh \Redis() mỗi iteration — sau RedisException
+                    // connection cũ bị broken state, không thể reuse
+                    $redis = new \Redis();
+                    $redis->connect($host, $port, 2.0);
+                    if ($password !== null && $password !== 'null') {
+                        $redis->auth($password);
+                    }
+                    if ($database !== 0) {
+                        $redis->select($database);
+                    }
+                    $redis->setOption(\Redis::OPT_READ_TIMEOUT, 5);
 
-                // New bookings waiting for a driver
-                $newBookings = Booking::where('status', 'finding_driver')
-                    ->where('created_at', '>', $since)
-                    ->get(['id']);
-
-                foreach ($newBookings as $b) {
-                    $this->emit(['type' => 'new_booking', 'booking_id' => $b->id]);
-                }
-
-                // Bookings that were just cancelled
-                $cancelled = Booking::where('status', 'cancelled')
-                    ->where('cancelled_at', '>', $since)
-                    ->get(['id', 'driver_id']);
-
-                foreach ($cancelled as $b) {
-                    $this->emit([
-                        'type'       => 'booking_cancelled',
-                        'booking_id' => $b->id,
-                        'driver_id'  => $b->driver_id,
-                    ]);
-                }
-
-                // Bookings just accepted by another driver
-                $taken = Booking::where('status', 'accepted')
-                    ->where('accepted_at', '>', $since)
-                    ->where('driver_id', '!=', $user->id)
-                    ->get(['id']);
-
-                foreach ($taken as $b) {
-                    $this->emit(['type' => 'trip_taken', 'booking_id' => $b->id]);
-                }
-
-                $since = now();
-
-                // Heartbeat so nginx / browser knows the connection is alive
-                if (! connection_aborted()) {
-                    echo ": ping\n\n";
-                    if (ob_get_level() > 0) ob_flush();
-                    flush();
+                    $redis->subscribe(['driver.trips.events'], function ($r, $channel, $message) use ($maxAt) {
+                        $data = json_decode($message, true);
+                        if ($data) {
+                            $this->emit($data);
+                        }
+                        // Thoát subscription nếu hết thời gian hoặc client đã ngắt
+                        if (connection_aborted() || time() >= $maxAt) {
+                            $r->unsubscribe();
+                        }
+                    });
+                } catch (\RedisException) {
+                    // OPT_READ_TIMEOUT hit (5s không có message) → gửi heartbeat, rồi subscribe lại
+                    if (! connection_aborted()) {
+                        echo ": ping\n\n";
+                        if (ob_get_level() > 0) ob_flush();
+                        flush();
+                    }
+                } catch (\Throwable) {
+                    // Redis unavailable hoàn toàn → thoát, EventSource tự reconnect sau 3s
+                    break;
                 }
             }
         }, 200, [
