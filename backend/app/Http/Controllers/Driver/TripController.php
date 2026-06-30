@@ -223,6 +223,7 @@ class TripController extends Controller
             'status'                => $statusMap[$b->status] ?? $b->status,
             'is_new'                => $b->created_at?->gt(now()->subMinutes(30)) ?? false,
             'customer_name'         => $b->customer?->name,
+            'customer_phone'        => $phone,
             'customer_phone_masked' => $phone ? substr($phone, 0, -3) . '***' : '',
             'customer_note'         => $b->note,
             'created_at'            => $b->created_at?->toISOString(),

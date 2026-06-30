@@ -86,6 +86,7 @@ declare namespace App {
     status: TripStatus
     customer_note?: string | null
     is_new: boolean
+    customer_phone: string
     customer_phone_masked: string
     distance_to_driver?: number | null
   }

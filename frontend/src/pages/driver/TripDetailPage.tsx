@@ -126,7 +126,7 @@ export default function TripDetailPage() {
       <div className="bg-white rounded-card shadow-card p-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center text-primary font-bold shrink-0">K</div>
         <span className="flex-1 text-sm text-navy">{trip.customer_phone_masked}</span>
-        <a href={`tel:${trip.customer_phone_masked}`}
+        <a href={`tel:${trip.customer_phone}`}
           className="w-10 h-10 rounded-full bg-primary-tint flex items-center justify-center">
           <span className="material-symbols-outlined text-primary text-xl">call</span>
         </a>
