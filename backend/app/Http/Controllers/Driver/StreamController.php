@@ -33,6 +33,7 @@ class StreamController extends Controller
             $port     = (int) ($cfg['port']     ?? 6379);
             $password = $cfg['password'] ?? null;
             $database = (int) ($cfg['database'] ?? 0);
+            $prefix   = config('database.redis.options.prefix', '');
 
             while (! connection_aborted() && time() < $maxAt) {
                 // Phase 1: connect — failure exits the stream entirely
@@ -54,7 +55,7 @@ class StreamController extends Controller
                 try {
                     $redis->setOption(\Redis::OPT_READ_TIMEOUT, 5);
 
-                    $redis->subscribe(['driver.trips.events'], function ($r, $channel, $message) use ($maxAt) {
+                    $redis->subscribe([$prefix . 'driver.trips.events'], function ($r, $channel, $message) use ($maxAt) {
                         $data = json_decode($message, true);
                         if ($data) {
                             $this->emit($data);
