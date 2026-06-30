@@ -35,9 +35,8 @@ class StreamController extends Controller
             $database = (int) ($cfg['database'] ?? 0);
 
             while (! connection_aborted() && time() < $maxAt) {
+                // Phase 1: connect — failure exits the stream entirely
                 try {
-                    // Tạo fresh \Redis() mỗi iteration — sau RedisException
-                    // connection cũ bị broken state, không thể reuse
                     $redis = new \Redis();
                     $redis->connect($host, $port, 2.0);
                     if ($password !== null && $password !== 'null') {
@@ -46,6 +45,13 @@ class StreamController extends Controller
                     if ($database !== 0) {
                         $redis->select($database);
                     }
+                } catch (\RedisException) {
+                    // Redis unavailable — bail out, EventSource will reconnect in 3s
+                    break;
+                }
+
+                // Phase 2: subscribe — read-timeout = heartbeat, then resubscribe
+                try {
                     $redis->setOption(\Redis::OPT_READ_TIMEOUT, 5);
 
                     $redis->subscribe(['driver.trips.events'], function ($r, $channel, $message) use ($maxAt) {
@@ -53,20 +59,22 @@ class StreamController extends Controller
                         if ($data) {
                             $this->emit($data);
                         }
-                        // Thoát subscription nếu hết thời gian hoặc client đã ngắt
                         if (connection_aborted() || time() >= $maxAt) {
                             $r->unsubscribe();
                         }
                     });
+
+                    $redis->close(); // clean exit — connection closed before next iteration
                 } catch (\RedisException) {
-                    // OPT_READ_TIMEOUT hit (5s không có message) → gửi heartbeat, rồi subscribe lại
+                    // OPT_READ_TIMEOUT (5s no message) → heartbeat, then subscribe again
+                    $redis->close();
                     if (! connection_aborted()) {
                         echo ": ping\n\n";
                         if (ob_get_level() > 0) ob_flush();
                         flush();
                     }
                 } catch (\Throwable) {
-                    // Redis unavailable hoàn toàn → thoát, EventSource tự reconnect sau 3s
+                    $redis->close();
                     break;
                 }
             }
