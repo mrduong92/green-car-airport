@@ -14,6 +14,7 @@ use App\Notifications\TripStartedNotification;
 use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 
 class TripController extends Controller
@@ -114,7 +115,45 @@ class TripController extends Controller
         }
 
         if ($newStatus === 'completed') {
-            $request->user()->driverProfile?->increment('trips_count');
+            DB::transaction(function () use ($booking, $request) {
+                $request->user()->driverProfile?->increment('trips_count');
+
+                // Cash-flow: driver collects (price + surcharge) in cash from customer.
+                // Company reclaims the surcharge by debiting the driver's wallet at completion.
+                // Net: driver keeps (price - discount) * 80%; company gets fee + surcharge.
+                // Deduct surcharge from driver wallet — surcharge goes to company
+                if ($booking->surcharge > 0) {
+                    $surchargePoints = (int) round($booking->surcharge / 1000);
+                    $driverWallet    = $request->user()->wallet()->first();
+                    if ($driverWallet && $surchargePoints > 0) {
+                        $driverWallet->decrement('points', $surchargePoints);
+                        WalletTransaction::create([
+                            'wallet_id'   => $driverWallet->id,
+                            'booking_id'  => $booking->id,
+                            'type'        => 'debit',
+                            'description' => "Phí phạt huỷ khách cuốc #{$booking->id}",
+                            'points'      => $surchargePoints,
+                        ]);
+                    }
+                }
+
+                // Credit collaborator wallet (80% of collection fee)
+                if ($booking->collection_fee > 0 && $booking->collaborator_id) {
+                    $collabPoints = (int) floor($booking->collection_fee * 0.80 / 1000);
+                    $collabWallet = \App\Models\Wallet::firstOrCreate(
+                        ['user_id' => $booking->collaborator_id],
+                        ['points'  => 0]
+                    );
+                    $collabWallet->increment('points', $collabPoints);
+                    \App\Models\WalletTransaction::create([
+                        'wallet_id'   => $collabWallet->id,
+                        'booking_id'  => $booking->id,
+                        'type'        => 'credit',
+                        'description' => "Thu hộ cuốc #{$booking->id}",
+                        'points'      => $collabPoints,
+                    ]);
+                }
+            });
 
             // Credit collaborator wallet (80% of collection fee)
             if ($booking->collection_fee > 0 && $booking->collaborator_id) {
@@ -240,7 +279,8 @@ class TripController extends Controller
             'duration_min'          => $durationMin,
             'price'                 => $b->price,
             'discount'              => $b->discount,
-            'final_price'           => $totalCollected,
+            'surcharge'             => $b->surcharge,
+            'final_price'           => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
             'app_fee'               => $appFee,
             'net_earning'           => $netEarning,
             'status'                => $statusMap[$b->status] ?? $b->status,

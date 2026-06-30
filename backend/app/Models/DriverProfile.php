@@ -6,7 +6,7 @@ class DriverProfile extends Model
 {
     protected $fillable = [
         'user_id','payment_code','vehicle_make','vehicle_model','vehicle_plate',
-        'vehicle_year','vehicle_color','status','blocked_reason','is_verified','is_online',
+        'vehicle_year','vehicle_color','vehicle_type','status','blocked_reason','is_verified','is_online',
         'latitude','longitude','rating','trips_count','months_active',
     ];
     protected $casts = ['is_verified' => 'boolean', 'is_online' => 'boolean'];

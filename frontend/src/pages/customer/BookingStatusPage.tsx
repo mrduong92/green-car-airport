@@ -63,7 +63,7 @@ export default function BookingStatusPage() {
   const minutesSinceAccepted = booking?.accepted_at
     ? dayjs().diff(dayjs(booking.accepted_at), 'minute')
     : 0
-  const canCancel = booking && ['pending', 'finding_driver'].includes(booking.status)
+  const canCancel = booking && ['finding_driver', 'accepted'].includes(booking.status)
   const isFreeCancel = !booking?.accepted_at || minutesSinceAccepted < 60
   const minutesLeft = booking?.accepted_at ? Math.max(0, 60 - minutesSinceAccepted) : 60
 
