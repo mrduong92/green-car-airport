@@ -401,7 +401,7 @@ export default function BookingStatusPage() {
           </button>
         </div>
       )}
-      {booking.status === 'completed' && (
+      {(booking.status === 'completed' || booking.status === 'cancelled') && (
         <Button fullWidth variant="outline" onClick={() => navigate('/customer/booking')}>
           Đặt xe mới
         </Button>
