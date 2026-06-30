@@ -60,9 +60,9 @@ class TripController extends Controller
         ]);
 
         // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
-        // Tính trên giá sau khi đã trừ voucher
-        $effectivePrice = $booking->price - $booking->discount;
-        $feePoints = (int) round($effectivePrice * 0.20 / 1000);
+        // Tính trên tổng thu (giá sau voucher + phí thu hộ)
+        $totalCollected = $booking->price - $booking->discount + $booking->collection_fee;
+        $feePoints      = (int) round($totalCollected * 0.20 / 1000);
         $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
         $wallet->decrement('points', $feePoints);
         WalletTransaction::create([
@@ -115,6 +115,23 @@ class TripController extends Controller
 
         if ($newStatus === 'completed') {
             $request->user()->driverProfile?->increment('trips_count');
+
+            // Credit collaborator wallet (80% of collection fee)
+            if ($booking->collection_fee > 0 && $booking->collaborator_id) {
+                $collabPoints = (int) floor($booking->collection_fee * 0.80 / 1000);
+                $collabWallet = \App\Models\Wallet::firstOrCreate(
+                    ['user_id' => $booking->collaborator_id],
+                    ['points'  => 0]
+                );
+                $collabWallet->increment('points', $collabPoints);
+                \App\Models\WalletTransaction::create([
+                    'wallet_id'   => $collabWallet->id,
+                    'booking_id'  => $booking->id,
+                    'type'        => 'credit',
+                    'description' => "Thu hộ cuốc #{$booking->id}",
+                    'points'      => $collabPoints,
+                ]);
+            }
 
             app(ReferralService::class)->processDriverReferral(
                 $request->user()->fresh(['driverProfile', 'referredBy'])
@@ -184,9 +201,9 @@ class TripController extends Controller
 
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
-        $effectivePrice = $b->price - $b->discount;
-        $appFee         = (int) round($effectivePrice * 0.20);
-        $netEarning     = $effectivePrice - $appFee;
+        $totalCollected = $b->price - $b->discount + ($b->collection_fee ?? 0);
+        $appFee         = (int) round($totalCollected * 0.20);
+        $netEarning     = $totalCollected - $appFee - ($b->collection_fee ?? 0);
         $phone       = $b->customer?->phone ?? '';
         $durationMin = (int) round((float) $b->distance_km / 30 * 60);
 
@@ -223,7 +240,7 @@ class TripController extends Controller
             'duration_min'          => $durationMin,
             'price'                 => $b->price,
             'discount'              => $b->discount,
-            'final_price'           => $b->price - $b->discount,
+            'final_price'           => $totalCollected,
             'app_fee'               => $appFee,
             'net_earning'           => $netEarning,
             'status'                => $statusMap[$b->status] ?? $b->status,
