@@ -24,6 +24,20 @@ export const registerApi = (
     ...(referralCode ? { referral_code: referralCode } : {}),
   })
 
+export const driverRegisterApi = (data: {
+  phone: string
+  otp: string
+  password: string
+  name: string
+  vehicle_make: string
+  vehicle_model: string
+  vehicle_plate: string
+  vehicle_year: number
+  vehicle_color: string
+  vehicle_type: 'sedan_4' | 'suv_5' | 'mpv_7'
+}) =>
+  api.post<{ token: string; user: App.User }>('/auth/register/driver', data)
+
 export const resetPasswordApi = (phone: string, otp: string, password: string) =>
   api.post<{ token: string; user: App.User }>('/auth/reset-password', { phone, otp, password })
 

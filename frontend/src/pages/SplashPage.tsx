@@ -70,6 +70,16 @@ export default function SplashPage() {
         </button>
       </div>
 
+      {/* Driver registration link */}
+      <p className="text-center text-[13px]">
+        <button
+          onClick={() => navigate('/register/driver')}
+          className="text-white/70 underline underline-offset-2"
+        >
+          Đăng ký làm tài xế
+        </button>
+      </p>
+
       {/* Tagline */}
       <p className="text-white/60 text-[13px] text-center">
         Nhanh · Minh bạch · Tiện lợi
