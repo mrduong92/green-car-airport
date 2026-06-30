@@ -8,6 +8,7 @@ declare namespace App {
     role: Role
     needs_onboarding?: boolean
     pending_penalty?: number
+    is_collaborator?: boolean
     referral_code?: string
   }
 
@@ -45,6 +46,7 @@ declare namespace App {
     }
     created_at: string
     accepted_at?: string | null
+    collection_fee?: number
   }
 
   type VehicleType = 'sedan_4' | 'suv_5' | 'mpv_7'
@@ -63,6 +65,7 @@ declare namespace App {
     vehicle_type: VehicleType
     voucher_code?: string
     note?: string
+    collection_fee?: number
   }
 
   interface Trip {
@@ -255,6 +258,7 @@ declare namespace App {
     name: string
     phone: string
     is_blocked: boolean
+    is_collaborator: boolean
     total_bookings: number
     completed_bookings: number
     total_spent: number

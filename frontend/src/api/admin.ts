@@ -48,3 +48,6 @@ export const blockCustomer = (id: number) =>
 
 export const unblockCustomer = (id: number) =>
   api.patch(`/admin/customers/${id}/unblock`)
+
+export const toggleCollaborator = (id: number) =>
+  api.patch<{ is_collaborator: boolean }>(`/admin/customers/${id}/collaborator`)
