@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Driver;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -20,41 +21,19 @@ class StreamController extends Controller
         }
 
         return response()->stream(function () use ($user) {
+            // Keep-alive: disable PHP execution timeout and output buffering
+            set_time_limit(0);
+            ignore_user_abort(true);
+            @ini_set('zlib.output_compression', 0);
+
             $this->emit(['type' => 'connected', 'driver_id' => $user->id]);
 
-            $redisCfg  = config('database.redis.default', []);
-            $host      = $redisCfg['host']     ?? '127.0.0.1';
-            $port      = (int) ($redisCfg['port']     ?? 6379);
-            $password  = $redisCfg['password'] ?? null;
-            $database  = (int) ($redisCfg['database'] ?? 0);
-            $maxAt     = time() + 300; // 5 min max, then EventSource auto-reconnects
+            $maxAt = time() + 300; // 5 min, then EventSource auto-reconnects
 
-            while (! connection_aborted() && time() < $maxAt) {
-                $redis = new \Redis();
-                $redis->connect($host, $port);
-                if ($password) {
-                    $redis->auth($password);
-                }
-                if ($database !== 0) {
-                    $redis->select($database);
-                }
-                $redis->setOption(\Redis::OPT_READ_TIMEOUT, 25);
-
-                try {
-                    $redis->subscribe(['driver.new-booking'], function ($redis, $channel, $message) {
-                        $this->emit(json_decode($message, true) ?? []);
-                        return false; // unsubscribe after each message → re-enter loop
-                    });
-                } catch (\RedisException) {
-                    // read_timeout hit — send heartbeat comment and re-subscribe
-                    if (! connection_aborted()) {
-                        echo ": ping\n\n";
-                        if (ob_get_level() > 0) ob_flush();
-                        flush();
-                    }
-                } finally {
-                    try { $redis->close(); } catch (\Throwable) {}
-                }
+            if (class_exists(\Redis::class)) {
+                $this->streamViaRedis($maxAt);
+            } else {
+                $this->streamViaDb($maxAt);
             }
         }, 200, [
             'Content-Type'      => 'text/event-stream',
@@ -62,6 +41,88 @@ class StreamController extends Controller
             'X-Accel-Buffering' => 'no',
             'Connection'        => 'keep-alive',
         ]);
+    }
+
+    private function streamViaRedis(int $maxAt): void
+    {
+        $cfg      = config('database.redis.default', []);
+        $host     = $cfg['host']     ?? '127.0.0.1';
+        $port     = (int) ($cfg['port']     ?? 6379);
+        $password = $cfg['password'] ?? null;
+        $database = (int) ($cfg['database'] ?? 0);
+
+        while (! connection_aborted() && time() < $maxAt) {
+            $redis = null;
+            try {
+                $redis = new \Redis();
+                $redis->connect($host, $port, 2.0); // 2s connect timeout
+                if (! empty($password)) {
+                    $redis->auth($password);
+                }
+                if ($database !== 0) {
+                    $redis->select($database);
+                }
+                $redis->setOption(\Redis::OPT_READ_TIMEOUT, 25);
+
+                $redis->subscribe(['driver.new-booking'], function ($r, $channel, $message) {
+                    $this->emit(json_decode($message, true) ?? []);
+                    return false; // unsubscribe after each message, re-enter loop
+                });
+            } catch (\Throwable $e) {
+                // Covers: \RedisException (timeout / auth fail), \Error (class not found)
+                error_log('[SSE] Redis error: ' . $e->getMessage());
+                if (! connection_aborted()) {
+                    echo ": ping\n\n";
+                    if (ob_get_level() > 0) ob_flush();
+                    flush();
+                }
+            } finally {
+                if ($redis !== null) {
+                    try { $redis->close(); } catch (\Throwable) {}
+                }
+            }
+        }
+    }
+
+    /**
+     * Fallback when phpredis extension is unavailable.
+     * Polls the database every 3 s — reliable but slightly higher latency.
+     */
+    private function streamViaDb(int $maxAt): void
+    {
+        $since = now();
+
+        while (! connection_aborted() && time() < $maxAt) {
+            sleep(3);
+
+            $newBookings = Booking::where('status', 'finding_driver')
+                ->where('created_at', '>', $since)
+                ->get(['id']);
+
+            foreach ($newBookings as $b) {
+                $this->emit(['type' => 'new_booking', 'booking_id' => $b->id]);
+            }
+
+            $cancelled = Booking::where('status', 'cancelled')
+                ->where('cancelled_at', '>', $since)
+                ->get(['id', 'driver_id']);
+
+            foreach ($cancelled as $b) {
+                $this->emit([
+                    'type'       => 'booking_cancelled',
+                    'booking_id' => $b->id,
+                    'driver_id'  => $b->driver_id,
+                ]);
+            }
+
+            $since = now();
+
+            if (! connection_aborted()) {
+                echo ": ping\n\n";
+                if (ob_get_level() > 0) ob_flush();
+                flush();
+            }
+        }
     }
 
     private function emit(array $data): void
