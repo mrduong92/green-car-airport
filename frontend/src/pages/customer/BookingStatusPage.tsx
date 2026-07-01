@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getBooking, cancelBooking } from '@/api/bookings'
 import { useMutation } from '@tanstack/react-query'
 import { useUiStore } from '@/stores/ui'
+import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
@@ -41,6 +42,7 @@ export default function BookingStatusPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const showToast = useUiStore((s) => s.showToast)
+  const isCollaborator = useAuthStore((s) => s.user?.is_collaborator ?? false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const { data, refetch } = useQuery({
@@ -227,6 +229,14 @@ export default function BookingStatusPage() {
             >
               Huỷ chuyến
             </button>
+          </div>
+        )}
+
+        {isCollaborator && (
+          <div className="mx-4 pb-2">
+            <Button fullWidth variant="outline" onClick={() => navigate('/customer/booking')}>
+              + Đặt xe mới
+            </Button>
           </div>
         )}
 
@@ -487,9 +497,9 @@ export default function BookingStatusPage() {
           </button>
         </div>
       )}
-      {(booking.status === 'completed' || booking.status === 'cancelled') && (
+      {(booking.status === 'completed' || booking.status === 'cancelled' || isCollaborator) && (
         <Button fullWidth variant="outline" onClick={() => navigate('/customer/booking')}>
-          Đặt xe mới
+          {booking.status === 'completed' || booking.status === 'cancelled' ? 'Đặt xe mới' : '+ Đặt xe mới'}
         </Button>
       )}
 

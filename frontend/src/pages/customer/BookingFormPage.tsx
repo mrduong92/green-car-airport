@@ -123,7 +123,7 @@ export default function BookingFormPage() {
   const destination  = watch('destination') ?? ''
   const selectedDate = watch('date')
   const selectedTime = watch('time')
-  const collectionFee = Number(watch('collection_fee') ?? 0)
+  const collectionFee = Number(watch('collection_fee') || 0)
   const detectedService  = detectServiceType(pickup, destination)
   const total = Math.max(0, price - discount) + collectionFee
 
