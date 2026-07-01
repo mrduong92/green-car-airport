@@ -251,10 +251,10 @@ export default function BookingFormPage() {
   })
 
   useEffect(() => {
-    if (activeBooking?.id) {
+    if (activeBooking?.id && !user?.is_collaborator) {
       navigate(`/customer/booking/${activeBooking.id}`, { replace: true })
     }
-  }, [activeBooking, navigate])
+  }, [activeBooking, navigate, user?.is_collaborator])
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
