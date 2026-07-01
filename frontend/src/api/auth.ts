@@ -35,6 +35,13 @@ export const driverRegisterApi = (data: {
   vehicle_year: number
   vehicle_color: string
   vehicle_type: 'sedan_4' | 'suv_5' | 'mpv_7'
+  cccd_number: string
+  gplx_number: string
+  vehicle_reg_number: string
+  vehicle_inspection_number: string
+  vehicle_inspection_expiry: string
+  insurance_number: string
+  insurance_expiry: string
 }) =>
   api.post<{ token: string; user: App.User }>('/auth/register/driver', data)
 
