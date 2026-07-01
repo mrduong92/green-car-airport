@@ -44,7 +44,7 @@ export default function AdminCustomersPage() {
 
   const openEdit = (c: App.AdminCustomer) => {
     setEditTarget(c)
-    setEditName(c.name)
+    setEditName(c.name ?? '')
   }
 
   const editMutation = useMutation({
