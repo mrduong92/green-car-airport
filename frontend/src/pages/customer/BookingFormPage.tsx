@@ -132,6 +132,8 @@ export default function BookingFormPage() {
     const slotMins = Math.ceil((dayjs().hour() * 60 + dayjs().minute() + 30) / 30) * 30
     return `${Math.floor(slotMins / 60).toString().padStart(2, '0')}:${(slotMins % 60).toString().padStart(2, '0')}`
   })()
+  const hasValidSlotsToday  = TIME_ROWS.flat().some((t) => t >= minTimeForToday)
+  const availableDateChips  = hasValidSlotsToday ? DATE_CHIPS : DATE_CHIPS.slice(1)
   const isTimeDisabled = (val: string) => selectedDate === DATE_CHIPS[0].value && val < minTimeForToday
 
   // Bảng giá từ API
@@ -190,6 +192,15 @@ export default function BookingFormPage() {
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupLatLng, destLatLng, setValue, showToast, priceConfigs])
+
+  // Khi hết giờ hôm nay, tự động chuyển sang ngày mai
+  useEffect(() => {
+    if (!hasValidSlotsToday && selectedDate === DATE_CHIPS[0].value) {
+      setValue('date', DATE_CHIPS[1].value, { shouldValidate: true })
+      setValue('time', '08:00', { shouldValidate: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasValidSlotsToday])
 
   // Khi chuyển sang hôm nay, tự động nhảy sang slot giờ hợp lệ gần nhất
   useEffect(() => {
@@ -349,7 +360,7 @@ export default function BookingFormPage() {
         <SectionLabel>Ngày khởi hành</SectionLabel>
         <div className="overflow-x-auto -mx-4 px-4 pb-0.5">
           <div className="flex gap-2" style={{ width: 'max-content' }}>
-            {DATE_CHIPS.map((chip) => {
+            {availableDateChips.map((chip) => {
               const active = selectedDate === chip.value
               return (
                 <button
