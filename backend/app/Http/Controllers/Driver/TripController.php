@@ -79,6 +79,11 @@ class TripController extends Controller
             'booking_id' => $booking->id,
         ]));
 
+        Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
+            'type'       => 'booking_accepted',
+            'booking_id' => $booking->id,
+        ]));
+
         // K2 — notify customer that a driver accepted
         $booking->customer?->notify(new BookingAcceptedNotification($booking, $request->user()));
         // T2 — confirm acceptance to the driver
@@ -110,6 +115,10 @@ class TripController extends Controller
         $booking->update(['status' => $newStatus]);
 
         if ($newStatus === 'in_progress') {
+            Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
+                'type'       => 'trip_started',
+                'booking_id' => $booking->id,
+            ]));
             // K3 — notify customer trip has started
             $booking->customer?->notify(new TripStartedNotification($booking));
         }
@@ -175,6 +184,11 @@ class TripController extends Controller
                 $request->user()->fresh(['driverProfile', 'referredBy'])
             );
 
+            Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
+                'type'       => 'trip_completed',
+                'booking_id' => $booking->id,
+            ]));
+
             // K4 — notify customer trip completed
             $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
             // T4 — notify driver of earnings
@@ -206,6 +220,11 @@ class TripController extends Controller
             'status'      => 'finding_driver',
             'accepted_at' => null,
         ]);
+
+        Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
+            'type'       => 'booking_cancelled_by_driver',
+            'booking_id' => $booking->id,
+        ]));
 
         // K5 — notify customer that driver cancelled, searching for new driver
         $booking->customer?->notify(new DriverCancelledNotification($booking));

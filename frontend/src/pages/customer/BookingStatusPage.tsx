@@ -48,7 +48,6 @@ export default function BookingStatusPage() {
   const { data, refetch } = useQuery({
     queryKey: ['booking', id],
     queryFn: () => getBooking(Number(id)).then((r) => r.data),
-    refetchInterval: 5_000,
   })
 
   const [reasonOpen, setReasonOpen] = useState(false)

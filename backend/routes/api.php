@@ -11,6 +11,7 @@ use App\Http\Controllers\Driver\WalletController;
 use App\Http\Controllers\Driver\ProfileController;
 use App\Http\Controllers\Driver\StatusController;
 use App\Http\Controllers\Driver\StreamController;
+use App\Http\Controllers\Customer\StreamController as CustomerStreamController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
@@ -27,7 +28,8 @@ use App\Http\Controllers\Webhooks\SepayWebhookController;
 use App\Http\Controllers\ZnsDlrController;
 
 // ── SSE (manual token auth inside controller) ─────────────────────────────────
-Route::get('/driver/stream', [StreamController::class, 'trips']);
+Route::get('/driver/stream',   [StreamController::class,         'trips']);
+Route::get('/customer/stream', [CustomerStreamController::class, 'bookings']);
 
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send',      [OtpController::class,  'send']);

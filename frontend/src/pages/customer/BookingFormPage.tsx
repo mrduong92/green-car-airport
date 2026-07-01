@@ -247,7 +247,6 @@ export default function BookingFormPage() {
   const { data: activeBooking } = useQuery({
     queryKey: ['active-booking'],
     queryFn: () => getActiveBooking().then((r) => (r.data && 'id' in r.data ? r.data : null)),
-    refetchInterval: 15_000,
   })
 
   useEffect(() => {
