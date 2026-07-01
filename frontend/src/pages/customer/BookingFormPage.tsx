@@ -161,8 +161,7 @@ export default function BookingFormPage() {
       )
       if (cfg) {
         const minP = cfg.price_type === 'per_km' ? Math.round(km * cfg.min_price / 1000) * 1000 : cfg.min_price
-        const maxP = cfg.price_type === 'per_km' ? Math.round(km * cfg.max_price / 1000) * 1000 : cfg.max_price
-        setValue('price', Math.round((minP + maxP) / 2 / 1000) * 1000, { shouldValidate: true })
+        setValue('price', minP, { shouldValidate: true })
       }
       showToast(`${label}: ~${km.toFixed(1)} km`, 'success')
     }
@@ -192,8 +191,7 @@ export default function BookingFormPage() {
       const cfg = priceConfigs.find((c) => c.trip_type === 'one_way' && c.vehicle_type === v && c.is_active)
       if (cfg) {
         const minP = cfg.price_type === 'per_km' ? Math.round(distance * cfg.min_price / 1000) * 1000 : cfg.min_price
-        const maxP = cfg.price_type === 'per_km' ? Math.round(distance * cfg.max_price / 1000) * 1000 : cfg.max_price
-        setValue('price', Math.round((minP + maxP) / 2 / 1000) * 1000, { shouldValidate: true })
+        setValue('price', minP, { shouldValidate: true })
       }
     }
   }
