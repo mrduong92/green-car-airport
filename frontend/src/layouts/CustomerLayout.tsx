@@ -1,7 +1,10 @@
+import { useEffect } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import ToastContainer from '@/components/common/Toast'
 import AppHeader from '@/components/common/AppHeader'
 import { useNotifications } from '@/hooks/useNotifications'
+import { useAuthStore } from '@/stores/auth'
+import { getMe } from '@/api/auth'
 import clsx from 'clsx'
 
 const TABS = [
@@ -14,6 +17,13 @@ const TABS = [
 
 export default function CustomerLayout() {
   const { unreadCount } = useNotifications()
+  const token = useAuthStore((s) => s.token)
+  const setAuth = useAuthStore((s) => s.setAuth)
+
+  useEffect(() => {
+    if (!token) return
+    getMe().then((r) => setAuth(r.data, token)).catch(() => {})
+  }, [])
 
   return (
     <div className="flex flex-col min-h-svh w-full bg-warm-white">

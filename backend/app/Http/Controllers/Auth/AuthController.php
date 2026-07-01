@@ -235,8 +235,11 @@ class AuthController extends Controller
             'referral_code' => $user->referral_code,
         ];
 
-        if ($user->role === 'customer' && $user->pending_penalty > 0) {
-            $payload['pending_penalty'] = (int) $user->pending_penalty;
+        if ($user->role === 'customer') {
+            $payload['is_collaborator'] = (bool) $user->is_collaborator;
+            if ($user->pending_penalty > 0) {
+                $payload['pending_penalty'] = (int) $user->pending_penalty;
+            }
         }
 
         if ($user->role === 'driver') {
