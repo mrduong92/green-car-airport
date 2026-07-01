@@ -206,6 +206,85 @@ export default function BookingStatusPage() {
             </div>
           </div>
         )}
+
+        {/* Cancel section */}
+        {canCancel && (
+          <div className="mx-4 flex flex-col items-center gap-2 pb-2">
+            {isFreeCancel ? (
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-success-green bg-light-green px-3 py-1 rounded-pill">
+                <span className="material-symbols-outlined text-[14px]">timer</span>
+                {booking.accepted_at ? `Huỷ miễn phí · còn ${minutesLeft} phút` : 'Huỷ miễn phí'}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-danger-red bg-red-50 px-3 py-1 rounded-pill">
+                <span className="material-symbols-outlined text-[14px]">warning</span>
+                Huỷ sẽ bị phạt 50,000đ
+              </span>
+            )}
+            <button
+              onClick={() => setReasonOpen(true)}
+              className="text-danger-red text-sm text-center underline"
+            >
+              Huỷ chuyến
+            </button>
+          </div>
+        )}
+
+        {/* Reason selector modal */}
+        {reasonOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setReasonOpen(false)}>
+            <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+              <p className="text-[15px] font-semibold text-navy mb-4">Lý do huỷ chuyến</p>
+              <div className="flex flex-col gap-2">
+                {['Tài xế yêu cầu hủy', 'Đổi lộ trình', 'Đổi xe khác', 'Lý do khác'].map((reason) => (
+                  <button
+                    key={reason}
+                    onClick={() => setSelectedReason(reason)}
+                    className={`w-full text-left px-4 py-3 rounded-input border text-sm transition-colors ${
+                      selectedReason === reason
+                        ? 'border-primary bg-light-green text-primary font-medium'
+                        : 'border-border-gray text-navy'
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => { setReasonOpen(false); setSelectedReason('') }}
+                  className="flex-1 py-3 rounded-input border border-border-gray text-sm text-neutral-gray"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={() => { setReasonOpen(false); setConfirmOpen(true) }}
+                  disabled={!selectedReason}
+                  className="flex-1 py-3 rounded-input bg-danger-red text-white text-sm font-semibold disabled:opacity-40"
+                >
+                  Tiếp tục
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ConfirmDialog
+          open={confirmOpen}
+          title={isFreeCancel ? 'Xác nhận huỷ chuyến?' : 'Huỷ chuyến · Phạt 50,000đ'}
+          description={[
+            isFreeCancel
+              ? 'Chuyến sẽ bị huỷ và tài xế sẽ không được phân công.'
+              : 'Bạn đã quá 1 giờ kể từ khi tài xế nhận cuốc. Phí phạt 50,000đ sẽ được cộng vào cuốc xe tiếp theo.',
+            booking.voucher_code
+              ? `Voucher ${booking.voucher_code} đã dùng sẽ không được hoàn lại.`
+              : '',
+          ].filter(Boolean).join(' ')}
+          confirmLabel="Xác nhận huỷ"
+          loading={cancelMutation.isPending}
+          onConfirm={() => cancelMutation.mutate()}
+          onCancel={() => setConfirmOpen(false)}
+        />
       </div>
     )
   }
