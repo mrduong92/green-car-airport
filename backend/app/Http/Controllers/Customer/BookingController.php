@@ -40,7 +40,7 @@ class BookingController extends Controller
             'destination'     => 'required|string',
             'destination_lat' => 'nullable|numeric|between:-90,90',
             'destination_lng' => 'nullable|numeric|between:-180,180',
-            'date'            => 'required|date_format:Y-m-d',
+            'date'            => 'required|date_format:Y-m-d|after_or_equal:today',
             'time'            => 'required|date_format:H:i',
             'vehicle_type'    => 'required|in:sedan_4,suv_5,mpv_7',
             'distance_km'     => 'required|numeric|min:0',
@@ -49,6 +49,14 @@ class BookingController extends Controller
             'note'            => 'nullable|string|max:500',
             'collection_fee'  => 'nullable|integer|min:0',
         ]);
+
+        // Giờ đặt xe hôm nay phải cách ít nhất 30 phút so với hiện tại
+        if ($data['date'] === now()->toDateString()) {
+            $bookingTime = \Carbon\Carbon::createFromFormat('H:i', $data['time']);
+            if ($bookingTime->lte(now()->addMinutes(30))) {
+                return response()->json(['message' => 'Giờ đón phải cách ít nhất 30 phút so với thời điểm đặt xe.'], 422);
+            }
+        }
 
         $collectionFee  = (int) ($data['collection_fee'] ?? 0);
         $collaboratorId = null;

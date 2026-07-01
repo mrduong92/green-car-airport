@@ -127,6 +127,13 @@ export default function BookingFormPage() {
   const detectedService  = detectServiceType(pickup, destination)
   const total = Math.max(0, price - discount) + collectionFee
 
+  // Giờ đặt xe hôm nay phải cách ít nhất 30 phút so với hiện tại
+  const minTimeForToday = (() => {
+    const slotMins = Math.ceil((dayjs().hour() * 60 + dayjs().minute() + 30) / 30) * 30
+    return `${Math.floor(slotMins / 60).toString().padStart(2, '0')}:${(slotMins % 60).toString().padStart(2, '0')}`
+  })()
+  const isTimeDisabled = (val: string) => selectedDate === DATE_CHIPS[0].value && val < minTimeForToday
+
   // Bảng giá từ API
   const { data: priceConfigs = [] } = useQuery({
     queryKey: ['price-configs'],
@@ -183,6 +190,16 @@ export default function BookingFormPage() {
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupLatLng, destLatLng, setValue, showToast, priceConfigs])
+
+  // Khi chuyển sang hôm nay, tự động nhảy sang slot giờ hợp lệ gần nhất
+  useEffect(() => {
+    if (selectedDate !== DATE_CHIPS[0].value) return
+    if (!selectedTime || selectedTime < minTimeForToday) {
+      const firstValid = TIME_ROWS.flat().find((t) => t >= minTimeForToday)
+      if (firstValid) setValue('time', firstValid, { shouldValidate: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate])
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleVehicleChange = (v: VehicleType) => {
@@ -360,17 +377,21 @@ export default function BookingFormPage() {
             <div key={ri} className="overflow-x-auto -mx-4 px-4">
               <div className="flex gap-1.5" style={{ width: 'max-content' }}>
                 {row.map((val) => {
-                  const active = selectedTime === val
+                  const active   = selectedTime === val
+                  const disabled = isTimeDisabled(val)
                   return (
                     <button
                       key={val}
                       type="button"
-                      onClick={() => setValue('time', val, { shouldValidate: true })}
+                      disabled={disabled}
+                      onClick={() => !disabled && setValue('time', val, { shouldValidate: true })}
                       className={clsx(
                         'w-[56px] py-[7px] rounded-pill text-[13px] font-medium border shrink-0 transition-colors',
-                        active
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-white text-navy border-border-gray'
+                        disabled
+                          ? 'bg-border-gray/40 text-neutral-gray/40 border-border-gray/30 cursor-not-allowed'
+                          : active
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-white text-navy border-border-gray'
                       )}
                     >
                       {val}
