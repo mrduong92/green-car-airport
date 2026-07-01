@@ -13,7 +13,7 @@ declare namespace App {
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
-  type TripStatus = 'available' | 'accepted' | 'picking_up' | 'in_progress' | 'completed'
+  type TripStatus = 'available' | 'accepted' | 'picking_up' | 'in_progress' | 'completed' | 'cancelled'
 
   interface Booking {
     id: number

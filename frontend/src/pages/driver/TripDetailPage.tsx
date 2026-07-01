@@ -73,6 +73,22 @@ export default function TripDetailPage() {
     </div>
   )
 
+  if (trip.status === 'cancelled') return (
+    <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+      <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+        <span className="material-symbols-outlined text-3xl text-danger-red"
+              style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
+      </div>
+      <div>
+        <p className="text-[16px] font-semibold text-navy">Khách đã hủy cuốc xe</p>
+        <p className="text-sm text-neutral-gray mt-1">Cuốc #{trip.id} đã bị hủy bởi khách hàng</p>
+      </div>
+      <Button variant="outline" onClick={() => navigate('/driver/trips')}>
+        Quay lại danh sách
+      </Button>
+    </div>
+  )
+
   const nextStep = NEXT_STEP[trip.status] ?? null
 
   const hasMap = trip.pickup_lat && trip.pickup_lng && trip.destination_lat && trip.destination_lng
