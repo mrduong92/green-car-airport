@@ -220,7 +220,7 @@ class BookingController extends Controller
             'price'           => $b->price,
             'discount'        => $b->discount,
             'surcharge'       => $b->surcharge,
-            'final_price'     => $b->price - $b->discount + $b->surcharge,
+            'final_price'     => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
             'voucher_code'    => $b->voucher?->code,
             'note'            => $b->note,
             'collection_fee'  => $b->collection_fee ?? 0,
