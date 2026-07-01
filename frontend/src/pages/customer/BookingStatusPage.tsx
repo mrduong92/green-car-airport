@@ -410,6 +410,13 @@ export default function BookingStatusPage() {
             </div>
           )}
 
+          {(booking.collection_fee ?? 0) > 0 && (
+            <div className="flex justify-between text-[13px]">
+              <span className="text-neutral-gray">Thu hộ</span>
+              <span className="text-navy font-medium">+{(booking.collection_fee ?? 0).toLocaleString('vi')}đ</span>
+            </div>
+          )}
+
           <div className="h-px bg-border-gray mt-0.5" />
 
           <div className="flex justify-between">
