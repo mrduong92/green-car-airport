@@ -125,7 +125,14 @@ class DriverController extends Controller
             'is_online'      => (bool) ($p?->is_online),
             'rating'         => $p ? (float) $p->rating : null,
             'trips_count'    => $p?->trips_count ?? 0,
-            'points'         => $u->wallet?->points ?? 0,
+            'points'                    => $u->wallet?->points ?? 0,
+            'cccd_number'               => $p?->cccd_number,
+            'gplx_number'               => $p?->gplx_number,
+            'vehicle_reg_number'        => $p?->vehicle_reg_number,
+            'vehicle_inspection_number' => $p?->vehicle_inspection_number,
+            'vehicle_inspection_expiry' => $p?->vehicle_inspection_expiry?->format('Y-m-d'),
+            'insurance_number'          => $p?->insurance_number,
+            'insurance_expiry'          => $p?->insurance_expiry?->format('Y-m-d'),
         ];
     }
 }
