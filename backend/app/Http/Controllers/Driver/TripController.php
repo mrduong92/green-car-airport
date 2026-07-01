@@ -137,15 +137,30 @@ class TripController extends Controller
                     }
                 }
 
-                // Credit collaborator wallet (80% of collection fee)
+                // Credit collaborator wallet (80% of collection fee), debit driver for same amount
                 if ($booking->collection_fee > 0 && $booking->collaborator_id) {
                     $collabPoints = (int) floor($booking->collection_fee * 0.80 / 1000);
+
+                    // Debit driver: they collected cash from customer, hand 80% to collaborator via points
+                    $driverWallet = $request->user()->wallet()->first();
+                    if ($driverWallet && $collabPoints > 0) {
+                        $driverWallet->decrement('points', $collabPoints);
+                        WalletTransaction::create([
+                            'wallet_id'   => $driverWallet->id,
+                            'booking_id'  => $booking->id,
+                            'type'        => 'debit',
+                            'description' => "Thu hộ cuốc #{$booking->id}",
+                            'points'      => $collabPoints,
+                        ]);
+                    }
+
+                    // Credit collaborator
                     $collabWallet = \App\Models\Wallet::firstOrCreate(
                         ['user_id' => $booking->collaborator_id],
                         ['points'  => 0]
                     );
                     $collabWallet->increment('points', $collabPoints);
-                    \App\Models\WalletTransaction::create([
+                    WalletTransaction::create([
                         'wallet_id'   => $collabWallet->id,
                         'booking_id'  => $booking->id,
                         'type'        => 'credit',
