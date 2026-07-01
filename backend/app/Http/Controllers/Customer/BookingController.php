@@ -172,9 +172,10 @@ class BookingController extends Controller
                 $request->user()->increment('pending_penalty', 50_000);
             }
 
-            // Fix 2: hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc
+            // Hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc
+            // Thu hộ không tính vào phí app 20% (trừ riêng lúc hoàn thành) nên không cần hoàn
             if ($booking->driver_id) {
-                $effectivePrice = $booking->price - $booking->discount + ($booking->collection_fee ?? 0);
+                $effectivePrice = $booking->price - $booking->discount;
                 $feePoints      = (int) round($effectivePrice * 0.20 / 1000);
                 $driverWallet   = Wallet::where('user_id', $booking->driver_id)->first();
                 if ($driverWallet && $feePoints > 0) {
