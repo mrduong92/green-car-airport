@@ -28,6 +28,7 @@ import DriverNotificationsPage from '@/pages/driver/NotificationsPage'
 import DriverStatsPage from '@/pages/driver/StatsPage'
 import CustomerStatsPage from '@/pages/customer/StatsPage'
 import CollaboratorWalletPage from '@/pages/customer/CollaboratorWalletPage'
+import DriverPendingPage from '@/pages/driver/DriverPendingPage'
 import InstallPage from '@/pages/InstallPage'
 
 function RequireRole({ role }: { role: App.Role }) {
@@ -37,11 +38,32 @@ function RequireRole({ role }: { role: App.Role }) {
   return <Outlet />
 }
 
+// Thay RequireRole role="driver" — chỉ cho driver đã active vào
+function RequireDriverActive() {
+  const user = useAuthStore((s) => s.user)
+  if (!user) return <Navigate to="/login" replace />
+  if (user.role !== 'driver') return <Navigate to="/" replace />
+  if (user.approval_status === 'pending') return <Navigate to="/driver/pending" replace />
+  return <Outlet />
+}
+
+// Chỉ cho driver pending vào /driver/pending
+function RequireDriverPending() {
+  const user = useAuthStore((s) => s.user)
+  if (!user) return <Navigate to="/login" replace />
+  if (user.role !== 'driver') return <Navigate to="/" replace />
+  if (user.approval_status !== 'pending') return <Navigate to="/driver/trips" replace />
+  return <Outlet />
+}
+
 function GuestOnly() {
   const user = useAuthStore((s) => s.user)
   if (!user) return <Outlet />
   if (user.role === 'customer') return <Navigate to="/customer/booking" replace />
-  if (user.role === 'driver') return <Navigate to="/driver/trips" replace />
+  if (user.role === 'driver') {
+    if (user.approval_status === 'pending') return <Navigate to="/driver/pending" replace />
+    return <Navigate to="/driver/trips" replace />
+  }
   return <Navigate to="/admin/dashboard" replace />
 }
 
@@ -73,7 +95,13 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    element: <RequireRole role="driver" />,
+    element: <RequireDriverPending />,
+    children: [
+      { path: '/driver/pending', element: <DriverPendingPage /> },
+    ],
+  },
+  {
+    element: <RequireDriverActive />,
     children: [
       {
         element: <DriverLayout />,
