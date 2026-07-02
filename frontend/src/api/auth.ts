@@ -1,6 +1,6 @@
 import api from './axios'
 
-export const sendOtp = (phone: string, purpose?: 'register' | 'reset') =>
+export const sendOtp = (phone: string, purpose?: 'register' | 'driver_register' | 'reset') =>
   api.post('/auth/otp/send', { phone, ...(purpose ? { purpose } : {}) })
 
 export const checkPhoneApi = (phone: string) =>

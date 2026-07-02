@@ -62,7 +62,7 @@ export default function DriverRegisterPage() {
   }, [step])
 
   const sendMutation = useMutation({
-    mutationFn: () => sendOtp(phone, 'register'),
+    mutationFn: () => sendOtp(phone, 'driver_register'),
     onSuccess: () => { setCountdown(45); setStep(2) },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Gửi OTP thất bại. Vui lòng thử lại.', 'error')

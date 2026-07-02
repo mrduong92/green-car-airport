@@ -18,13 +18,19 @@ class OtpController extends Controller
     {
         $request->validate([
             'phone'   => 'required|string|max:20',
-            'purpose' => 'nullable|in:register,reset',
+            'purpose' => 'nullable|in:register,driver_register,reset',
         ]);
 
         $exists = User::where('phone', $request->phone)->exists();
 
         if ($request->purpose === 'register' && $exists) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
+        }
+
+        if ($request->purpose === 'driver_register'
+            && User::where('phone', $request->phone)->where('role', 'driver')->exists()
+        ) {
+            return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
 
         if ($request->purpose === 'reset' && ! $exists) {
