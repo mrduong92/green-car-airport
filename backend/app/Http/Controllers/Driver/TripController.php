@@ -61,8 +61,8 @@ class TripController extends Controller
         ]);
 
         // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
-        // Tính trên tổng thu (giá sau voucher + phí thu hộ)
-        $totalCollected = $booking->price - $booking->discount + ($booking->collection_fee ?? 0);
+        // Chỉ tính trên giá cuốc sau voucher, không gộp thu hộ (thu hộ trừ riêng lúc hoàn thành)
+        $totalCollected = $booking->price - $booking->discount;
         $feePoints      = (int) round($totalCollected * 0.20 / 1000);
         $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
         $wallet->decrement('points', $feePoints);
@@ -137,15 +137,31 @@ class TripController extends Controller
                     }
                 }
 
-                // Credit collaborator wallet (80% of collection fee)
+                // Debit driver full thu hộ, credit 80% to collaborator (company retains 20% gap)
                 if ($booking->collection_fee > 0 && $booking->collaborator_id) {
-                    $collabPoints = (int) floor($booking->collection_fee * 0.80 / 1000);
+                    $collectionPoints = (int) round($booking->collection_fee / 1000);
+                    $collabPoints     = (int) floor($booking->collection_fee * 0.80 / 1000);
+
+                    // Debit driver: full thu hộ collected in cash from customer
+                    $driverWallet = $request->user()->wallet()->first();
+                    if ($driverWallet && $collectionPoints > 0) {
+                        $driverWallet->decrement('points', $collectionPoints);
+                        WalletTransaction::create([
+                            'wallet_id'   => $driverWallet->id,
+                            'booking_id'  => $booking->id,
+                            'type'        => 'debit',
+                            'description' => "Thu hộ cuốc #{$booking->id}",
+                            'points'      => $collectionPoints,
+                        ]);
+                    }
+
+                    // Credit collaborator 80%
                     $collabWallet = \App\Models\Wallet::firstOrCreate(
                         ['user_id' => $booking->collaborator_id],
                         ['points'  => 0]
                     );
                     $collabWallet->increment('points', $collabPoints);
-                    \App\Models\WalletTransaction::create([
+                    WalletTransaction::create([
                         'wallet_id'   => $collabWallet->id,
                         'booking_id'  => $booking->id,
                         'type'        => 'credit',

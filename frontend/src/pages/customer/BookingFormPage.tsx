@@ -123,8 +123,18 @@ export default function BookingFormPage() {
   const destination  = watch('destination') ?? ''
   const selectedDate = watch('date')
   const selectedTime = watch('time')
+  const collectionFee = Number(watch('collection_fee') || 0)
   const detectedService  = detectServiceType(pickup, destination)
-  const total = Math.max(0, price - discount)
+  const total = Math.max(0, price - discount) + collectionFee
+
+  // Giờ đặt xe hôm nay phải cách ít nhất 30 phút so với hiện tại
+  const minTimeForToday = (() => {
+    const slotMins = Math.ceil((dayjs().hour() * 60 + dayjs().minute() + 30) / 30) * 30
+    return `${Math.floor(slotMins / 60).toString().padStart(2, '0')}:${(slotMins % 60).toString().padStart(2, '0')}`
+  })()
+  const hasValidSlotsToday  = TIME_ROWS.flat().some((t) => t >= minTimeForToday)
+  const availableDateChips  = hasValidSlotsToday ? DATE_CHIPS : DATE_CHIPS.slice(1)
+  const isTimeDisabled = (val: string) => selectedDate === DATE_CHIPS[0].value && val < minTimeForToday
 
   // Bảng giá từ API
   const { data: priceConfigs = [] } = useQuery({
@@ -161,8 +171,7 @@ export default function BookingFormPage() {
       )
       if (cfg) {
         const minP = cfg.price_type === 'per_km' ? Math.round(km * cfg.min_price / 1000) * 1000 : cfg.min_price
-        const maxP = cfg.price_type === 'per_km' ? Math.round(km * cfg.max_price / 1000) * 1000 : cfg.max_price
-        setValue('price', Math.round((minP + maxP) / 2 / 1000) * 1000, { shouldValidate: true })
+        setValue('price', minP, { shouldValidate: true })
       }
       showToast(`${label}: ~${km.toFixed(1)} km`, 'success')
     }
@@ -184,6 +193,25 @@ export default function BookingFormPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupLatLng, destLatLng, setValue, showToast, priceConfigs])
 
+  // Khi hết giờ hôm nay, tự động chuyển sang ngày mai
+  useEffect(() => {
+    if (!hasValidSlotsToday && selectedDate === DATE_CHIPS[0].value) {
+      setValue('date', DATE_CHIPS[1].value, { shouldValidate: true })
+      setValue('time', '08:00', { shouldValidate: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasValidSlotsToday])
+
+  // Khi chuyển sang hôm nay, tự động nhảy sang slot giờ hợp lệ gần nhất
+  useEffect(() => {
+    if (selectedDate !== DATE_CHIPS[0].value) return
+    if (!selectedTime || selectedTime < minTimeForToday) {
+      const firstValid = TIME_ROWS.flat().find((t) => t >= minTimeForToday)
+      if (firstValid) setValue('time', firstValid, { shouldValidate: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate])
+
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleVehicleChange = (v: VehicleType) => {
     setVehicleType(v)
@@ -192,8 +220,7 @@ export default function BookingFormPage() {
       const cfg = priceConfigs.find((c) => c.trip_type === 'one_way' && c.vehicle_type === v && c.is_active)
       if (cfg) {
         const minP = cfg.price_type === 'per_km' ? Math.round(distance * cfg.min_price / 1000) * 1000 : cfg.min_price
-        const maxP = cfg.price_type === 'per_km' ? Math.round(distance * cfg.max_price / 1000) * 1000 : cfg.max_price
-        setValue('price', Math.round((minP + maxP) / 2 / 1000) * 1000, { shouldValidate: true })
+        setValue('price', minP, { shouldValidate: true })
       }
     }
   }
@@ -224,10 +251,10 @@ export default function BookingFormPage() {
   })
 
   useEffect(() => {
-    if (activeBooking?.id) {
+    if (activeBooking?.id && !user?.is_collaborator) {
       navigate(`/customer/booking/${activeBooking.id}`, { replace: true })
     }
-  }, [activeBooking, navigate])
+  }, [activeBooking, navigate, user?.is_collaborator])
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -333,7 +360,7 @@ export default function BookingFormPage() {
         <SectionLabel>Ngày khởi hành</SectionLabel>
         <div className="overflow-x-auto -mx-4 px-4 pb-0.5">
           <div className="flex gap-2" style={{ width: 'max-content' }}>
-            {DATE_CHIPS.map((chip) => {
+            {availableDateChips.map((chip) => {
               const active = selectedDate === chip.value
               return (
                 <button
@@ -361,17 +388,21 @@ export default function BookingFormPage() {
             <div key={ri} className="overflow-x-auto -mx-4 px-4">
               <div className="flex gap-1.5" style={{ width: 'max-content' }}>
                 {row.map((val) => {
-                  const active = selectedTime === val
+                  const active   = selectedTime === val
+                  const disabled = isTimeDisabled(val)
                   return (
                     <button
                       key={val}
                       type="button"
-                      onClick={() => setValue('time', val, { shouldValidate: true })}
+                      disabled={disabled}
+                      onClick={() => !disabled && setValue('time', val, { shouldValidate: true })}
                       className={clsx(
                         'w-[56px] py-[7px] rounded-pill text-[13px] font-medium border shrink-0 transition-colors',
-                        active
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-white text-navy border-border-gray'
+                        disabled
+                          ? 'bg-border-gray/40 text-neutral-gray/40 border-border-gray/30 cursor-not-allowed'
+                          : active
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-white text-navy border-border-gray'
                       )}
                     >
                       {val}

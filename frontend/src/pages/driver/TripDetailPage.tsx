@@ -38,6 +38,7 @@ export default function TripDetailPage() {
       if (status === 'completed') {
         qc.invalidateQueries({ queryKey: ['trip-history'] })
         qc.invalidateQueries({ queryKey: ['wallet'] })
+        qc.invalidateQueries({ queryKey: ['transactions'] })
         showToast('Hoàn thành chuyến!', 'success')
         navigate('/driver/trips')
       }
