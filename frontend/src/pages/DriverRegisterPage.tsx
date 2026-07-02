@@ -72,7 +72,6 @@ export default function DriverRegisterPage() {
   const registerMutation = useMutation({
     mutationFn: () => driverRegisterApi({
       phone,
-      otp: otp.join(''),
       password,
       name,
       vehicle_make:              vehicleMake,

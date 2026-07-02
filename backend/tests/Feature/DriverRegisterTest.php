@@ -14,7 +14,6 @@ class DriverRegisterTest extends TestCase
     {
         return array_merge([
             'phone'         => '0911111111',
-            'otp'           => '000000',
             'password'      => '123456',
             'name'          => 'Nguyễn Tài Xế',
             'vehicle_make'  => 'Toyota',

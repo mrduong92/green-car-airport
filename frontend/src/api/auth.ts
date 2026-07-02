@@ -26,7 +26,6 @@ export const registerApi = (
 
 export const driverRegisterApi = (data: {
   phone: string
-  otp: string
   password: string
   name: string
   vehicle_make: string
