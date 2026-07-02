@@ -90,7 +90,7 @@ class DriverRegisterTest extends TestCase
 
         $this->postJson('/api/auth/register/driver', $data)
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Số điện thoại đã được đăng ký.');
+            ->assertJsonPath('message', 'Số điện thoại đã được đăng ký là tài xế.');
     }
 
     public function test_driver_register_rejects_invalid_vehicle_type(): void

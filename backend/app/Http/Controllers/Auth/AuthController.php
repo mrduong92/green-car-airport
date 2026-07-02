@@ -15,11 +15,13 @@ class AuthController extends Controller
     {
         $request->validate(['phone' => 'required|string|max:20']);
 
-        if (! User::where('phone', $request->phone)->exists()) {
+        $roles = User::where('phone', $request->phone)->pluck('role');
+
+        if ($roles->isEmpty()) {
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
         }
 
-        return response()->json(['exists' => true]);
+        return response()->json(['exists' => true, 'roles' => $roles->values()]);
     }
 
     public function login(Request $request): JsonResponse
@@ -27,9 +29,14 @@ class AuthController extends Controller
         $request->validate([
             'phone'    => 'required|string|max:20',
             'password' => 'required|string',
+            'role'     => 'nullable|string|in:customer,driver,admin',
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        $query = User::where('phone', $request->phone);
+        if ($request->role) {
+            $query->where('role', $request->role);
+        }
+        $user = $query->first();
 
         if (! $user) {
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
@@ -87,7 +94,7 @@ class AuthController extends Controller
             'referral_code' => 'nullable|string|max:10',
         ]);
 
-        if (User::where('phone', $request->phone)->exists()) {
+        if (User::where('phone', $request->phone)->where('role', 'customer')->exists()) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
         }
 
@@ -139,8 +146,8 @@ class AuthController extends Controller
             'insurance_expiry'          => 'required|date|after:today',
         ]);
 
-        if (User::where('phone', $request->phone)->exists()) {
-            return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
+        if (User::where('phone', $request->phone)->where('role', 'driver')->exists()) {
+            return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
 
         $this->consumeOtp($request->phone, $request->otp);
@@ -187,9 +194,14 @@ class AuthController extends Controller
             'phone'    => 'required|string|max:20',
             'otp'      => 'required|string|size:6',
             'password' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'role'     => 'nullable|string|in:customer,driver,admin',
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        $query = User::where('phone', $request->phone);
+        if ($request->role) {
+            $query->where('role', $request->role);
+        }
+        $user = $query->first();
 
         if (! $user) {
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);

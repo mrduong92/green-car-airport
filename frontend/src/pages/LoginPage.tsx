@@ -8,7 +8,7 @@ import { registerPushSubscription } from '@/push'
 import Button from '@/components/common/Button'
 import ToastContainer from '@/components/common/Toast'
 
-type Step = 'phone' | 'password' | 'otp' | 'set-password'
+type Step = 'phone' | 'role-picker' | 'password' | 'otp' | 'set-password'
 
 const DEV_MOCK = import.meta.env.VITE_MOCK === 'true' || false
 const DEV_PASS = '000000'
@@ -26,6 +26,7 @@ export default function LoginPage() {
 
   const [step, setStep]         = useState<Step>('phone')
   const [phone, setPhone]       = useState('')
+  const [role, setRole]         = useState<App.Role | undefined>(undefined)
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd]   = useState(false)
   const [otp, setOtp]           = useState(['', '', '', '', '', ''])
@@ -60,7 +61,7 @@ export default function LoginPage() {
 
   // ── Login ──────────────────────────────────────────────────────────────────
   const loginMutation = useMutation({
-    mutationFn: () => loginApi(phone, password),
+    mutationFn: () => loginApi(phone, password, role),
     onSuccess: onAuthSuccess,
     onError: (err: { response?: { data?: { code?: string; message?: string } } }) => {
       const code = err.response?.data?.code
@@ -78,7 +79,7 @@ export default function LoginPage() {
 
   // ── Reset password (after OTP) ────────────────────────────────────────────
   const resetMutation = useMutation({
-    mutationFn: () => resetPasswordApi(phone, otp.join(''), password),
+    mutationFn: () => resetPasswordApi(phone, otp.join(''), password, role),
     onSuccess: onAuthSuccess,
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Có lỗi xảy ra.', 'error')
@@ -96,7 +97,14 @@ export default function LoginPage() {
 
   const checkMutation = useMutation({
     mutationFn: () => checkPhoneApi(phone),
-    onSuccess: () => setStep('password'),
+    onSuccess: ({ data }) => {
+      if (data.roles.length > 1) {
+        setStep('role-picker')
+      } else {
+        setRole(data.roles[0])
+        setStep('password')
+      }
+    },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Có lỗi xảy ra.', 'error')
     },
@@ -126,15 +134,17 @@ export default function LoginPage() {
 
   // ── Back navigation ───────────────────────────────────────────────────────
   const handleBack = () => {
-    if (step === 'phone')        navigate(-1)
-    else if (step === 'otp')     setStep('phone')
+    if (step === 'phone')             navigate(-1)
+    else if (step === 'role-picker')  setStep('phone')
+    else if (step === 'otp')          setStep('phone')
     else if (step === 'set-password') setStep('otp')
-    else                         setStep('phone') // password
+    else                              setStep('phone') // password
   }
 
   // ── Step headings ─────────────────────────────────────────────────────────
   const heading: Record<Step, { title: string; sub: string }> = {
     'phone':        { title: 'Đăng nhập', sub: 'Nhập số điện thoại đã đăng ký' },
+    'role-picker':  { title: 'Chọn tài khoản', sub: `Số ${phone} có nhiều tài khoản. Bạn muốn đăng nhập với tư cách nào?` },
     'password':     { title: 'Nhập mật khẩu', sub: `Mật khẩu 6 chữ số của tài khoản ${phone}` },
     'otp':          { title: 'Xác minh để đặt lại', sub: `Nhập mã OTP được gửi đến ${phone}` },
     'set-password': { title: 'Mật khẩu mới', sub: 'Mật khẩu gồm 6 chữ số' },
@@ -232,6 +242,32 @@ export default function LoginPage() {
               </p>
             </div>
           </>
+        )}
+
+        {/* ── step: role-picker ── */}
+        {step === 'role-picker' && (
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => { setRole('customer'); setStep('password') }}
+              className="w-full py-4 rounded-card border-[1.5px] border-border-gray bg-white text-navy text-sm font-medium flex items-center gap-3 px-4 hover:border-primary transition-colors"
+            >
+              <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+              <div className="text-left">
+                <p className="font-semibold">Khách hàng</p>
+                <p className="text-xs text-neutral-gray">Đặt xe, quản lý chuyến đi</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { setRole('driver'); setStep('password') }}
+              className="w-full py-4 rounded-card border-[1.5px] border-border-gray bg-white text-navy text-sm font-medium flex items-center gap-3 px-4 hover:border-primary transition-colors"
+            >
+              <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>directions_car</span>
+              <div className="text-left">
+                <p className="font-semibold">Tài xế</p>
+                <p className="text-xs text-neutral-gray">Nhận cuốc, quản lý ví</p>
+              </div>
+            </button>
+          </div>
         )}
 
         {/* ── step: password ── */}
