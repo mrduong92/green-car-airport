@@ -245,7 +245,13 @@ class AuthController extends Controller
             ->where('code', $code)
             ->whereNull('used_at')
             ->where('expires_at', '>', now())
-            ->firstOrFail();
+            ->first();
+
+        if (! $otp) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'otp' => 'Mã OTP không hợp lệ hoặc đã hết hạn.',
+            ]);
+        }
 
         $otp->update(['used_at' => now()]);
     }
