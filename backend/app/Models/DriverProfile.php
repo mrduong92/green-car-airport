@@ -7,7 +7,7 @@ class DriverProfile extends Model
     protected $fillable = [
         'user_id','vehicle_make','vehicle_model','vehicle_plate','vehicle_year',
         'vehicle_color','vehicle_type','status','blocked_reason','is_verified','is_online',
-        'latitude','longitude','payment_code','rating','trips_count',
+        'latitude','longitude','payment_code','months_active','rating','trips_count',
         'cccd_number','gplx_number','vehicle_reg_number',
         'vehicle_inspection_number','vehicle_inspection_expiry',
         'insurance_number','insurance_expiry',

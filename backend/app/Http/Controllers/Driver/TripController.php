@@ -42,6 +42,10 @@ class TripController extends Controller
 
     public function accept(Request $request, Booking $booking): JsonResponse
     {
+        if ($request->user()->driverProfile?->status !== 'active') {
+            return response()->json(['message' => 'Tài khoản chưa được phê duyệt.'], 403);
+        }
+
         if ($booking->status !== 'finding_driver') {
             return response()->json(['message' => 'Chuyến này đã được nhận hoặc không còn khả dụng.'], 422);
         }

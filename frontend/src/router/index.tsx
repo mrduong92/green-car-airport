@@ -43,16 +43,17 @@ function RequireDriverActive() {
   const user = useAuthStore((s) => s.user)
   if (!user) return <Navigate to="/login" replace />
   if (user.role !== 'driver') return <Navigate to="/" replace />
-  if (user.approval_status === 'pending') return <Navigate to="/driver/pending" replace />
+  if (user.approval_status === 'pending' || user.approval_status === 'blocked')
+    return <Navigate to="/driver/pending" replace />
   return <Outlet />
 }
 
-// Chỉ cho driver pending vào /driver/pending
+// Chỉ cho driver pending/blocked vào /driver/pending
 function RequireDriverPending() {
   const user = useAuthStore((s) => s.user)
   if (!user) return <Navigate to="/login" replace />
   if (user.role !== 'driver') return <Navigate to="/" replace />
-  if (user.approval_status !== 'pending') return <Navigate to="/driver/trips" replace />
+  if (user.approval_status === 'active') return <Navigate to="/driver/trips" replace />
   return <Outlet />
 }
 
@@ -61,7 +62,8 @@ function GuestOnly() {
   if (!user) return <Outlet />
   if (user.role === 'customer') return <Navigate to="/customer/booking" replace />
   if (user.role === 'driver') {
-    if (user.approval_status === 'pending') return <Navigate to="/driver/pending" replace />
+    if (user.approval_status === 'pending' || user.approval_status === 'blocked')
+      return <Navigate to="/driver/pending" replace />
     return <Navigate to="/driver/trips" replace />
   }
   return <Navigate to="/admin/dashboard" replace />
