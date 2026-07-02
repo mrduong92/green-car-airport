@@ -65,8 +65,7 @@ class TripController extends Controller
         ]);
 
         // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
-        // Chỉ tính trên giá cuốc sau voucher, không gộp thu hộ (thu hộ trừ riêng lúc hoàn thành)
-        $totalCollected = $booking->price - $booking->discount;
+        $totalCollected = $booking->price - $booking->discount + ($booking->collection_fee ?? 0);
         $feePoints      = (int) round($totalCollected * 0.20 / 1000);
         $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
         $wallet->decrement('points', $feePoints);

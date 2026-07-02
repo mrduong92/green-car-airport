@@ -173,9 +173,8 @@ class BookingController extends Controller
             }
 
             // Hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc
-            // Thu hộ không tính vào phí app 20% (trừ riêng lúc hoàn thành) nên không cần hoàn
             if ($booking->driver_id) {
-                $effectivePrice = $booking->price - $booking->discount;
+                $effectivePrice = $booking->price - $booking->discount + ($booking->collection_fee ?? 0);
                 $feePoints      = (int) round($effectivePrice * 0.20 / 1000);
                 $driverWallet   = Wallet::where('user_id', $booking->driver_id)->first();
                 if ($driverWallet && $feePoints > 0) {
