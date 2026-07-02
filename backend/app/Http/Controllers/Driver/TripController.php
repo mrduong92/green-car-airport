@@ -64,8 +64,8 @@ class TripController extends Controller
             'accepted_at' => now(),
         ]);
 
-        // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
-        $totalCollected = $booking->price - $booking->discount + ($booking->collection_fee ?? 0);
+        // Trừ 20% phí app ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ)
+        $totalCollected = $booking->price - $booking->discount;
         $feePoints      = (int) round($totalCollected * 0.20 / 1000);
         $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
         $wallet->decrement('points', $feePoints);

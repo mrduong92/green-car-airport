@@ -63,9 +63,9 @@ class CollaboratorFeeTest extends TestCase
             ->postJson("/api/driver/trips/{$booking->id}/accept")
             ->assertOk();
 
-        // feePoints = round(1_200_000 * 0.20 / 1000) = 240
+        // feePoints = round(1_000_000 * 0.20 / 1000) = 200 (chỉ tính giá cuốc, không gộp thu hộ)
         $wallet = Wallet::where('user_id', $driver->id)->first();
-        $this->assertEquals(10_000 - 240, $wallet->points);
+        $this->assertEquals(10_000 - 200, $wallet->points);
     }
 
     /** Collaborator nhận 80% × collection_fee khi trip completed */
