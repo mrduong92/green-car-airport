@@ -146,8 +146,7 @@ export default function DriverRegisterPage() {
               </span>
             </div>
             <div>
-              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">Save Go</p>
-              <p className="text-neutral-gray text-[11px] tracking-widest uppercase mt-0.5">Tài Xế</p>
+              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">Save Go Driver</p>
             </div>
           </div>
           <h1 className="text-navy font-bold text-[28px] leading-tight mb-2">Đăng ký tài xế</h1>

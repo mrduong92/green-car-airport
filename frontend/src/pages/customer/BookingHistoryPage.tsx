@@ -7,6 +7,8 @@ import EmptyState from '@/components/common/EmptyState'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 
+const ACTIVE_STATUSES: App.BookingStatus[] = ['finding_driver', 'accepted', 'picking_up', 'in_progress']
+
 const FILTERS = [
   { key: '', label: 'Tất cả' },
   { key: 'completed', label: 'Hoàn thành' },
@@ -46,7 +48,10 @@ export default function BookingHistoryPage() {
         )}
         {data?.map((b) => (
           <div key={b.id} className="bg-white rounded-card shadow-card overflow-hidden"
-            onClick={() => setExpanded(expanded === b.id ? null : b.id)}>
+            onClick={() => ACTIVE_STATUSES.includes(b.status)
+              ? navigate(`/customer/booking/${b.id}`)
+              : setExpanded(expanded === b.id ? null : b.id)
+            }>
             <div className="flex p-4 gap-3">
               {/* Date column */}
               <div className="flex flex-col items-center justify-center w-12 shrink-0">
