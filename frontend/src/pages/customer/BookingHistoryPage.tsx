@@ -7,7 +7,7 @@ import EmptyState from '@/components/common/EmptyState'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 
-const ACTIVE_STATUSES: App.BookingStatus[] = ['finding_driver', 'accepted', 'picking_up', 'in_progress']
+const ACTIVE_STATUSES: App.BookingStatus[] = ['finding_driver', 'accepted', 'in_progress']
 
 const FILTERS = [
   { key: '', label: 'Tất cả' },
