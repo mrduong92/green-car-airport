@@ -12,7 +12,7 @@ import { fmtDateTime } from '@/utils/date'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 
-const GoongTripMap = lazy(() => import('@/components/driver/GoongTripMap'))
+const GoongTripMap = lazy(() => import('@/components/common/GoongTripMap'))
 
 const STEPS: { key: App.BookingStatus; label: string }[] = [
   { key: 'pending',        label: 'Đã đặt xe' },
