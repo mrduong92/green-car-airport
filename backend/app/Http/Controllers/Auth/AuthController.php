@@ -15,11 +15,13 @@ class AuthController extends Controller
     {
         $request->validate(['phone' => 'required|string|max:20']);
 
-        if (! User::where('phone', $request->phone)->exists()) {
+        $roles = User::where('phone', $request->phone)->pluck('role');
+
+        if ($roles->isEmpty()) {
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
         }
 
-        return response()->json(['exists' => true]);
+        return response()->json(['exists' => true, 'roles' => $roles->values()]);
     }
 
     public function login(Request $request): JsonResponse
@@ -27,9 +29,14 @@ class AuthController extends Controller
         $request->validate([
             'phone'    => 'required|string|max:20',
             'password' => 'required|string',
+            'role'     => 'nullable|string|in:customer,driver,admin',
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        $query = User::where('phone', $request->phone);
+        if ($request->role) {
+            $query->where('role', $request->role);
+        }
+        $user = $query->first();
 
         if (! $user) {
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
@@ -87,7 +94,7 @@ class AuthController extends Controller
             'referral_code' => 'nullable|string|max:10',
         ]);
 
-        if (User::where('phone', $request->phone)->exists()) {
+        if (User::where('phone', $request->phone)->where('role', 'customer')->exists()) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
         }
 
@@ -120,23 +127,27 @@ class AuthController extends Controller
     public function registerDriver(Request $request): JsonResponse
     {
         $request->validate([
-            'phone'         => 'required|string|max:20',
-            'otp'           => 'required|string|size:6',
-            'password'      => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
-            'name'          => 'required|string|max:100',
-            'vehicle_make'  => 'required|string|max:50',
-            'vehicle_model' => 'required|string|max:50',
-            'vehicle_plate' => 'required|string|max:20',
-            'vehicle_year'  => 'required|integer|min:2000|max:' . now()->year,
-            'vehicle_color' => 'required|string|max:30',
-            'vehicle_type'  => 'required|in:sedan_4,suv_5,mpv_7',
+            'phone'                     => 'required|string|max:20',
+            'password'                  => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'name'                      => 'required|string|max:100',
+            'vehicle_make'              => 'required|string|max:50',
+            'vehicle_model'             => 'required|string|max:50',
+            'vehicle_plate'             => 'required|string|max:20',
+            'vehicle_year'              => 'required|integer|min:2000|max:' . now()->year,
+            'vehicle_color'             => 'required|string|max:30',
+            'vehicle_type'              => 'required|in:sedan_4,suv_5,mpv_7',
+            'cccd_number'               => 'required|string|max:20',
+            'gplx_number'               => 'required|string|max:20',
+            'vehicle_reg_number'        => 'required|string|max:30',
+            'vehicle_inspection_number' => 'required|string|max:30',
+            'vehicle_inspection_expiry' => 'required|date|after:today',
+            'insurance_number'          => 'required|string|max:30',
+            'insurance_expiry'          => 'required|date|after:today',
         ]);
 
-        if (User::where('phone', $request->phone)->exists()) {
-            return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
+        if (User::where('phone', $request->phone)->where('role', 'driver')->exists()) {
+            return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
-
-        $this->consumeOtp($request->phone, $request->otp);
 
         $user = User::create([
             'phone'    => $request->phone,
@@ -146,14 +157,20 @@ class AuthController extends Controller
         ]);
 
         $user->driverProfile()->create([
-            'vehicle_make'  => $request->vehicle_make,
-            'vehicle_model' => $request->vehicle_model,
-            'vehicle_plate' => $request->vehicle_plate,
-            'vehicle_year'  => $request->vehicle_year,
-            'vehicle_color' => $request->vehicle_color,
-            'vehicle_type'  => $request->vehicle_type,
-            'is_verified'   => true,
-            'is_online'     => false,
+            'vehicle_make'              => $request->vehicle_make,
+            'vehicle_model'             => $request->vehicle_model,
+            'vehicle_plate'             => $request->vehicle_plate,
+            'vehicle_year'              => $request->vehicle_year,
+            'vehicle_color'             => $request->vehicle_color,
+            'vehicle_type'              => $request->vehicle_type,
+            'is_online'                 => false,
+            'cccd_number'               => $request->cccd_number,
+            'gplx_number'               => $request->gplx_number,
+            'vehicle_reg_number'        => $request->vehicle_reg_number,
+            'vehicle_inspection_number' => $request->vehicle_inspection_number,
+            'vehicle_inspection_expiry' => $request->vehicle_inspection_expiry,
+            'insurance_number'          => $request->insurance_number,
+            'insurance_expiry'          => $request->insurance_expiry,
         ]);
 
         $user->wallet()->create(['points' => 0]);
@@ -174,9 +191,14 @@ class AuthController extends Controller
             'phone'    => 'required|string|max:20',
             'otp'      => 'required|string|size:6',
             'password' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'role'     => 'nullable|string|in:customer,driver,admin',
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        $query = User::where('phone', $request->phone);
+        if ($request->role) {
+            $query->where('role', $request->role);
+        }
+        $user = $query->first();
 
         if (! $user) {
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
@@ -220,7 +242,13 @@ class AuthController extends Controller
             ->where('code', $code)
             ->whereNull('used_at')
             ->where('expires_at', '>', now())
-            ->firstOrFail();
+            ->first();
+
+        if (! $otp) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'otp' => 'Mã OTP không hợp lệ hoặc đã hết hạn.',
+            ]);
+        }
 
         $otp->update(['used_at' => now()]);
     }
@@ -244,6 +272,7 @@ class AuthController extends Controller
 
         if ($user->role === 'driver') {
             $payload['needs_onboarding'] = ! $user->driverProfile?->vehicle_plate;
+            $payload['approval_status']  = $user->driverProfile?->status ?? 'pending';
         }
 
         return $payload;

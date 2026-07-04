@@ -42,6 +42,10 @@ class TripController extends Controller
 
     public function accept(Request $request, Booking $booking): JsonResponse
     {
+        if ($request->user()->driverProfile?->status !== 'active') {
+            return response()->json(['message' => 'Tài khoản chưa được phê duyệt.'], 403);
+        }
+
         if ($booking->status !== 'finding_driver') {
             return response()->json(['message' => 'Chuyến này đã được nhận hoặc không còn khả dụng.'], 422);
         }
@@ -60,8 +64,7 @@ class TripController extends Controller
             'accepted_at' => now(),
         ]);
 
-        // Trừ 20% phí app ngay khi nhận cuốc — không hoàn nếu tài xế huỷ
-        // Chỉ tính trên giá cuốc sau voucher, không gộp thu hộ (thu hộ trừ riêng lúc hoàn thành)
+        // Trừ 20% phí app ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ)
         $totalCollected = $booking->price - $booking->discount;
         $feePoints      = (int) round($totalCollected * 0.20 / 1000);
         $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);

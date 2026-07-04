@@ -14,7 +14,6 @@ class DriverRegisterTest extends TestCase
     {
         return array_merge([
             'phone'         => '0911111111',
-            'otp'           => '000000',
             'password'      => '123456',
             'name'          => 'Nguyễn Tài Xế',
             'vehicle_make'  => 'Toyota',
@@ -26,9 +25,24 @@ class DriverRegisterTest extends TestCase
         ], $overrides);
     }
 
+    private function docPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'cccd_number'               => '079123456789',
+            'gplx_number'               => '012345678910',
+            'vehicle_reg_number'        => '29A-11111',
+            'vehicle_inspection_number' => 'DK123456',
+            'vehicle_inspection_expiry' => now()->addYear()->format('Y-m-d'),
+            'insurance_number'          => 'BH789012',
+            'insurance_expiry'          => now()->addYear()->format('Y-m-d'),
+        ], $overrides);
+    }
+
     public function test_driver_register_creates_user_with_driver_role(): void
     {
-        $this->postJson('/api/auth/register/driver', $this->payload())
+        $data = array_merge($this->payload(), $this->docPayload());
+
+        $this->postJson('/api/auth/register/driver', $data)
             ->assertCreated()
             ->assertJsonPath('user.role', 'driver')
             ->assertJsonStructure(['token', 'user']);
@@ -38,19 +52,21 @@ class DriverRegisterTest extends TestCase
 
     public function test_driver_register_creates_driver_profile_with_vehicle_type(): void
     {
-        $this->postJson('/api/auth/register/driver', $this->payload())
+        $data = array_merge($this->payload(), $this->docPayload());
+
+        $this->postJson('/api/auth/register/driver', $data)
             ->assertCreated();
 
         $this->assertDatabaseHas('driver_profiles', [
             'vehicle_plate' => '51G-11111',
             'vehicle_type'  => 'sedan_4',
-            'is_verified'   => 1,
+            'is_verified'   => 0,
         ]);
     }
 
     public function test_driver_register_creates_wallet(): void
     {
-        $this->postJson('/api/auth/register/driver', $this->payload())
+        $this->postJson('/api/auth/register/driver', array_merge($this->payload(), $this->docPayload()))
             ->assertCreated();
 
         $user = User::where('phone', '0911111111')->first();
@@ -59,7 +75,7 @@ class DriverRegisterTest extends TestCase
 
     public function test_driver_register_needs_onboarding_is_false(): void
     {
-        $response = $this->postJson('/api/auth/register/driver', $this->payload())
+        $response = $this->postJson('/api/auth/register/driver', array_merge($this->payload(), $this->docPayload()))
             ->assertCreated();
 
         $this->assertFalse($response->json('user.needs_onboarding'));
@@ -67,22 +83,59 @@ class DriverRegisterTest extends TestCase
 
     public function test_driver_register_rejects_duplicate_phone(): void
     {
-        $this->postJson('/api/auth/register/driver', $this->payload())->assertCreated();
+        $data = array_merge($this->payload(), $this->docPayload());
 
-        $this->postJson('/api/auth/register/driver', $this->payload())
+        $this->postJson('/api/auth/register/driver', $data)->assertCreated();
+
+        $this->postJson('/api/auth/register/driver', $data)
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Số điện thoại đã được đăng ký.');
+            ->assertJsonPath('message', 'Số điện thoại đã được đăng ký là tài xế.');
     }
 
     public function test_driver_register_rejects_invalid_vehicle_type(): void
     {
-        $this->postJson('/api/auth/register/driver', $this->payload(['vehicle_type' => 'bike']))
+        $this->postJson('/api/auth/register/driver', array_merge($this->payload(['vehicle_type' => 'bike']), $this->docPayload()))
             ->assertStatus(422);
     }
 
     public function test_driver_register_requires_vehicle_plate(): void
     {
-        $this->postJson('/api/auth/register/driver', $this->payload(['vehicle_plate' => '']))
+        $this->postJson('/api/auth/register/driver', array_merge($this->payload(['vehicle_plate' => '']), $this->docPayload()))
             ->assertStatus(422);
+    }
+
+    public function test_driver_register_without_documents_returns_422(): void
+    {
+        $this->postJson('/api/auth/register/driver', $this->payload())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['cccd_number']);
+    }
+
+    public function test_driver_register_with_expired_date_returns_422(): void
+    {
+        $data = array_merge($this->payload(), $this->docPayload([
+            'vehicle_inspection_expiry' => now()->subDay()->format('Y-m-d'),
+        ]));
+
+        $this->postJson('/api/auth/register/driver', $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['vehicle_inspection_expiry']);
+    }
+
+    public function test_driver_register_with_documents_creates_pending_profile(): void
+    {
+        $data = array_merge($this->payload(), $this->docPayload());
+
+        $this->postJson('/api/auth/register/driver', $data)
+            ->assertCreated()
+            ->assertJsonPath('user.approval_status', 'pending');
+
+        $this->assertDatabaseHas('driver_profiles', [
+            'vehicle_plate'    => '51G-11111',
+            'is_verified'      => 0,
+            'cccd_number'      => '079123456789',
+            'gplx_number'      => '012345678910',
+            'insurance_number' => 'BH789012',
+        ]);
     }
 }

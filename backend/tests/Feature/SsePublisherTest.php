@@ -23,6 +23,8 @@ class SsePublisherTest extends TestCase
     {
         $driver = User::factory()->create(['role' => 'driver']);
         Wallet::create(['user_id' => $driver->id, 'points' => 10_000]);
+        $driver->driverProfile()->create(['vehicle_make' => 'Toyota', 'vehicle_model' => 'Camry',
+            'vehicle_plate' => '51G-00001', 'vehicle_year' => 2022, 'vehicle_color' => 'Trắng', 'status' => 'active']);
         return $driver;
     }
 

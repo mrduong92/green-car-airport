@@ -8,7 +8,7 @@ import { registerPushSubscription } from '@/push'
 import Button from '@/components/common/Button'
 import ToastContainer from '@/components/common/Toast'
 
-type RegStep = 1 | 2 | 3 | 4 | 5
+type RegStep = 1 | 2 | 3 | 4 | 5 | 6
 type VehicleType = 'sedan_4' | 'suv_5' | 'mpv_7'
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
@@ -35,6 +35,13 @@ export default function DriverRegisterPage() {
   const [vehicleYear, setYear]      = useState('')
   const [vehicleColor, setColor]    = useState('')
   const [vehicleType, setVType]     = useState<VehicleType>('sedan_4')
+  const [cccdNumber,       setCccd]    = useState('')
+  const [gplxNumber,       setGplx]    = useState('')
+  const [vehicleRegNumber, setVehReg]  = useState('')
+  const [inspectionNumber, setInspNum] = useState('')
+  const [inspectionExpiry, setInspExp] = useState('')
+  const [insuranceNumber,  setInsurNum]= useState('')
+  const [insuranceExpiry,  setInsurExp]= useState('')
   const [agreedPrivacy, setPrivacy] = useState(false)
   const [agreedTerms, setTerms]     = useState(false)
 
@@ -55,7 +62,7 @@ export default function DriverRegisterPage() {
   }, [step])
 
   const sendMutation = useMutation({
-    mutationFn: () => sendOtp(phone, 'register'),
+    mutationFn: () => sendOtp(phone, 'driver_register'),
     onSuccess: () => { setCountdown(45); setStep(2) },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Gửi OTP thất bại. Vui lòng thử lại.', 'error')
@@ -65,20 +72,26 @@ export default function DriverRegisterPage() {
   const registerMutation = useMutation({
     mutationFn: () => driverRegisterApi({
       phone,
-      otp: otp.join(''),
       password,
       name,
-      vehicle_make:  vehicleMake,
-      vehicle_model: vehicleModel,
-      vehicle_plate: vehiclePlate,
-      vehicle_year:  Number(vehicleYear),
-      vehicle_color: vehicleColor,
-      vehicle_type:  vehicleType,
+      vehicle_make:              vehicleMake,
+      vehicle_model:             vehicleModel,
+      vehicle_plate:             vehiclePlate,
+      vehicle_year:              Number(vehicleYear),
+      vehicle_color:             vehicleColor,
+      vehicle_type:              vehicleType,
+      cccd_number:               cccdNumber,
+      gplx_number:               gplxNumber,
+      vehicle_reg_number:        vehicleRegNumber,
+      vehicle_inspection_number: inspectionNumber,
+      vehicle_inspection_expiry: inspectionExpiry,
+      insurance_number:          insuranceNumber,
+      insurance_expiry:          insuranceExpiry,
     }),
     onSuccess: ({ data }) => {
       setAuth(data.user, data.token)
       registerPushSubscription()
-      navigate('/driver/trips')
+      navigate('/driver/pending')
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Đăng ký thất bại. Vui lòng thử lại.', 'error')
@@ -102,7 +115,16 @@ export default function DriverRegisterPage() {
 
   const step3Valid = name.trim().length > 0 && /^\d{6}$/.test(password)
   const step4Valid = vehicleMake.trim() && vehicleModel.trim() && vehiclePlate.trim() && vehicleYear && vehicleColor.trim()
-  const step5Valid = agreedPrivacy && agreedTerms
+  const today = new Date().toISOString().split('T')[0]
+  const step5Valid =
+    cccdNumber.trim() !== '' &&
+    gplxNumber.trim() !== '' &&
+    vehicleRegNumber.trim() !== '' &&
+    inspectionNumber.trim() !== '' &&
+    inspectionExpiry > today &&
+    insuranceNumber.trim() !== '' &&
+    insuranceExpiry > today
+  const step6Valid = agreedPrivacy && agreedTerms
 
   return (
     <div className="min-h-svh bg-white flex flex-col w-full">
@@ -123,24 +145,23 @@ export default function DriverRegisterPage() {
               </span>
             </div>
             <div>
-              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">Save Go</p>
-              <p className="text-neutral-gray text-[11px] tracking-widest uppercase mt-0.5">Tài Xế</p>
+              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">Save Go Driver</p>
             </div>
           </div>
           <h1 className="text-navy font-bold text-[28px] leading-tight mb-2">Đăng ký tài xế</h1>
           <p className="text-neutral-gray text-sm">Tạo tài khoản để bắt đầu nhận chuyến</p>
         </div>
 
-        {/* Step indicator — 5 bước */}
+        {/* Step indicator — 6 bước */}
         <div className="flex items-center">
-          {([1, 2, 3, 4, 5] as RegStep[]).map((n, i) => (
-            <div key={n} className={`flex items-center ${i < 4 ? 'flex-1' : ''}`}>
+          {([1, 2, 3, 4, 5, 6] as RegStep[]).map((n, i) => (
+            <div key={n} className={`flex items-center ${i < 5 ? 'flex-1' : ''}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                 step > n ? 'bg-primary text-white' : step === n ? 'bg-navy text-white' : 'bg-border-gray text-neutral-gray'
               }`}>
                 {step > n ? <span className="material-symbols-outlined text-[14px]">check</span> : n}
               </div>
-              {i < 4 && <div className={`flex-1 h-px mx-1 ${step > n ? 'bg-primary' : 'bg-border-gray'}`} />}
+              {i < 5 && <div className={`flex-1 h-px mx-1 ${step > n ? 'bg-primary' : 'bg-border-gray'}`} />}
             </div>
           ))}
         </div>
@@ -291,8 +312,76 @@ export default function DriverRegisterPage() {
           </>
         )}
 
-        {/* ── Bước 5: Điều khoản ── */}
+        {/* ── Bước 5: Giấy tờ pháp lý ── */}
         {step === 5 && (
+          <>
+            <h2 className="text-navy font-semibold text-[17px] -mt-2">Giấy tờ pháp lý</h2>
+
+            {/* CCCD */}
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mb-2">Số CCCD *</p>
+              <input type="text" value={cccdNumber} onChange={(e) => setCccd(e.target.value)} maxLength={20}
+                placeholder="079123456789"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
+              />
+            </div>
+
+            {/* GPLX */}
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mb-2">Số GPLX *</p>
+              <input type="text" value={gplxNumber} onChange={(e) => setGplx(e.target.value)} maxLength={20}
+                placeholder="012345678910"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
+              />
+            </div>
+
+            {/* Đăng ký xe */}
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mb-2">Số đăng ký xe *</p>
+              <input type="text" value={vehicleRegNumber} onChange={(e) => setVehReg(e.target.value)} maxLength={30}
+                placeholder="29A-12345"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
+              />
+            </div>
+
+            {/* Đăng kiểm xe */}
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider">Đăng kiểm xe *</p>
+              <input type="text" value={inspectionNumber} onChange={(e) => setInspNum(e.target.value)} maxLength={30}
+                placeholder="Số đăng kiểm"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
+              />
+              <div>
+                <p className="text-[11px] text-neutral-gray mb-1">Ngày hết hạn *</p>
+                <input type="date" value={inspectionExpiry} onChange={(e) => setInspExp(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
+                />
+              </div>
+            </div>
+
+            {/* Bảo hiểm TNDS */}
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider">Bảo hiểm TNDS *</p>
+              <input type="text" value={insuranceNumber} onChange={(e) => setInsurNum(e.target.value)} maxLength={30}
+                placeholder="Số bảo hiểm"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
+              />
+              <div>
+                <p className="text-[11px] text-neutral-gray mb-1">Ngày hết hạn *</p>
+                <input type="date" value={insuranceExpiry} onChange={(e) => setInsurExp(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow"
+                />
+              </div>
+            </div>
+
+            <Button fullWidth size="lg" disabled={!step5Valid} onClick={() => setStep(6)}>Tiếp theo</Button>
+          </>
+        )}
+
+        {/* ── Bước 6: Điều khoản ── */}
+        {step === 6 && (
           <>
             <h2 className="text-navy font-semibold text-[17px] -mt-2">Xem lại tài liệu pháp lý</h2>
             <div className="flex flex-col gap-4">
@@ -311,7 +400,7 @@ export default function DriverRegisterPage() {
                 </span>
               </label>
             </div>
-            <Button fullWidth size="lg" loading={registerMutation.isPending} disabled={!step5Valid} onClick={() => registerMutation.mutate()}>
+            <Button fullWidth size="lg" loading={registerMutation.isPending} disabled={!step6Valid} onClick={() => registerMutation.mutate()}>
               Đăng ký tài xế
             </Button>
           </>

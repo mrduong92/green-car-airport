@@ -10,6 +10,7 @@ declare namespace App {
     pending_penalty?: number
     is_collaborator?: boolean
     referral_code?: string
+    approval_status?: 'pending' | 'active' | 'blocked'
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
@@ -146,6 +147,13 @@ declare namespace App {
     months_active: number
     points: number
     is_online: boolean
+    cccd_number?: string | null
+    gplx_number?: string | null
+    vehicle_reg_number?: string | null
+    vehicle_inspection_number?: string | null
+    vehicle_inspection_expiry?: string | null
+    insurance_number?: string | null
+    insurance_expiry?: string | null
   }
 
   interface AdminDashboard {

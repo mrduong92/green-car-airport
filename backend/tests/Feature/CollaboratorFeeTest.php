@@ -19,6 +19,9 @@ class CollaboratorFeeTest extends TestCase
         $driver       = User::factory()->create(['role' => 'driver']);
         // Driver cần ví với đủ điểm để trừ phí
         Wallet::create(['user_id' => $driver->id, 'points' => 10_000]);
+        // Driver phải có driverProfile với status = active để được nhận cuốc
+        $driver->driverProfile()->create(['vehicle_make' => 'Toyota', 'vehicle_model' => 'Camry',
+            'vehicle_plate' => '51G-00001', 'vehicle_year' => 2022, 'vehicle_color' => 'Trắng', 'status' => 'active']);
 
         $booking = Booking::create([
             'customer_id'    => $collaborator->id,
@@ -60,9 +63,9 @@ class CollaboratorFeeTest extends TestCase
             ->postJson("/api/driver/trips/{$booking->id}/accept")
             ->assertOk();
 
-        // feePoints = round(1_200_000 * 0.20 / 1000) = 240
+        // feePoints = round(1_000_000 * 0.20 / 1000) = 200 (chỉ tính giá cuốc, không gộp thu hộ)
         $wallet = Wallet::where('user_id', $driver->id)->first();
-        $this->assertEquals(10_000 - 240, $wallet->points);
+        $this->assertEquals(10_000 - 200, $wallet->points);
     }
 
     /** Collaborator nhận 80% × collection_fee khi trip completed */
@@ -101,6 +104,8 @@ class CollaboratorFeeTest extends TestCase
         $driver   = User::factory()->create(['role' => 'driver']);
         $customer = User::factory()->create(['role' => 'customer']);
         Wallet::create(['user_id' => $driver->id, 'points' => 10_000]);
+        $driver->driverProfile()->create(['vehicle_make' => 'Toyota', 'vehicle_model' => 'Camry',
+            'vehicle_plate' => '51G-00002', 'vehicle_year' => 2022, 'vehicle_color' => 'Trắng', 'status' => 'active']);
 
         $booking = Booking::create([
             'customer_id'    => $customer->id,

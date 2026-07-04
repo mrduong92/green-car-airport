@@ -1,13 +1,13 @@
 import api from './axios'
 
-export const sendOtp = (phone: string, purpose?: 'register' | 'reset') =>
+export const sendOtp = (phone: string, purpose?: 'register' | 'driver_register' | 'reset') =>
   api.post('/auth/otp/send', { phone, ...(purpose ? { purpose } : {}) })
 
 export const checkPhoneApi = (phone: string) =>
-  api.post<{ exists: boolean }>('/auth/check-phone', { phone })
+  api.post<{ exists: boolean; roles: App.Role[] }>('/auth/check-phone', { phone })
 
-export const loginApi = (phone: string, password: string) =>
-  api.post<{ token: string; user: App.User }>('/auth/login', { phone, password })
+export const loginApi = (phone: string, password: string, role?: App.Role) =>
+  api.post<{ token: string; user: App.User }>('/auth/login', { phone, password, ...(role ? { role } : {}) })
 
 export const registerApi = (
   phone: string,
@@ -26,7 +26,6 @@ export const registerApi = (
 
 export const driverRegisterApi = (data: {
   phone: string
-  otp: string
   password: string
   name: string
   vehicle_make: string
@@ -35,11 +34,18 @@ export const driverRegisterApi = (data: {
   vehicle_year: number
   vehicle_color: string
   vehicle_type: 'sedan_4' | 'suv_5' | 'mpv_7'
+  cccd_number: string
+  gplx_number: string
+  vehicle_reg_number: string
+  vehicle_inspection_number: string
+  vehicle_inspection_expiry: string
+  insurance_number: string
+  insurance_expiry: string
 }) =>
   api.post<{ token: string; user: App.User }>('/auth/register/driver', data)
 
-export const resetPasswordApi = (phone: string, otp: string, password: string) =>
-  api.post<{ token: string; user: App.User }>('/auth/reset-password', { phone, otp, password })
+export const resetPasswordApi = (phone: string, otp: string, password: string, role?: App.Role) =>
+  api.post<{ token: string; user: App.User }>('/auth/reset-password', { phone, otp, password, ...(role ? { role } : {}) })
 
 export const getMe = () => api.get<App.User>('/auth/me')
 

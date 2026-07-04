@@ -142,8 +142,8 @@ class CustomerCancelAcceptedBookingTest extends TestCase
         $this->actingAs($customer, 'sanctum')->patchJson("/api/bookings/{$booking->id}/cancel")
             ->assertOk();
 
-        // Fee charged at accept = 20% of (300k + 50k) = 70k = 70 points
-        // Refund must also be 70 points
-        $this->assertEquals(500 + 70, $wallet->fresh()->points);
+        // Fee charged at accept = 20% of 300k = 60k = 60 points (chỉ giá cuốc, không gộp thu hộ)
+        // Refund must also be 60 points
+        $this->assertEquals(500 + 60, $wallet->fresh()->points);
     }
 }

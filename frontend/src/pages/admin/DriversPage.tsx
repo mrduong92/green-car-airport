@@ -207,6 +207,31 @@ export default function DriversPage() {
                 {d.vehicle_color && <span>· {d.vehicle_color}</span>}
               </div>
             )}
+
+            {/* Document info — hiển thị khi driver có giấy tờ (thường là pending) */}
+            {d.cccd_number && (
+              <div className="mt-3 pt-3 border-t border-border-soft">
+                <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wide mb-2">
+                  Giấy tờ pháp lý
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {([
+                    { label: 'CCCD',           value: d.cccd_number,               expiry: undefined },
+                    { label: 'GPLX',           value: d.gplx_number,               expiry: undefined },
+                    { label: 'Đăng ký xe',     value: d.vehicle_reg_number,        expiry: undefined },
+                    { label: 'Đăng kiểm',      value: d.vehicle_inspection_number, expiry: d.vehicle_inspection_expiry },
+                    { label: 'Bảo hiểm TNDS', value: d.insurance_number,          expiry: d.insurance_expiry },
+                  ] as { label: string; value?: string | null; expiry?: string | null }[]).map(({ label, value, expiry }) => (
+                    <div key={label} className="flex justify-between text-[12px]">
+                      <span className="text-neutral-gray">{label}</span>
+                      <span className="text-navy font-medium">
+                        {value ?? '—'}{expiry ? ` · HH: ${expiry}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
