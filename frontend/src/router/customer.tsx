@@ -14,6 +14,7 @@ import CustomerNotificationsPage from '@/pages/customer/NotificationsPage'
 import CustomerStatsPage from '@/pages/customer/StatsPage'
 import CollaboratorWalletPage from '@/pages/customer/CollaboratorWalletPage'
 import AdminDashboardPage from '@/pages/admin/DashboardPage'
+import AdminLoginPage from '@/pages/admin/LoginPage'
 import DriversPage from '@/pages/admin/DriversPage'
 import VouchersPage from '@/pages/admin/VouchersPage'
 import RevenuePage from '@/pages/admin/RevenuePage'
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: '/', element: <SplashPage /> },
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
+      { path: '/admin/login', element: <AdminLoginPage /> },
     ],
   },
   {
