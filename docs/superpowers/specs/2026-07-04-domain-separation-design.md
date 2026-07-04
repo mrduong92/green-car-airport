@@ -33,19 +33,21 @@ Mỗi app chỉ đăng nhập cho đúng 1 role mặc định (customer app → 
 
 ```
 frontend/
-├── index.html              # customer app (giữ nguyên)
-├── driver.html              # MỚI — driver app entry HTML
-├── vite.config.ts           # base config dùng chung (alias, plugin)
-├── vite.customer.config.ts  # MỚI — extends base: input=index.html, port 5173, PWA manifest "Save Go"
-├── vite.driver.config.ts    # MỚI — extends base: input=driver.html, port 5174, PWA manifest "Save Go Tài Xế"
+├── index.html              # entry HTML duy nhất — entry script được swap theo app qua plugin transformIndexHtml
+├── vite.config.ts           # base: export createAppConfig(target) — alias, plugin, PWA manifest, port, outDir theo app; default export = customer
+├── vite.customer.config.ts  # MỚI — createAppConfig('customer'): entry main.tsx, port 5173, outDir dist/, manifest "Save Go"
+├── vite.driver.config.ts    # MỚI — createAppConfig('driver'): entry main.driver.tsx, port 5174, outDir dist-driver/, manifest "Save Go Tài Xế"
 └── src/
-    ├── main.tsx              # customer entry (giữ nguyên, import router/customer.tsx)
+    ├── bootstrap.tsx          # MỚI — createRoot + providers dùng chung cho 2 entry
+    ├── main.tsx              # customer entry (import router/customer.tsx)
     ├── main.driver.tsx        # MỚI — driver entry, import router/driver.tsx
     └── router/
         ├── customer.tsx       # MỚI — Splash, /login, /register, customer/*, admin/*, /admin/login
         ├── driver.tsx          # MỚI — /login, /register/driver, driver/*
         └── guards.tsx          # MỚI — RequireRole/GuestOnly/RequireDriverActive/RequireDriverPending dùng chung, import ở cả 2 router
 ```
+
+Không dùng file `driver.html` riêng: Vite dev server và SPA fallback luôn resolve về `index.html`, nên entry HTML thứ 2 sẽ phải hack rename khi build. Thay vào đó mỗi config có 1 plugin `transformIndexHtml` nhỏ swap `<script src="/src/main.tsx">` → `main.driver.tsx` và đổi `<title>`/meta theo app — cả 2 dist đều ra `index.html` chuẩn.
 
 `api/`, `components/common/`, `stores/`, `hooks/` giữ nguyên, dùng chung cho cả 2 app.
 
