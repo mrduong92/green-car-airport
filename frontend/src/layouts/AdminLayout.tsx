@@ -13,6 +13,7 @@ const TABS = [
   { to: '/admin/revenue',   icon: 'bar_chart',           label: 'Doanh thu' },
   { to: '/admin/prices',    icon: 'sell',                label: 'Bảng giá' },
   { to: '/admin/customers', icon: 'manage_accounts',     label: 'Khách hàng' },
+  { to: '/admin/pages',     icon: 'article',             label: 'Trang tĩnh' },
 ]
 
 export default function AdminLayout() {

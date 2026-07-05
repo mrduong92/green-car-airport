@@ -250,6 +250,14 @@ declare namespace App {
     sort_order: number
   }
 
+  interface StaticPage {
+    id: number
+    slug: string
+    title: string
+    content: string
+    is_active: boolean
+  }
+
   interface CustomerProfile {
     id: number
     name: string

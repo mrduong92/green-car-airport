@@ -14,6 +14,7 @@ import DriverNotificationsPage from '@/pages/driver/NotificationsPage'
 import DriverStatsPage from '@/pages/driver/StatsPage'
 import DriverPendingPage from '@/pages/driver/DriverPendingPage'
 import InstallPage from '@/pages/InstallPage'
+import StaticPageView from '@/pages/StaticPageView'
 
 function GuestOnly() {
   const user = useAuthStore((s) => s.user)
@@ -60,5 +61,6 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '/install', element: <InstallPage /> },
+  { path: '/pages/:slug', element: <StaticPageView /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ])
