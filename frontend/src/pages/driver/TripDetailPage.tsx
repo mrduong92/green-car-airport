@@ -8,7 +8,7 @@ import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 
-const GoongTripMap = lazy(() => import('@/components/driver/GoongTripMap'))
+const GoongTripMap = lazy(() => import('@/components/common/GoongTripMap'))
 
 const NEXT_STEP: Partial<Record<App.TripStatus, { status: App.TripStatus; label: string }>> = {
   accepted:    { status: 'in_progress', label: 'Đã đón khách' },

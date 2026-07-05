@@ -70,14 +70,14 @@ export default function SplashPage() {
         </button>
       </div>
 
-      {/* Driver registration link */}
+      {/* Driver registration link — driver app là subdomain riêng */}
       <p className="text-center text-[13px]">
-        <button
-          onClick={() => navigate('/register/driver')}
+        <a
+          href={`${import.meta.env.VITE_DRIVER_APP_URL ?? 'http://localhost:5174'}/register/driver`}
           className="text-white/70 underline underline-offset-2"
         >
           Đăng ký làm tài xế
-        </button>
+        </a>
       </p>
 
       {/* Tagline */}

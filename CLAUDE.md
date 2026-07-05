@@ -24,7 +24,7 @@ green-car-airport/
 │       ├── components/    # common/, customer/, driver/, admin/
 │       ├── layouts/       # CustomerLayout, DriverLayout, AdminLayout
 │       ├── pages/         # SplashPage, LoginPage, customer/, driver/, admin/
-│       ├── router/        # createBrowserRouter + role guards
+│       ├── router/        # customer.tsx + driver.tsx + guards.tsx (2 app targets)
 │       ├── stores/        # Zustand: auth.ts, ui.ts
 │       └── types.d.ts     # App.* namespace (shared domain types)
 ├── backend/                           # Laravel 13 API
@@ -41,6 +41,7 @@ green-car-airport/
 | Container | Purpose | Host port |
 |---|---|---|
 | `green_car_frontend` | Vite dev server | **5173** |
+| `green_car_frontend_driver` | Vite dev server (app tài xế) | **5174** |
 | `green_car_nginx` | Laravel web server | **8080** |
 | `green_car_app` | PHP 8.4-FPM | — |
 | `green_car_mysql` | MySQL 8.0 | 3306 |
@@ -68,6 +69,12 @@ make lint             # Laravel Pint
 # Frontend
 make fe-shell         # sh into frontend container
 make fe-build         # production build
+make logs-fe-driver   # follow driver frontend logs
+make fe-shell-driver  # sh into driver frontend container
+
+# Frontend builds (2 app targets)
+docker compose exec frontend npm run build:customer   # → dist/
+docker compose exec frontend npm run build:driver     # → dist-driver/
 ```
 
 **Single test:**
@@ -81,26 +88,12 @@ docker compose exec app php artisan test --filter=ExampleTest
 
 **Data fetching:** TanStack Query v5 — all API calls go through `src/api/` modules which use a shared Axios instance (`src/api/axios.ts`). The interceptor attaches `Bearer` token and redirects to `/login` on 401.
 
-**Routing:** `createBrowserRouter` with two guard components:
-- `<RequireRole role="...">` — redirects unauthenticated users to `/login`, wrong-role users to `/`
-- `<GuestOnly>` — redirects logged-in users to their role home
+**Routing:** 2 app riêng, mỗi app 1 router + 1 Vite build target:
+- `router/customer.tsx` (entry `main.tsx`, port 5173, `dist/`) — Splash, `/login`, `/register`, `/admin/login` (ẩn), `customer/*`, `admin/*`
+- `router/driver.tsx` (entry `main.driver.tsx`, port 5174, `dist-driver/`) — `/login`, `/register/driver`, `driver/*`
+- `router/guards.tsx` — `RequireRole`, `RequireDriverActive`, `RequireDriverPending` dùng chung; mỗi router có `GuestOnly` riêng theo role của app
 
-**Route structure:**
-```
-/                       → SplashPage
-/login                  → LoginPage (OTP flow)
-/customer/booking       → BookingFormPage      (A3)
-/customer/booking/:id   → BookingStatusPage    (A4)
-/customer/history       → BookingHistoryPage   (A5)
-/driver/trips           → TripListPage         (B1)
-/driver/trips/:id       → TripDetailPage       (B2)
-/driver/wallet          → WalletPage           (B3)
-/driver/profile         → ProfilePage          (B4)
-/admin/dashboard        → DashboardPage        (C1)
-/admin/drivers          → DriversPage          (C2)
-/admin/vouchers         → VouchersPage         (C3)
-/admin/revenue          → RevenuePage          (C4)
-```
+Login không còn role-picker: mỗi app hardcode `role` khi gọi `checkPhone`/`login` (hook `useAuthLogin(role)`). Production: `savego.com.vn` = customer+admin, `driver.savego.com.vn` = driver (xem `deploy/nginx/`).
 
 **Forms:** React Hook Form + Zod validation. See `BookingFormPage` and `VouchersPage` for patterns.
 
