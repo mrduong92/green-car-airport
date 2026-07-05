@@ -389,14 +389,14 @@ export default function DriverRegisterPage() {
                 <input type="checkbox" checked={agreedPrivacy} onChange={(e) => setPrivacy(e.target.checked)} className="w-5 h-5 mt-0.5 accent-primary shrink-0" />
                 <span className="text-sm text-navy leading-snug">
                   Tôi đồng ý với{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary font-semibold underline">Chính sách bảo mật</a>
+                  <a href="/pages/privacy" target="_blank" rel="noopener noreferrer" className="text-primary font-semibold underline">Chính sách bảo mật</a>
                 </span>
               </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={agreedTerms} onChange={(e) => setTerms(e.target.checked)} className="w-5 h-5 mt-0.5 accent-primary shrink-0" />
                 <span className="text-sm text-navy leading-snug">
                   Tôi đồng ý với{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary font-semibold underline">Điều khoản sử dụng</a>
+                  <a href="/pages/terms" target="_blank" rel="noopener noreferrer" className="text-primary font-semibold underline">Điều khoản sử dụng</a>
                 </span>
               </label>
             </div>

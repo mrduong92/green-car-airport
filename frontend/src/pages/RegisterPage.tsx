@@ -348,7 +348,7 @@ export default function RegisterPage() {
                 <span className="text-sm text-navy leading-snug">
                   Tôi đồng ý với{' '}
                   <a
-                    href="/privacy"
+                    href="/pages/privacy"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary font-semibold underline"
@@ -368,7 +368,7 @@ export default function RegisterPage() {
                 <span className="text-sm text-navy leading-snug">
                   Tôi đồng ý với{' '}
                   <a
-                    href="/terms"
+                    href="/pages/terms"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary font-semibold underline"

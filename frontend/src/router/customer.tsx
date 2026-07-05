@@ -22,6 +22,7 @@ import PriceConfigPage from '@/pages/admin/PriceConfigPage'
 import AdminCustomersPage from '@/pages/admin/CustomersPage'
 import StaticPagesPage from '@/pages/admin/StaticPagesPage'
 import InstallPage from '@/pages/InstallPage'
+import StaticPageView from '@/pages/StaticPageView'
 
 function GuestOnly() {
   const user = useAuthStore((s) => s.user)
@@ -76,5 +77,6 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '/install', element: <InstallPage /> },
+  { path: '/pages/:slug', element: <StaticPageView /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ])
