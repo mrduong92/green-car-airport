@@ -1,6 +1,10 @@
-# Deploy Production — Save Go
+# Deploy — Save Go (STAGING)
 
 > Cập nhật lần cuối: 2026-07-05. KHÔNG lưu mật khẩu trong file này — server chỉ đăng nhập bằng SSH key (password auth đã tắt).
+>
+> ⚠️ Đây là server **STAGING** (dùng chung, thử nghiệm). Production riêng sẽ dựng sau — khi có, tạo file/section riêng và KHÔNG dùng chung env/DB với staging.
+>
+> Ghi chú bảo mật (chấp nhận được trên staging, PHẢI sửa trước production): mật khẩu `000000` và OTP `000000` là "dev bypass" đăng nhập được mọi tài khoản (`AuthController::login`, `OtpController` — điều kiện `|| password === '000000'`). Trên production thật phải chỉ cho bypass khi `APP_ENV=local`.
 
 ## Thông tin server
 
@@ -15,6 +19,52 @@
 | Password auth | **ĐÃ TẮT** (`/etc/ssh/sshd_config.d/00-disable-password-auth.conf`) — mất key thì phải vào console của nhà cung cấp VPS |
 
 ⚠️ **Server dùng chung** — còn host các site khác: `amd.io.vn`, `amdnewtech.shop`, `nmtauto.com(.vn)`, `webai.io.vn`, `funa-ai`. Cẩn trọng khi đụng nginx/PHP-FPM/MySQL dùng chung.
+
+### Tài khoản admin (staging)
+
+Vào `https://webco.io.vn/admin/login` (route ẩn, KHÔNG phải `/login` thường), số `0923456789`. Màn `/login` thường hardcode `role=customer` nên số chỉ có role admin sẽ bị chặn ở đó — phải dùng đúng `/admin/login`.
+
+## SSH — đăng nhập bằng key (không dùng password)
+
+Server đã tắt password auth hoàn toàn. Cách thiết lập lại từ đầu (nếu đổi máy local hoặc dựng server mới):
+
+**1. Tạo key ở máy local:**
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/greencar-prod -N "" -C "greencar-prod-deploy"
+```
+
+**2. Cài public key lên server** (lần đầu vẫn cần password/console của VPS để vào):
+
+```bash
+# Cách chuẩn:
+ssh-copy-id -i ~/.ssh/greencar-prod.pub root@103.148.57.141
+# Hoặc thủ công: append nội dung ~/.ssh/greencar-prod.pub vào ~/.ssh/authorized_keys trên server
+```
+
+**3. Xác nhận key login được TRƯỚC KHI tắt password** (không làm bước này dễ tự khoá mình ngoài):
+
+```bash
+ssh -i ~/.ssh/greencar-prod -o BatchMode=yes root@103.148.57.141 "echo OK"
+```
+
+**4. Tắt password auth trên server** (drop-in để không sửa file gốc, ưu tiên cao `00-`):
+
+```bash
+printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh/sshd_config.d/00-disable-password-auth.conf
+sshd -t && systemctl reload ssh
+```
+
+**5. (Tùy chọn) alias cho gọn** — thêm vào `~/.ssh/config` ở máy local:
+
+```
+Host greencar-staging
+  HostName 103.148.57.141
+  User root
+  IdentityFile ~/.ssh/greencar-prod
+```
+
+→ sau đó chỉ cần `ssh greencar-staging`. Mất key = phải vào console VPS của nhà cung cấp để khôi phục.
 
 ## Kiến trúc deploy
 
@@ -47,7 +97,7 @@ git fetch origin && git reset --hard origin/main
 
 cd backend
 COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
-php artisan migrate --force          # KHÔNG BAO GIỜ dùng migrate:fresh — DB có dữ liệu thật
+php artisan migrate --force          # KHÔNG BAO GIỜ dùng migrate:fresh — DB có dữ liệu thật (24 users, 75 bookings)
 php artisan config:cache && php artisan route:cache
 # ⚠️ BẮT BUỘC sau khi chạy artisan bằng root: trả quyền về www-data,
 # nếu không PHP-FPM không ghi được log/cache → mọi request 500 không để lại vết
@@ -100,6 +150,11 @@ curl -s https://driver.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 
 ## Lịch sử / ghi chú
 
-- 2026-07-05: Deploy domain-separation (2 app customer/driver) + static pages CRUD. Tạo vhost `driver.webco.io.vn`. Tắt SSH password auth, chuyển sang key `greencar-prod`.
-- `savego.com.vn` chưa có DNS (dự kiến domain chính thức sau này) — hiện dùng `webco.io.vn`.
-- Queue worker: chưa thấy service/cron nào chạy `queue:work` trên server dù `QUEUE_CONNECTION=redis` — cần kiểm tra nếu notification không gửi (TODO).
+- 2026-07-05: Deploy domain-separation (2 app customer/driver) + static pages CRUD + phone-normalization. Tạo vhost `driver.webco.io.vn` + SSL. Tắt SSH password auth, chuyển sang key `greencar-prod`. Fix bug entry-swap build (2 app ra cùng bundle). Fix quyền storage (root artisan → 500). Fix check số dư ví khi tài xế nhận cuốc (BIGINT unsigned crash).
+- `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn`.
+
+### TODO trước khi lên production thật
+- Tắt dev bypass `000000` (password + OTP) — chỉ cho khi `APP_ENV=local`; đổi mật khẩu admin thật.
+- Backup DB tự động (chưa có).
+- Queue worker: chưa thấy service/cron chạy `queue:work` dù `QUEUE_CONNECTION=redis` — kiểm tra nếu notification/push không gửi.
+- Dùng DB + env riêng cho production, không chung với staging.
