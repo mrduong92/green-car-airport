@@ -58,16 +58,25 @@ class TripController extends Controller
             return response()->json(['message' => 'Bạn đã đạt tối đa 3 cuốc đang thực hiện.'], 422);
         }
 
+        // Trừ 20% phí app ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ).
+        // Check số dư TRƯỚC khi cập nhật booking — cột points là UNSIGNED, trừ âm sẽ
+        // crash SQL và để lại booking đã accepted nhưng chưa trừ phí.
+        $totalCollected = $booking->price - $booking->discount;
+        $feePoints      = (int) round($totalCollected * 0.20 / 1000);
+        $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
+
+        if ($wallet->points < $feePoints) {
+            return response()->json([
+                'message' => "Số dư ví không đủ để nhận cuốc (cần {$feePoints} điểm phí app, ví còn {$wallet->points} điểm). Vui lòng nạp thêm điểm.",
+            ], 422);
+        }
+
         $booking->update([
             'driver_id'   => $request->user()->id,
             'status'      => 'accepted',
             'accepted_at' => now(),
         ]);
 
-        // Trừ 20% phí app ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ)
-        $totalCollected = $booking->price - $booking->discount;
-        $feePoints      = (int) round($totalCollected * 0.20 / 1000);
-        $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
         $wallet->decrement('points', $feePoints);
         WalletTransaction::create([
             'wallet_id'   => $wallet->id,
