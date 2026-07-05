@@ -3,7 +3,7 @@ APP      = $(DOCKER_COMPOSE) exec app
 FRONTEND = $(DOCKER_COMPOSE) exec frontend
 
 .PHONY: up down build restart logs shell artisan composer migrate fresh test lint \
-        fe-shell fe-install fe-build
+        fe-shell fe-install fe-build logs-fe-driver fe-shell-driver
 
 # ── Docker ─────────────────────────────────────────────────────────────────────
 up:
@@ -23,6 +23,9 @@ logs:
 
 logs-fe:
 	$(DOCKER_COMPOSE) logs -f frontend
+
+logs-fe-driver:
+	$(DOCKER_COMPOSE) logs -f frontend_driver
 
 logs-worker:
 	$(DOCKER_COMPOSE) logs -f worker
@@ -52,6 +55,9 @@ lint:
 # ── Frontend (React) ────────────────────────────────────────────────────────────
 fe-shell:
 	$(DOCKER_COMPOSE) exec frontend sh
+
+fe-shell-driver:
+	$(DOCKER_COMPOSE) exec frontend_driver sh
 
 fe-install:
 	$(FRONTEND) npm install

@@ -1,4 +1,4 @@
 import { bootstrap } from '@/bootstrap'
-import { router } from '@/router/customer'
+import { router } from '@/router/driver'
 
 bootstrap(router)
