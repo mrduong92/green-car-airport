@@ -79,6 +79,17 @@ curl -s https://webco.io.vn/api/pages/terms                              # JSON 
 curl -s https://driver.webco.io.vn/ | grep -o '<title>[^<]*</title>'     # Save Go Tài Xế
 ```
 
+⚠️ **Title đúng CHƯA đủ** — đã từng có bug 2 build ra cùng 1 bundle customer nhưng title vẫn khác nhau. Phải verify nội dung bundle thật:
+
+```bash
+# Bundle driver phải chứa chuỗi UI chỉ có ở app driver:
+BUNDLE=$(curl -s https://driver.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js')
+curl -s "https://driver.webco.io.vn$BUNDLE" | grep -c "Chưa đăng ký tài xế"   # >= 1
+# Và 2 app phải ra 2 file hash KHÁC nhau:
+curl -s https://webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
+curl -s https://driver.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
+```
+
 ## Backup
 
 - Mỗi lần deploy: `/root/deploy-backups/<timestamp>/` trên server (env files + composer + dist cũ).
