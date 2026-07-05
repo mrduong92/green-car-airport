@@ -22,6 +22,8 @@ use App\Http\Controllers\Customer\CollaboratorWalletController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
 use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
 use App\Http\Controllers\PriceConfigController;
+use App\Http\Controllers\StaticPageController;
+use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
 use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Webhooks\SepayWebhookController;
@@ -40,6 +42,7 @@ Route::post('/auth/register',         [AuthController::class, 'register']);
 Route::post('/auth/register/driver',  [AuthController::class, 'registerDriver']);
 Route::post('/auth/reset-password',[AuthController::class, 'resetPassword']);
 Route::get('/price-configs',    [PriceConfigController::class, 'index']);
+Route::get('/pages/{slug}',     [StaticPageController::class, 'show']);
 Route::post('/webhooks/sepay',  [SepayWebhookController::class, 'handle']);
 Route::get('/zns/dlr',          [ZnsDlrController::class, 'handle']);
 
@@ -110,6 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/customers/{user}/collaborator',  [AdminCustomerController::class, 'toggleCollaborator']);
         Route::post('/admin/drivers/{user}/topup',            [AdminWalletController::class, 'topup']);
         Route::apiResource('/admin/price-configs', AdminPriceConfigController::class)->except(['show']);
+        Route::apiResource('/admin/pages', AdminStaticPageController::class)->except(['show']);
         Route::get('/admin/zns/balance', [AdminZnsController::class, 'balance']);
     });
 });
