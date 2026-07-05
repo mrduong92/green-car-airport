@@ -32,11 +32,18 @@ function appEntryPlugin(target: AppTarget): Plugin {
   const app = APPS[target]
   return {
     name: 'app-entry',
-    transformIndexHtml(html) {
-      return html
-        .replace('/src/main.tsx', app.entry)
-        .replace(/<title>.*<\/title>/, `<title>${app.title}</title>`)
-        .replace('content="SaveGo"', `content="${app.shortName}"`)
+    // order: 'pre' bắt buộc — khi build, Vite chốt entry module TRƯỚC khi chạy
+    // các transform mặc định, nên swap ở giai đoạn mặc định chỉ đổi được title
+    // còn bundle vẫn là main.tsx (app customer). Dev server không bị vì transform
+    // luôn chạy trước khi browser fetch entry.
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        return html
+          .replace('/src/main.tsx', app.entry)
+          .replace(/<title>.*<\/title>/, `<title>${app.title}</title>`)
+          .replace('content="SaveGo"', `content="${app.shortName}"`)
+      },
     },
   }
 }
