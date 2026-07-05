@@ -20,6 +20,7 @@ import VouchersPage from '@/pages/admin/VouchersPage'
 import RevenuePage from '@/pages/admin/RevenuePage'
 import PriceConfigPage from '@/pages/admin/PriceConfigPage'
 import AdminCustomersPage from '@/pages/admin/CustomersPage'
+import StaticPagesPage from '@/pages/admin/StaticPagesPage'
 import InstallPage from '@/pages/InstallPage'
 
 function GuestOnly() {
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
           { path: '/admin/revenue', element: <RevenuePage /> },
           { path: '/admin/prices', element: <PriceConfigPage /> },
           { path: '/admin/customers', element: <AdminCustomersPage /> },
+          { path: '/admin/pages', element: <StaticPagesPage /> },
         ],
       },
     ],
