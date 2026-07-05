@@ -49,6 +49,9 @@ cd backend
 COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
 php artisan migrate --force          # KHÔNG BAO GIỜ dùng migrate:fresh — DB có dữ liệu thật
 php artisan config:cache && php artisan route:cache
+# ⚠️ BẮT BUỘC sau khi chạy artisan bằng root: trả quyền về www-data,
+# nếu không PHP-FPM không ghi được log/cache → mọi request 500 không để lại vết
+chown -R www-data:www-data storage bootstrap/cache
 systemctl reload php8.4-fpm
 ```
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { sendOtp, driverRegisterApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
@@ -19,11 +19,15 @@ const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
 
 export default function DriverRegisterPage() {
   const navigate  = useNavigate()
+  const location  = useLocation()
   const setAuth   = useAuthStore((s) => s.setAuth)
   const showToast = useUiStore((s) => s.showToast)
 
+  // Số điện thoại truyền từ màn login (bước "Chưa đăng ký tài xế") để auto-fill bước 1
+  const prefilledPhone = (location.state as { phone?: string } | null)?.phone ?? ''
+
   const [step, setStep]             = useState<RegStep>(1)
-  const [phone, setPhone]           = useState('')
+  const [phone, setPhone]           = useState(prefilledPhone)
   const [otp, setOtp]               = useState(['', '', '', '', '', ''])
   const [countdown, setCountdown]   = useState(0)
   const [name, setName]             = useState('')

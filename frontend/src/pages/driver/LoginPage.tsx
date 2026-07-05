@@ -72,7 +72,7 @@ export default function LoginPage() {
             </Button>
             <p className="text-center text-sm text-neutral-gray">
               Chưa có tài khoản tài xế?{' '}
-              <Link to="/register/driver" className="text-primary font-semibold">Đăng ký tài xế</Link>
+              <Link to="/register/driver" state={{ phone }} className="text-primary font-semibold">Đăng ký tài xế</Link>
             </p>
           </div>
         </>
@@ -80,7 +80,7 @@ export default function LoginPage() {
 
       {step === 'no-role' && (
         <div className="flex flex-col gap-3">
-          <Button fullWidth size="lg" onClick={() => navigate('/register/driver')}>
+          <Button fullWidth size="lg" onClick={() => navigate('/register/driver', { state: { phone } })}>
             Đăng ký làm tài xế
           </Button>
           <button onClick={() => setStep('phone')} className="text-primary text-sm font-medium">
