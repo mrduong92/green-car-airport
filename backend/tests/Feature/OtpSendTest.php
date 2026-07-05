@@ -163,4 +163,32 @@ class OtpSendTest extends TestCase
 
         $this->assertSame(1, $fake->calls);
     }
+
+    public function test_send_normalizes_phone_without_leading_zero(): void
+    {
+        $fake = $this->fakeSender(success: true);
+
+        $this->postJson('/api/auth/otp/send', ['phone' => '901234567'])
+            ->assertOk();
+
+        $this->assertSame(1, $fake->calls);
+        $this->assertDatabaseHas('otps', ['phone' => '0901234567']);
+        $this->assertDatabaseMissing('otps', ['phone' => '901234567']);
+    }
+
+    public function test_send_register_purpose_rejects_existing_phone_in_different_format(): void
+    {
+        User::create(['phone' => '0901234567', 'role' => 'customer']);
+
+        $fake = $this->fakeSender();
+
+        $this->postJson('/api/auth/otp/send', [
+            'phone'   => '901234567',
+            'purpose' => 'register',
+        ])
+            ->assertStatus(422)
+            ->assertJson(['message' => 'Số điện thoại đã được đăng ký.']);
+
+        $this->assertSame(0, $fake->calls);
+    }
 }
