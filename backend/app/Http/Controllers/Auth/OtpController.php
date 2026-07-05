@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Otp;
 use App\Models\User;
 use App\Services\Zns\ZnsSender;
+use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -21,14 +22,16 @@ class OtpController extends Controller
             'purpose' => 'nullable|in:register,driver_register,reset',
         ]);
 
-        $exists = User::where('phone', $request->phone)->exists();
+        $phone = PhoneNumber::normalize($request->phone);
+
+        $exists = User::where('phone', $phone)->exists();
 
         if ($request->purpose === 'register' && $exists) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
         }
 
         if ($request->purpose === 'driver_register'
-            && User::where('phone', $request->phone)->where('role', 'driver')->exists()
+            && User::where('phone', $phone)->where('role', 'driver')->exists()
         ) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
@@ -39,31 +42,31 @@ class OtpController extends Controller
 
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        Otp::where('phone', $request->phone)->delete();
+        Otp::where('phone', $phone)->delete();
 
         $otp = Otp::create([
-            'phone'      => $request->phone,
+            'phone'      => $phone,
             'code'       => $code,
             'expires_at' => now()->addMinutes(5),
         ]);
 
         if (app()->environment('local') && ! config('services.zns.force_send')) {
             Log::info('[OTP] Local bypass — không gọi ZNS', [
-                'phone' => $request->phone,
+                'phone' => $phone,
                 'code'  => $code,
             ]);
             return response()->json(['message' => 'OTP đã được gửi.']);
         }
 
         Log::info('[OTP] Gửi qua ZNS', [
-            'phone'    => $request->phone,
+            'phone'    => $phone,
             'provider' => config('services.zns.provider'),
         ]);
 
-        $result = $this->zns->send($request->phone, $code);
+        $result = $this->zns->send($phone, $code);
 
         Log::info('[OTP] Kết quả ZNS', [
-            'phone'         => $request->phone,
+            'phone'         => $phone,
             'success'       => $result->success,
             'client_req_id' => $result->clientReqId,
             'tracking_id'   => $result->trackingId,
@@ -90,10 +93,12 @@ class OtpController extends Controller
             'otp'   => 'required|string|size:6',
         ]);
 
+        $phone = PhoneNumber::normalize($request->phone);
+
         $bypass = app()->environment('local') || $request->otp === '000000';
 
         if (! $bypass) {
-            $otp = Otp::where('phone', $request->phone)
+            $otp = Otp::where('phone', $phone)
                 ->where('code', $request->otp)
                 ->whereNull('used_at')
                 ->where('expires_at', '>', now())
@@ -107,7 +112,7 @@ class OtpController extends Controller
         }
 
         $user = User::firstOrCreate(
-            ['phone' => $request->phone],
+            ['phone' => $phone],
             ['name' => null, 'role' => 'customer'],
         );
 

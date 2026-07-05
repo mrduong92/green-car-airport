@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Otp;
 use App\Models\User;
+use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,7 +16,9 @@ class AuthController extends Controller
     {
         $request->validate(['phone' => 'required|string|max:20']);
 
-        $roles = User::where('phone', $request->phone)->pluck('role');
+        $phone = PhoneNumber::normalize($request->phone);
+
+        $roles = User::where('phone', $phone)->pluck('role');
 
         if ($roles->isEmpty()) {
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
@@ -32,7 +35,9 @@ class AuthController extends Controller
             'role'     => 'nullable|string|in:customer,driver,admin',
         ]);
 
-        $query = User::where('phone', $request->phone);
+        $phone = PhoneNumber::normalize($request->phone);
+
+        $query = User::where('phone', $phone);
         if ($request->role) {
             $query->where('role', $request->role);
         }
@@ -94,11 +99,13 @@ class AuthController extends Controller
             'referral_code' => 'nullable|string|max:10',
         ]);
 
-        if (User::where('phone', $request->phone)->where('role', 'customer')->exists()) {
+        $phone = PhoneNumber::normalize($request->phone);
+
+        if (User::where('phone', $phone)->where('role', 'customer')->exists()) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
         }
 
-        $this->consumeOtp($request->phone, $request->otp);
+        $this->consumeOtp($phone, $request->otp);
 
         $referredById = null;
         if ($request->referral_code) {
@@ -109,7 +116,7 @@ class AuthController extends Controller
         }
 
         $user = User::create([
-            'phone'               => $request->phone,
+            'phone'               => $phone,
             'name'                => $request->input('name'),
             'password'            => Hash::make($request->password),
             'role'                => 'customer',
@@ -145,12 +152,14 @@ class AuthController extends Controller
             'insurance_expiry'          => 'required|date|after:today',
         ]);
 
-        if (User::where('phone', $request->phone)->where('role', 'driver')->exists()) {
+        $phone = PhoneNumber::normalize($request->phone);
+
+        if (User::where('phone', $phone)->where('role', 'driver')->exists()) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
 
         $user = User::create([
-            'phone'    => $request->phone,
+            'phone'    => $phone,
             'name'     => $request->name,
             'password' => Hash::make($request->password),
             'role'     => 'driver',
@@ -194,7 +203,9 @@ class AuthController extends Controller
             'role'     => 'nullable|string|in:customer,driver,admin',
         ]);
 
-        $query = User::where('phone', $request->phone);
+        $phone = PhoneNumber::normalize($request->phone);
+
+        $query = User::where('phone', $phone);
         if ($request->role) {
             $query->where('role', $request->role);
         }
@@ -204,7 +215,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
         }
 
-        $this->consumeOtp($request->phone, $request->otp);
+        $this->consumeOtp($phone, $request->otp);
 
         $user->update(['password' => Hash::make($request->password)]);
 
