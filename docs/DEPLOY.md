@@ -91,7 +91,9 @@ ssh -i ~/.ssh/greencar-prod root@103.148.57.141
 cd /var/www/green-car-airport
 # Backup trước
 BACKUP=/root/deploy-backups/$(date +%Y%m%d-%H%M%S) && mkdir -p $BACKUP
-cp backend/.env frontend/.env $BACKUP/ && cp -r frontend/dist $BACKUP/dist-previous
+# 2 file cùng tên .env → phải đặt tên riêng, không copy chung 1 chỗ (sẽ đè nhau)
+cp backend/.env $BACKUP/backend.env && cp frontend/.env $BACKUP/frontend.env
+cp -r frontend/dist $BACKUP/dist-previous
 
 git fetch origin && git reset --hard origin/main
 
