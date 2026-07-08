@@ -84,6 +84,7 @@ declare namespace App {
     duration_min: number
     price: number
     discount: number
+    collection_fee?: number
     final_price: number
     app_fee: number
     net_earning: number

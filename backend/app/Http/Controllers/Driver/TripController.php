@@ -310,6 +310,7 @@ class TripController extends Controller
             'price'                 => $b->price,
             'discount'              => $b->discount,
             'surcharge'             => $b->surcharge,
+            'collection_fee'        => (int) ($b->collection_fee ?? 0),
             'final_price'           => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
             'app_fee'               => $appFee,
             'net_earning'           => $netEarning,

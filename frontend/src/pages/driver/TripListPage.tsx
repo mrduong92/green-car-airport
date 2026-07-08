@@ -288,15 +288,28 @@ export default function TripListPage() {
               </div>
 
               {/* Price breakdown */}
-              <div className="flex items-center justify-between bg-warm-white rounded-[10px] px-3 py-2.5">
-                <div>
-                  <p className="text-[11px] text-neutral-gray">Khách trả</p>
-                  <p className="text-[15px] font-semibold text-navy tabular-nums">{trip.final_price.toLocaleString('vi')} đ</p>
+              <div className="flex flex-col gap-1.5 bg-warm-white rounded-[10px] px-3 py-2.5">
+                <div className="flex justify-between text-[12px]">
+                  <span className="text-neutral-gray">Giá cuốc</span>
+                  <span className="text-navy font-medium tabular-nums">{trip.price.toLocaleString('vi')} đ</span>
                 </div>
-                <span className="material-symbols-outlined text-neutral-dim text-[14px]">arrow_forward</span>
-                <div className="text-right">
-                  <p className="text-[11px] text-neutral-gray">Phí app 20%</p>
-                  <p className="text-[13px] font-semibold text-danger-red tabular-nums">-{trip.app_fee.toLocaleString('vi')}</p>
+                {(trip.collection_fee ?? 0) > 0 && (
+                  <div className="flex justify-between text-[12px]">
+                    <span className="text-neutral-gray">Thu hộ</span>
+                    <span className="text-navy font-medium tabular-nums">+{(trip.collection_fee ?? 0).toLocaleString('vi')} đ</span>
+                  </div>
+                )}
+                <div className="h-px bg-border-gray" />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] text-neutral-gray">Khách trả</p>
+                    <p className="text-[15px] font-semibold text-navy tabular-nums">{trip.final_price.toLocaleString('vi')} đ</p>
+                  </div>
+                  <span className="material-symbols-outlined text-neutral-dim text-[14px]">arrow_forward</span>
+                  <div className="text-right">
+                    <p className="text-[11px] text-neutral-gray">Phí app 20%</p>
+                    <p className="text-[13px] font-semibold text-danger-red tabular-nums">-{trip.app_fee.toLocaleString('vi')}</p>
+                  </div>
                 </div>
               </div>
 
