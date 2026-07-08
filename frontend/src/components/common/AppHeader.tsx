@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { logout as logoutApi } from '@/api/auth'
 import { unregisterPushSubscription } from '@/push'
 import { useMutation } from '@tanstack/react-query'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
 
 const ROOT_TABS = new Set([
   '/customer/booking', '/customer/history', '/customer/stats', '/customer/notifications', '/customer/profile',
@@ -70,6 +71,7 @@ export default function AppHeader() {
   const { pathname } = useLocation()
   const { user, clearAuth } = useAuthStore()
   const [showQuyDinh, setShowQuyDinh] = useState(false)
+  const { canInstall } = usePwaInstall()
 
   const logoutMutation = useMutation({
     mutationFn: logoutApi,
@@ -118,16 +120,27 @@ export default function AppHeader() {
           )}
         </div>
 
-        {/* Right — Quy định (customer/driver) hoặc Logout (admin) */}
-        <div className="w-24 flex items-center justify-end shrink-0">
+        {/* Right — Quy định (customer/driver) hoặc Cài đặt + Logout (admin) */}
+        <div className="w-24 flex items-center justify-end gap-1 shrink-0">
           {user?.role === 'admin' ? (
-            <button
-              onClick={() => logoutMutation.mutate()}
-              className="w-9 h-9 flex items-center justify-center text-neutral-gray"
-              aria-label="Đăng xuất"
-            >
-              <span className="material-symbols-outlined text-[20px]">logout</span>
-            </button>
+            <>
+              {canInstall && (
+                <button
+                  onClick={() => navigate('/install')}
+                  className="w-9 h-9 flex items-center justify-center text-neutral-gray"
+                  aria-label="Cài đặt ứng dụng"
+                >
+                  <span className="material-symbols-outlined text-[20px]">install_mobile</span>
+                </button>
+              )}
+              <button
+                onClick={() => logoutMutation.mutate()}
+                className="w-9 h-9 flex items-center justify-center text-neutral-gray"
+                aria-label="Đăng xuất"
+              >
+                <span className="material-symbols-outlined text-[20px]">logout</span>
+              </button>
+            </>
           ) : (
             <button
               onClick={() => setShowQuyDinh(true)}
