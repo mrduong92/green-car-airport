@@ -46,8 +46,10 @@ class CollaboratorWalletController extends Controller
         }
 
         $transactions = WalletTransaction::where('wallet_id', $wallet->id)
-            ->where('type', 'credit')
-            ->where('description', 'like', 'Thu hộ cuốc%')
+            ->where(function ($q) {
+                $q->where(fn ($q2) => $q2->where('type', 'credit')->where('description', 'like', 'Thu hộ cuốc%'))
+                  ->orWhere(fn ($q2) => $q2->where('type', 'debit')->where('description', 'like', 'Admin %'));
+            })
             ->latest()
             ->get()
             ->map(fn ($t) => [

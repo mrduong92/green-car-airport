@@ -176,4 +176,40 @@ class CollaboratorWalletTest extends TestCase
         $this->assertEquals(320, $data->firstWhere('id', $collaborator->id)['points']);
         $this->assertNull($data->firstWhere('id', $plainCustomer->id)['points']);
     }
+
+    public function test_collaborator_sees_admin_deduction_in_transaction_history(): void
+    {
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        $wallet = Wallet::create(['user_id' => $collaborator->id, 'points' => 300]);
+        WalletTransaction::create([
+            'wallet_id'   => $wallet->id,
+            'booking_id'  => null,
+            'type'        => 'credit',
+            'description' => 'Thu hộ cuốc #1',
+            'points'      => 500,
+        ]);
+        WalletTransaction::create([
+            'wallet_id'   => $wallet->id,
+            'booking_id'  => null,
+            'type'        => 'debit',
+            'description' => 'Admin trừ điểm: Đã thanh toán offline',
+            'points'      => 200,
+        ]);
+        WalletTransaction::create([
+            'wallet_id'   => $wallet->id,
+            'booking_id'  => null,
+            'type'        => 'debit',
+            'description' => 'Unrelated system debit',
+            'points'      => 50,
+        ]);
+
+        $response = $this->actingAs($collaborator, 'sanctum')
+            ->getJson('/api/customer/collaborator/wallet/transactions')
+            ->assertOk();
+
+        $descriptions = collect($response->json())->pluck('description');
+        $this->assertTrue($descriptions->contains('Thu hộ cuốc #1'));
+        $this->assertTrue($descriptions->contains('Admin trừ điểm: Đã thanh toán offline'));
+        $this->assertFalse($descriptions->contains('Unrelated system debit'));
+    }
 }
