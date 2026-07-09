@@ -96,6 +96,24 @@ services:
     networks:
       - app-network
 
+  frontend_admin:
+    image: node:22-alpine
+    container_name: green_car_frontend_admin
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5175:5175"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api
+    command: sh -c "npm install && npm run dev:admin"
+    depends_on:
+      - nginx
+    networks:
+      - app-network
+
   worker:
     build:
       context: .
