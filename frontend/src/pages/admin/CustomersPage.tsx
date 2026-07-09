@@ -54,6 +54,17 @@ export default function AdminCustomersPage() {
     setEditName(c.name ?? '')
   }
 
+  const openDeduct = (c: App.AdminCustomer) => {
+    setDeductTarget(c)
+    setDeductPoints('')
+    setDeductReason('')
+  }
+
+  const openReset = (c: App.AdminCustomer) => {
+    setResetTarget(c)
+    setResetReason('')
+  }
+
   const editMutation = useMutation({
     mutationFn: () => updateCustomer(editTarget!.id, { name: editName }),
     onSuccess: () => {
@@ -315,10 +326,10 @@ export default function AdminCustomersPage() {
               </button>
               {historyTarget.is_collaborator && (historyTarget.points ?? 0) > 0 && (
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setDeductTarget(historyTarget)}>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openDeduct(historyTarget)}>
                     Trừ điểm
                   </Button>
-                  <Button variant="danger" size="sm" className="flex-1" onClick={() => setResetTarget(historyTarget)}>
+                  <Button variant="danger" size="sm" className="flex-1" onClick={() => openReset(historyTarget)}>
                     Xóa điểm về 0
                   </Button>
                 </div>
