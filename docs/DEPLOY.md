@@ -163,6 +163,7 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 
 ## Lịch sử / ghi chú
 
+- 2026-07-10: Deploy tính năng Admin trừ/xóa điểm Cộng Tác Viên (2 route mới `POST /admin/customers/{user}/deduct-points` và `.../reset-points`, field `points` trong `GET /admin/customers`, lịch sử ví CTV hiện cả giao dịch admin trừ điểm). Không có migration mới. Verify qua HTTPS: 3 app 200 + đúng bundle + hash khác nhau, admin bundle chứa chuỗi UI mới ("Trừ điểm"/"Xóa điểm về 0"), `GET /api/admin/customers` xác nhận field `points` xuất hiện trên dữ liệu thật.
 - 2026-07-09: Tách Admin thành app/PWA riêng (`dist-admin/`, subdomain `admin.webco.io.vn`, bỏ prefix `/admin` khỏi route). Đã tạo vhost + DNS + SSL cho `admin.webco.io.vn` (certbot, hết hạn 2026-10-07) — deploy lên staging xong, verify qua HTTPS OK (title, manifest, marker bundle, hash khác 2 app còn lại).
 - 2026-07-05: Deploy domain-separation (2 app customer/driver) + static pages CRUD + phone-normalization. Tạo vhost `driver.webco.io.vn` + SSL. Tắt SSH password auth, chuyển sang key `greencar-prod`. Fix bug entry-swap build (2 app ra cùng bundle). Fix quyền storage (root artisan → 500). Fix check số dư ví khi tài xế nhận cuốc (BIGINT unsigned crash).
 - `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn` + `admin.webco.io.vn`.
