@@ -160,4 +160,20 @@ class CollaboratorWalletTest extends TestCase
             'description' => 'Admin xóa toàn bộ điểm: Không cần thiết',
         ]);
     }
+
+    public function test_customer_index_shows_points_for_collaborator_and_null_otherwise(): void
+    {
+        $admin        = User::factory()->create(['role' => 'admin']);
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        Wallet::create(['user_id' => $collaborator->id, 'points' => 320]);
+        $plainCustomer = User::factory()->create(['role' => 'customer', 'is_collaborator' => false]);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/admin/customers')
+            ->assertOk();
+
+        $data = collect($response->json());
+        $this->assertEquals(320, $data->firstWhere('id', $collaborator->id)['points']);
+        $this->assertNull($data->firstWhere('id', $plainCustomer->id)['points']);
+    }
 }

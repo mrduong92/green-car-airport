@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,19 +22,25 @@ class CustomerController extends Controller
             );
         }
 
-        $customers = $query->latest()->get()->map(fn ($u) => [
+        $customers = $query->latest()->get();
+
+        $walletPoints = Wallet::whereIn('user_id', $customers->where('is_collaborator', true)->pluck('id'))
+            ->pluck('points', 'user_id');
+
+        $result = $customers->map(fn ($u) => [
             'id'                 => $u->id,
             'name'               => $u->name,
             'phone'              => $u->phone,
             'is_blocked'         => (bool) $u->is_blocked,
             'is_collaborator'    => (bool) $u->is_collaborator,
+            'points'             => $u->is_collaborator ? (int) ($walletPoints[$u->id] ?? 0) : null,
             'total_bookings'     => $u->bookingsAsCustomer->count(),
             'completed_bookings' => $u->bookingsAsCustomer->where('status', 'completed')->count(),
             'total_spent'        => (int) $u->bookingsAsCustomer->where('status', 'completed')->sum('price'),
             'created_at'         => $u->created_at?->format('d/m/Y'),
         ]);
 
-        return response()->json($customers);
+        return response()->json($result);
     }
 
     public function update(Request $request, User $user): JsonResponse
