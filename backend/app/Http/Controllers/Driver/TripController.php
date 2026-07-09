@@ -26,7 +26,9 @@ class TripController extends Controller
         $trips = Booking::with('customer')
             ->where('status', 'finding_driver')
             ->latest()
-            ->get();
+            ->get()
+            ->filter(fn ($b) => $this->fitsDriverVehicle($b->vehicle_type, $profile?->vehicle_type))
+            ->values();
 
         if ($request->sort === 'nearest' && $profile?->latitude && $profile?->longitude) {
             $trips = $trips->sortBy(fn ($b) => $this->haversine(
@@ -266,6 +268,24 @@ class TripController extends Controller
             ->map(fn ($b) => $this->formatTrip($b));
 
         return response()->json($trips);
+    }
+
+    private const VEHICLE_CAPACITY_RANK = [
+        'sedan_4' => 4,
+        'suv_5'   => 5,
+        'mpv_7'   => 7,
+    ];
+
+    private function fitsDriverVehicle(?string $bookingType, ?string $driverType): bool
+    {
+        if (! $driverType || ! isset(self::VEHICLE_CAPACITY_RANK[$driverType])) {
+            return true;
+        }
+
+        $bookingRank = self::VEHICLE_CAPACITY_RANK[$bookingType] ?? 0;
+        $driverRank  = self::VEHICLE_CAPACITY_RANK[$driverType];
+
+        return $bookingRank <= $driverRank;
     }
 
     private function formatTrip(Booking $b, $driverProfile = null): array
