@@ -276,6 +276,7 @@ declare namespace App {
     phone: string
     is_blocked: boolean
     is_collaborator: boolean
+    points: number | null
     total_bookings: number
     completed_bookings: number
     total_spent: number

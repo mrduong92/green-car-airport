@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCustomers, updateCustomer, getCustomerBookings, blockCustomer, unblockCustomer, toggleCollaborator } from '@/api/admin'
+import { getCustomers, updateCustomer, getCustomerBookings, blockCustomer, unblockCustomer, toggleCollaborator, deductCollaboratorPoints, resetCollaboratorPoints } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import Button from '@/components/common/Button'
+
+type ApiError = { response?: { data?: { message?: string } } }
 
 const STATUS_LABEL: Record<App.BookingStatus, string> = {
   pending:        'Chờ xác nhận',
@@ -30,6 +32,11 @@ export default function AdminCustomersPage() {
   const [editTarget, setEditTarget] = useState<App.AdminCustomer | null>(null)
   const [editName, setEditName] = useState('')
   const [historyTarget, setHistoryTarget] = useState<App.AdminCustomer | null>(null)
+  const [deductTarget, setDeductTarget] = useState<App.AdminCustomer | null>(null)
+  const [deductPoints, setDeductPoints] = useState('')
+  const [deductReason, setDeductReason] = useState('')
+  const [resetTarget, setResetTarget] = useState<App.AdminCustomer | null>(null)
+  const [resetReason, setResetReason] = useState('')
 
   const { data: customers = [] } = useQuery({
     queryKey: ['admin-customers', search],
@@ -81,6 +88,34 @@ export default function AdminCustomersPage() {
       qc.invalidateQueries({ queryKey: ['admin-customers'] })
     },
     onError: () => showToast('Thao tác thất bại', 'error'),
+  })
+
+  const deductMutation = useMutation({
+    mutationFn: () => deductCollaboratorPoints(deductTarget!.id, {
+      points: Number(deductPoints),
+      reason: deductReason,
+    }),
+    onSuccess: (res) => {
+      showToast('Đã trừ điểm', 'success')
+      qc.invalidateQueries({ queryKey: ['admin-customers'] })
+      setHistoryTarget((prev) => prev && prev.id === deductTarget?.id ? { ...prev, points: res.data.new_balance } : prev)
+      setDeductTarget(null)
+      setDeductPoints('')
+      setDeductReason('')
+    },
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Trừ điểm thất bại', 'error'),
+  })
+
+  const resetMutation = useMutation({
+    mutationFn: () => resetCollaboratorPoints(resetTarget!.id, { reason: resetReason }),
+    onSuccess: (res) => {
+      showToast('Đã xóa điểm', 'success')
+      qc.invalidateQueries({ queryKey: ['admin-customers'] })
+      setHistoryTarget((prev) => prev && prev.id === resetTarget?.id ? { ...prev, points: res.data.new_balance } : prev)
+      setResetTarget(null)
+      setResetReason('')
+    },
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Xóa điểm thất bại', 'error'),
   })
 
   return (
@@ -222,6 +257,9 @@ export default function AdminCustomersPage() {
                 { label: 'Tổng đặt', value: historyTarget.total_bookings },
                 { label: 'Hoàn thành', value: historyTarget.completed_bookings },
                 { label: 'Chi tiêu', value: historyTarget.total_spent.toLocaleString('vi') + 'đ' },
+                ...(historyTarget.is_collaborator
+                  ? [{ label: 'Điểm CTV', value: (historyTarget.points ?? 0).toLocaleString('vi') }]
+                  : []),
               ].map((s) => (
                 <div key={s.label} className="flex-1 flex flex-col items-center py-3">
                   <p className="text-[13px] font-bold text-navy">{s.value}</p>
@@ -275,6 +313,16 @@ export default function AdminCustomersPage() {
                 </span>
                 {historyTarget.is_collaborator ? 'Huỷ CTV' : 'Kích hoạt CTV'}
               </button>
+              {historyTarget.is_collaborator && (historyTarget.points ?? 0) > 0 && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setDeductTarget(historyTarget)}>
+                    Trừ điểm
+                  </Button>
+                  <Button variant="danger" size="sm" className="flex-1" onClick={() => setResetTarget(historyTarget)}>
+                    Xóa điểm về 0
+                  </Button>
+                </div>
+              )}
               <Button
                 fullWidth
                 variant="outline"
@@ -286,6 +334,100 @@ export default function AdminCustomersPage() {
                   {historyTarget.is_blocked ? 'lock_open' : 'block'}
                 </span>
                 {historyTarget.is_blocked ? 'Bỏ chặn khách hàng' : 'Chặn khách hàng'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deduct points modal */}
+      {deductTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setDeductTarget(null)}>
+          <div className="bg-white w-full rounded-t-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border-soft">
+              <p className="text-[15px] font-semibold text-navy">Trừ điểm CTV</p>
+              <button onClick={() => setDeductTarget(null)}>
+                <span className="material-symbols-outlined text-neutral-gray text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="px-4 py-4 flex flex-col gap-3">
+              <p className="text-[12px] text-neutral-gray">
+                {deductTarget.name} · Số dư hiện tại: <span className="font-semibold text-navy">{(deductTarget.points ?? 0).toLocaleString('vi')} điểm</span>
+              </p>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] text-neutral-gray font-medium">Số điểm trừ <span className="text-danger-red">*</span></label>
+                <input
+                  type="number" min={1} max={deductTarget.points ?? 0} inputMode="numeric"
+                  value={deductPoints}
+                  onChange={(e) => setDeductPoints(e.target.value)}
+                  placeholder="Nhập số điểm cần trừ"
+                  className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors [appearance:textfield]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] text-neutral-gray font-medium">Lý do <span className="text-danger-red">*</span></label>
+                <textarea
+                  value={deductReason}
+                  onChange={(e) => setDeductReason(e.target.value)}
+                  placeholder="Ví dụ: Đã thanh toán offline"
+                  rows={3}
+                  className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors resize-none"
+                />
+              </div>
+            </div>
+            <div className="px-4 pb-6 pt-3 flex gap-3 border-t border-border-soft">
+              <Button fullWidth variant="outline" onClick={() => setDeductTarget(null)}>Huỷ</Button>
+              <Button
+                fullWidth
+                loading={deductMutation.isPending}
+                disabled={
+                  !deductPoints || Number(deductPoints) < 1 ||
+                  Number(deductPoints) > (deductTarget.points ?? 0) || !deductReason.trim()
+                }
+                onClick={() => deductMutation.mutate()}
+              >
+                Trừ điểm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset points modal */}
+      {resetTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setResetTarget(null)}>
+          <div className="bg-white w-full rounded-t-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border-soft">
+              <p className="text-[15px] font-semibold text-navy">Xóa điểm về 0</p>
+              <button onClick={() => setResetTarget(null)}>
+                <span className="material-symbols-outlined text-neutral-gray text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="px-4 py-4 flex flex-col gap-3">
+              <p className="text-[13px] text-navy">
+                {resetTarget.name} sẽ mất toàn bộ <span className="font-semibold text-danger-red">{(resetTarget.points ?? 0).toLocaleString('vi')} điểm</span>. Hành động này không thể hoàn tác.
+              </p>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] text-neutral-gray font-medium">Lý do <span className="text-danger-red">*</span></label>
+                <textarea
+                  value={resetReason}
+                  onChange={(e) => setResetReason(e.target.value)}
+                  placeholder="Ví dụ: Vi phạm chính sách thu hộ"
+                  rows={3}
+                  className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors resize-none"
+                />
+              </div>
+            </div>
+            <div className="px-4 pb-6 pt-3 flex gap-3 border-t border-border-soft">
+              <Button fullWidth variant="outline" onClick={() => setResetTarget(null)}>Huỷ</Button>
+              <Button
+                fullWidth
+                variant="danger"
+                loading={resetMutation.isPending}
+                disabled={!resetReason.trim()}
+                onClick={() => resetMutation.mutate()}
+              >
+                Xóa điểm
               </Button>
             </div>
           </div>

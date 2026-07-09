@@ -51,3 +51,9 @@ export const unblockCustomer = (id: number) =>
 
 export const toggleCollaborator = (id: number) =>
   api.patch<{ is_collaborator: boolean }>(`/admin/customers/${id}/collaborator`)
+
+export const deductCollaboratorPoints = (id: number, data: { points: number; reason: string }) =>
+  api.post<{ message: string; new_balance: number }>(`/admin/customers/${id}/deduct-points`, data)
+
+export const resetCollaboratorPoints = (id: number, data: { reason: string }) =>
+  api.post<{ message: string; new_balance: number }>(`/admin/customers/${id}/reset-points`, data)
