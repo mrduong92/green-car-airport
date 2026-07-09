@@ -7,9 +7,11 @@
     "dev": "vite --host",
     "dev:customer": "vite --host --config vite.customer.config.ts",
     "dev:driver": "vite --host --config vite.driver.config.ts",
+    "dev:admin": "vite --host --config vite.admin.config.ts",
     "build": "tsc -b && vite build",
     "build:customer": "tsc -b && vite build --config vite.customer.config.ts",
     "build:driver": "tsc -b && vite build --config vite.driver.config.ts",
+    "build:admin": "tsc -b && vite build --config vite.admin.config.ts",
     "preview": "vite preview",
     "lint": "eslint ."
   },

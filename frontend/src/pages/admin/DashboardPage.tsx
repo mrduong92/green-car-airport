@@ -78,9 +78,9 @@ export default function AdminDashboardPage() {
       {/* Quick actions */}
       <div className="flex gap-2 overflow-x-auto">
         {[
-          { label: 'Duyệt tài xế', icon: 'how_to_reg', to: '/admin/drivers' },
-          { label: 'Tạo voucher',  icon: 'confirmation_number', to: '/admin/vouchers' },
-          { label: 'Báo cáo',     icon: 'bar_chart', to: '/admin/revenue' },
+          { label: 'Duyệt tài xế', icon: 'how_to_reg', to: '/drivers' },
+          { label: 'Tạo voucher',  icon: 'confirmation_number', to: '/vouchers' },
+          { label: 'Báo cáo',     icon: 'bar_chart', to: '/revenue' },
         ].map(({ label, icon, to }) => (
           <button key={label} onClick={() => navigate(to)}
             className="flex items-center gap-2 bg-white rounded-card shadow-card px-4 py-3 text-sm font-medium text-navy whitespace-nowrap">

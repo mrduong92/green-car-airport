@@ -9,8 +9,8 @@ import { usePwaInstall } from '@/hooks/usePwaInstall'
 const ROOT_TABS = new Set([
   '/customer/booking', '/customer/history', '/customer/stats', '/customer/notifications', '/customer/profile',
   '/driver/trips', '/driver/trips/history', '/driver/stats', '/driver/wallet', '/driver/notifications', '/driver/profile',
-  '/admin/dashboard', '/admin/drivers', '/admin/vouchers',
-  '/admin/revenue', '/admin/prices', '/admin/customers',
+  '/dashboard', '/drivers', '/vouchers',
+  '/revenue', '/prices', '/customers',
 ])
 
 // Trailing-slash entries must come before same-prefix exact entries
@@ -29,12 +29,12 @@ const ROUTE_TITLES: [string, string, boolean][] = [
   ['/driver/wallet',            'Ví điểm',         true],
   ['/driver/notifications',     'Thông báo',       true],
   ['/driver/profile',           'Hồ sơ',           true],
-  ['/admin/dashboard',          'Dashboard',       true],
-  ['/admin/drivers',            'Tài xế',          true],
-  ['/admin/vouchers',           'Voucher',          true],
-  ['/admin/revenue',            'Doanh thu',       true],
-  ['/admin/prices',             'Bảng giá',        true],
-  ['/admin/customers',          'Khách hàng',      true],
+  ['/dashboard',                'Dashboard',       true],
+  ['/drivers',                  'Tài xế',          true],
+  ['/vouchers',                 'Voucher',          true],
+  ['/revenue',                  'Doanh thu',       true],
+  ['/prices',                   'Bảng giá',        true],
+  ['/customers',                'Khách hàng',      true],
 ]
 
 function getRouteInfo(pathname: string): { title: string; isRoot: boolean } {
@@ -94,7 +94,7 @@ export default function AppHeader() {
         <div className="w-9 flex items-center shrink-0">
           {inRootSet ? (
             <button
-              onClick={() => navigate(user?.role === 'customer' ? '/customer/booking' : user?.role === 'driver' ? '/driver/trips' : '/admin/dashboard')}
+              onClick={() => navigate(user?.role === 'customer' ? '/customer/booking' : user?.role === 'driver' ? '/driver/trips' : '/dashboard')}
               className="w-9 h-9 rounded-logo bg-primary-tint flex items-center justify-center"
               aria-label="Trang chủ"
             >
