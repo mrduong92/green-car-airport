@@ -52,6 +52,10 @@ class TripController extends Controller
             return response()->json(['message' => 'Chuyến này đã được nhận hoặc không còn khả dụng.'], 422);
         }
 
+        if (! $this->fitsDriverVehicle($booking->vehicle_type, $request->user()->driverProfile?->vehicle_type)) {
+            return response()->json(['message' => 'Cuốc này cần xe lớn hơn, không phù hợp với xe của bạn.'], 422);
+        }
+
         $activeCount = Booking::where('driver_id', $request->user()->id)
             ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
             ->count();

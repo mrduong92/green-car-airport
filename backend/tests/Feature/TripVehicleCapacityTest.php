@@ -89,4 +89,33 @@ class TripVehicleCapacityTest extends TestCase
         $response->assertOk();
         $this->assertCount(3, $response->json());
     }
+
+    public function test_accept_rejected_when_vehicle_too_small(): void
+    {
+        Notification::fake();
+        [$driver, $wallet] = $this->makeActiveDriver('sedan_4');
+        $booking = $this->makeFindingBooking('mpv_7');
+
+        $this->actingAs($driver, 'sanctum')
+            ->postJson("/api/driver/trips/{$booking->id}/accept")
+            ->assertStatus(422);
+
+        $this->assertEquals('finding_driver', $booking->fresh()->status);
+        $this->assertNull($booking->fresh()->driver_id);
+        $this->assertEquals(1000, $wallet->fresh()->points);
+    }
+
+    public function test_accept_succeeds_when_vehicle_fits(): void
+    {
+        Notification::fake();
+        [$driver] = $this->makeActiveDriver('mpv_7');
+        $booking = $this->makeFindingBooking('sedan_4');
+
+        $this->actingAs($driver, 'sanctum')
+            ->postJson("/api/driver/trips/{$booking->id}/accept")
+            ->assertOk();
+
+        $this->assertEquals('accepted', $booking->fresh()->status);
+        $this->assertEquals($driver->id, $booking->fresh()->driver_id);
+    }
 }
