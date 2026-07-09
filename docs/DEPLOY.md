@@ -163,12 +163,11 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 
 ## Lịch sử / ghi chú
 
-- 2026-07-09: Tách Admin thành app/PWA riêng (`dist-admin/`, subdomain `admin.webco.io.vn`, bỏ prefix `/admin` khỏi route). Cần tạo vhost + DNS + SSL mới cho `admin.webco.io.vn` trước khi deploy lên staging (chưa làm — xem TODO).
+- 2026-07-09: Tách Admin thành app/PWA riêng (`dist-admin/`, subdomain `admin.webco.io.vn`, bỏ prefix `/admin` khỏi route). Đã tạo vhost + DNS + SSL cho `admin.webco.io.vn` (certbot, hết hạn 2026-10-07) — deploy lên staging xong, verify qua HTTPS OK (title, manifest, marker bundle, hash khác 2 app còn lại).
 - 2026-07-05: Deploy domain-separation (2 app customer/driver) + static pages CRUD + phone-normalization. Tạo vhost `driver.webco.io.vn` + SSL. Tắt SSH password auth, chuyển sang key `greencar-prod`. Fix bug entry-swap build (2 app ra cùng bundle). Fix quyền storage (root artisan → 500). Fix check số dư ví khi tài xế nhận cuốc (BIGINT unsigned crash).
-- `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn`.
+- `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn` + `admin.webco.io.vn`.
 
 ### TODO trước khi lên production thật
-- Provisioning `admin.webco.io.vn` vhost + DNS + SSL trên server (chưa làm — chỉ có build output `dist-admin/` sẵn sàng).
 - Tắt dev bypass `000000` (password + OTP) — chỉ cho khi `APP_ENV=local`; đổi mật khẩu admin thật.
 - Backup DB tự động (chưa có).
 - Queue worker: chưa thấy service/cron chạy `queue:work` dù `QUEUE_CONNECTION=redis` — kiểm tra nếu notification/push không gửi.
