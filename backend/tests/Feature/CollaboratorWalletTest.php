@@ -59,4 +59,105 @@ class CollaboratorWalletTest extends TestCase
             ->assertOk()
             ->assertJsonPath('is_collaborator', false);
     }
+
+    public function test_admin_can_deduct_collaborator_points(): void
+    {
+        $admin        = User::factory()->create(['role' => 'admin']);
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        Wallet::create(['user_id' => $collaborator->id, 'points' => 500]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$collaborator->id}/deduct-points", [
+                'points' => 200,
+                'reason' => 'Đã thanh toán offline',
+            ])
+            ->assertOk()
+            ->assertJsonPath('new_balance', 300);
+
+        $this->assertEquals(300, Wallet::where('user_id', $collaborator->id)->value('points'));
+        $this->assertDatabaseHas('wallet_transactions', [
+            'type'        => 'debit',
+            'points'      => 200,
+            'description' => 'Admin trừ điểm: Đã thanh toán offline',
+        ]);
+    }
+
+    public function test_admin_cannot_deduct_more_than_balance(): void
+    {
+        $admin        = User::factory()->create(['role' => 'admin']);
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        Wallet::create(['user_id' => $collaborator->id, 'points' => 100]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$collaborator->id}/deduct-points", [
+                'points' => 200,
+                'reason' => 'Sai sót',
+            ])
+            ->assertStatus(422);
+
+        $this->assertEquals(100, Wallet::where('user_id', $collaborator->id)->value('points'));
+    }
+
+    public function test_deduct_points_requires_reason(): void
+    {
+        $admin        = User::factory()->create(['role' => 'admin']);
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        Wallet::create(['user_id' => $collaborator->id, 'points' => 100]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$collaborator->id}/deduct-points", ['points' => 10])
+            ->assertStatus(422);
+    }
+
+    public function test_admin_cannot_deduct_points_for_non_collaborator(): void
+    {
+        $admin    = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create(['role' => 'customer', 'is_collaborator' => false]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$customer->id}/deduct-points", [
+                'points' => 10,
+                'reason' => 'Test',
+            ])
+            ->assertStatus(422);
+    }
+
+    public function test_admin_can_reset_collaborator_points_to_zero(): void
+    {
+        $admin        = User::factory()->create(['role' => 'admin']);
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        Wallet::create(['user_id' => $collaborator->id, 'points' => 750]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$collaborator->id}/reset-points", [
+                'reason' => 'Vi phạm chính sách',
+            ])
+            ->assertOk()
+            ->assertJsonPath('new_balance', 0);
+
+        $this->assertEquals(0, Wallet::where('user_id', $collaborator->id)->value('points'));
+        $this->assertDatabaseHas('wallet_transactions', [
+            'type'        => 'debit',
+            'points'      => 750,
+            'description' => 'Admin xóa toàn bộ điểm: Vi phạm chính sách',
+        ]);
+    }
+
+    public function test_admin_reset_with_zero_balance_is_noop(): void
+    {
+        $admin        = User::factory()->create(['role' => 'admin']);
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        Wallet::create(['user_id' => $collaborator->id, 'points' => 0]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$collaborator->id}/reset-points", [
+                'reason' => 'Không cần thiết',
+            ])
+            ->assertOk()
+            ->assertJsonPath('new_balance', 0);
+
+        $this->assertDatabaseMissing('wallet_transactions', [
+            'description' => 'Admin xóa toàn bộ điểm: Không cần thiết',
+        ]);
+    }
 }

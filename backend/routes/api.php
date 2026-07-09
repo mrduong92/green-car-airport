@@ -112,6 +112,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/customers/{user}/unblock',       [AdminCustomerController::class, 'unblock']);
         Route::patch('/admin/customers/{user}/collaborator',  [AdminCustomerController::class, 'toggleCollaborator']);
         Route::post('/admin/drivers/{user}/topup',            [AdminWalletController::class, 'topup']);
+        Route::post('/admin/customers/{user}/deduct-points', [AdminWalletController::class, 'deductPoints']);
+        Route::post('/admin/customers/{user}/reset-points',  [AdminWalletController::class, 'resetPoints']);
         Route::apiResource('/admin/price-configs', AdminPriceConfigController::class)->except(['show']);
         Route::apiResource('/admin/pages', AdminStaticPageController::class)->except(['show']);
         Route::get('/admin/zns/balance', [AdminZnsController::class, 'balance']);
