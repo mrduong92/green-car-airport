@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
-export type AppTarget = 'customer' | 'driver'
+export type AppTarget = 'customer' | 'driver' | 'admin'
 
 const APPS = {
   customer: {
@@ -14,6 +14,7 @@ const APPS = {
     name: 'Save Go',
     shortName: 'SaveGo',
     description: 'Đặt xe sân bay — Nhanh, minh bạch, tiện lợi',
+    startUrl: '/',
   },
   driver: {
     entry: '/src/main.driver.tsx',
@@ -23,6 +24,17 @@ const APPS = {
     name: 'Save Go Tài Xế',
     shortName: 'SaveGo Tài Xế',
     description: 'Ứng dụng tài xế Save Go — Nhận cuốc sân bay',
+    startUrl: '/',
+  },
+  admin: {
+    entry: '/src/main.admin.tsx',
+    port: 5175,
+    outDir: 'dist-admin',
+    title: 'Save Go Admin',
+    name: 'Save Go Admin',
+    shortName: 'SaveGo Admin',
+    description: 'Quản trị hệ thống Save Go',
+    startUrl: '/login',
   },
 } as const
 
@@ -69,7 +81,7 @@ export function createAppConfig(target: AppTarget): UserConfig {
           display: 'standalone',
           orientation: 'portrait',
           scope: '/',
-          start_url: '/',
+          start_url: app.startUrl,
           icons: [
             { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
             { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

@@ -45,7 +45,7 @@ export function useAuthLogin(role: App.Role) {
     const { role: userRole, needs_onboarding } = data.user
     if (userRole === 'customer') navigate('/customer/booking')
     else if (userRole === 'driver') navigate(needs_onboarding ? '/driver/profile' : '/driver/trips')
-    else navigate('/admin/dashboard')
+    else navigate('/dashboard')
   }
 
   const sendMutation = useMutation({

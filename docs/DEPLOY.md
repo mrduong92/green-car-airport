@@ -22,7 +22,7 @@
 
 ### Tài khoản admin (staging)
 
-Vào `https://webco.io.vn/admin/login` (route ẩn, KHÔNG phải `/login` thường), số `0923456789`. Màn `/login` thường hardcode `role=customer` nên số chỉ có role admin sẽ bị chặn ở đó — phải dùng đúng `/admin/login`.
+Vào `https://admin.webco.io.vn/login`, số `0923456789`. Admin giờ là app riêng trên subdomain riêng (không còn route ẩn `/admin/login` trong app customer — đã gỡ khỏi build customer).
 
 ## SSH — đăng nhập bằng key (không dùng password)
 
@@ -71,10 +71,11 @@ Host greencar-staging
 | Thành phần | Giá trị |
 |---|---|
 | Thư mục app | `/var/www/green-car-airport` (git checkout, branch `main`) |
-| Customer + Admin app | `https://webco.io.vn` → `frontend/dist/` |
+| Customer app | `https://webco.io.vn` → `frontend/dist/` |
+| Admin app | `https://admin.webco.io.vn` → `frontend/dist-admin/` |
 | Driver app | `https://driver.webco.io.vn` → `frontend/dist-driver/` |
-| Backend API | Cả 2 vhost proxy `/api/` → PHP-FPM 8.4 (`unix:/run/php/php8.4-fpm.sock`) → `backend/public/index.php` |
-| Nginx vhosts | `/etc/nginx/sites-available/webco.io.vn`, `/etc/nginx/sites-available/driver.webco.io.vn` |
+| Backend API | Cả 3 vhost proxy `/api/` → PHP-FPM 8.4 (`unix:/run/php/php8.4-fpm.sock`) → `backend/public/index.php` |
+| Nginx vhosts | `/etc/nginx/sites-available/webco.io.vn`, `/etc/nginx/sites-available/driver.webco.io.vn`, `/etc/nginx/sites-available/admin.webco.io.vn` |
 | SSL | certbot (Let's Encrypt), auto-renew |
 | Database | MySQL local, DB `green_car_airport`, user `amd` (mật khẩu trong `backend/.env` trên server) |
 | Redis | local, client `phpredis` (extension đã cài — KHÔNG cần predis) |
@@ -119,9 +120,11 @@ php artisan db:seed --class=StaticPageSeeder --force
 # Ở máy local, repo đã ở latest main:
 docker compose exec -T -e VITE_DRIVER_APP_URL=https://driver.webco.io.vn frontend npm run build:customer
 docker compose exec -T frontend npm run build:driver
+docker compose exec -T frontend npm run build:admin
 
 rsync -az --delete -e "ssh -i ~/.ssh/greencar-prod" frontend/dist/        root@103.148.57.141:/var/www/green-car-airport/frontend/dist/
 rsync -az --delete -e "ssh -i ~/.ssh/greencar-prod" frontend/dist-driver/ root@103.148.57.141:/var/www/green-car-airport/frontend/dist-driver/
+rsync -az --delete -e "ssh -i ~/.ssh/greencar-prod" frontend/dist-admin/  root@103.148.57.141:/var/www/green-car-airport/frontend/dist-admin/
 ```
 
 Lưu ý: `VITE_DRIVER_APP_URL` phải set lúc build customer (link "Đăng ký làm tài xế" ở Splash bake vào bundle).
@@ -132,6 +135,7 @@ Lưu ý: `VITE_DRIVER_APP_URL` phải set lúc build customer (link "Đăng ký 
 curl -s -o /dev/null -w '%{http_code}\n' https://webco.io.vn/            # 200
 curl -s https://webco.io.vn/api/pages/terms                              # JSON điều khoản
 curl -s https://driver.webco.io.vn/ | grep -o '<title>[^<]*</title>'     # Save Go Tài Xế
+curl -s https://admin.webco.io.vn/ | grep -o '<title>[^<]*</title>'      # Save Go Admin
 ```
 
 ⚠️ **Title đúng CHƯA đủ** — đã từng có bug 2 build ra cùng 1 bundle customer nhưng title vẫn khác nhau. Phải verify nội dung bundle thật:
@@ -140,9 +144,16 @@ curl -s https://driver.webco.io.vn/ | grep -o '<title>[^<]*</title>'     # Save 
 # Bundle driver phải chứa chuỗi UI chỉ có ở app driver:
 BUNDLE=$(curl -s https://driver.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js')
 curl -s "https://driver.webco.io.vn$BUNDLE" | grep -c "Chưa đăng ký tài xế"   # >= 1
-# Và 2 app phải ra 2 file hash KHÁC nhau:
+# Bundle admin phải chứa chuỗi UI chỉ có ở app admin:
+ADMIN_BUNDLE=$(curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js')
+curl -s "https://admin.webco.io.vn$ADMIN_BUNDLE" | grep -c "Quản trị viên"    # >= 1
+# Bundle customer KHÔNG được còn chứa UI admin (đã gỡ khỏi build customer):
+CUSTOMER_BUNDLE=$(curl -s https://webco.io.vn/ | grep -o '/assets/index-[^"]*\.js')
+curl -s "https://webco.io.vn$CUSTOMER_BUNDLE" | grep -c "Tạo trang mới"       # phải = 0
+# Và 3 app phải ra 3 file hash KHÁC nhau:
 curl -s https://webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 curl -s https://driver.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
+curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 ```
 
 ## Backup
@@ -152,8 +163,9 @@ curl -s https://driver.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 
 ## Lịch sử / ghi chú
 
+- 2026-07-09: Tách Admin thành app/PWA riêng (`dist-admin/`, subdomain `admin.webco.io.vn`, bỏ prefix `/admin` khỏi route). Đã tạo vhost + DNS + SSL cho `admin.webco.io.vn` (certbot, hết hạn 2026-10-07) — deploy lên staging xong, verify qua HTTPS OK (title, manifest, marker bundle, hash khác 2 app còn lại).
 - 2026-07-05: Deploy domain-separation (2 app customer/driver) + static pages CRUD + phone-normalization. Tạo vhost `driver.webco.io.vn` + SSL. Tắt SSH password auth, chuyển sang key `greencar-prod`. Fix bug entry-swap build (2 app ra cùng bundle). Fix quyền storage (root artisan → 500). Fix check số dư ví khi tài xế nhận cuốc (BIGINT unsigned crash).
-- `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn`.
+- `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn` + `admin.webco.io.vn`.
 
 ### TODO trước khi lên production thật
 - Tắt dev bypass `000000` (password + OTP) — chỉ cho khi `APP_ENV=local`; đổi mật khẩu admin thật.

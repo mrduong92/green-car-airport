@@ -7,13 +7,13 @@ import { logout as logoutApi } from '@/api/auth'
 import clsx from 'clsx'
 
 const TABS = [
-  { to: '/admin/dashboard', icon: 'dashboard',           label: 'Dashboard' },
-  { to: '/admin/drivers',   icon: 'people',              label: 'Tài xế' },
-  { to: '/admin/vouchers',  icon: 'confirmation_number', label: 'Voucher' },
-  { to: '/admin/revenue',   icon: 'bar_chart',           label: 'Doanh thu' },
-  { to: '/admin/prices',    icon: 'sell',                label: 'Bảng giá' },
-  { to: '/admin/customers', icon: 'manage_accounts',     label: 'Khách hàng' },
-  { to: '/admin/pages',     icon: 'article',             label: 'Trang tĩnh' },
+  { to: '/dashboard', icon: 'dashboard',           label: 'Dashboard' },
+  { to: '/drivers',   icon: 'people',              label: 'Tài xế' },
+  { to: '/vouchers',  icon: 'confirmation_number', label: 'Voucher' },
+  { to: '/revenue',   icon: 'bar_chart',           label: 'Doanh thu' },
+  { to: '/prices',    icon: 'sell',                label: 'Bảng giá' },
+  { to: '/customers', icon: 'manage_accounts',     label: 'Khách hàng' },
+  { to: '/pages',     icon: 'article',             label: 'Trang tĩnh' },
 ]
 
 export default function AdminLayout() {
