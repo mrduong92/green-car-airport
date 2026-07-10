@@ -3,6 +3,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -16,10 +17,25 @@ class CollaboratorWalletTest extends TestCase
     public function test_collaborator_can_view_wallet(): void
     {
         $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $booking = Booking::create([
+            'customer_id'     => $customer->id,
+            'pickup'          => 'Hà Nội',
+            'destination'     => 'Sân bay Nội Bài',
+            'date'            => now()->addDay()->format('Y-m-d'),
+            'time'            => '08:00',
+            'vehicle_type'    => 'sedan_4',
+            'distance_km'     => 30,
+            'price'           => 500_000,
+            'discount'        => 0,
+            'surcharge'       => 0,
+            'collaborator_id' => $collaborator->id,
+            'status'          => 'completed',
+        ]);
         $wallet = Wallet::create(['user_id' => $collaborator->id, 'points' => 500]);
         WalletTransaction::create([
             'wallet_id'   => $wallet->id,
-            'booking_id'  => null,
+            'booking_id'  => $booking->id,
             'type'        => 'credit',
             'description' => 'Thu hộ cuốc #1',
             'points'      => 500,
@@ -180,10 +196,38 @@ class CollaboratorWalletTest extends TestCase
     public function test_collaborator_sees_admin_deduction_in_transaction_history(): void
     {
         $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $booking = Booking::create([
+            'customer_id'     => $customer->id,
+            'pickup'          => 'Hà Nội',
+            'destination'     => 'Sân bay Nội Bài',
+            'date'            => now()->addDay()->format('Y-m-d'),
+            'time'            => '08:00',
+            'vehicle_type'    => 'sedan_4',
+            'distance_km'     => 30,
+            'price'           => 500_000,
+            'discount'        => 0,
+            'surcharge'       => 0,
+            'collaborator_id' => $collaborator->id,
+            'status'          => 'completed',
+        ]);
+        $unrelatedBooking = Booking::create([
+            'customer_id'  => $customer->id,
+            'pickup'       => 'Đà Nẵng',
+            'destination'  => 'Sân bay Đà Nẵng',
+            'date'         => now()->addDay()->format('Y-m-d'),
+            'time'         => '09:00',
+            'vehicle_type' => 'sedan_4',
+            'distance_km'  => 10,
+            'price'        => 200_000,
+            'discount'     => 0,
+            'surcharge'    => 0,
+            'status'       => 'completed',
+        ]);
         $wallet = Wallet::create(['user_id' => $collaborator->id, 'points' => 300]);
         WalletTransaction::create([
             'wallet_id'   => $wallet->id,
-            'booking_id'  => null,
+            'booking_id'  => $booking->id,
             'type'        => 'credit',
             'description' => 'Thu hộ cuốc #1',
             'points'      => 500,
@@ -197,7 +241,7 @@ class CollaboratorWalletTest extends TestCase
         ]);
         WalletTransaction::create([
             'wallet_id'   => $wallet->id,
-            'booking_id'  => null,
+            'booking_id'  => $unrelatedBooking->id,
             'type'        => 'debit',
             'description' => 'Unrelated system debit',
             'points'      => 50,
@@ -211,5 +255,72 @@ class CollaboratorWalletTest extends TestCase
         $this->assertTrue($descriptions->contains('Thu hộ cuốc #1'));
         $this->assertTrue($descriptions->contains('Admin trừ điểm: Đã thanh toán offline'));
         $this->assertFalse($descriptions->contains('Unrelated system debit'));
+    }
+
+    public function test_credit_counted_via_booking_relationship_regardless_of_description_text(): void
+    {
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $booking = Booking::create([
+            'customer_id'     => $customer->id,
+            'pickup'          => 'Hà Nội',
+            'destination'     => 'Sân bay Nội Bài',
+            'date'            => now()->addDay()->format('Y-m-d'),
+            'time'            => '08:00',
+            'vehicle_type'    => 'sedan_4',
+            'distance_km'     => 30,
+            'price'           => 500_000,
+            'discount'        => 0,
+            'surcharge'       => 0,
+            'collaborator_id' => $collaborator->id,
+            'status'          => 'completed',
+        ]);
+        $wallet = Wallet::create(['user_id' => $collaborator->id, 'points' => 400]);
+        WalletTransaction::create([
+            'wallet_id'   => $wallet->id,
+            'booking_id'  => $booking->id,
+            'type'        => 'credit',
+            'description' => 'Hoa hồng cuốc xe (mô tả khác, không khớp mẫu chuỗi cũ)',
+            'points'      => 400,
+        ]);
+
+        $this->actingAs($collaborator, 'sanctum')
+            ->getJson('/api/customer/collaborator/wallet')
+            ->assertOk()
+            ->assertJsonPath('total_earned', 400);
+    }
+
+    public function test_booking_linked_debit_excluded_even_if_description_says_admin(): void
+    {
+        $collaborator = User::factory()->create(['role' => 'customer', 'is_collaborator' => true]);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $booking = Booking::create([
+            'customer_id'  => $customer->id,
+            'pickup'       => 'Hà Nội',
+            'destination'  => 'Sân bay Nội Bài',
+            'date'         => now()->addDay()->format('Y-m-d'),
+            'time'         => '08:00',
+            'vehicle_type' => 'sedan_4',
+            'distance_km'  => 30,
+            'price'        => 500_000,
+            'discount'     => 0,
+            'surcharge'    => 0,
+            'status'       => 'completed',
+        ]);
+        $wallet = Wallet::create(['user_id' => $collaborator->id, 'points' => 300]);
+        WalletTransaction::create([
+            'wallet_id'   => $wallet->id,
+            'booking_id'  => $booking->id,
+            'type'        => 'debit',
+            'description' => 'Admin trừ điểm giả (gắn với 1 booking, không phải admin điều chỉnh thật)',
+            'points'      => 100,
+        ]);
+
+        $response = $this->actingAs($collaborator, 'sanctum')
+            ->getJson('/api/customer/collaborator/wallet/transactions')
+            ->assertOk();
+
+        $descriptions = collect($response->json())->pluck('description');
+        $this->assertFalse($descriptions->contains('Admin trừ điểm giả (gắn với 1 booking, không phải admin điều chỉnh thật)'));
     }
 }

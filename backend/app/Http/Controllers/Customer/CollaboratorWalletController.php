@@ -23,7 +23,7 @@ class CollaboratorWalletController extends Controller
         $totalEarned = $wallet
             ? WalletTransaction::where('wallet_id', $wallet->id)
                 ->where('type', 'credit')
-                ->where('description', 'like', 'Thu hộ cuốc%')
+                ->whereHas('booking', fn ($q) => $q->where('collaborator_id', $user->id))
                 ->sum('points')
             : 0;
 
@@ -46,9 +46,9 @@ class CollaboratorWalletController extends Controller
         }
 
         $transactions = WalletTransaction::where('wallet_id', $wallet->id)
-            ->where(function ($q) {
-                $q->where(fn ($q2) => $q2->where('type', 'credit')->where('description', 'like', 'Thu hộ cuốc%'))
-                  ->orWhere(fn ($q2) => $q2->where('type', 'debit')->where('description', 'like', 'Admin %'));
+            ->where(function ($q) use ($user) {
+                $q->where(fn ($q2) => $q2->where('type', 'credit')->whereHas('booking', fn ($q3) => $q3->where('collaborator_id', $user->id)))
+                  ->orWhere(fn ($q2) => $q2->where('type', 'debit')->whereNull('booking_id'));
             })
             ->latest()
             ->get()
