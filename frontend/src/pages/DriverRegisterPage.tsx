@@ -196,15 +196,15 @@ export default function DriverRegisterPage() {
                 />
               </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[12px] text-neutral-gray font-medium">Mã giới thiệu</label>
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mb-2">Mã giới thiệu</p>
               <input
                 type="text"
                 value={referralCode}
                 onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
                 maxLength={10}
                 placeholder="Nhập mã nếu có"
-                className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow uppercase tracking-wider"
               />
             </div>
             <Button fullWidth size="lg" loading={sendMutation.isPending} disabled={phone.length < 9} onClick={() => sendMutation.mutate()}>
