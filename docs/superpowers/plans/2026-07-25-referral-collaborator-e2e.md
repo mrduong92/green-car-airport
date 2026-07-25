@@ -19,6 +19,7 @@
 - **Seeded fixtures (from `make fresh`):** customer `0901234567`, driver `0912345678` (driver_profile `status='active'`, wallet 1,240 points), admin `0923456789`. Pending drivers `0989012345`, `0909123456`. All password `000000`.
 - **Post-login redirects** (`useAuthLogin.ts:46-48`): customer → `/customer/booking`, driver → `/driver/trips` (or `/driver/profile` if `needs_onboarding`), admin → `/dashboard`.
 - **Node/TS:** `frontend/` uses TypeScript `~6.0.2`, ESLint flat config, `verbatimModuleSyntax: true`. Use `import type` for type-only imports in e2e files.
+- **`frontend/.env` must set a non-empty `VITE_GOONG_API_KEY`.** `goongAutocomplete()` (`frontend/src/api/goong.ts`) short-circuits to `return []` when the key is falsy, *before* ever calling `fetch()` — so Playwright's `page.route` stub (Task 3) never has a request to intercept if the key is empty. The key's actual value doesn't matter since the stub answers every request; a fresh checkout has no `frontend/.env` at all (gitignored), so create one with a placeholder value and restart the `frontend`/`frontend_driver`/`frontend_admin` containers before running any spec that calls `createBooking()`.
 
 ---
 
@@ -337,7 +338,7 @@ git commit -m "feat: driver registration reads and submits referral code"
   - `testData.ts`: `randomPhone(): string`, `TEST_PASSWORD = '000000'`, `SEEDED = { customer: '0901234567', driver: '0912345678', admin: '0923456789' }`, `APP = { customer: 'http://localhost:5173', driver: 'http://localhost:5174', admin: 'http://localhost:5175' }`, `PICKUP`/`DEST` place fixtures.
   - `goong.ts`: `stubGoong(page: Page): Promise<void>`
   - `auth.ts`: `loginExisting(page, appUrl, phone, password?)`, `registerCustomer(page, phone, opts?)`, `registerDriver(page, phone, opts?)` — all `Promise<void>`; plus `getCustomerReferralCode(page)` and `getDriverReferralCode(page)`, both `Promise<string>`.
-  - `flows.ts`: `createBooking(page, opts?)` → `Promise<string>` (booking id from URL), `driverAcceptTrip(page)`, `driverCompleteTrip(page)`, `adminApproveDriver(page, phone)`, `adminTopupDriver(page, phone, points)`, `adminToggleCollaborator(page, phone)`, `readDriverWalletPoints(page)` → `Promise<number>`, `readCollaboratorWalletPoints(page)` → `Promise<number>`, `countPersonalVouchers(page)` → `Promise<number>`.
+  - `flows.ts`: `newActor(browser)` → `Promise<Page>` (fresh isolated browser context — every multi-actor spec uses this instead of redefining it), `createBooking(page, opts?)` → `Promise<string>` (booking id from URL), `driverAcceptTrip(page)`, `driverCompleteTrip(page)`, `adminApproveDriver(page, phone)`, `adminTopupDriver(page, phone, points)`, `adminToggleCollaborator(page, phone)`, `readDriverWalletPoints(page)` → `Promise<number>`, `readCollaboratorWalletPoints(page)` → `Promise<number>`, `countPersonalVouchers(page)` → `Promise<number>`.
 
 **Context — Goong dependency:** `BookingFormPage.tsx:78` requires `distance_km >= 0.1`, which is only set by the `useEffect` at `BookingFormPage.tsx:161` after **both** `pickupLatLng` and `destLatLng` are set. Those are only set by `AddressInput`'s `onPlaceSelect`, which fires from `handleSelect()` after clicking a Goong autocomplete prediction. So the booking form is unusable without Goong responses. `frontend/.env` has a real key, but the suite stubs `https://rsapi.goong.io/**` for determinism (fixed distance → fixed auto-filled price → assertable point maths) and to avoid burning API quota. The three endpoints needing stubs (`frontend/src/api/goong.ts`): `/Place/AutoComplete`, `/Place/Detail`, `/DistanceMatrix`.
 
@@ -661,8 +662,14 @@ Create `frontend/e2e/fixtures/flows.ts`:
 
 ```ts
 import { expect } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Browser, Page } from '@playwright/test'
 import { APP, BOOKING_PRICE, PLACES } from './testData'
+
+/** Opens a fresh isolated browser context and returns its page — one per actor in a multi-role spec. */
+export async function newActor(browser: Browser): Promise<Page> {
+  const context = await browser.newContext()
+  return await context.newPage()
+}
 
 /** Parses "1.240 đ." / "1,240" style Vietnamese number text into a plain number. */
 function parseVnNumber(text: string): number {
@@ -887,7 +894,6 @@ Create `frontend/e2e/referral-driver.spec.ts`:
 
 ```ts
 import { test, expect } from '@playwright/test'
-import type { Browser, Page } from '@playwright/test'
 import { APP, SEEDED, randomPhone } from './fixtures/testData'
 import { getDriverReferralCode, loginExisting, registerDriver } from './fixtures/auth'
 import { stubGoong } from './fixtures/goong'
@@ -897,17 +903,12 @@ import {
   createBooking,
   driverAcceptTrip,
   driverCompleteTrip,
+  newActor,
   readDriverWalletPoints,
 } from './fixtures/flows'
 
 const DRIVER_REFERRAL_REWARD = 100
 const APP_FEE_POINTS = 100 // 20% of 500.000đ, at 1 point = 1.000đ
-
-/** Opens a fresh isolated browser context and returns its page. */
-async function newActor(browser: Browser): Promise<Page> {
-  const context = await browser.newContext()
-  return await context.newPage()
-}
 
 test.describe('Referral tài xế → tài xế', () => {
   test('thưởng 100 điểm cho cả hai bên sau chuyến đầu tiên của tài xế được giới thiệu', async ({
@@ -1014,7 +1015,6 @@ Create `frontend/e2e/referral-customer.spec.ts`:
 
 ```ts
 import { test, expect } from '@playwright/test'
-import type { Browser, Page } from '@playwright/test'
 import { APP, SEEDED, randomPhone } from './fixtures/testData'
 import { getCustomerReferralCode, loginExisting, registerCustomer } from './fixtures/auth'
 import { stubGoong } from './fixtures/goong'
@@ -1023,15 +1023,11 @@ import {
   createBooking,
   driverAcceptTrip,
   driverCompleteTrip,
+  newActor,
 } from './fixtures/flows'
 
 const REFERRER_VOUCHERS = 2
 const NEW_CUSTOMER_VOUCHERS = 4
-
-async function newActor(browser: Browser): Promise<Page> {
-  const context = await browser.newContext()
-  return await context.newPage()
-}
 
 test.describe('Referral khách → khách', () => {
   test('phát voucher 50k cho cả hai bên sau chuyến đầu tiên của khách được giới thiệu', async ({
@@ -1118,7 +1114,6 @@ Create `frontend/e2e/collaborator.spec.ts`:
 
 ```ts
 import { test, expect } from '@playwright/test'
-import type { Browser, Page } from '@playwright/test'
 import { APP, SEEDED, randomPhone } from './fixtures/testData'
 import { loginExisting, registerCustomer } from './fixtures/auth'
 import { stubGoong } from './fixtures/goong'
@@ -1127,6 +1122,7 @@ import {
   createBooking,
   driverAcceptTrip,
   driverCompleteTrip,
+  newActor,
   readCollaboratorWalletPoints,
   readDriverWalletPoints,
 } from './fixtures/flows'
@@ -1135,11 +1131,6 @@ const COLLECTION_FEE = 200_000
 const COLLABORATOR_CREDIT = 160 // floor(200.000 * 0.80 / 1.000)
 const COLLECTION_DEBIT = 200 // full thu hộ debited from the driver
 const APP_FEE_POINTS = 100 // 20% of 500.000đ
-
-async function newActor(browser: Browser): Promise<Page> {
-  const context = await browser.newContext()
-  return await context.newPage()
-}
 
 test.describe('Cộng tác viên — Thu hộ', () => {
   test('khách thường không thấy field Thu Hộ', async ({ browser }) => {
