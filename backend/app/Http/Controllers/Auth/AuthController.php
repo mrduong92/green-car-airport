@@ -150,6 +150,7 @@ class AuthController extends Controller
             'vehicle_inspection_expiry' => 'required|date|after:today',
             'insurance_number'          => 'required|string|max:30',
             'insurance_expiry'          => 'required|date|after:today',
+            'referral_code'             => 'nullable|string|max:10',
         ]);
 
         $phone = PhoneNumber::normalize($request->phone);
@@ -158,11 +159,22 @@ class AuthController extends Controller
             return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
 
+        $referredById = null;
+        if ($request->referral_code) {
+            $referrer = User::where('referral_code', $request->referral_code)
+                ->where('phone', '!=', $phone)
+                ->first();
+            if ($referrer) {
+                $referredById = $referrer->id;
+            }
+        }
+
         $user = User::create([
-            'phone'    => $phone,
-            'name'     => $request->name,
-            'password' => Hash::make($request->password),
-            'role'     => 'driver',
+            'phone'               => $phone,
+            'name'                => $request->name,
+            'password'            => Hash::make($request->password),
+            'role'                => 'driver',
+            'referred_by_user_id' => $referredById,
         ]);
 
         $user->driverProfile()->create([
