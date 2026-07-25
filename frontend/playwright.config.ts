@@ -7,7 +7,16 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  timeout: 180_000,
+  // A four-actor journey with two full trip lifecycles legitimately takes
+  // longer than 180s once other specs have run first in the same worker —
+  // each new browser context cold-starts against the Vite dev server and
+  // re-requests the module graph, and this suite keeps several contexts
+  // alive at once. Confirmed: the same journey passes solo in ~45s but
+  // blew past 180s (not hung — still making progress) once run after
+  // another spec. This is a resource budget, not an assertion — leave
+  // expect.timeout below untouched so real assertion failures still fail
+  // fast instead of eating this whole budget.
+  timeout: 420_000,
   expect: { timeout: 15_000 },
   // Output must live outside this directory (the Vite project root) — Vite's
   // file watcher sees report/trace HTML appear under here and broadcasts a
