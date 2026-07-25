@@ -744,13 +744,20 @@ export async function driverCompleteTrip(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/driver\/trips$/)
 }
 
-/** Admin approves a pending driver, found by phone. */
+/**
+ * Admin approves a pending driver, found by phone.
+ *
+ * `exact: true` is required: Playwright matches accessible names by
+ * case-insensitive substring, and the page's `Chờ duyệt` status-filter chip is
+ * also a button containing "duyệt" (`DriversPage.tsx:12`). Without it the
+ * locator resolves to two elements and the assertion can never reach 0.
+ */
 export async function adminApproveDriver(page: Page, phone: string): Promise<void> {
   await page.goto(`${APP.admin}/drivers`)
   await page.getByPlaceholder('Tìm theo tên, SĐT, biển số').fill(phone)
   await expect(page.getByText(phone)).toBeVisible()
-  await page.getByRole('button', { name: 'Duyệt' }).click()
-  await expect(page.getByRole('button', { name: 'Duyệt' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Duyệt', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Duyệt', exact: true })).toHaveCount(0)
 }
 
 /** Admin manually tops up a driver's wallet, found by phone. */
