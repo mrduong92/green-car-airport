@@ -1,5 +1,4 @@
 .env
 stitch_pwa_t_xe_ti_n_chuy_n/*
 
-frontend/playwright-report/
-frontend/test-results/
+.playwright/
