@@ -21,6 +21,12 @@ async function fillOtp(page: Page): Promise<void> {
   await expect(boxes.first()).toBeVisible()
   for (let i = 0; i < 6; i++) {
     await boxes.nth(i).fill(TEST_OTP[i])
+    // Assert before filling the next box — this forces a round-trip that
+    // lets React commit the re-render. Without it, a stale-closure race in
+    // the app's OTP handler (`const next = [...otp]` closes over the
+    // pre-commit array) can silently drop the digit just written when
+    // boxes are filled back-to-back faster than React can re-render.
+    await expect(boxes.nth(i)).toHaveValue(TEST_OTP[i])
   }
 }
 
