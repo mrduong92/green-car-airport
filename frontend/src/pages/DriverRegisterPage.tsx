@@ -28,6 +28,12 @@ export default function DriverRegisterPage() {
 
   const [step, setStep]             = useState<RegStep>(1)
   const [phone, setPhone]           = useState(prefilledPhone)
+  const [referralCode, setReferralCode] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    const ref = params.get('ref')
+    if (ref) localStorage.setItem('referral_code', ref)
+    return ref ?? localStorage.getItem('referral_code') ?? ''
+  })
   const [otp, setOtp]               = useState(['', '', '', '', '', ''])
   const [countdown, setCountdown]   = useState(0)
   const [name, setName]             = useState('')
@@ -91,10 +97,12 @@ export default function DriverRegisterPage() {
       vehicle_inspection_expiry: inspectionExpiry,
       insurance_number:          insuranceNumber,
       insurance_expiry:          insuranceExpiry,
+      referral_code:             referralCode || undefined,
     }),
     onSuccess: ({ data }) => {
       setAuth(data.user, data.token)
       registerPushSubscription()
+      localStorage.removeItem('referral_code')
       navigate('/driver/pending')
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -187,6 +195,17 @@ export default function DriverRegisterPage() {
                   className="flex-1 px-4 outline-none text-navy text-[17px] font-semibold tracking-wider bg-transparent"
                 />
               </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[12px] text-neutral-gray font-medium">Mã giới thiệu</label>
+              <input
+                type="text"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                maxLength={10}
+                placeholder="Nhập mã nếu có"
+                className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors"
+              />
             </div>
             <Button fullWidth size="lg" loading={sendMutation.isPending} disabled={phone.length < 9} onClick={() => sendMutation.mutate()}>
               Tiếp theo
