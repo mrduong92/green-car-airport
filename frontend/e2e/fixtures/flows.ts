@@ -127,41 +127,61 @@ export async function adminToggleCollaborator(page: Page, phone: string): Promis
 export async function readDriverWalletPoints(page: Page): Promise<number> {
   // The "Số dư điểm" label is static markup — it's visible before the wallet
   // query resolves, so reading right after the label appears can capture the
-  // pre-load "0" placeholder. Waiting for the /driver/wallet response isn't
-  // enough either — React still needs a tick to process it and re-render —
-  // so we also wait for the network to go quiet before reading the DOM.
-  await Promise.all([
-    page.waitForResponse((r) => new URL(r.url()).pathname === '/api/driver/wallet'),
-    page.goto(`${APP.driver}/driver/wallet`),
-  ])
-  await page.waitForLoadState('networkidle')
+  // pre-load "0" placeholder. `networkidle` can't be used to wait it out: the
+  // driver layout holds an SSE stream open for the whole session, so the
+  // network never goes quiet. Instead take the authoritative balance from the
+  // /driver/wallet response and poll until the DOM agrees with it.
+  //
+  // The response must not be awaited concurrently with the navigation:
+  // TripListPage requests this same endpoint, so an in-flight response from
+  // the page we're leaving would match first and its body is discarded the
+  // moment we navigate away. Committing the navigation first discards those
+  // stale requests, and the new page's fetch can only fire after its JS runs.
+  await page.goto(`${APP.driver}/driver/wallet`, { waitUntil: 'commit' })
+  const res = await page.waitForResponse((r) => new URL(r.url()).pathname === '/api/driver/wallet')
+  const points = ((await res.json()) as { points: number }).points
   const label = page.getByText('Số dư điểm')
   await expect(label).toBeVisible()
-  const value = await label.locator('xpath=following-sibling::p[1]').textContent()
-  return parseVnNumber(value ?? '0')
+  const value = label.locator('xpath=following-sibling::p[1]')
+  await expect.poll(async () => parseVnNumber((await value.textContent()) ?? '0')).toBe(points)
+  return points
 }
 
 /** Reads the collaborator wallet point balance on the customer app. */
 export async function readCollaboratorWalletPoints(page: Page): Promise<number> {
-  // Same static-label-vs-async-data race as readDriverWalletPoints.
-  await Promise.all([
-    page.waitForResponse((r) => new URL(r.url()).pathname === '/api/customer/collaborator/wallet'),
-    page.goto(`${APP.customer}/customer/collaborator/wallet`),
-  ])
-  await page.waitForLoadState('networkidle')
+  // Same static-label-vs-async-data race as readDriverWalletPoints, and the
+  // same reason `networkidle` is unusable — the customer layout keeps an SSE
+  // stream open, so the network never goes quiet. Take the balance from the
+  // wallet response and poll until the DOM agrees with it. The navigation is
+  // committed before waiting, for the same reason as readDriverWalletPoints —
+  // ProfilePage requests this same endpoint, and a response from the page we
+  // are leaving loses its body as soon as we navigate away.
+  await page.goto(`${APP.customer}/customer/collaborator/wallet`, { waitUntil: 'commit' })
+  const res = await page.waitForResponse(
+    (r) => new URL(r.url()).pathname === '/api/customer/collaborator/wallet',
+  )
+  const points = ((await res.json()) as { points: number }).points
   await expect(page.getByText('Ví Cộng Tác Viên')).toBeVisible()
-  const value = await page.getByText(/\d+\s*điểm/).first().textContent()
-  return parseVnNumber(value ?? '0')
+  const value = page.getByText(/\d+\s*điểm/).first()
+  await expect.poll(async () => parseVnNumber((await value.textContent()) ?? '0')).toBe(points)
+  return points
 }
 
 /** Counts the customer's personal (referral) vouchers in the Profile voucher sheet. */
 export async function countPersonalVouchers(page: Page): Promise<number> {
   await page.goto(`${APP.customer}/customer/profile`)
-  await Promise.all([
+  // `networkidle` can't be used here — the customer layout holds an SSE stream
+  // open for the whole session, so the network never goes quiet. The count can
+  // legitimately be 0, so there's no element whose appearance marks the render
+  // as done: take the count from the /my-vouchers response and poll until the
+  // DOM agrees. Every personal voucher is REF-coded (issued by ReferralService),
+  // so the REF- rows and the response body are the same set.
+  const [res] = await Promise.all([
     page.waitForResponse((r) => new URL(r.url()).pathname === '/api/customer/my-vouchers'),
     page.getByText('Voucher của tôi').click(),
   ])
-  await page.waitForLoadState('networkidle')
+  const expected = ((await res.json()) as unknown[]).length
   await expect(page.getByText('Voucher của tôi').last()).toBeVisible()
-  return await page.getByText(/^REF-/).count()
+  await expect.poll(() => page.getByText(/^REF-/).count()).toBe(expected)
+  return expected
 }
