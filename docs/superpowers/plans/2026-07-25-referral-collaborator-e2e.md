@@ -17,6 +17,7 @@
 - **Point unit:** 1 point = 1,000 VND. Driver referral reward is **100 points** (`ReferralService::DRIVER_REWARD_POINTS = 100`), which displays as `100` in the wallet, not `100.000`.
 - **Test phone prefix:** all users created by tests use `0999` + 6 random digits, via `randomPhone()`. Never hardcode a new phone.
 - **Seeded fixtures (from `make fresh`):** customer `0901234567`, driver `0912345678` (driver_profile `status='active'`, wallet 1,240 points), admin `0923456789`. Pending drivers `0989012345`, `0909123456`. All password `000000`.
+- **The seeded customer cannot place bookings.** `BookingSeeder` gives `0901234567` an `accepted` booking plus three `finding_driver` ones, and `BookingFormPage.tsx:252-256` redirects any non-collaborator holding an active booking to that booking's status page. So the seeded customer is usable for reading profile/referral/voucher state, but **every booking in this suite must be placed by a freshly registered customer** (`registerCustomer(page, randomPhone())`) or by a collaborator (collaborators are exempt from the redirect).
 - **Post-login redirects** (`useAuthLogin.ts:46-48`): customer → `/customer/booking`, driver → `/driver/trips` (or `/driver/profile` if `needs_onboarding`), admin → `/dashboard`.
 - **Node/TS:** `frontend/` uses TypeScript `~6.0.2`, ESLint flat config, `verbatimModuleSyntax: true`. Use `import type` for type-only imports in e2e files.
 - **`frontend/.env` must set a non-empty `VITE_GOONG_API_KEY`.** `goongAutocomplete()` (`frontend/src/api/goong.ts`) short-circuits to `return []` when the key is falsy, *before* ever calling `fetch()` — so Playwright's `page.route` stub (Task 3) never has a request to intercept if the key is empty. The key's actual value doesn't matter since the stub answers every request; a fresh checkout has no `frontend/.env` at all (gitignored), so create one with a placeholder value and restart the `frontend`/`frontend_driver`/`frontend_admin` containers before running any spec that calls `createBooking()`.
@@ -806,15 +807,18 @@ Create `frontend/e2e/smoke.spec.ts`:
 
 ```ts
 import { test, expect } from '@playwright/test'
-import { APP, SEEDED } from './fixtures/testData'
-import { loginExisting } from './fixtures/auth'
+import { APP, SEEDED, randomPhone } from './fixtures/testData'
+import { loginExisting, registerCustomer } from './fixtures/auth'
 import { stubGoong } from './fixtures/goong'
 import { createBooking, readDriverWalletPoints } from './fixtures/flows'
 
-test('khách hàng seed đăng nhập và đặt được chuyến', async ({ page }) => {
+// The booking form is unreachable for a customer who already has an active
+// booking: BookingFormPage.tsx:252-256 redirects any non-collaborator with one
+// to its status page. The seeded customer 0901234567 owns a seeded `accepted`
+// booking, so bookings must be placed by a freshly registered customer.
+test('khách hàng mới đăng ký và đặt được chuyến', async ({ page }) => {
   await stubGoong(page)
-  await loginExisting(page, APP.customer, SEEDED.customer)
-  await expect(page).toHaveURL(/\/customer\/booking/)
+  await registerCustomer(page, randomPhone())
 
   const bookingId = await createBooking(page)
   expect(Number(bookingId)).toBeGreaterThan(0)
@@ -895,7 +899,7 @@ Create `frontend/e2e/referral-driver.spec.ts`:
 ```ts
 import { test, expect } from '@playwright/test'
 import { APP, SEEDED, randomPhone } from './fixtures/testData'
-import { getDriverReferralCode, loginExisting, registerDriver } from './fixtures/auth'
+import { getDriverReferralCode, loginExisting, registerCustomer, registerDriver } from './fixtures/auth'
 import { stubGoong } from './fixtures/goong'
 import {
   adminApproveDriver,
@@ -915,7 +919,9 @@ test.describe('Referral tài xế → tài xế', () => {
     browser,
   }) => {
     const driverBPhone = randomPhone()
-    const customerPhone = SEEDED.customer
+    // Bookings must come from a fresh customer — the seeded customer already
+    // holds an active booking and is redirected away from the booking form.
+    const customerPhone = randomPhone()
 
     // ── TC1.1 — tài xế A lấy mã, tài xế B đăng ký qua link ──────────────────
     const driverA = await newActor(browser)
@@ -949,7 +955,7 @@ test.describe('Referral tài xế → tài xế', () => {
     // ── TC1.3 — B hoàn thành chuyến đầu tiên → cả A và B nhận 100 điểm ──────
     const customer = await newActor(browser)
     await stubGoong(customer)
-    await loginExisting(customer, APP.customer, customerPhone)
+    await registerCustomer(customer, customerPhone)
     await createBooking(customer)
 
     await driverAcceptTrip(driverB)
