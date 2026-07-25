@@ -54,7 +54,11 @@ export async function createBooking(
 
   await page.getByRole('button', { name: 'Đặt xe →' }).click()
 
-  await expect(page).toHaveURL(/\/customer\/booking\/\d+/)
+  // The POST is proxied through the Vite dev server, which can exceed the
+  // 15s default expect timeout late in a long, many-context suite even
+  // though the booking is created promptly server-side — give the
+  // navigation more room without weakening what's asserted.
+  await expect(page).toHaveURL(/\/customer\/booking\/\d+/, { timeout: 60_000 })
   const id = page.url().split('/').pop()!
   return id
 }
