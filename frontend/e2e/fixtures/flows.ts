@@ -91,8 +91,10 @@ export async function adminApproveDriver(page: Page, phone: string): Promise<voi
   await page.goto(`${APP.admin}/drivers`)
   await page.getByPlaceholder('Tìm theo tên, SĐT, biển số').fill(phone)
   await expect(page.getByText(phone)).toBeVisible()
-  await page.getByRole('button', { name: 'Duyệt' }).click()
-  await expect(page.getByRole('button', { name: 'Duyệt' })).toHaveCount(0)
+  // exact:true avoids matching the always-present "Chờ duyệt" filter chip,
+  // which contains "duyệt" as a substring of the default non-exact match.
+  await page.getByRole('button', { name: 'Duyệt', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Duyệt', exact: true })).toHaveCount(0)
 }
 
 /** Admin manually tops up a driver's wallet, found by phone. */
