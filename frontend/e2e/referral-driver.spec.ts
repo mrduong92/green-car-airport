@@ -76,6 +76,11 @@ test.describe('Referral tài xế → tài xế', () => {
     // B cần điểm để trả phí app 20% khi nhận cuốc.
     await adminTopupDriver(admin, driverBPhone, 500)
     expect(await readDriverWalletPoints(driverB)).toBe(500)
+    // Admin's last action — close it before a fourth actor joins. Each
+    // logged-in context holds an SSE stream that occupies one of the PHP-FPM
+    // pool's few children for its lifetime, and contexts outlive the test that
+    // created them, so unclosed actors starve the pool into 504s.
+    await admin.context().close()
 
     // ── TC1.3 — B hoàn thành chuyến đầu tiên → cả A và B nhận 100 điểm ──────
     const customer = await newActor(browser)
@@ -95,11 +100,16 @@ test.describe('Referral tài xế → tài xế', () => {
     const bPointsAfterReward = await readDriverWalletPoints(driverB)
 
     await createBooking(customer)
+    // The customer has placed its last booking.
+    await customer.context().close()
     await driverAcceptTrip(driverB)
     await driverCompleteTrip(driverB)
 
     expect(await readDriverWalletPoints(driverA)).toBe(aPointsAfterReward)
     // B chỉ mất thêm phí app, không nhận thêm thưởng.
     expect(await readDriverWalletPoints(driverB)).toBe(bPointsAfterReward - APP_FEE_POINTS)
+
+    await driverB.context().close()
+    await driverA.context().close()
   })
 })

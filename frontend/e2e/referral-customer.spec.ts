@@ -54,8 +54,17 @@ test.describe('Referral khách → khách', () => {
     await createBooking(customerD)
     await driverAcceptTrip(driver)
     await driverCompleteTrip(driver)
+    // The driver has finished both trips — close it so only the two customer
+    // streams remain while the final voucher counts are read. Each logged-in
+    // context holds an SSE stream that pins one of the PHP-FPM pool's few
+    // children, and a context outlives the test that created it, so streams
+    // otherwise accumulate across the worker until API calls 504.
+    await driver.context().close()
 
     expect(await countPersonalVouchers(customerC)).toBe(cVouchersBefore + REFERRER_VOUCHERS)
     expect(await countPersonalVouchers(customerD)).toBe(NEW_CUSTOMER_VOUCHERS)
+
+    await customerD.context().close()
+    await customerC.context().close()
   })
 })
