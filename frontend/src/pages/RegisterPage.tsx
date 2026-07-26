@@ -76,9 +76,11 @@ export default function RegisterPage() {
 
   const handleOtpChange = (idx: number, val: string) => {
     if (!/^\d?$/.test(val)) return
-    const next = [...otp]
-    next[idx] = val
-    setOtp(next)
+    setOtp((prev) => {
+      const next = [...prev]
+      next[idx] = val
+      return next
+    })
     if (val && idx < 5) otpRefs.current[idx + 1]?.focus()
   }
 

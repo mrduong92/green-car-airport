@@ -23,6 +23,12 @@ export function useAuthLogin(role: App.Role) {
   const [countdown, setCountdown] = useState(0)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
   const pwdRef  = useRef<HTMLInputElement>(null)
+  // Mirrors `otp` synchronously. `handleOtpChange` needs the post-update array
+  // right away to decide whether to advance to the `set-password` step, and it
+  // can't read that off `otp` itself (stale until the next render) or an
+  // effect (the project's `react-hooks/set-state-in-effect` rule forbids
+  // calling `setStep` from a `useEffect` reacting to `otp`).
+  const otpRef  = useRef(otp)
 
   useEffect(() => {
     if (countdown <= 0) return
@@ -38,6 +44,10 @@ export function useAuthLogin(role: App.Role) {
       setTimeout(() => otpRefs.current[0]?.focus(), 100)
     }
   }, [step])
+
+  useEffect(() => {
+    otpRef.current = otp
+  }, [otp])
 
   const onAuthSuccess = ({ data }: { data: { user: App.User; token: string } }) => {
     setAuth(data.user, data.token)
@@ -106,8 +116,9 @@ export function useAuthLogin(role: App.Role) {
 
   const handleOtpChange = (idx: number, val: string) => {
     if (!/^\d?$/.test(val)) return
-    const next = [...otp]
+    const next = [...otpRef.current]
     next[idx] = val
+    otpRef.current = next
     setOtp(next)
     if (val && idx < 5) otpRefs.current[idx + 1]?.focus()
     if (next.every((d) => d !== '')) setStep('set-password')

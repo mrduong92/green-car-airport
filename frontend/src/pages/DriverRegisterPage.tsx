@@ -28,6 +28,12 @@ export default function DriverRegisterPage() {
 
   const [step, setStep]             = useState<RegStep>(1)
   const [phone, setPhone]           = useState(prefilledPhone)
+  const [referralCode, setReferralCode] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    const ref = params.get('ref')
+    if (ref) localStorage.setItem('referral_code', ref)
+    return ref ?? localStorage.getItem('referral_code') ?? ''
+  })
   const [otp, setOtp]               = useState(['', '', '', '', '', ''])
   const [countdown, setCountdown]   = useState(0)
   const [name, setName]             = useState('')
@@ -91,10 +97,12 @@ export default function DriverRegisterPage() {
       vehicle_inspection_expiry: inspectionExpiry,
       insurance_number:          insuranceNumber,
       insurance_expiry:          insuranceExpiry,
+      referral_code:             referralCode || undefined,
     }),
     onSuccess: ({ data }) => {
       setAuth(data.user, data.token)
       registerPushSubscription()
+      localStorage.removeItem('referral_code')
       navigate('/driver/pending')
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -104,7 +112,7 @@ export default function DriverRegisterPage() {
 
   const handleOtpChange = (idx: number, val: string) => {
     if (!/^\d?$/.test(val)) return
-    const next = [...otp]; next[idx] = val; setOtp(next)
+    setOtp((prev) => { const next = [...prev]; next[idx] = val; return next })
     if (val && idx < 5) otpRefs.current[idx + 1]?.focus()
   }
 
@@ -187,6 +195,17 @@ export default function DriverRegisterPage() {
                   className="flex-1 px-4 outline-none text-navy text-[17px] font-semibold tracking-wider bg-transparent"
                 />
               </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-gray uppercase tracking-wider mb-2">Mã giới thiệu</p>
+              <input
+                type="text"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                maxLength={10}
+                placeholder="Nhập mã nếu có"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow uppercase tracking-wider"
+              />
             </div>
             <Button fullWidth size="lg" loading={sendMutation.isPending} disabled={phone.length < 9} onClick={() => sendMutation.mutate()}>
               Tiếp theo
