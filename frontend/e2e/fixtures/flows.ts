@@ -221,7 +221,25 @@ export async function countPersonalVouchers(page: Page): Promise<number> {
     page.getByText('Voucher của tôi').click(),
   ])
   const expected = ((await res.json()) as unknown[]).length
-  await expect(page.getByText('Voucher của tôi').last()).toBeVisible()
+  // `getByText('Voucher của tôi').last()` is vacuous when expected is 0: the
+  // profile menu row that opens the sheet has that exact text too, and
+  // VoucherSheet.tsx returns null while closed, so before the sheet ever
+  // renders there is exactly one match — already visible — and the assertion
+  // would pass even if the click did nothing.
+  if (expected > 0) {
+    // VoucherSheet.tsx only renders this heading once `personalVouchers` has
+    // resolved and is non-empty, so it proves the sheet actually opened and
+    // loaded, not just that the trigger row exists.
+    await expect(page.getByText('Voucher giới thiệu của tôi')).toBeVisible()
+  } else {
+    // With zero personal vouchers, VoucherSheet renders no personal-section
+    // markup at all (and the seeded public vouchers keep the "no vouchers"
+    // empty state from rendering too), so there's nothing populated to anchor
+    // on. Anchor on the sheet being open instead: its own header repeats the
+    // trigger's exact text, so two matches only exist once the sheet has
+    // actually rendered — one match means it's still closed.
+    await expect(page.getByText('Voucher của tôi')).toHaveCount(2)
+  }
   await expect.poll(() => page.getByText(/^REF-/).count()).toBe(expected)
   return expected
 }
