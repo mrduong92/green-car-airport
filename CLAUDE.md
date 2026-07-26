@@ -151,7 +151,7 @@ No API Resource classes — controllers return plain arrays directly.
 `vouchers` → `bookings` → `wallet_transactions` (wallet_transactions.booking_id references bookings).
 
 ### Dev seed data
-`make fresh` runs 5 seeders: 3 fixed-phone users (`0901234567` customer, `0912345678` driver, `0923456789` admin), driver profile (Toyota Camry 51G-12345), wallet (1,240 pts), 5 sample bookings, 2 vouchers (`AIRPORT50K`, `NEWUSER10`).
+`make fresh` runs 5 seeders: 3 fixed-phone users (`0901234567` customer, `0912345678` driver, `0923456789` admin), driver profile (Toyota Camry 51G-12345), driver wallet **2,044 pts**, 5 sample bookings, 2 vouchers (`AIRPORT50K`, `NEWUSER10`). The wallet figure is derived, not seeded directly: `WalletSeeder` starts it at 0 and `BookingSeeder`'s completed bookings credit it up — so treat it as liable to change and read the balance at runtime rather than hardcoding it.
 
 ### Backend env
 - `DB_HOST=mysql`, `REDIS_HOST=redis`, `MAIL_HOST=mailpit` inside containers
