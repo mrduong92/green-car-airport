@@ -1,7 +1,11 @@
 import type { Page } from '@playwright/test'
 import { PLACES, STUB_DISTANCE_METRES } from './testData'
 
-type Place = typeof PLACES.pickup
+// `typeof PLACES.pickup` alone would type this as pickup's exact literal
+// shape (e.g. placeId: "e2e-pickup"), which rejects `PLACES.dest` below —
+// index over the whole `as const` object instead to get the real union of
+// both places.
+type Place = (typeof PLACES)[keyof typeof PLACES]
 
 const ALL: Place[] = [PLACES.pickup, PLACES.dest]
 
