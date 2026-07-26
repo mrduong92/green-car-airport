@@ -19,13 +19,18 @@ export async function loginExisting(
 async function fillOtp(page: Page): Promise<void> {
   const boxes = page.locator('input[type="tel"][maxlength="1"]')
   await expect(boxes.first()).toBeVisible()
+
+  // Fill each box, then assert it before moving on. The six boxes are
+  // controlled inputs and the app advances focus on each change, so filling
+  // them back-to-back races the re-render still queued from the previous box.
+  // Asserting in between forces a round-trip that lets React commit first.
+  //
+  // Do NOT replace this with `keyboard.type()` on the first box: each input is
+  // maxLength=1, and the app's focus advance does not keep up with a keystroke
+  // stream, so only the first digit lands and the rest are dropped (measured:
+  // 5 of 7 tests fail, reproducibly).
   for (let i = 0; i < 6; i++) {
     await boxes.nth(i).fill(TEST_OTP[i])
-    // Assert before filling the next box — this forces a round-trip that
-    // lets React commit the re-render. Without it, a stale-closure race in
-    // the app's OTP handler (`const next = [...otp]` closes over the
-    // pre-commit array) can silently drop the digit just written when
-    // boxes are filled back-to-back faster than React can re-render.
     await expect(boxes.nth(i)).toHaveValue(TEST_OTP[i])
   }
 }
