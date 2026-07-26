@@ -4,6 +4,7 @@ import { loginExisting, registerCustomer } from './fixtures/auth'
 import { stubGoong } from './fixtures/goong'
 import {
   adminToggleCollaborator,
+  cleanupActors,
   createBooking,
   driverAcceptTrip,
   driverCompleteTrip,
@@ -16,6 +17,11 @@ const COLLECTION_FEE = 200_000
 const COLLABORATOR_CREDIT = 160 // floor(200.000 * 0.80 / 1.000)
 const COLLECTION_DEBIT = 200 // full thu hộ debited from the driver
 const APP_FEE_POINTS = 100 // 20% of 500.000đ
+
+// Force-closes any newActor() context left open by a test that throws before
+// reaching its own explicit closes below — see flows.ts for why every spec
+// file that uses newActor must register this itself.
+test.afterEach(cleanupActors)
 
 test.describe('Cộng tác viên — Thu hộ', () => {
   test('khách thường không thấy field Thu Hộ', async ({ browser }) => {

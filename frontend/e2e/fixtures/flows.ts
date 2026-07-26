@@ -1,11 +1,51 @@
+import type { Browser, BrowserContext, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
-import type { Browser, Page } from '@playwright/test'
 import { APP, BOOKING_PRICE, PLACES } from './testData'
+
+// Every context newActor() opens is tracked here so it can be force-closed by
+// `cleanupActors` below, even if the test that created it throws before
+// reaching its own explicit `context().close()` calls. Contexts come from the
+// worker-scoped `browser` fixture, so an unclosed one (and the SSE stream its
+// page holds open against PHP-FPM's small pool) would otherwise survive into
+// the next test.
+//
+// This array is shared by every spec file that imports this module — Node
+// only executes a module's top-level code once per process and then serves
+// the same cached instance to every later importer, running all three spec
+// files (workers: 1, fullyParallel: false) in the same process. That sharing
+// is harmless here because tests run strictly one at a time: whichever spec
+// file's test is currently executing is the only one pushing into the array,
+// and its own `afterEach` (registered below, per spec file) drains it before
+// the next test starts.
+//
+// A `test.afterEach` call placed here instead — at this module's own top
+// level — would NOT achieve that: it would run only once, for whichever spec
+// file happens to import this module first (confirmed by an instrumented
+// run: a debug counter placed in such a hook fired only for collaborator.spec.ts's
+// two tests and never for referral-customer.spec.ts or referral-driver.spec.ts,
+// because those files receive the already-initialized cached module and never
+// re-run its top-level code). So each spec file registers its own
+// `test.afterEach(cleanupActors)` instead.
+const openContexts: BrowserContext[] = []
 
 /** Opens a fresh isolated browser context and returns its page — one per actor in a multi-role spec. */
 export async function newActor(browser: Browser): Promise<Page> {
   const context = await browser.newContext()
+  openContexts.push(context)
   return await context.newPage()
+}
+
+/**
+ * Force-closes every context `newActor` has opened since the last call.
+ * Each spec file that uses `newActor` must register this itself, e.g.
+ * `test.afterEach(cleanupActors)` at the top of the file — see the note on
+ * `openContexts` above for why this can't just be registered once in here.
+ * Closing an already-closed context is a no-op in Playwright, so this is safe
+ * to run even for actors a test already closed itself.
+ */
+export async function cleanupActors(): Promise<void> {
+  const contexts = openContexts.splice(0)
+  await Promise.all(contexts.map((ctx) => ctx.close()))
 }
 
 /** Parses "1.240 đ." / "1,240" style Vietnamese number text into a plain number. */

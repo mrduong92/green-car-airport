@@ -3,6 +3,7 @@ import { APP, SEEDED, randomPhone } from './fixtures/testData'
 import { getCustomerReferralCode, loginExisting, registerCustomer } from './fixtures/auth'
 import { stubGoong } from './fixtures/goong'
 import {
+  cleanupActors,
   countPersonalVouchers,
   createBooking,
   driverAcceptTrip,
@@ -12,6 +13,11 @@ import {
 
 const REFERRER_VOUCHERS = 2
 const NEW_CUSTOMER_VOUCHERS = 4
+
+// Force-closes any newActor() context left open by a test that throws before
+// reaching its own explicit closes below — see flows.ts for why every spec
+// file that uses newActor must register this itself.
+test.afterEach(cleanupActors)
 
 test.describe('Referral khách → khách', () => {
   test('phát voucher 50k cho cả hai bên sau chuyến đầu tiên của khách được giới thiệu', async ({

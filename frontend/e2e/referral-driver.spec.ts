@@ -5,6 +5,7 @@ import { stubGoong } from './fixtures/goong'
 import {
   adminApproveDriver,
   adminTopupDriver,
+  cleanupActors,
   createBooking,
   driverAcceptTrip,
   driverCompleteTrip,
@@ -14,6 +15,11 @@ import {
 
 const DRIVER_REFERRAL_REWARD = 100
 const APP_FEE_POINTS = 100 // 20% of 500.000đ, at 1 point = 1.000đ
+
+// Force-closes any newActor() context left open by a test that throws before
+// reaching its own explicit closes below — see flows.ts for why every spec
+// file that uses newActor must register this itself.
+test.afterEach(cleanupActors)
 
 test.describe('Referral tài xế → tài xế', () => {
   test('thưởng 100 điểm cho cả hai bên sau chuyến đầu tiên của tài xế được giới thiệu', async ({
