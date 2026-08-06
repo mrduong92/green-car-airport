@@ -140,6 +140,9 @@ Lưu ý: `backend/.env` (không commit) trên máy dev và trên server cần s�
 - Xoá `deploy/nginx/savego.conf` và `deploy/nginx/savego-common.conf`. Lý do: `deploy/nginx/README.md` đã ghi chúng là bẫy 502 (socket `php8.4-fpm.sock` sai với production PHP 8.5), và `greenca.vn.conf` + `greenca-common.conf` đã thay thế đầy đủ cả 3 app.
 - `deploy/nginx/README.md`: bỏ hàng bảng và mục cảnh báo về `savego-*`, đổi `savego.com.vn` → `greenca.vn`.
 - `CLAUDE.md`: dòng 96 đổi `savego.com.vn` / `driver.savego.com.vn` → `greenca.vn` / `driver.greenca.vn`.
+- `docs/DEPLOY.md`: tiêu đề `# Deploy — Save Go` → `GreenCA`; comment kỳ vọng `<title>` ở bước smoke-test (dòng 356–357) → `GreenCA Tài Xế` / `GreenCA Admin`; ghi chú dòng 392 về `savego.com.vn` chưa có DNS → viết lại theo trạng thái thật (`greenca.vn` đã trỏ, staging vẫn `webco.io.vn`).
+
+Không sửa: `docs/Bao_gia_App_Native.md` — tài liệu báo giá gửi khách, do người dùng tự quản lý, không phải artifact của codebase.
 
 ## Verification
 
