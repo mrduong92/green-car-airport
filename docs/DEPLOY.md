@@ -64,8 +64,38 @@ Config còn vài directive đã deprecated (`UsePrivilegeSeparation`, `RSAAuthen
 | Node.js | **KHÔNG có trên server** — frontend build ở máy local rồi rsync lên |
 | Backup DB | `/usr/local/bin/backup-db.sh`, cron `/etc/cron.d/greenca-db-backup` 03:15 hằng ngày, giữ 14 bản ở `/root/db-backups/` |
 
-Không cần queue worker / scheduler: repo hiện KHÔNG có `app/Jobs`, `app/Notifications`,
-`app/Console/Commands` hay task nào trong scheduler — không có gì đẩy vào queue.
+### ⚠️ Queue worker + scheduler — BẮT BUỘC
+
+`QUEUE_CONNECTION=redis` và **cả 12 notification trong `app/Notifications/` đều
+`implements ShouldQueue`**, cộng `app/Jobs/SendNewBookingBroadcastJob`. Không có worker
+thì mọi thông báo (đặt cuốc, nhận cuốc, huỷ, hoàn thành, nạp điểm…) nằm im trong Redis,
+**không lỗi, không log, chỉ đơn giản là không bao giờ tới tay người dùng**.
+
+`routes/console.php` có `Schedule::command('bookings:expire')->hourly()` — không có cron
+`schedule:run` thì booking quá hạn treo mãi ở `finding_driver`.
+
+| Thành phần | Nơi cấu hình | Chạy bằng |
+|---|---|---|
+| Queue worker | `/etc/systemd/system/greenca-queue.service` (enabled, auto-restart) | `www-data` |
+| Scheduler | `/etc/cron.d/greenca-scheduler` — `schedule:run` mỗi phút | `www-data` |
+| Log | `/var/log/greenca-queue.log`, `/var/log/greenca-scheduler.log` | logrotate `/etc/logrotate.d/greenca` |
+
+**Không dùng supervisor** — dùng systemd, đã đủ và không phải cài thêm gói.
+
+⚠️ **Cả hai PHẢI chạy bằng `www-data`.** Chạy bằng root thì file cache/log sinh ra thuộc
+root, PHP-FPM mất quyền ghi và mọi request trả 500 không để lại vết.
+
+⚠️ **`php artisan tinker` KHÔNG chạy được dưới `www-data`** — psysh không ghi được
+`/var/www/.config/psysh` nên script im lặng không thực thi (không báo lỗi rõ). Chạy tinker
+bằng root, xong nhớ `chown -R www-data:www-data storage bootstrap/cache`.
+
+Kiểm tra worker còn sống và có tiêu thụ job:
+
+```bash
+systemctl status greenca-queue
+tail -f /var/log/greenca-queue.log          # mỗi job in RUNNING rồi DONE/FAIL
+php artisan queue:failed                    # job chết nằm ở đây
+```
 
 ## Quy trình deploy
 
@@ -87,6 +117,10 @@ php artisan migrate --force          # KHÔNG BAO GIỜ migrate:fresh
 php artisan config:cache && php artisan route:cache && php artisan event:cache
 chown -R www-data:www-data storage bootstrap/cache   # BẮT BUỘC sau khi chạy artisan bằng root
 systemctl reload php8.5-fpm
+
+# BẮT BUỘC: worker đang giữ code CŨ trong bộ nhớ. Không restart thì job vẫn
+# chạy bằng bản trước khi deploy cho tới khi worker tự hết --max-time (1 giờ).
+php artisan queue:restart
 ```
 
 ### 2. Frontend (build local, rsync lên)
@@ -403,6 +437,10 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - ~~DNS + SSL cho `driver.` / `admin.`~~ — xong, cả 3 app đã chạy HTTPS.
 - **Nên làm:** đổi mật khẩu admin production (mật khẩu khởi tạo đã đi qua log phiên deploy) — sau khi deploy màn Admin thì làm ngay trong UI: tab **Admin** → "Đổi mật khẩu của tôi".
 - **Nên tách credential bên thứ 3 khỏi staging** — hiện production dùng chung tài khoản ZNS Abenla / SePay / VAPID với staging. Test trên staging có thể đốt quota SMS của production, và thu hồi key vì lý do gì cũng làm chết cả hai.
+- **SePay: phải trỏ webhook về production** — `POST https://greenca.vn/api/webhooks/sepay`, và `SEPAY_WEBHOOK_API_KEY` phải khớp cấu hình trong dashboard SePay. Hiện key đang copy từ staging, webhook nhiều khả năng vẫn trỏ về `webco.io.vn` → nạp điểm tự động (`FEATURE_AUTO_TOPUP=true`) sẽ không cộng điểm cho tài xế. **Chưa verify được vì cần tài khoản SePay.**
+- `VAPID_SUBJECT=mailto:admin@greencar.vn` — sai domain (`greencar.vn`, không phải `greenca.vn`). Không chặn push (chỉ là thông tin liên hệ gửi cho push service) nhưng nên sửa cho đúng.
+- **Redis `maxmemory=0` + `maxmemory-policy noeviction`** — không giới hạn bộ nhớ. `noeviction` là ĐÚNG cho queue (đổi sang `allkeys-lru` sẽ khiến job bị xoá = mất thông báo), nhưng nên đặt `maxmemory` có giới hạn và theo dõi, hoặc tách cache/session sang Redis DB khác với queue.
+- **Chưa có giám sát `failed_jobs`** — job chết nằm im trong bảng, không ai biết. Nên có cảnh báo khi bảng này khác rỗng.
 - Dọn `VITE_FIREBASE_*` + `VITE_ZALO_APP_ID` khỏi `frontend/.env` / `.env.example` nếu không định dùng — đang là config chết gây hiểu nhầm.
 - Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.
 - ⚠️ **Lỗ hổng test: suite chạy sqlite in-memory nhưng production là MySQL.** Mọi query dùng hàm riêng của MySQL (`DATE_FORMAT`, `groupByRaw`…) hoặc phụ thuộc hành vi MySQL (`only_full_group_by`, cột nhập nhằng sau `join`) **không được test che phủ** — bug 500 trang Doanh thu lọt lên production đúng vì lý do này. Nên có 1 job CI chạy suite trên MySQL. Trong lúc chưa có, chạy tay:
