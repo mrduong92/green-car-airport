@@ -298,9 +298,13 @@ Quy ước exit code của `zns:balance` (tách bạch có chủ ý):
 Gộp 1 và 2 làm một là sai lầm dễ mắc: hiện Abenla trả `Code 104` kèm `"Balance": 0.0` vì
 IP chưa whitelist — gộp lại thì sẽ báo "hết tiền" và người ta đi nạp tiền oan mà app vẫn hỏng.
 
-⚠️ **Ngưỡng `ZNS_BALANCE_MIN=50000` mới là ước lượng** — chưa biết số dư Abenla tính bằng
-VND hay tín dụng (đang là 24.890). Chỉnh lại trong `/etc/greenca-monitor.conf` khi biết giá
-mỗi tin, để cảnh báo đủ sớm mà không báo động giả.
+**Ngưỡng `ZNS_BALANCE_MIN=100000`** — giá ZNS là **365đ/tin** (chủ app xác nhận 2026-08-07),
+nên 100.000đ ≈ **273 tin** còn lại lúc cảnh báo nổ: đủ thời gian nạp trước khi gián đoạn.
+Chỉnh trong `/etc/greenca-monitor.conf`.
+
+⚠️ **Số dư hiện tại 24.890đ ≈ 68 tin** — ĐANG dưới ngưỡng. Ngay khi Abenla whitelist IP
+production, cảnh báo "sắp hết tiền" sẽ nổ ngay lần kiểm đầu. Đó là cảnh báo ĐÚNG, không
+phải báo động giả.
 
 **Chưa verify được đường "dưới ngưỡng" từ production** vì Abenla đang chặn IP nên không đọc
 nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
