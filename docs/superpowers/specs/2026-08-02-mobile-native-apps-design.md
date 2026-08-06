@@ -7,7 +7,7 @@
 
 ## Vấn đề
 
-Save Go hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/` tài xế, `dist-admin/` admin). Chủ sản phẩm cần app có mặt trên CH Play và App Store vì bốn lý do:
+GreenCA hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/` tài xế, `dist-admin/` admin). Chủ sản phẩm cần app có mặt trên CH Play và App Store vì bốn lý do:
 
 1. **Marketing và uy tín** — người dùng phổ thông tìm app trên store, không ai biết "Thêm vào màn hình chính".
 2. **Push notification không tin cậy** — iOS Safari chỉ cho phép Web Push khi PWA đã được cài vào màn hình chính (iOS 16.4+), và iOS thu hồi quyền khá tuỳ tiện. Tài xế bỏ lỡ cuốc là thiệt hại trực tiếp.
@@ -16,7 +16,7 @@ Save Go hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/
 
 ## Mục tiêu
 
-- Hai ứng dụng native trên cả CH Play và App Store: **Save Go** (khách hàng) và **Save Go Tài Xế**.
+- Hai ứng dụng native trên cả CH Play và App Store: **GreenCA** (khách hàng) và **GreenCA Tài Xế**.
 - Giữ **một codebase UI duy nhất** — `frontend/src` phục vụ đồng thời web PWA và app native. Sửa một lần, chạy cả hai.
 - Push notification native qua FCM (Android) và APNs (iOS, chuyển tiếp bởi FCM), với chuông riêng độ ưu tiên cao cho thông báo "Có cuốc mới" xuyên qua chế độ im lặng/Tập trung.
 - Đạt điều kiện duyệt của Apple và Google ngay từ vòng nộp đầu: xoá tài khoản trong app, tài khoản demo cho reviewer, khai báo quyền riêng tư, đủ tính năng native để không bị coi là website đóng gói.
@@ -26,7 +26,7 @@ Save Go hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/
 
 - **Theo dõi vị trí tài xế realtime.** Hệ thống hiện chỉ dùng GPS một lần để điền điểm đón; bản đồ hiển thị lộ trình của khách chứ không cập nhật vị trí xe. Không bổ sung trong đợt này — sẽ là spec riêng.
 - **App Admin.** Giữ nguyên PWA web trên `admin.*`. Admin dùng desktop, lên store không có giá trị và dễ bị Apple từ chối vì "app chỉ dành cho nội bộ".
-- **Universal Links / App Links** (mở link `savego.com.vn` bằng app). Cần đặt file xác thực lên server và cấu hình cả hai nền tảng; giá trị chủ yếu là marketing. Phase sau.
+- **Universal Links / App Links** (mở link `greenca.vn` bằng app). Cần đặt file xác thực lên server và cấu hình cả hai nền tảng; giá trị chủ yếu là marketing. Phase sau.
 - **Cập nhật OTA** (đẩy bản sửa lỗi JS không qua store, ví dụ Capgo). Phase sau.
 - **CI/CD ký và nộp tự động.** Tần suất phát hành ban đầu thấp, dựng pipeline ký app tốn công ngang phần còn lại. Build thủ công qua Xcode/Android Studio, có Makefile hỗ trợ hai nhịp đầu.
 - **Viết lại UI bằng React Native hoặc Flutter.** Xem mục "Phương án đã cân nhắc".
@@ -67,11 +67,11 @@ green-car-airport/
 │       └── sw.ts                  # dùng lại route.ts thay vì tự ánh xạ
 ├── mobile/
 │   ├── customer/
-│   │   ├── capacitor.config.ts    # appId vn.com.savego.customer, webDir ../../frontend/dist
+│   │   ├── capacitor.config.ts    # appId vn.greenca.customer, webDir ../../frontend/dist
 │   │   ├── package.json           # các plugin Capacitor (cho cap sync sinh mã native)
 │   │   ├── android/               # project Android Studio — commit vào git
 │   │   └── ios/                   # project Xcode — commit vào git
-│   └── driver/                    # tương tự, appId vn.com.savego.driver
+│   └── driver/                    # tương tự, appId vn.greenca.driver
 └── docs/MOBILE.md                 # MỚI — hướng dẫn build, ký, phát hành
 ```
 
@@ -85,8 +85,8 @@ green-car-airport/
 
 | | Khách hàng | Tài xế |
 |---|---|---|
-| App ID | `vn.com.savego.customer` | `vn.com.savego.driver` |
-| Tên hiển thị | Save Go | Save Go Tài Xế |
+| App ID | `vn.greenca.customer` | `vn.greenca.driver` |
+| Tên hiển thị | GreenCA | GreenCA Tài Xế |
 | webDir | `../../frontend/dist` | `../../frontend/dist-driver` |
 
 App ID **không đổi được** sau khi phát hành lên store. Chốt trước khi tạo bản ghi ứng dụng.
@@ -109,25 +109,52 @@ const api = axios.create({
 ```
 
 - Build web: để trống → giữ nguyên hành vi hiện tại, không hồi quy.
-- Build cho app native: `VITE_API_BASE_URL=https://savego.com.vn`.
+- Build cho app native: `VITE_API_BASE_URL=https://greenca.vn`.
 
 **Áp dụng cho cả SSE.** `useCustomerStream.ts` và `useDriverStream.ts` tạo `EventSource` — phải dùng cùng base URL, nếu không realtime chết trong app mà API vẫn chạy, rất khó truy.
 
-### 2.2 CORS
+### 2.2 Origin của WebView, Sanctum và CORS
 
-Backend hiện không có `config/cors.php` (Laravel 11+ dùng mặc định của framework). Publish file cấu hình và thêm các origin của Capacitor:
+**Đã kiểm chứng bằng POC trên emulator Android** (xem `docs/MOBILE.md`) — đây là chỗ vướng thật, không phải lo xa.
+
+Mặc định Capacitor nạp WebView từ `https://localhost` (Android) và `capacitor://localhost` (iOS). **Cả hai đều có host là `localhost`**, mà `localhost` nằm trong danh sách mặc định của `SANCTUM_STATEFUL_DOMAINS` (xem `config/sanctum.php:21-26`, và `.env` hiện **không** khai biến này nên đang dùng mặc định).
+
+Hệ quả: middleware `EnsureFrontendRequestsAreStateful` của Sanctum coi request từ app là first-party SPA, chuyển nó sang luồng session/cookie và bắt CSRF token. Mọi request từ app trả **419 `CSRF token mismatch`** — đăng nhập không thể thực hiện. Triệu chứng dễ chẩn đoán sai thành lỗi CORS hoặc lỗi mạng.
+
+**Cách xử lý — làm cả hai:**
+
+1. **Đặt hostname riêng cho WebView** trong `capacitor.config.ts` của cả hai app:
+
+```ts
+server: {
+  androidScheme: 'https',
+  hostname: 'app.greenca.vn',   // app tài xế: 'driver-app.greenca.vn'
+}
+```
+
+Origin trở thành `https://app.greenca.vn`, không còn khớp `localhost` → Sanctum để request đi luồng stateless bằng Bearer token, đúng như app cần. Sửa được ở phía client, không cần đụng server, và xử lý luôn cho cả iOS.
+
+2. **Khai tường minh `SANCTUM_STATEFUL_DOMAINS`** trên server, chỉ gồm các domain SPA thật:
+
+```
+SANCTUM_STATEFUL_DOMAINS=greenca.vn,driver.greenca.vn,admin.greenca.vn
+```
+
+Bước 1 là đủ để app chạy, nhưng bước 2 mới là sửa đúng gốc: dựa vào danh sách mặc định có `localhost` là một cái bẫy sẽ nổ lại ở bất kỳ client nào chạy trên localhost.
+
+**CORS.** Backend hiện không có `config/cors.php` (Laravel 11+ dùng mặc định của framework), và mặc định đó trả `Access-Control-Allow-Origin: *` — **đã kiểm chứng trên staging**, nên app gọi API được ngay mà chưa cần sửa gì. Nếu sau này siết CORS về danh sách cụ thể thì phải thêm origin của app:
 
 ```php
 'allowed_origins' => [
-    'https://savego.com.vn',
-    'https://driver.savego.com.vn',
-    'https://admin.savego.com.vn',
-    'capacitor://localhost',   // iOS
-    'https://localhost',        // Android
+    'https://greenca.vn',
+    'https://driver.greenca.vn',
+    'https://admin.greenca.vn',
+    'https://app.greenca.vn',          // WebView app khách hàng
+    'https://driver-app.greenca.vn',   // WebView app tài xế
 ],
 ```
 
-Áp dụng cho cả route API lẫn endpoint SSE. Thiếu bước này thì app trắng màn hình ngay ngày đầu và thông báo lỗi trong WebView rất khó đọc.
+Áp dụng cho cả route API lẫn endpoint SSE.
 
 ### 2.3 Cờ nền tảng
 
@@ -280,7 +307,7 @@ Số điện thoại được giải phóng, người dùng đăng ký lại b�
 
 App đăng nhập bằng OTP qua SMS. Reviewer của Apple ở nước ngoài không nhận được tin nhắn về số Việt Nam, không vào được app, và từ chối ngay.
 
-Mã hiện tại có cơ chế bỏ qua OTP, nhưng đã kiểm chứng nó **không** bị giới hạn theo môi trường — `OtpController.php:98` là `$bypass = app()->environment('local') || $request->otp === '000000'`, nghĩa là bất kỳ ai gửi OTP `000000` với bất kỳ số điện thoại nào cũng đăng nhập được **trên production**. Đây là lỗ hổng cần bịt bất kể dự án app native (xem mục Rủi ro). Đường bỏ qua có kiểm soát dành cho reviewer thay thế nó:
+Mã hiện tại đã siết đúng: `OtpController.php:98` là `$bypass = app()->environment(['local', 'testing'])`, nên trên production luôn cần OTP thật — mã `000000` không phải đường bypass. Điều đó đúng về mặt an toàn nhưng khiến người duyệt không có cách nào vào app, nên cần một đường riêng có kiểm soát dành cho reviewer:
 
 ```
 AUTH_REVIEW_PHONE=0900000000
@@ -316,7 +343,7 @@ Ngoài ra ở tầng CSS: tắt hiệu ứng nảy khi cuộn quá đà, chặn 
 - **Nhãn App Privacy** (Apple) và **form Data Safety** (Google): khai số điện thoại, vị trí (chỉ khi dùng, để điền điểm đón), dữ liệu chuyến đi, dữ liệu sử dụng.
 - Link tới trang `privacy` và `terms` — **đã có sẵn** trong CMS tĩnh.
 - Link tới trang `xoa-tai-khoan` (mục 4).
-- `Info.plist` phải có câu giải thích **bằng tiếng Việt** cho từng quyền. Ví dụ quyền vị trí: "Save Go dùng vị trí của bạn để tự động điền điểm đón." Để trống là bị loại.
+- `Info.plist` phải có câu giải thích **bằng tiếng Việt** cho từng quyền. Ví dụ quyền vị trí: "GreenCA dùng vị trí của bạn để tự động điền điểm đón." Để trống là bị loại.
 - `AndroidManifest.xml`: `INTERNET`, `POST_NOTIFICATIONS` (Android 13+), `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION`.
 
 ### 5.4 Nạp ví tài xế và quy định thanh toán
@@ -408,7 +435,7 @@ Mất keystore Android là **vĩnh viễn** không cập nhật được app đ�
 | | Việc |
 |---|---|
 | **Luồng hành chính** (bắt đầu ngày đầu tiên) | Xin mã D-U-N-S → đăng ký Apple Developer; đăng ký Google Play **dạng tổ chức**; tạo dự án Firebase và 4 app; cài Node 22, Xcode, Android Studio |
-| **Tuần 1 — Backend** | **Bịt lỗ hổng OTP `000000`** (ưu tiên cao nhất, độc lập với dự án); migration `device_tokens`; gộp `PushChannel` + hai transport; `FcmTransport`; CORS; endpoint xoá tài khoản; cấu hình tài khoản reviewer; trang tĩnh `xoa-tai-khoan`; test Pest |
+| **Tuần 1 — Backend** | Migration `device_tokens`; gộp `PushChannel` + hai transport; `FcmTransport`; CORS; endpoint xoá tài khoản; cấu hình tài khoản reviewer; trang tĩnh `xoa-tai-khoan`; test Pest |
 | **Tuần 2 — Frontend web** | `platform.ts`; tách `src/push/`; `route.ts` dùng chung với `sw.ts`; `VITE_API_BASE_URL` cho axios và SSE; ẩn UI web-only; giao diện xoá tài khoản |
 | **Tuần 3 — Vỏ native** | Khởi tạo hai project Capacitor; icon/splash; cài và cấu hình plugin; `google-services.json` / `GoogleService-Info.plist`; chuỗi quyền tiếng Việt; các chạm native mục 5.2; Makefile và script đồng bộ phiên bản |
 | **Tuần 4 — Kiểm thử và nộp** | Kiểm thử thiết bị thật; ảnh chụp màn hình và mô tả cho store; khai Data Safety và App Privacy; nộp |
@@ -426,7 +453,7 @@ Sau khi nộp: Apple thường duyệt 1-3 ngày mỗi vòng, dự trù 2-3 vòn
 | Không có tài khoản Apple kịp tiến độ | Cao | Khởi động thủ tục ngày đầu; nếu chậm thì phát hành Android trước, iOS sau |
 | Apple từ chối theo điều 4.2 | Trung bình | Đã chuẩn bị danh sách tính năng native mục 5.2; nếu vẫn bị, bổ sung Universal Links và widget theo dõi chuyến rồi nộp lại — không đổi công nghệ |
 | Reviewer không đăng nhập được vì OTP | Cao nếu quên | Tài khoản reviewer mục 5.1 là hạng mục bắt buộc trong danh sách kiểm trước khi nộp |
-| **Đường bỏ qua OTP `000000` đang mở trên production** | Nghiêm trọng, đã xác nhận | `OtpController.php:98` cho phép mã `000000` ở mọi môi trường → chiếm được bất kỳ tài khoản nào chỉ cần biết số điện thoại. Siết điều kiện về `app()->environment('local')`, thay bằng cơ chế reviewer mục 5.1. **Việc này cần làm ngay, độc lập với dự án app native** — đưa vào tuần 1 |
+| Đường bỏ qua OTP dành cho reviewer bị lạm dụng | Trung bình | Chỉ chấp nhận khi số điện thoại khớp chính xác `AUTH_REVIEW_PHONE`; không khai biến thì tính năng tắt hoàn toàn. Không dùng mã dễ đoán như `000000`. Có test Pest chặn trường hợp số khác dùng được mã reviewer |
 | Mất keystore Android | Rất cao nếu xảy ra | Bật Play App Signing; cất khoá vào kho bí mật công ty ngay khi tạo |
 | Push trùng (vừa web vừa native trên cùng thiết bị) | Thấp | Chấp nhận. Người dùng gỡ PWA sau khi cài app là hết. Không đáng dựng cơ chế khử trùng |
 | Bản đồ Goong giật trong WebView | Trung bình | Giảm số marker, tắt hiệu ứng thừa. Nếu vẫn nặng thì cân nhắc plugin bản đồ native ở phase sau |
