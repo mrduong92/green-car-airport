@@ -402,3 +402,10 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - **Nên tách credential bên thứ 3 khỏi staging** — hiện production dùng chung tài khoản ZNS Abenla / SePay / VAPID với staging. Test trên staging có thể đốt quota SMS của production, và thu hồi key vì lý do gì cũng làm chết cả hai.
 - Dọn `VITE_FIREBASE_*` + `VITE_ZALO_APP_ID` khỏi `frontend/.env` / `.env.example` nếu không định dùng — đang là config chết gây hiểu nhầm.
 - Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.
+- ⚠️ **Lỗ hổng test: suite chạy sqlite in-memory nhưng production là MySQL.** Mọi query dùng hàm riêng của MySQL (`DATE_FORMAT`, `groupByRaw`…) hoặc phụ thuộc hành vi MySQL (`only_full_group_by`, cột nhập nhằng sau `join`) **không được test che phủ** — bug 500 trang Doanh thu lọt lên production đúng vì lý do này. Nên có 1 job CI chạy suite trên MySQL. Trong lúc chưa có, chạy tay:
+
+  ```bash
+  docker compose exec -T mysql mysql -uroot -psecret -e "CREATE DATABASE IF NOT EXISTS green_car_airport_test; GRANT ALL ON green_car_airport_test.* TO 'laravel'@'%';"
+  docker compose exec -T -e DB_CONNECTION=mysql -e DB_HOST=mysql -e DB_DATABASE=green_car_airport_test \
+    app php artisan test
+  ```
