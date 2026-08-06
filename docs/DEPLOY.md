@@ -1,10 +1,152 @@
-# Deploy — Save Go (STAGING)
+# Deploy — Save Go
+
+> Có **2 server**: PRODUCTION (`greenca.vn`, 45.124.95.47) và STAGING (`webco.io.vn`, 103.148.57.141).
+> Hai server dùng DB + env RIÊNG, không dùng chung.
+
+---
+
+# PRODUCTION — greenca.vn
+
+> Dựng lần đầu 2026-08-06. KHÔNG lưu mật khẩu trong file này — server chỉ đăng nhập bằng SSH key.
+
+## Thông tin server
+
+| Mục | Giá trị |
+|---|---|
+| Tên server | `green-car-ubuntu` |
+| WAN IP | `45.124.95.47` |
+| OS | Ubuntu 26.04 LTS |
+| User | `root` |
+| SSH key (máy local) | `~/.ssh/ssh-17-37-18-6-8-2026-private.pem` |
+| Đăng nhập | `ssh -i ~/.ssh/ssh-17-37-18-6-8-2026-private.pem root@45.124.95.47` |
+| Password auth | **ĐÃ TẮT** — mất key phải vào console VPS |
+| Firewall | `ufw` bật, chỉ mở 22 / 80 / 443 |
+
+⚠️ **Server riêng cho dự án này** — không host site nào khác (khác với staging).
+
+### Khác biệt quan trọng so với staging
+
+| | Production | Staging |
+|---|---|---|
+| PHP | **8.5** (`/run/php/php8.5-fpm.sock`) | 8.4 (`/run/php/php8.4-fpm.sock`) |
+| MySQL | 8.4 | 8.0 |
+| Redis | 8.0 | 7 |
+| DB user | `greenca` | `amd` |
+| Dev bypass `000000` | **ĐÃ TẮT** | còn bật |
+
+Ubuntu 26.04 KHÔNG có gói `php8.4-*` trong repo mặc định — production chạy PHP 8.5
+(`composer.json` yêu cầu `^8.3` nên vẫn hợp lệ). Mọi snippet nginx phải trỏ đúng
+socket `php8.5-fpm.sock`, copy nguyên từ staging sẽ ra 502.
+
+### ⚠️ sshd_config không đọc drop-in
+
+Nhà cung cấp VPS thay `/etc/ssh/sshd_config` bằng bản legacy **không có dòng
+`Include /etc/ssh/sshd_config.d/*.conf`** — nên file `60-cloudimg-settings.conf`
+(vốn đã ghi `PasswordAuthentication no`) bị bỏ qua hoàn toàn. Đã sửa trực tiếp trong
+file chính (`PasswordAuthentication no`, `PermitRootLogin prohibit-password`) và
+thêm lại dòng `Include`. Backup bản gốc ở `/root/sshd_config.bak-<timestamp>`.
+Config còn vài directive đã deprecated (`UsePrivilegeSeparation`, `RSAAuthentication`…)
+— chỉ là cảnh báo, `sshd -t` vẫn pass.
+
+## Kiến trúc deploy
+
+| Thành phần | Giá trị |
+|---|---|
+| Thư mục app | `/var/www/green-car-airport` (git checkout, branch `main`) |
+| Customer app | `greenca.vn` → `frontend/dist/` (cũng là `default_server`, vào bằng IP được) |
+| Driver app | `driver.greenca.vn` → `frontend/dist-driver/` |
+| Admin app | `admin.greenca.vn` → `frontend/dist-admin/` |
+| Backend API | Cả 3 vhost proxy `/api/` → PHP-FPM 8.5 → `backend/public/index.php` |
+| Nginx vhost | `/etc/nginx/sites-available/greenca.vn` (cả 3 server block trong 1 file) |
+| Nginx snippet | `/etc/nginx/snippets/greenca-common.conf` |
+| Database | MySQL local, DB `green_car_airport`, user `greenca` (mật khẩu trong `backend/.env`) |
+| Deploy key | `/root/.ssh/id_ed25519` trên server, đã add read-only vào repo GitHub |
+| Node.js | **KHÔNG có trên server** — frontend build ở máy local rồi rsync lên |
+| Backup DB | `/usr/local/bin/backup-db.sh`, cron `/etc/cron.d/greenca-db-backup` 03:15 hằng ngày, giữ 14 bản ở `/root/db-backups/` |
+
+Không cần queue worker / scheduler: repo hiện KHÔNG có `app/Jobs`, `app/Notifications`,
+`app/Console/Commands` hay task nào trong scheduler — không có gì đẩy vào queue.
+
+## Quy trình deploy
+
+### 1. Backend (chạy trên server)
+
+```bash
+ssh -i ~/.ssh/ssh-17-37-18-6-8-2026-private.pem root@45.124.95.47
+
+cd /var/www/green-car-airport
+BACKUP=/root/deploy-backups/$(date +%Y%m%d-%H%M%S) && mkdir -p $BACKUP
+cp backend/.env $BACKUP/backend.env
+cp -r frontend/dist $BACKUP/dist-previous
+
+git fetch origin && git reset --hard origin/main
+
+cd backend
+COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
+php artisan migrate --force          # KHÔNG BAO GIỜ migrate:fresh
+php artisan config:cache && php artisan route:cache && php artisan event:cache
+chown -R www-data:www-data storage bootstrap/cache   # BẮT BUỘC sau khi chạy artisan bằng root
+systemctl reload php8.5-fpm
+```
+
+### 2. Frontend (build local, rsync lên)
+
+```bash
+docker compose run --rm --no-deps -T -e VITE_DRIVER_APP_URL=https://driver.greenca.vn \
+  frontend sh -c "npm install && npm run build:customer && npm run build:driver && npm run build:admin"
+
+K=~/.ssh/ssh-17-37-18-6-8-2026-private.pem
+for d in dist dist-driver dist-admin; do
+  rsync -az --delete -e "ssh -i $K" frontend/$d/ root@45.124.95.47:/var/www/green-car-airport/frontend/$d/
+done
+```
+
+### 3. Verify sau deploy
+
+Dùng lại toàn bộ check ở phần staging (title + marker bundle + 3 hash khác nhau),
+đổi domain sang `greenca.vn`. Thêm 2 check riêng của production:
+
+```bash
+# Dev bypass PHẢI chết — cả 2 lệnh không được trả 200
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://greenca.vn/api/auth/otp/verify \
+  -H 'Content-Type: application/json' -d '{"phone":"0987654321","otp":"000000"}'   # 422
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://greenca.vn/api/auth/login \
+  -H 'Content-Type: application/json' -d '{"phone":"0987654321","password":"000000","role":"customer"}'  # 422
+```
+
+### 4. SSL — chạy SAU khi DNS đã trỏ
+
+Hiện `greenca.vn` đang trỏ `103.121.88.249` (host khác), 2 subdomain chưa có bản ghi.
+Cần 3 bản ghi A về `45.124.95.47`: `greenca.vn`, `driver.greenca.vn`, `admin.greenca.vn`
+(thêm `www.greenca.vn` nếu muốn). Kiểm tra bằng `dig +short greenca.vn` rồi mới chạy:
+
+```bash
+ssh -i ~/.ssh/ssh-17-37-18-6-8-2026-private.pem root@45.124.95.47
+certbot --nginx -d greenca.vn -d www.greenca.vn -d driver.greenca.vn -d admin.greenca.vn \
+  --agree-tos -m <email> --redirect --non-interactive
+```
+
+certbot tự sửa vhost thành 443 + redirect 80→443 và tự cài timer auto-renew.
+Sau đó đổi `APP_URL` trong `backend/.env` nếu cần rồi `php artisan config:cache`.
+
+## Lịch sử production
+
+- 2026-08-06: Dựng server production lần đầu. Cài nginx 1.28 + PHP 8.5 + MySQL 8.4 + Redis 8.0 + certbot.
+  Deploy commit `3c50f33` (= code của `605bcab` trên staging + fix tắt dev bypass; 2 commit ở giữa chỉ sửa docs).
+  DB khởi tạo trống, chỉ seed `PriceConfigSeeder` (6 dòng) + `StaticPageSeeder` (2 trang) — KHÔNG seed user dev.
+  Tắt SSH password auth, bật ufw, cài backup DB hằng ngày.
+  Env copy từ staging và giữ nguyên credential ZNS (Abenla) / VAPID / SePay; đổi APP_URL, DB, Redis,
+  `MAIL_MAILER=log` (production không có mailpit), `LOG_LEVEL=warning`, `APP_KEY` sinh mới.
+
+---
+
+# STAGING — webco.io.vn
 
 > Cập nhật lần cuối: 2026-07-05. KHÔNG lưu mật khẩu trong file này — server chỉ đăng nhập bằng SSH key (password auth đã tắt).
 >
-> ⚠️ Đây là server **STAGING** (dùng chung, thử nghiệm). Production riêng sẽ dựng sau — khi có, tạo file/section riêng và KHÔNG dùng chung env/DB với staging.
+> ⚠️ Đây là server **STAGING** (dùng chung, thử nghiệm). Production đã dựng riêng — xem phần PRODUCTION ở trên.
 >
-> Ghi chú bảo mật (chấp nhận được trên staging, PHẢI sửa trước production): mật khẩu `000000` và OTP `000000` là "dev bypass" đăng nhập được mọi tài khoản (`AuthController::login`, `OtpController` — điều kiện `|| password === '000000'`). Trên production thật phải chỉ cho bypass khi `APP_ENV=local`.
+> Ghi chú bảo mật: trên staging, mật khẩu `000000` và OTP `000000` vẫn là "dev bypass" đăng nhập được mọi tài khoản — vì `APP_ENV=production` mà code cũ vẫn nhận magic code. Từ commit `3c50f33` điều kiện đã đổi thành `environment(['local','testing'])`, nên **lần deploy staging tiếp theo bypass sẽ tự tắt luôn ở đây** — nhớ chuẩn bị OTP thật trước khi deploy staging, nếu không sẽ không đăng nhập được để test.
 
 ## Thông tin server
 
@@ -172,8 +314,11 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - 2026-07-05: Deploy domain-separation (2 app customer/driver) + static pages CRUD + phone-normalization. Tạo vhost `driver.webco.io.vn` + SSL. Tắt SSH password auth, chuyển sang key `greencar-prod`. Fix bug entry-swap build (2 app ra cùng bundle). Fix quyền storage (root artisan → 500). Fix check số dư ví khi tài xế nhận cuốc (BIGINT unsigned crash).
 - `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn` + `admin.webco.io.vn`.
 
-### TODO trước khi lên production thật
-- Tắt dev bypass `000000` (password + OTP) — chỉ cho khi `APP_ENV=local`; đổi mật khẩu admin thật.
-- Backup DB tự động (chưa có).
-- Queue worker: chưa thấy service/cron chạy `queue:work` dù `QUEUE_CONNECTION=redis` — kiểm tra nếu notification/push không gửi.
-- Dùng DB + env riêng cho production, không chung với staging.
+### TODO
+- ~~Tắt dev bypass `000000`~~ — xong ở commit `3c50f33` (chỉ còn `local`/`testing`).
+- ~~Backup DB tự động~~ — xong trên production (cron 03:15 hằng ngày). **Staging vẫn chưa có.**
+- ~~Queue worker~~ — không cần: repo không có Job/Notification/Command nào đẩy vào queue.
+- ~~DB + env riêng cho production~~ — xong.
+- **Production còn thiếu:** DNS `greenca.vn` + `driver.` + `admin.` chưa trỏ về 45.124.95.47 → chưa chạy được certbot, hiện mới có HTTP. Sau khi trỏ DNS xong phải chạy certbot (lệnh ở phần production) rồi verify lại bằng HTTPS.
+- **Production còn thiếu:** chưa có tài khoản admin nào (DB 0 user).
+- Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.
