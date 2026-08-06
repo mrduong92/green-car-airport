@@ -123,7 +123,7 @@ Custom utilities: `rounded-card` (12px), `rounded-input` (8px), `rounded-pill` (
 **Laravel 13.9 / PHP 8.4 — API-only, no Blade views.**
 
 ### Auth
-OTP-based, no passwords. `POST /api/auth/otp/send` stores a 6-digit code, `POST /api/auth/otp/verify` issues a Sanctum personal access token. **Dev bypass:** `APP_ENV=local` OR OTP=`000000` always authenticates — `firstOrCreate` the user and return a token without checking the OTP table.
+OTP-based, no passwords. `POST /api/auth/otp/send` stores a 6-digit code, `POST /api/auth/otp/verify` issues a Sanctum personal access token. **Dev bypass:** gated on `app()->environment(['local', 'testing'])` only — in those environments any OTP/password authenticates (`firstOrCreate` the user, return a token, skip the OTP table). The magic value `000000` is NOT a bypass on its own; on `APP_ENV=production` a real OTP is always required. `testing` must stay in the list — `phpunit.xml` sets `APP_ENV=testing` and the auth tests rely on it.
 
 ### Role middleware
 `EnsureRole` (registered as `role` alias in `bootstrap/app.php`) checks `$request->user()->role`. Three roles: `customer`, `driver`, `admin`. Route groups in `routes/api.php` are nested `auth:sanctum` → `role:X`.

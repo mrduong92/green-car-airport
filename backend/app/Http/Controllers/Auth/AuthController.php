@@ -62,7 +62,7 @@ class AuthController extends Controller
             }
         }
 
-        $bypass = app()->environment('local') || $request->password === '000000';
+        $bypass = app()->environment(['local', 'testing']);
 
         if (! $bypass) {
             if (! $user->password) {
@@ -259,7 +259,7 @@ class AuthController extends Controller
 
     private function consumeOtp(string $phone, string $code): void
     {
-        if (app()->environment('local') || $code === '000000') return;
+        if (app()->environment(['local', 'testing'])) return;
 
         $otp = Otp::where('phone', $phone)
             ->where('code', $code)

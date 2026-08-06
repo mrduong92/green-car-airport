@@ -95,7 +95,7 @@ class OtpController extends Controller
 
         $phone = PhoneNumber::normalize($request->phone);
 
-        $bypass = app()->environment('local') || $request->otp === '000000';
+        $bypass = app()->environment(['local', 'testing']);
 
         if (! $bypass) {
             $otp = Otp::where('phone', $phone)
