@@ -302,9 +302,25 @@ IP chưa whitelist — gộp lại thì sẽ báo "hết tiền" và người ta
 nên 100.000đ ≈ **273 tin** còn lại lúc cảnh báo nổ: đủ thời gian nạp trước khi gián đoạn.
 Chỉnh trong `/etc/greenca-monitor.conf`.
 
-⚠️ **Số dư hiện tại 24.890đ ≈ 68 tin** — ĐANG dưới ngưỡng. Ngay khi Abenla whitelist IP
-production, cảnh báo "sắp hết tiền" sẽ nổ ngay lần kiểm đầu. Đó là cảnh báo ĐÚNG, không
-phải báo động giả.
+⚠️ **Số dư 24.890đ ≈ 68 tin — ĐANG dưới ngưỡng.** Ngay khi Abenla whitelist IP production,
+cảnh báo "sắp hết tiền" sẽ nổ ở lần kiểm đầu. Đó là cảnh báo ĐÚNG, không phải báo động giả.
+
+⚠️ **Con số 24.890 đo được từ STAGING, không phải production.** Abenla chặn theo **IP nguồn**,
+mà production `45.124.95.47` chưa được whitelist — gọi từ đó luôn ra `Code 104`. Cùng tài
+khoản `ABHP77G`, cùng credential, chỉ khác IP:
+
+| Gọi từ | Kết quả |
+|---|---|
+| Production `45.124.95.47` | `{"Balance":0.0,"Code":104,"Message":"CanNotAccess"}` |
+| Staging `103.148.57.141` | `{"Balance":24890.0000,"Code":106,"Message":"Success"}` |
+
+Nên đừng ngạc nhiên khi thấy "production không tra được số dư" đi cùng một con số cụ thể —
+số đó lấy từ staging. Và **`Balance: 0.0` ở dòng production KHÔNG phải số dư bằng 0**, nó là
+giá trị mặc định trong payload lỗi.
+
+Muốn xem số dư trong lúc chờ whitelist: chạy `php artisan zns:balance` **trên staging**,
+hoặc gọi `GetBalance` bằng curl từ staging. KHÔNG nên sửa script giám sát để đọc số dư qua
+staging — production sẽ phụ thuộc staging, và thành code chết ngay khi whitelist xong.
 
 **Chưa verify được đường "dưới ngưỡng" từ production** vì Abenla đang chặn IP nên không đọc
 nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
