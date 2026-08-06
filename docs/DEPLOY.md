@@ -217,6 +217,41 @@ timer và cron chạy trùng cũng an toàn.
 
 `certbot renew --dry-run` chạy khá lâu (>5 phút) — đừng tưởng là treo.
 
+## Giám sát (cảnh báo hỏng âm thầm)
+
+`/usr/local/bin/greenca-healthcheck.sh`, cron `/etc/cron.d/greenca-monitor` chạy **5 phút/lần**.
+
+Giám sát riêng `failed_jobs` là KHÔNG đủ — ca tệ nhất là **worker chết**: job dồn trong
+Redis, `failed_jobs` vẫn bằng 0, không lỗi không log. Script kiểm 4 dấu hiệu:
+
+| Kiểm | Vì sao |
+|---|---|
+| `greenca-queue` không `active` | Worker chết → mọi thông báo ngừng, hoàn toàn im lặng |
+| `failed_jobs` > 0 | Job chết (kèm tên class gần nhất) |
+| Queue tồn đọng > `QUEUE_BACKLOG_MAX` (50) | Worker sống nhưng kẹt / không kịp |
+| `greenca-scheduler.log` không đổi > `SCHEDULER_STALE_MIN` (10 phút) | Cron hỏng → booking quá hạn không tự huỷ |
+
+**Chống spam:** chỉ gửi khi trạng thái ĐỔI (lưu ở `/var/lib/greenca-monitor/last-status`),
+và gửi 1 tin khi hồi phục. Lỗi kéo dài không bị dội lại mỗi 5 phút.
+
+### Cấu hình Telegram
+
+`/etc/greenca-monitor.conf` (chmod 600). **Chưa điền token thì cảnh báo chỉ ghi
+`syslog` + `/var/log/greenca-monitor.log`** — script vẫn chạy đúng nhưng không ai nhận được.
+
+```bash
+# 1) Nhắn @BotFather -> /newbot -> lấy token
+# 2) Nhắn 1 tin cho bot vừa tạo, rồi mở:
+#    https://api.telegram.org/bot<TOKEN>/getUpdates
+#    lấy result[0].message.chat.id   (nhóm thì chat_id là số ÂM, nhớ mời bot vào nhóm)
+# 3) Điền vào /etc/greenca-monitor.conf rồi thử:
+/usr/local/bin/greenca-healthcheck.sh --test    # gửi tin thử
+/usr/local/bin/greenca-healthcheck.sh --now     # kiểm ngay, báo dù trạng thái không đổi
+```
+
+Đã test thực tế cả 4 loại phát hiện (dừng worker, chèn failed_job giả, nhồi 60 job vào
+queue, lùi mtime log scheduler), cộng chống spam và tin hồi phục — đều đúng.
+
 ## Lịch sử production
 
 - 2026-08-06: Dựng server production lần đầu. Cài nginx 1.28 + PHP 8.5 + MySQL 8.4 + Redis 8.0 + certbot.
@@ -458,7 +493,7 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - **Nên tách credential bên thứ 3 khỏi staging** — hiện production dùng chung tài khoản ZNS Abenla / SePay / VAPID với staging. Test trên staging có thể đốt quota SMS của production, và thu hồi key vì lý do gì cũng làm chết cả hai.
 - ~~`VAPID_SUBJECT` / `MAIL_FROM_ADDRESS` sai domain~~ — xong: `mailto:admin@greenca.vn` và `noreply@greenca.vn` (trước đó là `greencar.vn` và `greencarairport.vn`).
 - **Redis `maxmemory=0` + `maxmemory-policy noeviction`** — không giới hạn bộ nhớ. `noeviction` là ĐÚNG cho queue (đổi sang `allkeys-lru` sẽ khiến job bị xoá = mất thông báo), nhưng nên đặt `maxmemory` có giới hạn và theo dõi, hoặc tách cache/session sang Redis DB khác với queue.
-- **Chưa có giám sát `failed_jobs`** — job chết nằm im trong bảng, không ai biết. Nên có cảnh báo khi bảng này khác rỗng.
+- ~~Giám sát `failed_jobs`~~ — xong, xem mục "Giám sát" ở trên. **Còn thiếu: token Telegram** (chưa có thì cảnh báo chỉ ghi `syslog` + `/var/log/greenca-monitor.log`, không ai nhận được).
 - Dọn `VITE_FIREBASE_*` + `VITE_ZALO_APP_ID` khỏi `frontend/.env` / `.env.example` nếu không định dùng — đang là config chết gây hiểu nhầm.
 - Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.
 - ⚠️ **Lỗ hổng test: suite chạy sqlite in-memory nhưng production là MySQL.** Mọi query dùng hàm riêng của MySQL (`DATE_FORMAT`, `groupByRaw`…) hoặc phụ thuộc hành vi MySQL (`only_full_group_by`, cột nhập nhằng sau `join`) **không được test che phủ** — bug 500 trang Doanh thu lọt lên production đúng vì lý do này. Nên có 1 job CI chạy suite trên MySQL. Trong lúc chưa có, chạy tay:
