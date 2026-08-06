@@ -265,6 +265,47 @@ trơn sẽ không ăn thua và `getUpdates` vẫn rỗng.
 Đã test thực tế cả 4 loại phát hiện (dừng worker, chèn failed_job giả, nhồi 60 job vào
 queue, lùi mtime log scheduler), cộng chống spam và tin hồi phục — đều đúng.
 
+### Cảnh báo sắp hết tiền / quota bên thứ 3
+
+`/usr/local/bin/greenca-quota-check.sh`, cron `/etc/cron.d/greenca-quota` chạy **hàng giờ**
+(số dư không đổi nhanh, và mỗi lần kiểm là một lệnh gọi ra ngoài). Cùng cơ chế chống spam.
+
+| Dịch vụ | Cảnh báo TRƯỚC khi hết? | Cách làm |
+|---|---|---|
+| **ZNS** (Abenla / SouthTelecom) | ✅ Có | `php artisan zns:balance --min=N` — tra số dư provider đang dùng |
+| **Goong** | ❌ **Không thể** | Goong KHÔNG có API quota, chỉ "gọi thử" phát hiện lúc ĐÃ hỏng |
+| **SePay** | — | Bỏ qua: cổng thanh toán, không có khái niệm quota, và đang nạp điểm thủ công |
+
+⚠️ **Goong không có API tra số dư/quota.** [docs.goong.io/rest](https://docs.goong.io/rest/)
+chỉ có Directions, Trip, Speed Limit, Distance Matrix, Places, Geocoding, Static Map — không
+có endpoint nào cho quota. Nên với Goong chỉ làm được "canary": gọi thử một request rẻ,
+hỏng thì báo. **Đây là phát hiện lúc đã gián đoạn, KHÔNG phải cảnh báo sớm.** Muốn biết
+trước thì phải tự vào dashboard Goong xem, hoặc tự đếm request phía app.
+
+⚠️ **Production KHÔNG có `frontend/.env`** (frontend build ở máy local, chỉ rsync `dist/`),
+nên key Goong cho canary phải đặt trong `/etc/greenca-monitor.conf`. Thiếu key thì script
+**báo "chưa giám sát được Goong"** chứ không im lặng bỏ qua — im lặng thì lại tưởng đang
+giám sát mà thực ra không.
+
+Quy ước exit code của `zns:balance` (tách bạch có chủ ý):
+
+| Exit | Nghĩa | Cảnh báo |
+|---|---|---|
+| 0 | Còn trên ngưỡng | không |
+| 1 | **Dưới ngưỡng** | "sắp hết tiền, nạp ngay" |
+| 2 | **Không tra được** | "không tra được số dư" — KHÁC hẳn hết tiền |
+
+Gộp 1 và 2 làm một là sai lầm dễ mắc: hiện Abenla trả `Code 104` kèm `"Balance": 0.0` vì
+IP chưa whitelist — gộp lại thì sẽ báo "hết tiền" và người ta đi nạp tiền oan mà app vẫn hỏng.
+
+⚠️ **Ngưỡng `ZNS_BALANCE_MIN=50000` mới là ước lượng** — chưa biết số dư Abenla tính bằng
+VND hay tín dụng (đang là 24.890). Chỉnh lại trong `/etc/greenca-monitor.conf` khi biết giá
+mỗi tin, để cảnh báo đủ sớm mà không báo động giả.
+
+**Chưa verify được đường "dưới ngưỡng" từ production** vì Abenla đang chặn IP nên không đọc
+nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
+staging) + 3 unit test cho 3 nhánh exit code.
+
 ## Lịch sử production
 
 - 2026-08-06: Dựng server production lần đầu. Cài nginx 1.28 + PHP 8.5 + MySQL 8.4 + Redis 8.0 + certbot.

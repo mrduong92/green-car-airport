@@ -8,14 +8,16 @@ dựng lại được. **Sửa ở đây KHÔNG tự áp lên server** — phả
 | `greenca-queue.service` | `/etc/systemd/system/greenca-queue.service` | systemd, user `www-data` |
 | `greenca-healthcheck.sh` | `/usr/local/bin/greenca-healthcheck.sh` | cron `/etc/cron.d/greenca-monitor`, 5 phút/lần |
 | `backup-db.sh` | `/usr/local/bin/backup-db.sh` | cron `/etc/cron.d/greenca-db-backup`, 03:15 hằng ngày |
+| `greenca-quota-check.sh` | `/usr/local/bin/greenca-quota-check.sh` | cron `/etc/cron.d/greenca-quota`, hàng giờ, user `www-data` |
 
 Các file chỉ có trên server, **không** để trong git vì chứa bí mật hoặc quá ngắn:
 
 | Trên server | Nội dung |
 |---|---|
-| `/etc/greenca-monitor.conf` | Token Telegram + ngưỡng cảnh báo (chmod 600) |
+| `/etc/greenca-monitor.conf` | Token Telegram + key Goong + ngưỡng cảnh báo (chmod 600) |
 | `/etc/cron.d/greenca-scheduler` | `schedule:run` mỗi phút, user `www-data` |
 | `/etc/cron.d/greenca-monitor` | Gọi `greenca-healthcheck.sh` mỗi 5 phút |
+| `/etc/cron.d/greenca-quota` | Gọi `greenca-quota-check.sh` hàng giờ |
 | `/etc/cron.d/greenca-certbot-renew` | Gia hạn SSL dự phòng (02:17 + 14:17) |
 | `/etc/logrotate.d/greenca` | Xoay vòng 5 file log của GreenCA |
 
