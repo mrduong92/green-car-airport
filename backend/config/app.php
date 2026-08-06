@@ -123,6 +123,8 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-    'code_prefix' => env('APP_CODE_PREFIX', 'SGO'),
+    // Tiền tố mã giới thiệu / voucher. Phải khớp `VITE_CODE_PREFIX` ở frontend
+    // (frontend tự sinh mã voucher trong app admin), xem frontend/.env.example.
+    'code_prefix' => env('APP_CODE_PREFIX', 'GCA'),
 
 ];

@@ -35,7 +35,7 @@ class ReferralRegistrationTest extends TestCase
             'phone'         => '0987654322',
             'otp'           => '000000',
             'password'      => '123456',
-            'referral_code' => 'SGO-ZZZZZZ',
+            'referral_code' => 'GCA-ZZZZZZ',
         ])->assertOk();
 
         $newUser = User::where('phone', '0987654322')->first();

@@ -7,6 +7,16 @@ export const APP = {
 export const TEST_PASSWORD = '000000'
 export const TEST_OTP = '000000'
 
+/**
+ * Tiền tố mã giới thiệu. Phải khớp `VITE_CODE_PREFIX` (frontend/.env) và
+ * `APP_CODE_PREFIX` / mặc định `config('app.code_prefix')` ở backend.
+ * Đọc từ env để đổi prefix không phải sửa test — ghi đè bằng E2E_CODE_PREFIX.
+ */
+export const CODE_PREFIX = process.env.E2E_CODE_PREFIX ?? 'GCA'
+
+/** Regex khớp mã giới thiệu theo prefix đang cấu hình, vd /^GCA-/ */
+export const CODE_RE = new RegExp(`^${CODE_PREFIX}-`)
+
 export const SEEDED = {
   customer: '0901234567',
   driver:   '0912345678',

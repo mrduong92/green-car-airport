@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { APP, TEST_OTP, TEST_PASSWORD } from './testData'
+import { APP, CODE_RE, TEST_OTP, TEST_PASSWORD } from './testData'
 
 /** Logs in an already-registered account (phone → password). */
 export async function loginExisting(
@@ -130,7 +130,7 @@ export async function registerDriver(
 export async function getCustomerReferralCode(page: Page): Promise<string> {
   await page.goto(`${APP.customer}/customer/profile`)
   await page.getByText('Giới thiệu bạn bè').click()
-  const code = await page.getByText(/^SGO-/).first().textContent()
+  const code = await page.getByText(CODE_RE).first().textContent()
   expect(code).toBeTruthy()
   await page.getByRole('button', { name: 'Đóng' }).click()
   return code!.trim()
@@ -140,7 +140,7 @@ export async function getCustomerReferralCode(page: Page): Promise<string> {
 export async function getDriverReferralCode(page: Page): Promise<string> {
   await page.goto(`${APP.driver}/driver/profile`)
   await expect(page.getByText('Giới thiệu tài xế')).toBeVisible()
-  const code = await page.getByText(/^SGO-/).first().textContent()
+  const code = await page.getByText(CODE_RE).first().textContent()
   expect(code).toBeTruthy()
   return code!.trim()
 }

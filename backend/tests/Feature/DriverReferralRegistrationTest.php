@@ -52,7 +52,7 @@ class DriverReferralRegistrationTest extends TestCase
     public function test_driver_register_ignores_invalid_referral_code(): void
     {
         $this->postJson('/api/auth/register/driver', $this->payload([
-            'referral_code' => 'SGO-ZZZZZZ',
+            'referral_code' => 'GCA-ZZZZZZ',
         ]))->assertCreated();
 
         $this->assertDatabaseHas('users', [
