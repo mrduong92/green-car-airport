@@ -72,9 +72,12 @@ class RevenueController extends Controller
         $vehicleLabels = ['sedan_4' => 'Sedan 4 chỗ', 'suv_5' => 'SUV 5 chỗ', 'mpv_7' => 'MPV 7 chỗ'];
 
         // ── Top drivers ───────────────────────────────────────────────────────
-        $topDrivers = Booking::where('status', 'completed')
-            ->whereBetween('created_at', [$from, $to])
-            ->whereNotNull('driver_id')
+        // Query này join `users`, mà `bookings` và `users` dùng chung tên cột
+        // `created_at` / `id` / `updated_at` — PHẢI qualify tên bảng, nếu không
+        // MySQL báo "Column 'created_at' in where clause is ambiguous" (500).
+        $topDrivers = Booking::where('bookings.status', 'completed')
+            ->whereBetween('bookings.created_at', [$from, $to])
+            ->whereNotNull('bookings.driver_id')
             ->join('users', 'bookings.driver_id', '=', 'users.id')
             ->selectRaw('users.name, SUM(bookings.price - COALESCE(bookings.discount, 0)) as revenue, COUNT(*) as trips')
             ->groupBy('users.name')
