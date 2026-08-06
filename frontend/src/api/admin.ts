@@ -57,3 +57,21 @@ export const deductCollaboratorPoints = (id: number, data: { points: number; rea
 
 export const resetCollaboratorPoints = (id: number, data: { reason: string }) =>
   api.post<{ message: string; new_balance: number }>(`/admin/customers/${id}/reset-points`, data)
+
+export const getAdminUsers = () => api.get<App.AdminUser[]>('/admin/admins')
+
+export const createAdminUser = (data: { name: string; phone: string; password: string }) =>
+  api.post<App.AdminUser>('/admin/admins', data)
+
+export const updateAdminUser = (id: number, data: { name: string }) =>
+  api.patch<App.AdminUser>(`/admin/admins/${id}`, data)
+
+export const blockAdminUser = (id: number) => api.patch(`/admin/admins/${id}/block`)
+
+export const unblockAdminUser = (id: number) => api.patch(`/admin/admins/${id}/unblock`)
+
+export const resetAdminUserPassword = (id: number, data: { password: string }) =>
+  api.post(`/admin/admins/${id}/password`, data)
+
+export const changeOwnPassword = (data: { current_password: string; password: string }) =>
+  api.post('/admin/me/password', data)

@@ -116,7 +116,10 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://greenca.vn/api/auth/log
 
 ### Tạo tài khoản admin
 
-DB production khởi tạo trống nên phải tạo admin thủ công. Lưu ý `password` **không** có
+Chỉ cần cho admin **đầu tiên** trên DB trống. Từ admin thứ hai trở đi dùng màn
+`admin.greenca.vn` → tab **Admin** (tạo, đổi tên, đặt lại mật khẩu, khoá/bỏ khoá).
+
+DB production khởi tạo trống nên phải tạo admin đầu tiên thủ công. Lưu ý `password` **không** có
 cast `hashed` trong `App\Models\User` — phải `Hash::make()` bằng tay, gán chuỗi thô sẽ
 làm `Hash::check()` luôn fail và không đăng nhập được.
 
@@ -398,7 +401,7 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - ~~DB + env riêng cho production~~ — xong.
 - ~~Tài khoản admin production~~ — xong, đã tạo `0868968312` (id=1, role=admin, có mật khẩu).
 - ~~DNS + SSL cho `driver.` / `admin.`~~ — xong, cả 3 app đã chạy HTTPS.
-- **Nên làm:** đổi mật khẩu admin production (mật khẩu khởi tạo đã đi qua log phiên deploy).
+- **Nên làm:** đổi mật khẩu admin production (mật khẩu khởi tạo đã đi qua log phiên deploy) — sau khi deploy màn Admin thì làm ngay trong UI: tab **Admin** → "Đổi mật khẩu của tôi".
 - **Nên tách credential bên thứ 3 khỏi staging** — hiện production dùng chung tài khoản ZNS Abenla / SePay / VAPID với staging. Test trên staging có thể đốt quota SMS của production, và thu hồi key vì lý do gì cũng làm chết cả hai.
 - Dọn `VITE_FIREBASE_*` + `VITE_ZALO_APP_ID` khỏi `frontend/.env` / `.env.example` nếu không định dùng — đang là config chết gây hiểu nhầm.
 - Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.

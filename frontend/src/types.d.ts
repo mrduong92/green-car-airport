@@ -283,6 +283,15 @@ declare namespace App {
     created_at: string
   }
 
+  interface AdminUser {
+    id: number
+    name: string
+    phone: string
+    is_blocked: boolean
+    is_self: boolean
+    created_at: string
+  }
+
   interface AdminCustomerBooking {
     id: number
     pickup: string

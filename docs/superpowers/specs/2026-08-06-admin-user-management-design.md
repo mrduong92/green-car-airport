@@ -77,6 +77,8 @@ Một số điện thoại vẫn được phép vừa là customer/driver vừa 
 
 **`block`:** `is_blocked = true` rồi `$user->tokens()->delete()` để đá khỏi phiên ngay, đúng cách `CustomerController::block()` đang làm.
 
+**`resetPassword`:** cũng `tokens()->delete()` — đổi mật khẩu người khác mà để phiên cũ của họ sống tiếp thì việc đặt lại mất tác dụng.
+
 ### Sửa `AuthController::login` — bắt buộc
 
 `login()` hiện chỉ chặn `is_blocked` khi `role === 'customer'`:
@@ -103,9 +105,9 @@ Check này nằm **trước** dev-bypass mật khẩu nên có hiệu lực ở 
 
 **`AdminsPage` — cấu trúc:**
 
-- Header trang + nút **"Thêm quản trị viên"** → modal form (React Hook Form + Zod: `name`, `phone`, `password` 6 chữ số, có nút hiện/ẩn mật khẩu).
-- Danh sách card, mỗi dòng: tên, SĐT, ngày tạo, badge trạng thái (`Đang hoạt động` / `Đã khoá`).
-- Dòng admin khác: **Đổi tên**, **Đặt lại mật khẩu**, **Khoá** / **Bỏ khoá** (khoá có confirm).
+- Header trang + nút **"Thêm"** → bottom sheet form (React Hook Form + Zod: `name`, `phone`, `password` 6 chữ số) — cùng pattern `VouchersPage`. Các sheet một-ô còn lại (đổi tên, đặt lại mật khẩu, đổi mật khẩu của tôi) dùng `useState` thuần như `CustomersPage`; RHF cho form 1–2 ô là thừa.
+- Danh sách card, mỗi dòng: tên, SĐT, ngày tạo, badge `Đã khoá` khi bị khoá.
+- Dòng admin khác: **Đổi tên**, **Đặt lại mật khẩu**, **Khoá** / **Bỏ khoá**. Khoá mở sheet xác nhận (không dùng `confirm()` native — cả repo không chỗ nào dùng); bỏ khoá chạy thẳng.
 - Dòng của chính mình (`is_self`): badge **"Bạn"**, ẩn Khoá và Đặt lại mật khẩu, thay bằng **"Đổi mật khẩu của tôi"** → modal 2 ô (mật khẩu hiện tại + mật khẩu mới).
 - Không có ô tìm kiếm — số admin nhỏ, thêm search là thừa.
 - Data qua TanStack Query; mutation `onSuccess` → `invalidateQueries(['admin-users'])` + toast qua `useUiStore`, đúng cách các trang admin khác đang làm.

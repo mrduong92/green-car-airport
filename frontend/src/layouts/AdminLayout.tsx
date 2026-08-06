@@ -14,8 +14,10 @@ const TABS = [
   { to: '/vouchers',  icon: 'confirmation_number', label: 'Voucher' },
   { to: '/revenue',   icon: 'bar_chart',           label: 'Doanh thu' },
   { to: '/prices',    icon: 'sell',                label: 'Bảng giá' },
-  { to: '/customers', icon: 'manage_accounts',     label: 'Khách hàng' },
+  // `short` dùng cho bottom nav mobile — 8 tab trên khung 430px, nhãn dài hơn ~7 ký tự sẽ xuống dòng.
+  { to: '/customers', icon: 'manage_accounts',     label: 'Khách hàng', short: 'Khách' },
   { to: '/pages',     icon: 'article',             label: 'Trang tĩnh' },
+  { to: '/admins',    icon: 'admin_panel_settings', label: 'Admin' },
 ]
 
 export default function AdminLayout() {
@@ -94,7 +96,7 @@ export default function AdminLayout() {
                     style={{ fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400" }}>
                     {tab.icon}
                   </span>
-                  <span className={clsx('text-[10px] leading-tight text-center', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
+                  <span className={clsx('text-[10px] leading-tight text-center', isActive ? 'font-semibold' : 'font-medium')}>{tab.short ?? tab.label}</span>
                 </>
               )}
             </NavLink>

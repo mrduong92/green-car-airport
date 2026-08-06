@@ -47,7 +47,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Số điện thoại chưa đăng ký.'], 422);
         }
 
-        if ($user->role === 'customer' && $user->is_blocked) {
+        if (in_array($user->role, ['customer', 'admin'], true) && $user->is_blocked) {
             return response()->json(['message' => 'Tài khoản đã bị khoá bởi admin.', 'code' => 'blocked'], 403);
         }
 
