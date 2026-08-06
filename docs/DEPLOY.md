@@ -236,18 +236,31 @@ và gửi 1 tin khi hồi phục. Lỗi kéo dài không bị dội lại mỗi 
 
 ### Cấu hình Telegram
 
-`/etc/greenca-monitor.conf` (chmod 600). **Chưa điền token thì cảnh báo chỉ ghi
-`syslog` + `/var/log/greenca-monitor.log`** — script vẫn chạy đúng nhưng không ai nhận được.
+**ĐÃ NỐI XONG (2026-08-07)** — bot `@GreenCarAirportBot`, gửi vào chat riêng của chủ app.
+Token + chat_id nằm ở `/etc/greenca-monitor.conf` (chmod 600, **KHÔNG có trong git**).
+Chưa điền token thì script vẫn chạy đúng nhưng cảnh báo chỉ ghi `syslog` +
+`/var/log/greenca-monitor.log` — không ai nhận được.
+
+Khi cần đổi bot / thêm nhóm nhận:
 
 ```bash
 # 1) Nhắn @BotFather -> /newbot -> lấy token
-# 2) Nhắn 1 tin cho bot vừa tạo, rồi mở:
-#    https://api.telegram.org/bot<TOKEN>/getUpdates
-#    lấy result[0].message.chat.id   (nhóm thì chat_id là số ÂM, nhớ mời bot vào nhóm)
-# 3) Điền vào /etc/greenca-monitor.conf rồi thử:
+# 2) BẤM START trong chat với bot (chỉ mở khung chat KHÔNG đủ — Telegram
+#    không ghi nhận gì, getUpdates sẽ trả result rỗng)
+# 3) Lấy chat_id: https://api.telegram.org/bot<TOKEN>/getUpdates
+#    -> result[0].message.chat.id
+# 4) Điền vào /etc/greenca-monitor.conf rồi thử:
 /usr/local/bin/greenca-healthcheck.sh --test    # gửi tin thử
 /usr/local/bin/greenca-healthcheck.sh --now     # kiểm ngay, báo dù trạng thái không đổi
 ```
+
+⚠️ **Gửi vào NHÓM:** chat_id nhóm là số **ÂM** (`-100xxxxxxxxxx`), và phải mời bot vào nhóm.
+Bot mặc định bật privacy mode (`can_read_all_group_messages: false`) nên **không đọc được tin
+nhắn thường trong nhóm** — muốn lấy chat_id phải gõ đích danh `/start@<tên_bot>`, gõ `/start`
+trơn sẽ không ăn thua và `getUpdates` vẫn rỗng.
+
+⚠️ `getUpdates` trả rỗng còn có thể do **webhook đang chiếm update** — kiểm bằng
+`getWebhookInfo`, nếu `url` khác rỗng thì `getUpdates` luôn rỗng.
 
 Đã test thực tế cả 4 loại phát hiện (dừng worker, chèn failed_job giả, nhồi 60 job vào
 queue, lùi mtime log scheduler), cộng chống spam và tin hồi phục — đều đúng.
@@ -493,7 +506,7 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - **Nên tách credential bên thứ 3 khỏi staging** — hiện production dùng chung tài khoản ZNS Abenla / SePay / VAPID với staging. Test trên staging có thể đốt quota SMS của production, và thu hồi key vì lý do gì cũng làm chết cả hai.
 - ~~`VAPID_SUBJECT` / `MAIL_FROM_ADDRESS` sai domain~~ — xong: `mailto:admin@greenca.vn` và `noreply@greenca.vn` (trước đó là `greencar.vn` và `greencarairport.vn`).
 - **Redis `maxmemory=0` + `maxmemory-policy noeviction`** — không giới hạn bộ nhớ. `noeviction` là ĐÚNG cho queue (đổi sang `allkeys-lru` sẽ khiến job bị xoá = mất thông báo), nhưng nên đặt `maxmemory` có giới hạn và theo dõi, hoặc tách cache/session sang Redis DB khác với queue.
-- ~~Giám sát `failed_jobs`~~ — xong, xem mục "Giám sát" ở trên. **Còn thiếu: token Telegram** (chưa có thì cảnh báo chỉ ghi `syslog` + `/var/log/greenca-monitor.log`, không ai nhận được).
+- ~~Giám sát `failed_jobs` + cảnh báo~~ — xong 2026-08-07, xem mục "Giám sát". Telegram đã nối, đã test chuỗi thật (dừng worker → nhận cảnh báo → khôi phục → nhận tin hồi phục).
 - Dọn `VITE_FIREBASE_*` + `VITE_ZALO_APP_ID` khỏi `frontend/.env` / `.env.example` nếu không định dùng — đang là config chết gây hiểu nhầm.
 - Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.
 - ⚠️ **Lỗ hổng test: suite chạy sqlite in-memory nhưng production là MySQL.** Mọi query dùng hàm riêng của MySQL (`DATE_FORMAT`, `groupByRaw`…) hoặc phụ thuộc hành vi MySQL (`only_full_group_by`, cột nhập nhằng sau `join`) **không được test che phủ** — bug 500 trang Doanh thu lọt lên production đúng vì lý do này. Nên có 1 job CI chạy suite trên MySQL. Trong lúc chưa có, chạy tay:
