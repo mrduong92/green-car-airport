@@ -8,6 +8,7 @@ import { useUiStore } from '@/stores/ui'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
+import { BRAND } from '@/brand'
 
 interface EditForm {
   name: string
@@ -207,8 +208,8 @@ export default function DriverProfilePage() {
             {typeof navigator.share === 'function' && (
               <button
                 onClick={() => navigator.share({
-                  title: 'Save Go',
-                  text: 'Tham gia Save Go và nhận 100.000 điểm!',
+                  title: BRAND.name,
+                  text: `Tham gia ${BRAND.name} và nhận 100.000 điểm!`,
                   url: `${window.location.origin}/login?ref=${user.referral_code}`,
                 })}
                 className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"

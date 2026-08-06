@@ -9,6 +9,7 @@ import { useUiStore } from '@/stores/ui'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import Button from '@/components/common/Button'
 import VoucherSheet from '@/components/common/VoucherSheet'
+import { BRAND } from '@/brand'
 
 export default function CustomerProfilePage() {
   const { user, setAuth, token, clearAuth } = useAuthStore()
@@ -266,8 +267,8 @@ export default function CustomerProfilePage() {
                     {typeof navigator.share === 'function' && (
                       <button
                         onClick={() => navigator.share({
-                          title: 'Save Go',
-                          text: 'Tham gia Save Go và nhận voucher ngay!',
+                          title: BRAND.name,
+                          text: `Tham gia ${BRAND.name} và nhận voucher ngay!`,
                           url: `${window.location.origin}/login?ref=${user.referral_code}`,
                         })}
                         className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
@@ -305,8 +306,8 @@ export default function CustomerProfilePage() {
             <div className="px-4 py-5 flex flex-col gap-5">
               {[
                 { icon: 'phone',        label: 'Hotline hỗ trợ',  value: '1800 6789',          sub: 'Miễn phí · 7:00–22:00 hằng ngày' },
-                { icon: 'mail',         label: 'Email',            value: 'support@savego.com.vn', sub: 'Phản hồi trong vòng 24 giờ' },
-                { icon: 'chat_bubble',  label: 'Zalo',             value: 'Zalo OA: Save Go',    sub: 'Phản hồi nhanh trong giờ hành chính' },
+                { icon: 'mail',         label: 'Email',            value: BRAND.supportEmail,    sub: 'Phản hồi trong vòng 24 giờ' },
+                { icon: 'chat_bubble',  label: 'Zalo',             value: `Zalo OA: ${BRAND.zaloOa}`, sub: 'Phản hồi nhanh trong giờ hành chính' },
               ].map(({ icon, label, value, sub }) => (
                 <div key={icon} className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">

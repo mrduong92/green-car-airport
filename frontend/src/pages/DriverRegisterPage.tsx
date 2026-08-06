@@ -7,6 +7,8 @@ import { useUiStore } from '@/stores/ui'
 import { registerPushSubscription } from '@/push'
 import Button from '@/components/common/Button'
 import ToastContainer from '@/components/common/Toast'
+import BrandGlyph from '@/components/common/BrandGlyph'
+import { BRAND } from '@/brand'
 
 type RegStep = 1 | 2 | 3 | 4 | 5 | 6
 type VehicleType = 'sedan_4' | 'suv_5' | 'mpv_7'
@@ -152,12 +154,10 @@ export default function DriverRegisterPage() {
         <div>
           <div className="flex items-center gap-3 mb-7">
             <div className="w-12 h-12 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-primary" style={{ fontSize: 26, fontVariationSettings: "'FILL' 1" }}>
-                directions_car
-              </span>
+              <BrandGlyph size={27} className="text-primary" />
             </div>
             <div>
-              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">Save Go Driver</p>
+              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">{BRAND.name} Tài Xế</p>
             </div>
           </div>
           <h1 className="text-navy font-bold text-[28px] leading-tight mb-2">Đăng ký tài xế</h1>

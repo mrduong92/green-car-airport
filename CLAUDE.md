@@ -93,7 +93,9 @@ docker compose exec app php artisan test --filter=ExampleTest
 - `router/driver.tsx` (entry `main.driver.tsx`, port 5174, `dist-driver/`) — `/login`, `/register/driver`, `driver/*`
 - `router/guards.tsx` — `RequireRole`, `RequireDriverActive`, `RequireDriverPending` dùng chung; mỗi router có `GuestOnly` riêng theo role của app
 
-Login không còn role-picker: mỗi app hardcode `role` khi gọi `checkPhone`/`login` (hook `useAuthLogin(role)`). Production: `savego.com.vn` = customer+admin, `driver.savego.com.vn` = driver (xem `deploy/nginx/`).
+Login không còn role-picker: mỗi app hardcode `role` khi gọi `checkPhone`/`login` (hook `useAuthLogin(role)`). Production: `greenca.vn` = customer, `driver.greenca.vn` = driver, `admin.greenca.vn` = admin (xem `deploy/nginx/`).
+
+**Tên thương hiệu:** `GreenCA`, khai báo duy nhất ở `frontend/src/brand.ts` (`BRAND`) — `vite.config.ts` cũng import từ đó để derive title/manifest, `index.html` dùng placeholder `__APP_TITLE__` / `__APP_SHORT_NAME__`. Đừng hardcode tên app ở chỗ khác. Logo mark = `components/common/BrandGlyph.tsx` (monogram chữ G), bản có nền gradient nằm ở `public/favicon.svg` + `public/icons/*.png`.
 
 **Forms:** React Hook Form + Zod validation. See `BookingFormPage` and `VouchersPage` for patterns.
 

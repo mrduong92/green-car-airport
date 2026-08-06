@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import ToastContainer from '@/components/common/Toast'
+import BrandGlyph from '@/components/common/BrandGlyph'
+import { BRAND } from '@/brand'
 
 export default function AuthShell({
   title,
@@ -29,12 +31,10 @@ export default function AuthShell({
         <div>
           <div className="flex items-center gap-3 mb-7">
             <div className="w-12 h-12 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-primary" style={{ fontSize: 26, fontVariationSettings: "'FILL' 1" }}>
-                directions_car
-              </span>
+              <BrandGlyph size={27} className="text-primary" />
             </div>
             <div>
-              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">Save Go</p>
+              <p className="text-primary font-bold text-[20px] leading-none tracking-tight">{BRAND.name}</p>
               <p className="text-neutral-gray text-[11px] tracking-widest uppercase mt-0.5">{brandSub}</p>
             </div>
           </div>

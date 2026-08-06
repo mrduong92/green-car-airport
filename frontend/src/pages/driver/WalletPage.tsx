@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getWallet, getTransactions } from '@/api/trips'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
+import { BRAND } from '@/brand'
 
 export default function WalletPage() {
   const { data: wallet } = useQuery({ queryKey: ['wallet'], queryFn: () => getWallet().then((r) => r.data) })
@@ -64,7 +65,7 @@ export default function WalletPage() {
         <p className="text-primary font-semibold text-sm mb-3">Hướng dẫn nạp điểm</p>
         <div className="flex flex-col gap-3">
           {[
-            { icon: 'account_balance', text: 'Chuyển khoản đến Save Go Co.' },
+            { icon: 'account_balance', text: `Chuyển khoản đến ${BRAND.legalName}` },
             { icon: 'credit_card',     text: 'STK: 1234 5678 90 · Vietcombank' },
             { icon: 'bolt',            text: 'Điểm tự động cộng sau khi nhận tiền' },
           ].map((row) => (

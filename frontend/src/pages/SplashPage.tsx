@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import Button from '@/components/common/Button'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
+import BrandGlyph from '@/components/common/BrandGlyph'
+import { BRAND } from '@/brand'
 
 export default function SplashPage() {
   const navigate = useNavigate()
@@ -31,9 +33,7 @@ export default function SplashPage() {
             boxShadow: '0 12px 40px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2)',
           }}
         >
-          <span className="material-symbols-outlined text-white" style={{ fontSize: 56, fontVariationSettings: "'FILL' 1" }}>
-            directions_car
-          </span>
+          <BrandGlyph size={62} className="text-white" />
         </div>
         {/* Gold plane badge */}
         <div
@@ -49,10 +49,10 @@ export default function SplashPage() {
       {/* Text */}
       <div className="text-center">
         <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-          Save Go
+          {BRAND.name}
         </div>
         <div style={{ fontSize: 14, fontWeight: 500, opacity: 0.75, marginTop: 6, letterSpacing: '0.05em' }}>
-          AIRPORT TRANSFER · VIETNAM
+          {BRAND.tagline}
         </div>
       </div>
 

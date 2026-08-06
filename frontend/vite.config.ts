@@ -2,17 +2,19 @@ import { defineConfig, type Plugin, type UserConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { BRAND } from './src/brand'
 
 export type AppTarget = 'customer' | 'driver' | 'admin'
 
+// Tên app derive từ BRAND — đổi tên thương hiệu chỉ cần sửa src/brand.ts
 const APPS = {
   customer: {
     entry: '/src/main.tsx',
     port: 5173,
     outDir: 'dist',
-    title: 'Save Go',
-    name: 'Save Go',
-    shortName: 'SaveGo',
+    title: BRAND.name,
+    name: BRAND.name,
+    shortName: BRAND.name,
     description: 'Đặt xe sân bay — Nhanh, minh bạch, tiện lợi',
     startUrl: '/',
   },
@@ -20,20 +22,20 @@ const APPS = {
     entry: '/src/main.driver.tsx',
     port: 5174,
     outDir: 'dist-driver',
-    title: 'Save Go Tài Xế',
-    name: 'Save Go Tài Xế',
-    shortName: 'SaveGo Tài Xế',
-    description: 'Ứng dụng tài xế Save Go — Nhận cuốc sân bay',
+    title: `${BRAND.name} Tài Xế`,
+    name: `${BRAND.name} Tài Xế`,
+    shortName: `${BRAND.name} Tài Xế`,
+    description: `Ứng dụng tài xế ${BRAND.name} — Nhận cuốc sân bay`,
     startUrl: '/',
   },
   admin: {
     entry: '/src/main.admin.tsx',
     port: 5175,
     outDir: 'dist-admin',
-    title: 'Save Go Admin',
-    name: 'Save Go Admin',
-    shortName: 'SaveGo Admin',
-    description: 'Quản trị hệ thống Save Go',
+    title: `${BRAND.name} Admin`,
+    name: `${BRAND.name} Admin`,
+    shortName: `${BRAND.name} Admin`,
+    description: `Quản trị hệ thống ${BRAND.name}`,
     startUrl: '/login',
   },
 } as const
@@ -51,10 +53,13 @@ function appEntryPlugin(target: AppTarget): Plugin {
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
+        // index.html giữ placeholder `__APP_*__` thay vì tên thật — match theo
+        // tên thương hiệu sẽ vỡ IM LẶNG khi rename (meta tag sai, không có lỗi).
+        // Không dùng cú pháp `%VAR%` để tránh đụng cơ chế replace env của Vite.
         return html
           .replace('/src/main.tsx', app.entry)
-          .replace(/<title>.*<\/title>/, `<title>${app.title}</title>`)
-          .replace('content="SaveGo"', `content="${app.shortName}"`)
+          .replaceAll('__APP_TITLE__', app.title)
+          .replaceAll('__APP_SHORT_NAME__', app.shortName)
       },
     },
   }
@@ -85,7 +90,8 @@ export function createAppConfig(target: AppTarget): UserConfig {
           icons: [
             { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
             { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-            { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+            // maskable dùng bản riêng: glyph co về 55% để Android crop không cắt mất viền
+            { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         },
         injectManifest: {

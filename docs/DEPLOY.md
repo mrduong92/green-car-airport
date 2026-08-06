@@ -1,4 +1,4 @@
-# Deploy — Save Go
+# Deploy — GreenCA
 
 > Có **2 server**: PRODUCTION (`greenca.vn`, 45.124.95.47) và STAGING (`webco.io.vn`, 103.148.57.141).
 > Hai server dùng DB + env RIÊNG, không dùng chung.
@@ -353,8 +353,8 @@ Production dùng **chung tài khoản nhà cung cấp với staging** — hết 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://webco.io.vn/            # 200
 curl -s https://webco.io.vn/api/pages/terms                              # JSON điều khoản
-curl -s https://driver.webco.io.vn/ | grep -o '<title>[^<]*</title>'     # Save Go Tài Xế
-curl -s https://admin.webco.io.vn/ | grep -o '<title>[^<]*</title>'      # Save Go Admin
+curl -s https://driver.webco.io.vn/ | grep -o '<title>[^<]*</title>'     # GreenCA Tài Xế
+curl -s https://admin.webco.io.vn/ | grep -o '<title>[^<]*</title>'      # GreenCA Admin
 ```
 
 ⚠️ **Title đúng CHƯA đủ** — đã từng có bug 2 build ra cùng 1 bundle customer nhưng title vẫn khác nhau. Phải verify nội dung bundle thật:
@@ -389,7 +389,7 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - 2026-07-10: Deploy tính năng Admin trừ/xóa điểm Cộng Tác Viên (2 route mới `POST /admin/customers/{user}/deduct-points` và `.../reset-points`, field `points` trong `GET /admin/customers`, lịch sử ví CTV hiện cả giao dịch admin trừ điểm). Không có migration mới. Verify qua HTTPS: 3 app 200 + đúng bundle + hash khác nhau, admin bundle chứa chuỗi UI mới ("Trừ điểm"/"Xóa điểm về 0"), `GET /api/admin/customers` xác nhận field `points` xuất hiện trên dữ liệu thật.
 - 2026-07-09: Tách Admin thành app/PWA riêng (`dist-admin/`, subdomain `admin.webco.io.vn`, bỏ prefix `/admin` khỏi route). Đã tạo vhost + DNS + SSL cho `admin.webco.io.vn` (certbot, hết hạn 2026-10-07) — deploy lên staging xong, verify qua HTTPS OK (title, manifest, marker bundle, hash khác 2 app còn lại).
 - 2026-07-05: Deploy domain-separation (2 app customer/driver) + static pages CRUD + phone-normalization. Tạo vhost `driver.webco.io.vn` + SSL. Tắt SSH password auth, chuyển sang key `greencar-prod`. Fix bug entry-swap build (2 app ra cùng bundle). Fix quyền storage (root artisan → 500). Fix check số dư ví khi tài xế nhận cuốc (BIGINT unsigned crash).
-- `savego.com.vn` chưa có DNS (dự kiến domain chính thức khi lên production riêng) — staging dùng `webco.io.vn` + `driver.webco.io.vn` + `admin.webco.io.vn`.
+- Domain chính thức là `greenca.vn` (production, đã có DNS + SSL — xem mục PRODUCTION ở đầu file). Staging vẫn dùng `webco.io.vn` + `driver.webco.io.vn` + `admin.webco.io.vn`. Domain cũ `savego.com.vn` đã bỏ hẳn.
 
 ### TODO
 - ~~Tắt dev bypass `000000`~~ — xong ở commit `3c50f33` (chỉ còn `local`/`testing`).

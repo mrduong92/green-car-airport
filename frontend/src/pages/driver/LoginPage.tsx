@@ -6,6 +6,7 @@ import AuthShell from '@/components/auth/AuthShell'
 import PhoneInput from '@/components/auth/PhoneInput'
 import PasswordInput from '@/components/auth/PasswordInput'
 import OtpInputs from '@/components/auth/OtpInputs'
+import { BRAND } from '@/brand'
 
 const DEV_MOCK = import.meta.env.VITE_MOCK === 'true' || false
 const DEV_PASS = '000000'
@@ -25,7 +26,7 @@ export default function LoginPage() {
     'password':     { title: 'Nhập mật khẩu', sub: `Mật khẩu 6 chữ số của tài khoản ${phone}` },
     'otp':          { title: 'Xác minh để đặt lại', sub: `Nhập mã OTP được gửi đến ${phone}` },
     'set-password': { title: 'Mật khẩu mới', sub: 'Mật khẩu gồm 6 chữ số' },
-    'no-role':      { title: 'Chưa đăng ký tài xế', sub: `Số ${phone} chưa đăng ký làm tài xế Save Go.` },
+    'no-role':      { title: 'Chưa đăng ký tài xế', sub: `Số ${phone} chưa đăng ký làm tài xế ${BRAND.name}.` },
   }
   const { title, sub } = heading[step]
 

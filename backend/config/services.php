@@ -36,7 +36,7 @@ return [
     ],
 
     'vapid' => [
-        'subject'     => env('VAPID_SUBJECT', 'mailto:admin@savego.com.vn'),
+        'subject'     => env('VAPID_SUBJECT', 'mailto:admin@greenca.vn'),
         'public_key'  => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),
     ],

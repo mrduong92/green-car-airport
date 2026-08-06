@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute } from 'workbox-precaching'
+import { BRAND } from './brand'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -17,12 +18,12 @@ self.addEventListener('push', (event) => {
         clients.forEach((c) => c.postMessage({ type: 'PUSH_RECEIVED', ...data }))
         // Show OS notification anyway so the user always gets it
       }
-      return self.registration.showNotification(data.title ?? 'Save Go', {
+      return self.registration.showNotification(data.title ?? BRAND.name, {
         body:  data.body ?? '',
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  data.data ?? {},
-        tag:   'savego-notification',
+        tag:   'greenca-notification',
       })
     })
 

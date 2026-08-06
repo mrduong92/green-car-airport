@@ -4,6 +4,8 @@ import ToastContainer from '@/components/common/Toast'
 import AppHeader from '@/components/common/AppHeader'
 import { useAuthStore } from '@/stores/auth'
 import { logout as logoutApi } from '@/api/auth'
+import BrandGlyph from '@/components/common/BrandGlyph'
+import { BRAND } from '@/brand'
 import clsx from 'clsx'
 
 const TABS = [
@@ -27,10 +29,10 @@ export default function AdminLayout() {
         <div className="px-5 py-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-logo bg-white/10 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>directions_car</span>
+              <BrandGlyph size={20} className="text-white" />
             </div>
             <div>
-              <p className="text-white font-bold text-[16px] leading-tight">Save Go</p>
+              <p className="text-white font-bold text-[16px] leading-tight">{BRAND.name}</p>
               <p className="text-white/50 text-[11px]">Admin Portal</p>
             </div>
           </div>
