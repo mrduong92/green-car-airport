@@ -14,7 +14,8 @@
     "build:admin": "tsc -b && vite build --config vite.admin.config.ts",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:prod": "playwright test --config=playwright.prod.config.ts"
   },
   "dependencies": {
     "@goongmaps/goong-js": "^1.0.9",
