@@ -80,15 +80,49 @@ class AbenlaZnsServiceTest extends TestCase
         });
     }
 
-    public function test_get_balance_returns_null(): void
-    {
-        $this->assertNull($this->service->getBalance());
-    }
-
     public function test_abenla_provider_binding_resolves_correctly(): void
     {
         config(['services.zns.provider' => 'abenla']);
         $sender = app(ZnsSender::class);
         $this->assertInstanceOf(AbenlaZnsService::class, $sender);
+    }
+
+    /**
+     * Abenla trả Code=106 cho GetBalance thành công (khác 203 của SendOTP).
+     * Số dư về dưới dạng float ("Balance":24890.0000) nên phải ép sang int.
+     */
+    public function test_get_balance_returns_int_when_api_returns_code_106(): void
+    {
+        Http::fake([
+            '*/GetBalance*' => Http::response([
+                'Balance' => 24890.0000,
+                'Code'    => 106,
+                'Message' => 'Success',
+            ]),
+        ]);
+
+        $this->assertSame(24890, $this->service->getBalance());
+    }
+
+    public function test_get_balance_returns_null_when_ip_not_whitelisted(): void
+    {
+        // Code 104 CanNotAccess — IP server chưa được whitelist. Payload vẫn
+        // kèm "Balance":0.0, KHÔNG được hiểu nhầm thành "hết tiền".
+        Http::fake([
+            '*/GetBalance*' => Http::response([
+                'Balance' => 0.0,
+                'Code'    => 104,
+                'Message' => 'CanNotAccess',
+            ]),
+        ]);
+
+        $this->assertNull($this->service->getBalance());
+    }
+
+    public function test_get_balance_returns_null_on_http_error(): void
+    {
+        Http::fake(['*/GetBalance*' => Http::response('', 500)]);
+
+        $this->assertNull($this->service->getBalance());
     }
 }

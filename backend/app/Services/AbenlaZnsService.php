@@ -65,8 +65,36 @@ class AbenlaZnsService implements ZnsSender
         );
     }
 
+    /**
+     * Số dư tài khoản Abenla, hoặc null nếu không tra được.
+     *
+     * ⚠️ GetBalance thành công trả `Code = 106`, KHÁC 203 của SendOTP.
+     * ⚠️ Khi IP server chưa được whitelist, Abenla trả `Code = 104 CanNotAccess`
+     *    kèm `"Balance": 0.0`. Số 0 đó là giá trị mặc định trong payload lỗi,
+     *    KHÔNG phải số dư thật — trả null để bên gọi không tưởng là hết tiền.
+     */
     public function getBalance(): ?int
     {
-        return null;
+        $response = Http::timeout(20)->get(
+            config('services.abenla_zns.base_url') . '/GetBalance',
+            [
+                'loginName' => config('services.abenla_zns.login_name'),
+                'sign'      => config('services.abenla_zns.sign'),
+            ],
+        );
+
+        $body = $response->json();
+
+        if (($body['Code'] ?? 0) !== 106) {
+            Log::error('[Abenla] Tra số dư thất bại', [
+                'http_status' => $response->status(),
+                'code'        => $body['Code'] ?? null,
+                'message'     => $body['Message'] ?? null,
+            ]);
+
+            return null;
+        }
+
+        return (int) ($body['Balance'] ?? 0);
     }
 }
