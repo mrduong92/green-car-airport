@@ -163,6 +163,23 @@ Vừa thêm record xong thì resolver local/8.8.8.8 còn cache NXDOMAIN, dễ t�
 certbot tự sửa vhost thành 443 + redirect 80→443 và tự cài timer auto-renew.
 Sau đó kiểm tra `APP_URL` trong `backend/.env` rồi `php artisan config:cache`.
 
+#### Auto-renew — 2 lớp
+
+| Lớp | Cơ chế | Ghi chú |
+|---|---|---|
+| Chính | `certbot.timer` (systemd), ~06:28 hằng ngày | Đã verify `certbot renew --dry-run` → **cả 2 cert simulated renewal thành công** |
+| Dự phòng | `/etc/cron.d/greenca-certbot-renew`, 02:17 + 14:17 | Log ở `/var/log/greenca-certbot-renew.log` |
+
+⚠️ `/etc/cron.d/certbot` (của gói certbot) **KHÔNG dùng được làm dự phòng** — nó có điều kiện
+`test ... -a \! -d /run/systemd/system` nên tự vô hiệu trên máy chạy systemd. Đó là lý do phải
+thêm file cron riêng.
+
+`renewal/*.conf` đã có `installer = nginx` nên certbot tự reload nginx sau khi gia hạn.
+certbot chỉ gia hạn khi cert còn dưới 30 ngày, các lần khác no-op; có lock file nên
+timer và cron chạy trùng cũng an toàn.
+
+`certbot renew --dry-run` chạy khá lâu (>5 phút) — đừng tưởng là treo.
+
 ## Lịch sử production
 
 - 2026-08-06: Dựng server production lần đầu. Cài nginx 1.28 + PHP 8.5 + MySQL 8.4 + Redis 8.0 + certbot.
@@ -308,6 +325,29 @@ rsync -az --delete -e "ssh -i ~/.ssh/greencar-prod" frontend/dist-admin/  root@1
 
 Lưu ý: `VITE_DRIVER_APP_URL` phải set lúc build customer (link "Đăng ký làm tài xế" ở Splash bake vào bundle).
 
+### ⚠️ Config bên thứ 3 — nguồn ở đâu
+
+Frontend chỉ dùng **6** biến `VITE_*` (grep `import.meta.env` để xác nhận), tất cả **bake vào
+bundle lúc build**, không đọc runtime — nên đổi key là phải build + rsync lại:
+
+| Biến | Dùng cho | Nguồn |
+|---|---|---|
+| `VITE_GOONG_API_KEY`, `VITE_GOONG_MAP_KEY` | Bản đồ + autocomplete địa chỉ (Goong) | `frontend/.env` máy local |
+| `VITE_VAPID_PUBLIC_KEY` | Web push | `frontend/.env` — **phải khớp `VAPID_PUBLIC_KEY` ở backend `.env`**, lệch là push chết im lặng |
+| `VITE_DRIVER_APP_URL` | Link sang app tài xế ở Splash | truyền qua `-e` lúc build |
+| `VITE_CODE_PREFIX` | Tiền tố mã voucher admin tự sinh | `frontend/.env` (mặc định backend: `SGO`) |
+| `VITE_MOCK` | Hiện nút đăng nhập nhanh dev | `frontend/.env`, production để `false` |
+
+`VITE_FIREBASE_*` và `VITE_ZALO_APP_ID` trong `frontend/.env` là **config chết** — không file
+nào trong `src/` dùng, đã verify không lọt vào bundle. (`VITE_FIREBASE_AUTH_DOMAIN` đang trỏ 1
+URL ngrok cũ; vô hại vì không dùng, nhưng đừng tưởng Firebase đang chạy.)
+
+Backend (`backend/.env` trên server, không có trong git) — **copy nguyên credential từ staging**:
+OTP qua **ZNS Abenla** (`ABENLA_*`, `ZNS_PROVIDER=abenla`, `ZNS_FORCE_SEND=true`; `SOUTHTELECOM_*`
+là provider dự phòng), thanh toán **SePay** (`SEPAY_*`, VCB `1017588888`), push `VAPID_*`.
+Production dùng **chung tài khoản nhà cung cấp với staging** — hết quota/đổi key là ảnh hưởng cả hai.
+`MAIL_MAILER=log` vì production không có mailpit (mail chỉ ghi vào `storage/logs`).
+
 ### 3. Verify sau deploy
 
 ```bash
@@ -359,4 +399,6 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - ~~Tài khoản admin production~~ — xong, đã tạo `0868968312` (id=1, role=admin, có mật khẩu).
 - ~~DNS + SSL cho `driver.` / `admin.`~~ — xong, cả 3 app đã chạy HTTPS.
 - **Nên làm:** đổi mật khẩu admin production (mật khẩu khởi tạo đã đi qua log phiên deploy).
+- **Nên tách credential bên thứ 3 khỏi staging** — hiện production dùng chung tài khoản ZNS Abenla / SePay / VAPID với staging. Test trên staging có thể đốt quota SMS của production, và thu hồi key vì lý do gì cũng làm chết cả hai.
+- Dọn `VITE_FIREBASE_*` + `VITE_ZALO_APP_ID` khỏi `frontend/.env` / `.env.example` nếu không định dùng — đang là config chết gây hiểu nhầm.
 - Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.
