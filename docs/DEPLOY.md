@@ -383,7 +383,26 @@ Backend (`backend/.env` trên server, không có trong git) — **copy nguyên c
 OTP qua **ZNS Abenla** (`ABENLA_*`, `ZNS_PROVIDER=abenla`, `ZNS_FORCE_SEND=true`; `SOUTHTELECOM_*`
 là provider dự phòng), thanh toán **SePay** (`SEPAY_*`, VCB `1017588888`), push `VAPID_*`.
 Production dùng **chung tài khoản nhà cung cấp với staging** — hết quota/đổi key là ảnh hưởng cả hai.
-`MAIL_MAILER=log` vì production không có mailpit (mail chỉ ghi vào `storage/logs`).
+`MAIL_MAILER=log` là ĐÚNG, không phải tạm bợ: cả 12 notification đều dùng kênh
+`['database', WebPushChannel]`, không có notification nào gửi mail — production không cần SMTP.
+
+#### 💰 Nạp điểm tài xế: THỦ CÔNG (quyết định 2026-08-06)
+
+Chủ app chọn nạp tay trước, **chưa dùng webhook SePay tự động**. Nghĩa là:
+
+- App tài xế VẪN hiện màn nạp điểm với mã QR VietQR (`GET /driver/wallet/topup-info`)
+  trỏ vào VCB `1017588888`. Tài xế quét QR và chuyển khoản thật.
+- **Không có gì tự cộng điểm.** Webhook SePay (`POST /api/webhooks/sepay`) chưa được trỏ
+  về production, nên tiền vào tài khoản mà điểm không tăng, và **không có thông báo nào cả**.
+- Admin phải **tự đối chiếu sao kê ngân hàng rồi cộng tay** qua
+  `POST /admin/drivers/{user}/topup`. Nội dung chuyển khoản trong QR là `payment_code`
+  của tài xế (dạng `GCA000123` — derive từ `config('app.code_prefix')` + user id),
+  dùng nó để biết ai vừa chuyển.
+
+⚠️ Rủi ro vận hành: nếu không ai theo dõi sao kê, tài xế chuyển tiền xong sẽ chờ mãi.
+Khi nào muốn bật tự động: trỏ webhook SePay về `https://greenca.vn/api/webhooks/sepay`,
+đối chiếu `SEPAY_WEBHOOK_API_KEY` với dashboard SePay, và kiểm `FEATURE_AUTO_TOPUP`
+(mặc định `true`, chỉ được đọc trong `SepayWebhookService`).
 
 ### 3. Verify sau deploy
 
@@ -437,8 +456,7 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - ~~DNS + SSL cho `driver.` / `admin.`~~ — xong, cả 3 app đã chạy HTTPS.
 - **Nên làm:** đổi mật khẩu admin production (mật khẩu khởi tạo đã đi qua log phiên deploy) — sau khi deploy màn Admin thì làm ngay trong UI: tab **Admin** → "Đổi mật khẩu của tôi".
 - **Nên tách credential bên thứ 3 khỏi staging** — hiện production dùng chung tài khoản ZNS Abenla / SePay / VAPID với staging. Test trên staging có thể đốt quota SMS của production, và thu hồi key vì lý do gì cũng làm chết cả hai.
-- **SePay: phải trỏ webhook về production** — `POST https://greenca.vn/api/webhooks/sepay`, và `SEPAY_WEBHOOK_API_KEY` phải khớp cấu hình trong dashboard SePay. Hiện key đang copy từ staging, webhook nhiều khả năng vẫn trỏ về `webco.io.vn` → nạp điểm tự động (`FEATURE_AUTO_TOPUP=true`) sẽ không cộng điểm cho tài xế. **Chưa verify được vì cần tài khoản SePay.**
-- `VAPID_SUBJECT=mailto:admin@greencar.vn` — sai domain (`greencar.vn`, không phải `greenca.vn`). Không chặn push (chỉ là thông tin liên hệ gửi cho push service) nhưng nên sửa cho đúng.
+- ~~`VAPID_SUBJECT` / `MAIL_FROM_ADDRESS` sai domain~~ — xong: `mailto:admin@greenca.vn` và `noreply@greenca.vn` (trước đó là `greencar.vn` và `greencarairport.vn`).
 - **Redis `maxmemory=0` + `maxmemory-policy noeviction`** — không giới hạn bộ nhớ. `noeviction` là ĐÚNG cho queue (đổi sang `allkeys-lru` sẽ khiến job bị xoá = mất thông báo), nhưng nên đặt `maxmemory` có giới hạn và theo dõi, hoặc tách cache/session sang Redis DB khác với queue.
 - **Chưa có giám sát `failed_jobs`** — job chết nằm im trong bảng, không ai biết. Nên có cảnh báo khi bảng này khác rỗng.
 - Dọn `VITE_FIREBASE_*` + `VITE_ZALO_APP_ID` khỏi `frontend/.env` / `.env.example` nếu không định dùng — đang là config chết gây hiểu nhầm.
