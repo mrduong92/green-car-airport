@@ -35,6 +35,33 @@ function detectServiceType(pickup: string, destination: string): 'airport' | 'pr
   return AIRPORT_KEYWORDS.some((kw) => text.includes(kw)) ? 'airport' : 'provincial'
 }
 
+// ─── Tra bảng giá ─────────────────────────────────────────────────────────────
+// Hai helper này là bộ lọc + công thức DUY NHẤT cho giá: dải "Mức giá tham khảo"
+// hiển thị và giá auto-fill vào ô "Giá bạn muốn trả" đều đi qua đây.
+// Trước đây mỗi chỗ lọc riêng và phía auto-fill thiếu điều kiện `service_type`,
+// nên `.find()` có thể trả về config của loại dịch vụ khác (airport vs provincial)
+// → giá điền vào lệch khỏi dải giá đang hiển thị ngay bên trên.
+function findPriceConfig(
+  configs: App.PriceConfig[],
+  vehicleType: VehicleType,
+  serviceType: 'airport' | 'provincial',
+): App.PriceConfig | undefined {
+  return configs.find(
+    (c) =>
+      c.trip_type === 'one_way' &&
+      c.vehicle_type === vehicleType &&
+      c.service_type === serviceType &&
+      c.is_active,
+  )
+}
+
+// `per_km`: nhân số km rồi làm tròn nghìn. `range`: lấy nguyên giá trong config.
+function configPrice(cfg: App.PriceConfig | undefined, km: number, bound: 'min' | 'max'): number {
+  if (!cfg) return 0
+  const base = bound === 'min' ? cfg.min_price : cfg.max_price
+  return cfg.price_type === 'per_km' ? Math.round((km * base) / 1000) * 1000 : base
+}
+
 // ─── Date chips (7 days from today) ──────────────────────────────────────────
 
 const VI_DAY = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
@@ -98,6 +125,9 @@ export default function BookingFormPage() {
   const [vehicleType, setVehicleType] = useState<VehicleType>('sedan_4')
   const [pickupLatLng,   setPickupLatLng]   = useState<LatLng | null>(null)
   const [destLatLng,     setDestLatLng]     = useState<LatLng | null>(null)
+  // Địa chỉ ĐÃ chọn từ gợi ý (khác text đang gõ) — xem detectedService bên dưới
+  const [pinnedPickup,   setPinnedPickup]   = useState('')
+  const [pinnedDest,     setPinnedDest]     = useState('')
 
   const vehicleTypeRef = useRef(vehicleType)
   vehicleTypeRef.current = vehicleType
@@ -119,12 +149,18 @@ export default function BookingFormPage() {
 
   const distance     = watch('distance_km') || 0
   const price        = watch('price') || 0
-  const pickup       = watch('pickup') ?? ''
-  const destination  = watch('destination') ?? ''
   const selectedDate = watch('date')
   const selectedTime = watch('time')
   const collectionFee = Number(watch('collection_fee') || 0)
-  const detectedService  = detectServiceType(pickup, destination)
+  // Tính từ địa chỉ ĐÃ pin, không phải text đang gõ: khoảng cách và giá chỉ đổi
+  // khi khách chọn gợi ý, nên nếu service type chạy theo text thô thì chỉ cần gõ
+  // chữ "sân bay" là dải giá tham khảo nhảy sang bảng giá sân bay trong khi giá
+  // trong ô vẫn tính theo pin cũ → hai số lệch nhau.
+  const detectedService  = detectServiceType(pinnedPickup, pinnedDest)
+  // Ref để effect auto-fill giá đọc được service type mới nhất mà không phải
+  // đưa nó vào dependency (cùng lý do với vehicleTypeRef ở trên)
+  const detectedServiceRef = useRef(detectedService)
+  detectedServiceRef.current = detectedService
   const total = Math.max(0, price - discount) + collectionFee
 
   // Giờ đặt xe hôm nay phải cách ít nhất 30 phút so với hiện tại
@@ -143,21 +179,11 @@ export default function BookingFormPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const activeConfig = priceConfigs.find(
-    (c) => c.trip_type === 'one_way' && c.vehicle_type === vehicleType && c.service_type === detectedService && c.is_active
-  )
+  const activeConfig = findPriceConfig(priceConfigs, vehicleType, detectedService)
 
-  // Tính khoảng giá tham khảo từ config API
-  const suggestedMin = activeConfig
-    ? activeConfig.price_type === 'per_km'
-      ? Math.round(distance * activeConfig.min_price / 1000) * 1000
-      : activeConfig.min_price
-    : 0
-  const suggestedMax = activeConfig
-    ? activeConfig.price_type === 'per_km'
-      ? Math.round(distance * activeConfig.max_price / 1000) * 1000
-      : activeConfig.max_price
-    : 0
+  // Khoảng giá tham khảo hiển thị cho khách
+  const suggestedMin = configPrice(activeConfig, distance, 'min')
+  const suggestedMax = configPrice(activeConfig, distance, 'max')
 
   // ── Auto-calculate distance + auto-fill price when both locations are pinned ─
   useEffect(() => {
@@ -165,13 +191,10 @@ export default function BookingFormPage() {
 
     const applyKm = (km: number, label: string) => {
       setValue('distance_km', km, { shouldValidate: true })
-      // Auto-fill giá từ config API (nếu có), fallback về 0
-      const cfg = priceConfigs.find(
-        (c) => c.trip_type === 'one_way' && c.vehicle_type === vehicleTypeRef.current && c.is_active
-      )
+      // Auto-fill giá = ĐÁY của dải giá tham khảo đang hiển thị
+      const cfg = findPriceConfig(priceConfigs, vehicleTypeRef.current, detectedServiceRef.current)
       if (cfg) {
-        const minP = cfg.price_type === 'per_km' ? Math.round(km * cfg.min_price / 1000) * 1000 : cfg.min_price
-        setValue('price', minP, { shouldValidate: true })
+        setValue('price', configPrice(cfg, km, 'min'), { shouldValidate: true })
       }
       showToast(`${label}: ~${km.toFixed(1)} km`, 'success')
     }
@@ -217,10 +240,9 @@ export default function BookingFormPage() {
     setVehicleType(v)
     setValue('vehicle_type', v)
     if (distance > 0) {
-      const cfg = priceConfigs.find((c) => c.trip_type === 'one_way' && c.vehicle_type === v && c.is_active)
+      const cfg = findPriceConfig(priceConfigs, v, detectedService)
       if (cfg) {
-        const minP = cfg.price_type === 'per_km' ? Math.round(distance * cfg.min_price / 1000) * 1000 : cfg.min_price
-        setValue('price', minP, { shouldValidate: true })
+        setValue('price', configPrice(cfg, distance, 'min'), { shouldValidate: true })
       }
     }
   }
@@ -293,8 +315,12 @@ export default function BookingFormPage() {
                 onPlaceSelect={(addr, latlng) => {
                   setValue('pickup', addr, { shouldValidate: true })
                   setPickupLatLng(latlng)
+                  setPinnedPickup(addr)
                 }}
-                onClear={() => setPickupLatLng(null)}
+                onClear={() => {
+                  setPickupLatLng(null)
+                  setPinnedPickup('')
+                }}
                 error={errors.pickup?.message}
               />
             </div>
@@ -316,8 +342,12 @@ export default function BookingFormPage() {
                 onPlaceSelect={(addr, latlng) => {
                   setValue('destination', addr, { shouldValidate: true })
                   setDestLatLng(latlng)
+                  setPinnedDest(addr)
                 }}
-                onClear={() => setDestLatLng(null)}
+                onClear={() => {
+                  setDestLatLng(null)
+                  setPinnedDest('')
+                }}
                 error={errors.destination?.message}
               />
             </div>

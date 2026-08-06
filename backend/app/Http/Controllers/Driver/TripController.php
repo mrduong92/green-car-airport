@@ -19,6 +19,13 @@ use Illuminate\Support\Facades\Redis;
 
 class TripController extends Controller
 {
+    /**
+     * Số cuốc tài xế được giữ cùng lúc (accepted / picking_up / in_progress).
+     * Đổi ở đây thì phải đổi luôn MAX_ACTIVE_TRIPS trong frontend/src/rules.ts —
+     * app tài xế dùng con số đó để chặn nút "Nhận cuốc" và ghi text quy định.
+     */
+    public const MAX_ACTIVE_TRIPS = 5;
+
     public function index(Request $request): JsonResponse
     {
         $profile = $request->user()->driverProfile;
@@ -60,8 +67,10 @@ class TripController extends Controller
             ->whereIn('status', ['accepted', 'picking_up', 'in_progress'])
             ->count();
 
-        if ($activeCount >= 3) {
-            return response()->json(['message' => 'Bạn đã đạt tối đa 3 cuốc đang thực hiện.'], 422);
+        if ($activeCount >= self::MAX_ACTIVE_TRIPS) {
+            return response()->json([
+                'message' => 'Bạn đã đạt tối đa '.self::MAX_ACTIVE_TRIPS.' cuốc đang thực hiện.',
+            ], 422);
         }
 
         // Trừ 20% phí app ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ).

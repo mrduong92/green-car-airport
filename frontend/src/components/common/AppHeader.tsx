@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import BrandGlyph from '@/components/common/BrandGlyph'
 import { BRAND } from '@/brand'
+import { MAX_ACTIVE_TRIPS } from '@/rules'
 
 const ROOT_TABS = new Set([
   '/customer/booking', '/customer/history', '/customer/stats', '/customer/notifications', '/customer/profile',
@@ -62,7 +63,7 @@ const CUSTOMER_QUY_DINH = [
 const DRIVER_QUY_DINH = [
   { icon: 'account_balance_wallet', text: 'Phí ứng dụng 20% được trừ từ ví điểm sau mỗi chuyến hoàn thành.' },
   { icon: 'paid',                   text: 'Cần nạp điểm vào ví trước khi nhận cuốc (1.000đ = 1 điểm).' },
-  { icon: 'checklist',              text: 'Tối đa 3 cuốc đang thực hiện cùng lúc.' },
+  { icon: 'checklist',              text: `Tối đa ${MAX_ACTIVE_TRIPS} cuốc đang thực hiện cùng lúc.` },
   { icon: 'schedule',               text: 'Cập nhật trạng thái cuốc kịp thời — không để khách chờ.' },
   { icon: 'phone',                  text: 'Chủ động liên hệ khách trước giờ đón để xác nhận.' },
   { icon: 'gpp_bad',                text: 'Tài khoản vi phạm nhiều lần có thể bị khoá bởi admin.' },

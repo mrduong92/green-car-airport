@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
+import { MAX_ACTIVE_TRIPS } from '@/rules'
 import clsx from 'clsx'
 
 export default function TripListPage() {
@@ -31,7 +32,7 @@ export default function TripListPage() {
     queryKey: ['my-trips'],
     queryFn: () => getMyTrips().then((r) => r.data),
   })
-  const atCapacity = myTrips.length >= 3
+  const atCapacity = myTrips.length >= MAX_ACTIVE_TRIPS
 
   const { data: history = [] } = useQuery({
     queryKey: ['trip-history'],
@@ -158,7 +159,7 @@ export default function TripListPage() {
               <span className="text-[13px] font-semibold text-navy">Cuốc đang thực hiện</span>
             </div>
             <span className="text-[12px] font-bold text-primary bg-primary-tint px-2.5 py-0.5 rounded-pill">
-              {myTrips.length}/3 cuốc
+              {myTrips.length}/{MAX_ACTIVE_TRIPS} cuốc
             </span>
           </div>
           <div className="flex flex-col gap-2">
@@ -331,7 +332,7 @@ export default function TripListPage() {
                     : 'bg-primary text-white disabled:opacity-50',
                 )}
               >
-                {atCapacity ? 'Đã đủ 3 cuốc' : 'Nhận cuốc'}
+                {atCapacity ? `Đã đủ ${MAX_ACTIVE_TRIPS} cuốc` : 'Nhận cuốc'}
               </button>
             </div>
           </div>
