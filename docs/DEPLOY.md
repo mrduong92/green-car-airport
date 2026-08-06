@@ -139,27 +139,26 @@ vì `AuthController::login` cho đăng nhập bằng mật khẩu khi user đã 
 
 ### 4. SSL
 
-**Đã có (2026-08-06):** `greenca.vn` + `www.greenca.vn` — cert Let's Encrypt hết hạn
-**2026-11-04**, `certbot.timer` enabled, đã redirect 80→443.
+**Đã xong (2026-08-06)** — cả 4 hostname đều có HTTPS + redirect 80→443, `certbot.timer` active:
 
-**CHƯA có:** `driver.greenca.vn` và `admin.greenca.vn` — 2 subdomain này **chưa có bản ghi
-DNS nào** (xác nhận trên NS gốc `ns2.bkdns.vn`, không phải do propagate chậm). Hai app này
-hiện chỉ vào được qua HTTP + `Host` header.
+| Cert | Domains | Hết hạn |
+|---|---|---|
+| `greenca.vn` | `greenca.vn`, `www.greenca.vn` | 2026-11-04 |
+| `driver.greenca.vn` | `driver.greenca.vn`, `admin.greenca.vn` | 2026-11-04 |
 
-Sau khi thêm 2 bản ghi A về `45.124.95.47`, kiểm tra rồi mới chạy certbot:
+Cấp làm 2 lần vì lúc đầu 2 subdomain chưa có bản ghi DNS. Lệnh dùng lại khi cần:
 
 ```bash
-dig +short @ns2.bkdns.vn driver.greenca.vn   # phải ra 45.124.95.47
-dig +short @ns2.bkdns.vn admin.greenca.vn
-
-ssh -i ~/.ssh/ssh-17-37-18-6-8-2026-private.pem root@45.124.95.47
+dig +short @ns2.bkdns.vn driver.greenca.vn   # phải ra 45.124.95.47 TRƯỚC khi chạy certbot
 certbot --nginx -d driver.greenca.vn -d admin.greenca.vn \
   --agree-tos -m datdt2@kaopiz.com --redirect --non-interactive
 ```
 
 ⚠️ **Đừng gộp domain chưa trỏ DNS vào lệnh certbot.** Chỉ cần 1 domain fail challenge là
-certbot bỏ nguyên lệnh và KHÔNG cấp cert nào cả — kể cả domain đã trỏ đúng. Vì vậy lần
-đầu chỉ cấp cho `greenca.vn` + `www`, để 2 subdomain lại cấp sau.
+certbot bỏ nguyên lệnh và KHÔNG cấp cert nào cả — kể cả domain đã trỏ đúng.
+
+⚠️ **Kiểm DNS bằng NS gốc (`dig +short @ns2.bkdns.vn ...`), đừng tin resolver local.**
+Vừa thêm record xong thì resolver local/8.8.8.8 còn cache NXDOMAIN, dễ tưởng là chưa set.
 
 certbot tự sửa vhost thành 443 + redirect 80→443 và tự cài timer auto-renew.
 Sau đó kiểm tra `APP_URL` trong `backend/.env` rồi `php artisan config:cache`.
@@ -172,8 +171,9 @@ Sau đó kiểm tra `APP_URL` trong `backend/.env` rồi `php artisan config:cac
   Tắt SSH password auth, bật ufw, cài backup DB hằng ngày.
   Env copy từ staging và giữ nguyên credential ZNS (Abenla) / VAPID / SePay; đổi APP_URL, DB, Redis,
   `MAIL_MAILER=log` (production không có mailpit), `LOG_LEVEL=warning`, `APP_KEY` sinh mới.
-  Cấp SSL cho `greenca.vn` + `www` (hết hạn 2026-11-04). Tạo admin `0868968312` — verify
-  login trả token và `GET /api/admin/dashboard` trả 200.
+  Cấp SSL cho cả 4 hostname (hết hạn 2026-11-04). Tạo admin `0868968312` — verify
+  login trả token và `GET /api/admin/dashboard` trả 200. Verify cuối qua HTTPS: 3 app 200,
+  3 hash bundle khác nhau và khớp build local, marker driver/admin đúng, bypass `000000` trả 422.
 
 ---
 
@@ -357,5 +357,6 @@ curl -s https://admin.webco.io.vn/ | grep -o '/assets/index-[^"]*\.js'
 - ~~Queue worker~~ — không cần: repo không có Job/Notification/Command nào đẩy vào queue.
 - ~~DB + env riêng cho production~~ — xong.
 - ~~Tài khoản admin production~~ — xong, đã tạo `0868968312` (id=1, role=admin, có mật khẩu).
-- **Production còn thiếu:** DNS cho `driver.greenca.vn` + `admin.greenca.vn` (chưa có bản ghi nào). Trỏ xong phải chạy certbot cho 2 subdomain đó — hiện chúng mới chỉ có HTTP.
+- ~~DNS + SSL cho `driver.` / `admin.`~~ — xong, cả 3 app đã chạy HTTPS.
+- **Nên làm:** đổi mật khẩu admin production (mật khẩu khởi tạo đã đi qua log phiên deploy).
 - Test `SsePublisherTest::trip accept publishes trip taken` đang FAIL sẵn trên `main` (assert sai channel: mong `driver.trips.events`, thực tế `customer.1.events`) — không liên quan deploy, nhưng nên sửa.
