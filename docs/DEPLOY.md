@@ -114,6 +114,29 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://greenca.vn/api/auth/log
   -H 'Content-Type: application/json' -d '{"phone":"0987654321","password":"000000","role":"customer"}'  # 422
 ```
 
+### Tạo tài khoản admin
+
+DB production khởi tạo trống nên phải tạo admin thủ công. Lưu ý `password` **không** có
+cast `hashed` trong `App\Models\User` — phải `Hash::make()` bằng tay, gán chuỗi thô sẽ
+làm `Hash::check()` luôn fail và không đăng nhập được.
+
+```bash
+ssh -i ~/.ssh/ssh-17-37-18-6-8-2026-private.pem root@45.124.95.47
+cd /var/www/green-car-airport/backend
+php artisan tinker --execute="
+  \$u = App\Models\User::firstOrCreate(
+    ['phone' => '09XXXXXXXX', 'role' => 'admin'],
+    ['name' => 'Admin']
+  );
+  \$u->password = Hash::make('123456');
+  \$u->save();
+  echo \$u->id.' '.\$u->phone.' '.\$u->role;
+"
+```
+
+Đăng nhập `https://admin.greenca.vn` bằng số đó + mật khẩu vừa đặt (không cần OTP,
+vì `AuthController::login` cho đăng nhập bằng mật khẩu khi user đã có `password`).
+
 ### 4. SSL — chạy SAU khi DNS đã trỏ
 
 Hiện `greenca.vn` đang trỏ `103.121.88.249` (host khác), 2 subdomain chưa có bản ghi.
