@@ -7,7 +7,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <!-- __APP_TITLE__ / __APP_SHORT_NAME__ được appEntryPlugin (vite.config.ts) thay theo app target -->
+    <!-- __APP_TITLE__ / __APP_SHORT_NAME__ / __APP_DESCRIPTION__ / __APP_URL__ / __APP_IMAGE__
+         được appEntryPlugin (vite.config.ts) thay theo app target -->
     <meta name="apple-mobile-web-app-title" content="__APP_SHORT_NAME__" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -16,6 +17,24 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
     <title>__APP_TITLE__</title>
+    <meta name="description" content="__APP_DESCRIPTION__" />
+
+    <!-- Open Graph — Facebook, Zalo -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="__APP_TITLE__" />
+    <meta property="og:title" content="__APP_TITLE__" />
+    <meta property="og:description" content="__APP_DESCRIPTION__" />
+    <meta property="og:url" content="__APP_URL__" />
+    <meta property="og:image" content="__APP_IMAGE__" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:locale" content="vi_VN" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="__APP_TITLE__" />
+    <meta name="twitter:description" content="__APP_DESCRIPTION__" />
+    <meta name="twitter:image" content="__APP_IMAGE__" />
   </head>
   <body class="bg-warm-white font-sans antialiased">
     <div id="root"></div>

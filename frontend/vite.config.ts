@@ -17,6 +17,7 @@ const APPS = {
     shortName: BRAND.name,
     description: 'Đặt xe sân bay — Nhanh, minh bạch, tiện lợi',
     startUrl: '/',
+    url: `https://${BRAND.domain}`,
   },
   driver: {
     entry: '/src/main.driver.tsx',
@@ -27,6 +28,7 @@ const APPS = {
     shortName: `${BRAND.name} Tài Xế`,
     description: `Ứng dụng tài xế ${BRAND.name} — Nhận cuốc sân bay`,
     startUrl: '/',
+    url: `https://driver.${BRAND.domain}`,
   },
   admin: {
     entry: '/src/main.admin.tsx',
@@ -37,6 +39,7 @@ const APPS = {
     shortName: `${BRAND.name} Admin`,
     description: `Quản trị hệ thống ${BRAND.name}`,
     startUrl: '/login',
+    url: `https://admin.${BRAND.domain}`,
   },
 } as const
 
@@ -60,6 +63,9 @@ function appEntryPlugin(target: AppTarget): Plugin {
           .replace('/src/main.tsx', app.entry)
           .replaceAll('__APP_TITLE__', app.title)
           .replaceAll('__APP_SHORT_NAME__', app.shortName)
+          .replaceAll('__APP_DESCRIPTION__', app.description)
+          .replaceAll('__APP_URL__', app.url)
+          .replaceAll('__APP_IMAGE__', `${app.url}/icons/icon-512.png`)
       },
     },
   }
