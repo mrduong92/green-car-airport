@@ -7,7 +7,11 @@ import PhoneInput from '@/components/auth/PhoneInput'
 import PasswordInput from '@/components/auth/PasswordInput'
 import OtpInputs from '@/components/auth/OtpInputs'
 
-const DEV_MOCK = import.meta.env.VITE_MOCK === 'true' || false
+// `import.meta.env.DEV` luôn = false trong bản build production (`vite build`),
+// bất kể VITE_MOCK được set thế nào. Bắt buộc phải có vế này: chỉ dựa vào
+// VITE_MOCK thì chỉ cần MỘT lần build nhầm với VITE_MOCK=true là nút đăng nhập
+// nhanh lộ ra production — đã từng xảy ra thật (2026-08-07).
+const DEV_MOCK = import.meta.env.DEV && import.meta.env.VITE_MOCK === 'true'
 const DEV_PASS = '000000'
 const DEV_ACCOUNT = { label: 'Khách Hàng', phone: '0901234567' }
 
