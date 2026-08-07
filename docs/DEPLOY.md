@@ -270,6 +270,16 @@ queue, lùi mtime log scheduler), cộng chống spam và tin hồi phục — �
 `/usr/local/bin/greenca-quota-check.sh`, cron `/etc/cron.d/greenca-quota` chạy **hàng giờ**
 (số dư không đổi nhanh, và mỗi lần kiểm là một lệnh gọi ra ngoài). Cùng cơ chế chống spam.
 
+### Báo cáo số dư ZNS hàng ngày (khác cảnh báo sự cố)
+
+`/usr/local/bin/greenca-daily-report.sh`, cron `/etc/cron.d/greenca-daily-report` chạy
+**08:00 mỗi ngày** — LUÔN gửi Telegram dù số dư vẫn ổn, khác hẳn `greenca-quota-check.sh`
+(chỉ báo khi trạng thái đổi, tránh spam). Đây là báo cáo định kỳ cho người vận hành biết
+số dư, không phải cảnh báo sự cố. Dùng chung `php artisan zns:balance` và
+`/etc/greenca-monitor.conf` (Telegram, `ZNS_BALANCE_MIN`) với script cảnh báo — không có
+logic tra số dư thứ hai. Test thủ công: `/usr/local/bin/greenca-daily-report.sh` (gửi ngay,
+không đợi cron).
+
 | Dịch vụ | Cảnh báo TRƯỚC khi hết? | Cách làm |
 |---|---|---|
 | **ZNS** (Abenla / SouthTelecom) | ✅ Có | `php artisan zns:balance --min=N` — tra số dư provider đang dùng |
