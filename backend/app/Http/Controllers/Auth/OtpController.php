@@ -26,7 +26,9 @@ class OtpController extends Controller
 
         $exists = User::where('phone', $phone)->exists();
 
-        if ($request->purpose === 'register' && $exists) {
+        if ($request->purpose === 'register'
+            && User::where('phone', $phone)->where('role', 'customer')->exists()
+        ) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
         }
 

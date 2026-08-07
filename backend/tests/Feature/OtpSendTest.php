@@ -135,6 +135,22 @@ class OtpSendTest extends TestCase
         $this->assertDatabaseMissing('otps', ['phone' => '0901234567']);
     }
 
+    public function test_send_register_purpose_allows_phone_with_other_role(): void
+    {
+        User::create(['phone' => '0901234567', 'role' => 'admin']);
+
+        $fake = $this->fakeSender(success: true);
+
+        $this->postJson('/api/auth/otp/send', [
+            'phone'   => '0901234567',
+            'purpose' => 'register',
+        ])
+            ->assertOk()
+            ->assertJson(['message' => 'OTP đã được gửi.']);
+
+        $this->assertSame(1, $fake->calls);
+    }
+
     public function test_send_reset_purpose_rejects_unknown_phone(): void
     {
         $fake = $this->fakeSender();
