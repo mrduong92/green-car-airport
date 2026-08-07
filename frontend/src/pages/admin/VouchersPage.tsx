@@ -91,8 +91,12 @@ export default function VouchersPage() {
             </div>
           </div>
 
-          <input type="date" {...register('expires_at')}
-            className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
+            <input type="date" {...register('expires_at')}
+              className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
+            {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
+          </div>
 
           <Button type="submit" fullWidth loading={createMutation.isPending}>Tạo Voucher</Button>
         </form>

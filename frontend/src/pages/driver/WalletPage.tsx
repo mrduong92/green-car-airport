@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getWallet, getTransactions } from '@/api/trips'
+import { getWallet, getTransactions, getTopUpInfo } from '@/api/trips'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 import { BRAND } from '@/brand'
@@ -9,6 +9,7 @@ import { BRAND } from '@/brand'
 export default function WalletPage() {
   const { data: wallet } = useQuery({ queryKey: ['wallet'], queryFn: () => getWallet().then((r) => r.data) })
   const { data: txs = [] } = useQuery({ queryKey: ['transactions'], queryFn: () => getTransactions().then((r) => r.data) })
+  const { data: topUpInfo } = useQuery({ queryKey: ['topup-info'], queryFn: () => getTopUpInfo().then((r) => r.data) })
 
   const historyRef = useRef<HTMLDivElement>(null)
   const scrollToHistory = () => historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -66,7 +67,12 @@ export default function WalletPage() {
         <div className="flex flex-col gap-3">
           {[
             { icon: 'account_balance', text: `Chuyển khoản đến ${BRAND.legalName}` },
-            { icon: 'credit_card',     text: 'STK: 1234 5678 90 · Vietcombank' },
+            {
+              icon: 'credit_card',
+              text: topUpInfo
+                ? `STK: ${topUpInfo.bank.account_number} · ${topUpInfo.bank.name}`
+                : 'Đang tải thông tin tài khoản...',
+            },
             { icon: 'bolt',            text: 'Điểm tự động cộng sau khi nhận tiền' },
           ].map((row) => (
             <div key={row.icon} className="flex items-center gap-2.5">
