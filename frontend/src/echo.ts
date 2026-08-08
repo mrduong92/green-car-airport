@@ -30,7 +30,9 @@ export function getEcho(token: string): Echo<'reverb'> {
   // Chỉ dev mới cần override, vì Reverb chạy ở cổng 8081 riêng.
   const isSecure = window.location.protocol === 'https:'
   const host = import.meta.env.VITE_REVERB_HOST || window.location.hostname
-  const port = Number(import.meta.env.VITE_REVERB_PORT ?? (isSecure ? 443 : 8081))
+  // Dùng `||` chứ không `??`: khi build truyền biến RỖNG để bỏ override dev,
+  // `??` sẽ để lọt chuỗi rỗng và Number('') ra 0 → nối vào cổng 0.
+  const port = Number(import.meta.env.VITE_REVERB_PORT || (isSecure ? 443 : 8081))
   const forceTLS = import.meta.env.VITE_REVERB_SCHEME
     ? import.meta.env.VITE_REVERB_SCHEME === 'https'
     : isSecure
