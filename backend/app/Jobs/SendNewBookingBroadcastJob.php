@@ -1,6 +1,8 @@
 <?php
+
 namespace App\Jobs;
 
+use App\Http\Controllers\Driver\TripController;
 use App\Models\Booking;
 use App\Models\User;
 use App\Notifications\NewBookingAvailableNotification;
@@ -19,6 +21,16 @@ class SendNewBookingBroadcastJob implements ShouldQueue
 
     public function handle(): void
     {
+        // Job nằm trong hàng đợi một lúc mới tới lượt chạy; trong khoảng đó cuốc
+        // có thể đã được người khác nhận hoặc khách đã huỷ. Bắn tiếp là làm
+        // phiền hàng trăm tài xế bằng một cuốc bấm vào chỉ nhận về lỗi 422.
+        //
+        // SerializesModels nạp lại model từ DB lúc job chạy, nên `status` ở đây
+        // đã là giá trị hiện tại chứ không phải giá trị lúc dispatch.
+        if ($this->booking->status !== 'finding_driver') {
+            return;
+        }
+
         // Chỉ bắn cho tài xế có xe CHỞ ĐƯỢC cuốc này. Thiếu bộ lọc này thì tài
         // xế xe 4 chỗ nhận noti cuốc 5 chỗ rồi bấm vào thấy danh sách rỗng, vì
         // TripController::index() lọc theo đúng quy tắc sức chứa.
@@ -33,6 +45,19 @@ class SendNewBookingBroadcastJob implements ShouldQueue
                 ->where(fn ($q2) => $q2
                     ->whereIn('vehicle_type', $fittingTypes)
                     ->orWhereNull('vehicle_type')))
+            // Bỏ qua tài xế đã kín việc: accept() chặn ở MAX_ACTIVE_TRIPS nên
+            // họ có bấm nhận cũng chỉ ăn 422. Đây cũng là bộ lọc giảm tải tốt —
+            // tài xế bận là nhóm KHÔNG cần biết về cuốc mới.
+            //
+            // Dùng whereHas(..., '<', n) chứ KHÔNG withCount()+having(): having
+            // không kèm group by chạy được trên MySQL nhưng sqlite từ chối
+            // ("HAVING clause on a non-aggregate query"), mà test chạy sqlite.
+            ->whereHas(
+                'bookingsAsDriver',
+                fn ($q) => $q->whereIn('status', ['accepted', 'picking_up', 'in_progress']),
+                '<',
+                TripController::MAX_ACTIVE_TRIPS,
+            )
             ->each(fn ($driver) => $driver->notify(new NewBookingAvailableNotification($this->booking)));
     }
 }

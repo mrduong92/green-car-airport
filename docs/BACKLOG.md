@@ -13,6 +13,13 @@
 | **Production** | **`9e3bf49`** + fix nhãn (chỉ frontend) — **chưa có Reverb** |
 | Dữ liệu thật | 21 user, 31 cuốc, 184 notification, 0 failed job |
 
+> **Cập nhật 2026-08-09 (rạng sáng):** bảng trên đã LỖI THỜI. Mục P0-1 và P0-2
+> đã xong — production hiện chạy Reverb đầy đủ (systemd `greenca-reverb`, nginx
+> proxy WSS, `ext-event`, 4 queue worker, cron scheduler), đã load test đạt
+> **4.996 kết nối đồng thời** (RSS 153MB, CPU 3,4%, API không ảnh hưởng).
+> Chi tiết trong `docs/DEPLOY.md` mục PRODUCTION. Staging cũng đã có Reverb
+> nhưng **chưa có `ext-event`** nên vẫn trần ~1.000.
+
 ---
 
 ## 🔴 P0 — Đang chặn, làm trước
@@ -248,6 +255,41 @@ thực sự có mã.
 không bị đổi ngược. Chấp nhận tồn tại song song.
 
 ---
+
+## Lọc người nhận thông báo "có cuốc mới"
+
+Đây là nguồn tải lớn nhất của hàng đợi: mỗi cuốc sinh **một job cho mỗi tài xế
+online**, mỗi job ~0,4s vì gọi HTTP ra dịch vụ push. Lọc càng kỹ càng giảm cả
+tải hàng đợi lẫn phiền nhiễu cho tài xế.
+
+Đã làm (2026-08-09):
+
+- Lọc theo **loại xe** — bỏ tài xế có xe không chở nổi cuốc
+- Lọc theo **hạn mức việc** — bỏ tài xế đã đủ `MAX_ACTIVE_TRIPS`, họ có bấm nhận
+  cũng chỉ ăn 422
+- **Kiểm cuốc còn trống** ngay đầu job — job nằm hàng đợi một lúc mới chạy, trong
+  khoảng đó cuốc có thể đã bị nhận hoặc huỷ
+- Bỏ kênh `database`, chỉ còn web push (bảng `notifications` không phình nữa)
+
+### 🟡 Còn lại: lọc theo khoảng cách — CẦN CHỦ APP CHỐT SỚM
+
+Tài xế ở TP.HCM đang nhận thông báo cuốc ở Hà Nội. Đây là bộ lọc mạnh nhất còn
+chưa có — ở quy mô nhiều tỉnh, nó cắt được phần lớn số job.
+
+**Chặn ở chỗ: hệ thống chưa lưu vị trí tài xế.** Không có route cập nhật vị trí,
+app không gọi `watchPosition`, cột `driver_profiles.latitude/longitude` nằm im.
+Đây cũng chính là lý do app tài xế hiện hiển thị "cách bạn **? km**" và tính năng
+sắp xếp "gần nhất" đang vô dụng.
+
+Làm xong việc lưu vị trí sẽ mở khoá cùng lúc **ba** thứ:
+
+1. Lọc thông báo theo bán kính
+2. **Bắn theo đợt** — báo 10 tài xế gần nhất trước, 15s chưa ai nhận thì mở rộng
+   (cách chuẩn của ngành gọi xe; giảm cả tải lẫn tranh chấp giữa tài xế)
+3. Sửa luôn "cách bạn ? km" và sắp xếp theo khoảng cách
+
+Cần chủ app quyết: tần suất gửi vị trí (ảnh hưởng pin điện thoại tài xế và lưu
+lượng ghi DB), và có lưu lịch sử di chuyển hay chỉ giữ vị trí mới nhất.
 
 ## Ghi chú về quy trình
 
