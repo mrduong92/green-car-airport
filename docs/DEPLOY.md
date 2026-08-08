@@ -166,6 +166,28 @@ lại của dev. `VITE_REVERB_APP_KEY` phải khớp `REVERB_APP_KEY`.
 systemctl restart greenca-reverb    # tiến trình giữ code CŨ trong bộ nhớ, giống queue worker
 ```
 
+#### ⚠️ Build frontend PHẢI dùng `--mode staging` / `--mode production`
+
+Vite ưu tiên file `.env` **HƠN** biến môi trường truyền lúc build, nên
+`-e VITE_REVERB_APP_KEY=...` bị giá trị dev trong `frontend/.env` ghi đè —
+bundle mang key dev, Reverb từ chối, mất realtime mà không có lỗi rõ ràng.
+Chỉ file theo mode (`.env.staging`) mới thắng được `.env`:
+
+```bash
+docker compose exec -T frontend sh -c \
+  './node_modules/.bin/vite build --config vite.customer.config.ts --mode staging'
+```
+
+Kiểm sau khi build (bắt buộc — đã dính đúng lỗi này):
+
+```bash
+grep -c "<APP_KEY của môi trường>" frontend/dist/assets/index-*.js   # phải >= 1
+grep -c "localhost:8081"           frontend/dist/assets/index-*.js   # phải = 0
+```
+
+`docker compose run` KHÔNG có `node_modules` (volume ẩn danh) — build bằng
+`docker compose exec` trên container đang chạy.
+
 #### Kiểm tra
 
 ```bash
@@ -549,6 +571,35 @@ Host greencar-staging
 | Redis | local, client `phpredis` (extension đã cài — KHÔNG cần predis) |
 | Env files | `backend/.env`, `frontend/.env` trên server — KHÔNG có trong git, backup trước khi sửa |
 | Node.js | **KHÔNG có trên server** — frontend build ở máy local rồi rsync lên |
+| Queue worker | `greenca-queue.service` (systemd, `www-data`) — dựng 2026-08-09 |
+| Scheduler | `/etc/cron.d/greenca-scheduler` — dựng 2026-08-09 |
+| Reverb | `greenca-reverb.service` (systemd, `127.0.0.1:8081`) — dựng 2026-08-09 |
+
+⚠️ **Staging là server DÙNG CHUNG** với nhiều site khác (`amd.io.vn`,
+`amdnewtech.shop`, `chuyennhataman.net`…). Sửa `nginx.conf` hay restart PHP-FPM
+là ảnh hưởng cả các site đó — chỉ đụng đúng 3 vhost `*webco.io.vn`.
+
+### ⚠️ Bẫy 2026-08-09: hai queue worker "ma" chạy bằng root
+
+Trước 2026-08-09, staging có **2 worker do supervisor quản lý**
+(`/etc/supervisor/conf.d/laravel-worker.conf`, `user=root`, `numprocs=2`) mà
+không tài liệu nào nhắc tới. Hậu quả:
+
+- Chúng **giành job** với worker mới, và vì khởi động từ trước lần deploy nên
+  giữ config CŨ trong bộ nhớ → job broadcast bị xử lý bằng driver `log`,
+  báo thành công, không có gì tới Reverb. Nhìn từ ngoài: realtime "im lặng
+  không chạy", `queue:failed` trống, không lỗi ở đâu cả.
+- Chạy `user=root` là đúng cái bẫy đã ghi ở mục production: file `storage/` và
+  `bootstrap/cache/` thành của root → PHP-FPM mất quyền ghi → 500 không dấu vết.
+
+Đã tắt (`conf` đổi tên thành `.disabled-<ngày>`) và gom về một `greenca-queue`
+systemd duy nhất, giống production. **Khi nghi realtime/notification không chạy,
+việc đầu tiên là đếm worker:**
+
+```bash
+ps -o user,pid,args -C php --no-headers | grep queue:work   # phải CHỈ 1, user www-data
+supervisorctl status 2>/dev/null                            # phải trống
+```
 
 ## Quy trình deploy
 
