@@ -32,15 +32,31 @@ export function useDriverStream(enabled: boolean) {
     const echo = getEcho(token)
     const channel = echo.private('driver.trips')
 
+    // Mọi tài xế online nhận `new_booking` CÙNG một khoảnh khắc, nên nếu ai cũng
+    // refetch ngay thì 1 cuốc mới = N request đổ vào API cùng lúc (đo ở quy mô
+    // mục tiêu: 500 tài xế online → ~4 giây giật sau mỗi cuốc).
+    //
+    // Rải ngẫu nhiên trong 3 giây để san tải. Cache danh sách cuốc ở backend có
+    // TTL 5s nên gần như toàn bộ số request rải ra chỉ đọc cache, không chạm DB.
+    const HERD_SPREAD_MS = 3000
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const refetchTripsSoon = () => {
+      timers.push(setTimeout(
+        () => queryClient.invalidateQueries({ queryKey: ['trips'] }),
+        Math.random() * HERD_SPREAD_MS,
+      ))
+    }
+
     // Đồng bộ lại ngay khi kết nối: khoảng thời gian mất kết nối (khoá màn hình,
-    // mất mạng) là khoảng mù, không có sự kiện nào được gửi lại.
+    // mất mạng) là khoảng mù, không có sự kiện nào được gửi lại. Lần này KHÔNG
+    // rải — người dùng vừa mở app, cần thấy dữ liệu ngay.
     const resync = () => queryClient.invalidateQueries({ queryKey: ['trips'] })
     resync()
     echo.connector.pusher.connection.bind('connected', resync)
 
     channel.listen('.trips.updated', (data: TripsEvent) => {
       if (data.type === 'new_booking') {
-        queryClient.invalidateQueries({ queryKey: ['trips'] })
+        refetchTripsSoon()
       } else if (data.type === 'trip_taken') {
         // Gỡ cuốc đã bị nhận khỏi danh sách mà không cần gọi mạng
         queryClient.setQueriesData<App.Trip[]>(
@@ -70,6 +86,8 @@ export function useDriverStream(enabled: boolean) {
     })
 
     return () => {
+      // Phải dọn: timer còn treo sẽ gọi invalidate sau khi component đã unmount
+      timers.forEach(clearTimeout)
       echo.connector.pusher.connection.unbind('connected', resync)
       echo.leave('driver.trips')
     }
