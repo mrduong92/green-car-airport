@@ -106,7 +106,14 @@ const schema = z.object({
   distance_km:  z.number({ coerce: true }).min(0.1, 'Vui lòng chọn điểm đón và điểm đến'),
   price:        z.number({ coerce: true }).min(1, 'Vui lòng nhập giá'),
   note:         z.string().max(500).optional(),
-  collection_fee: z.coerce.number().min(0).optional().default(0),
+  // Ô này là TUỲ CHỌN nhưng `register(..., { valueAsNumber: true })` biến ô
+  // trống thành NaN, mà `.optional()`/`.default()` chỉ xử lý `undefined` —
+  // NaN rớt `.min(0)` và chặn luôn nút đặt xe. Phải quy NaN/rỗng về 0 TRƯỚC
+  // khi validate. Giữ `.min(0)` để số âm vẫn bị chặn.
+  collection_fee: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v)) ? 0 : v),
+    z.coerce.number().min(0),
+  ),
 })
 type FormData = z.infer<typeof schema>
 
@@ -144,6 +151,7 @@ export default function BookingFormPage() {
       vehicle_type: 'sedan_4',
       date: DATE_CHIPS[0].value,
       time: '08:00',
+      collection_fee: 0,
     },
   })
 
@@ -555,13 +563,17 @@ export default function BookingFormPage() {
             <label className="text-[13px] font-medium text-navy">
               Thu Hộ <span className="text-neutral-gray font-normal">(tuỳ chọn)</span>
             </label>
+            {/* setValueAs thay cho valueAsNumber: xoá trắng ô sẽ ra 0 chứ không
+                phải NaN, nên khách xoá số đi vẫn đặt xe được. */}
             <div className="relative">
               <input
                 type="number"
                 min={0}
                 step={1000}
                 placeholder="0"
-                {...register('collection_fee', { valueAsNumber: true })}
+                {...register('collection_fee', {
+                  setValueAs: (v) => (v === '' || v === null || v === undefined ? 0 : Number(v)),
+                })}
                 className="w-full rounded-input border border-border-gray px-3 py-2.5 text-[14px] text-navy pr-8 focus:outline-none focus:border-primary"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-neutral-gray pointer-events-none">đ</span>
