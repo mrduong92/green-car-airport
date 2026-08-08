@@ -116,9 +116,23 @@ Nếu vẫn muốn trỏ về Docker local thì phải dùng IP LAN của máy (
 
 ---
 
-## 6. Hai chỗ vướng — đã gặp thật khi làm POC
+## 6. Ba chỗ vướng — đã gặp thật khi làm POC
 
-**URL API.** Trong app, trang được nạp từ vỏ ứng dụng chứ không phải từ server, nên `baseURL: '/api'` tương đối sẽ trỏ vào chính vỏ app và mọi request chết. Phải truyền `VITE_API_BASE_URL` khi build cho app — áp dụng cho **cả axios lẫn `EventSource`** của luồng SSE.
+**URL API.** Trong app, trang được nạp từ vỏ ứng dụng chứ không phải từ server, nên `baseURL: '/api'` tương đối sẽ trỏ vào chính vỏ app và mọi request chết. Phải truyền `VITE_API_BASE_URL` khi build cho app — áp dụng cho **cả axios lẫn `echo.ts`** (WebSocket Reverb, xem bên dưới).
+
+**Realtime Reverb — hỏng hoàn toàn im lặng.** `src/echo.ts` suy ra ba thứ từ `window.location`, mà trong app native `window.location` trỏ vào vỏ ứng dụng chứ không phải hệ thống:
+
+| Chỗ | Trong app native | Hậu quả |
+|---|---|---|
+| `window.location.hostname` | `app.greenca.vn` (tên giả của WebView) | WebSocket nối vào host không tồn tại |
+| `window.location.protocol` | Android `https:` (đúng), **iOS `capacitor:`** | iOS suy ra không TLS → nối cổng 8081 → chết |
+| `authEndpoint` tương đối | `https://app.greenca.vn/api/broadcasting/auth` | 404 → xác thực kênh private thất bại |
+
+Đã xử lý trong `echo.ts`: khi `API_BASE` có giá trị thì lấy host và giao thức từ chính nó. Bản web để `API_BASE` rỗng nên không đổi hành vi.
+
+**Còn một việc phía server chưa làm:** thêm origin của WebView vào `allowed_origins` của Reverb. App native luôn là cross-origin, không tránh được — thiếu bước này thì handshake bị từ chối.
+
+Không có thông báo lỗi nào cho cả ba trường hợp: API vẫn chạy, giao diện vẫn hiện, chỉ là realtime không bao giờ tới.
 
 **CSRF token mismatch (419) — cái này mất nhiều thời gian nhất.** Mặc định Capacitor nạp WebView từ `https://localhost` (Android) / `capacitor://localhost` (iOS). Cả hai có host `localhost`, mà `localhost` nằm trong danh sách mặc định của `SANCTUM_STATEFUL_DOMAINS` (`config/sanctum.php:21-26`; `.env` không khai biến này nên đang dùng mặc định). Sanctum tưởng app là SPA first-party, chuyển sang luồng session/cookie và bắt CSRF → mọi request trả 419.
 
