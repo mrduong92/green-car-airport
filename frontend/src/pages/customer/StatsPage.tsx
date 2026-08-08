@@ -4,10 +4,9 @@ import { Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip,
 } from 'chart.js'
-import { getBookingHistory } from '@/api/bookings'
+import { getCustomerStats, type StatsPeriod } from '@/api/stats'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
-import dayjs from 'dayjs'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip)
 
@@ -17,73 +16,31 @@ const FILTERS = [
   { key: 'all',   label: 'Tất cả'    },
 ] as const
 
-type Filter = typeof FILTERS[number]['key']
-
-function filterBookings(bookings: App.Booking[], filter: Filter): App.Booking[] {
-  const now = dayjs()
-  return bookings.filter((b) => {
-    const d = dayjs(b.date)
-    if (filter === 'week')  return d.isAfter(now.subtract(7, 'day').startOf('day'))
-    if (filter === 'month') return d.isSame(now, 'month')
-    return true
-  })
-}
-
-function buildChartPoints(bookings: App.Booking[], filter: Filter) {
-  const now = dayjs()
-  const completed = bookings.filter((b) => b.status === 'completed')
-
-  if (filter === 'week') {
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = now.subtract(6 - i, 'day').format('YYYY-MM-DD')
-      const val = completed.filter((b) => b.date === date)
-        .reduce((s, b) => s + (b.final_price ?? b.price), 0)
-      return { label: now.subtract(6 - i, 'day').format('DD/MM'), value: val / 1000 }
-    })
-  }
-
-  if (filter === 'month') {
-    const daysCount = now.date()
-    const startOfMonth = now.startOf('month')
-    return Array.from({ length: daysCount }, (_, i) => {
-      const date = startOfMonth.add(i, 'day').format('YYYY-MM-DD')
-      const val = completed.filter((b) => b.date === date)
-        .reduce((s, b) => s + (b.final_price ?? b.price), 0)
-      return { label: startOfMonth.add(i, 'day').format('DD/MM'), value: val / 1000 }
-    })
-  }
-
-  // 'all' — last 6 months (monthly)
-  return Array.from({ length: 6 }, (_, i) => {
-    const month = now.subtract(5 - i, 'month')
-    const val = completed
-      .filter((b) => dayjs(b.date).isSame(month, 'month'))
-      .reduce((s, b) => s + (b.final_price ?? b.price), 0)
-    return { label: month.format('MM/YY'), value: val / 1000 }
-  })
-}
+type Filter = StatsPeriod
 
 export default function CustomerStatsPage() {
   const [filter, setFilter] = useState<Filter>('month')
 
-  const { data: allBookings = [], isLoading } = useQuery({
-    queryKey: ['bookings', ''],
-    queryFn: () => getBookingHistory().then((r) => r.data),
+  // Backend trả về số liệu đã tính sẵn. Trước đây trang này tải toàn bộ chuyến
+  // của khách rồi filter/reduce ở đây — không scale khi khách đi nhiều chuyến.
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['customer-stats', filter],
+    queryFn: () => getCustomerStats(filter).then((r) => r.data),
     staleTime: 60_000,
   })
 
-  const bookings   = filterBookings(allBookings, filter)
-  const completed  = bookings.filter((b) => b.status === 'completed')
-  const cancelled  = bookings.filter((b) => b.status === 'cancelled')
-  const totalSpent = completed.reduce((s, b) => s + (b.final_price ?? b.price), 0)
-  const totalSaved = bookings.reduce((s, b) => s + (b.discount ?? 0), 0)
-  const points     = buildChartPoints(allBookings, filter)
-  const hasData    = points.some((p) => p.value > 0)
+  const completedCount = stats?.completed ?? 0
+  const cancelledCount = stats?.cancelled ?? 0
+  const totalSpent     = stats?.total_spent ?? 0
+  const totalSaved     = stats?.total_saved ?? 0
+  const points         = stats?.points ?? []
+  const hasData        = points.some((p) => p.value > 0)
 
   const chartData = {
     labels: points.map((p) => p.label),
     datasets: [{
-      data: points.map((p) => p.value),
+      // Trục Y hiển thị theo nghìn đồng — backend trả VND nguyên
+      data: points.map((p) => p.value / 1000),
       backgroundColor: '#006a36',
       borderRadius: 4,
       borderSkipped: false,
@@ -127,8 +84,8 @@ export default function CustomerStatsPage() {
         {/* KPI cards */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: 'Hoàn thành',       value: completed.length,                    unit: 'chuyến',  color: 'text-primary' },
-            { label: 'Đã huỷ',           value: cancelled.length,                    unit: 'chuyến',  color: 'text-danger-red' },
+            { label: 'Hoàn thành',       value: completedCount,                      unit: 'chuyến',  color: 'text-primary' },
+            { label: 'Đã huỷ',           value: cancelledCount,                      unit: 'chuyến',  color: 'text-danger-red' },
             { label: 'Tổng chi tiêu',    value: totalSpent.toLocaleString('vi'),     unit: 'đ',       color: 'text-primary' },
             { label: 'Tiết kiệm voucher',value: totalSaved > 0 ? totalSaved.toLocaleString('vi') : '0', unit: 'đ', color: 'text-success-green' },
           ].map(({ label, value, unit, color }) => (
@@ -161,7 +118,7 @@ export default function CustomerStatsPage() {
           )}
         </div>
 
-        {!isLoading && bookings.length === 0 && (
+        {!isLoading && completedCount === 0 && cancelledCount === 0 && (
           <EmptyState
             icon="bar_chart"
             title="Chưa có dữ liệu"

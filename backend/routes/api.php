@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Customer\BookingController;
 use App\Http\Controllers\Customer\CustomerProfileController;
+use App\Http\Controllers\Customer\StatsController as CustomerStatsController;
 use App\Http\Controllers\Customer\VoucherController;
 use App\Http\Controllers\Driver\TripController;
 use App\Http\Controllers\Driver\WalletController;
@@ -62,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Customer
     Route::middleware('role:customer')->group(function () {
+        Route::get('/customer/stats',            [CustomerStatsController::class, 'show']);
         Route::get('/customer/profile',          [CustomerProfileController::class, 'show']);
         Route::patch('/customer/profile',        [CustomerProfileController::class, 'update']);
         Route::get('/bookings',                  [BookingController::class, 'index']);

@@ -12,6 +12,7 @@ use App\Notifications\TripAcceptedDriverNotification;
 use App\Notifications\TripCompletedDriverNotification;
 use App\Notifications\TripStartedNotification;
 use App\Services\ReferralService;
+use App\Support\AvailableTripsCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,27 +27,66 @@ class TripController extends Controller
      */
     public const MAX_ACTIVE_TRIPS = 5;
 
+    /**
+     * Trần số cuốc trả về cho danh sách chờ. Tài xế không cuộn hết 50 cuốc, mà
+     * không có trần thì sàn đông là nạp nguyên bảng cho mỗi lần gọi.
+     */
+    private const AVAILABLE_TRIPS_LIMIT = 50;
+
     public function index(Request $request): JsonResponse
     {
         $profile = $request->user()->driverProfile;
 
-        $trips = Booking::with('customer')
-            ->where('status', 'finding_driver')
-            ->latest()
-            ->get()
-            ->filter(fn ($b) => $this->fitsDriverVehicle($b->vehicle_type, $profile?->vehicle_type))
-            ->values();
+        // Lọc loại xe đẩy xuống SQL thay vì ->filter() sau khi đã nạp cả bảng,
+        // kèm trần AVAILABLE_TRIPS_LIMIT. Trước đây `->get()` không giới hạn:
+        // 500 cuốc trên sàn × mỗi tài xế mở app = nạp và serialize 500 dòng mỗi lần.
+        //
+        // Cache theo LOẠI XE chứ không theo tài xế — cùng loại xe thì cùng danh
+        // sách, nên 5.000 tài xế chỉ còn vài query mỗi 5 giây.
+        $allowed = $this->vehicleTypesFittingDriver($profile?->vehicle_type);
 
-        if ($request->sort === 'nearest' && $profile?->latitude && $profile?->longitude) {
-            $trips = $trips->sortBy(fn ($b) => $this->haversine(
-                (float) $profile->latitude,
-                (float) $profile->longitude,
-                (float) $b->pickup_lat,
-                (float) $b->pickup_lng,
-            ))->values();
+        // ⚠️ Cache MẢNG ĐÃ FORMAT, tuyệt đối không cache Eloquent Collection:
+        // collection/model serialize xuống Redis rồi unserialize lên sẽ thành
+        // __PHP_Incomplete_Class và nổ ngay ở lần ĐỌC cache đầu tiên (lần ghi
+        // vẫn chạy ngon, nên lỗi chỉ hiện ở request thứ hai trở đi).
+        $trips = AvailableTripsCache::remember($allowed, fn () => Booking::with('customer')
+            ->where('status', 'finding_driver')
+            // `bookings.vehicle_type` là enum('sedan_4','suv_5','mpv_7') NOT NULL
+            // default 'sedan_4', nên whereIn là đủ — không cần nhánh phòng thủ cho
+            // null/giá trị lạ vì DB không cho phép tồn tại (xem test parity bên dưới).
+            ->whereIn('vehicle_type', $allowed)
+            ->latest()
+            ->limit(self::AVAILABLE_TRIPS_LIMIT)
+            ->get()
+            // KHÔNG truyền profile vào đây — phần phụ thuộc từng tài xế tính sau
+            ->map(fn (Booking $b) => $this->formatTrip($b))
+            ->all());
+
+        // distance_to_driver phụ thuộc vị trí từng tài xế nên không nằm trong
+        // cache chung được. Tính trên tối đa AVAILABLE_TRIPS_LIMIT dòng.
+        if ($profile?->latitude && $profile?->longitude) {
+            $trips = array_map(function (array $trip) use ($profile) {
+                $trip['distance_to_driver'] = $trip['pickup_lat']
+                    ? round($this->haversine(
+                        (float) $profile->latitude,
+                        (float) $profile->longitude,
+                        (float) $trip['pickup_lat'],
+                        (float) $trip['pickup_lng'],
+                    ), 1)
+                    : null;
+
+                return $trip;
+            }, $trips);
+
+            if ($request->sort === 'nearest') {
+                // Cuốc thiếu toạ độ xuống cuối, khớp hành vi cũ (haversine trả
+                // PHP_FLOAT_MAX khi không có toạ độ điểm đón).
+                usort($trips, fn (array $a, array $b) => ($a['distance_to_driver'] ?? PHP_FLOAT_MAX)
+                    <=> ($b['distance_to_driver'] ?? PHP_FLOAT_MAX));
+            }
         }
 
-        return response()->json($trips->map(fn ($b) => $this->formatTrip($b, $profile)));
+        return response()->json(array_values($trips));
     }
 
     public function accept(Request $request, Booking $booking): JsonResponse
@@ -105,6 +145,10 @@ class TripController extends Controller
             'description' => "Phí app 20% cuốc #{$booking->id}",
             'points'      => $feePoints,
         ]);
+
+        // Cuốc rời khỏi sàn — vô hiệu hoá cache danh sách, nếu không tài xế khác
+        // vẫn thấy cuốc này trong danh sách và bấm nhận rồi mới ăn lỗi 422.
+        AvailableTripsCache::flush();
 
         Redis::publish('driver.trips.events', json_encode([
             'type'       => 'trip_taken',
@@ -253,6 +297,9 @@ class TripController extends Controller
             'accepted_at' => null,
         ]);
 
+        // Cuốc QUAY LẠI sàn — không flush thì tài xế khác không thấy nó xuất hiện lại.
+        AvailableTripsCache::flush();
+
         Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
             'type'       => 'booking_cancelled_by_driver',
             'booking_id' => $booking->id,
@@ -293,6 +340,26 @@ class TripController extends Controller
         'suv_5'   => 5,
         'mpv_7'   => 7,
     ];
+
+    /**
+     * Bản SQL-hoá của fitsDriverVehicle(): trả về các loại xe mà tài xế chở được.
+     * Xe không rõ loại → cho phép tất cả, khớp với nhánh `! $driverType` bên dưới.
+     *
+     * @return list<string>
+     */
+    private function vehicleTypesFittingDriver(?string $driverType): array
+    {
+        if (! $driverType || ! isset(self::VEHICLE_CAPACITY_RANK[$driverType])) {
+            return array_keys(self::VEHICLE_CAPACITY_RANK);
+        }
+
+        $driverRank = self::VEHICLE_CAPACITY_RANK[$driverType];
+
+        return array_keys(array_filter(
+            self::VEHICLE_CAPACITY_RANK,
+            fn (int $rank) => $rank <= $driverRank,
+        ));
+    }
 
     private function fitsDriverVehicle(?string $bookingType, ?string $driverType): bool
     {

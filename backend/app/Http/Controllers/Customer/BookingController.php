@@ -10,6 +10,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\BookingCreatedNotification;
 use App\Notifications\CustomerCancelledNotification;
+use App\Support\AvailableTripsCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,16 +20,35 @@ class BookingController extends Controller
 {
     private const VOUCHER_MAX_RATE = 0.10;
 
+    /** Số chuyến mỗi trang lịch sử. */
+    private const HISTORY_PER_PAGE = 20;
+
+    /**
+     * Lịch sử chuyến, phân trang bằng cursor.
+     *
+     * Trước đây `->get()` không giới hạn — khách đi 300 chuyến là tải về đủ 300
+     * kèm quan hệ driver + driverProfile + voucher, mỗi lần mở màn hình lịch sử.
+     *
+     * Dùng cursor thay vì offset: dữ liệu sắp theo thời gian và luôn có bản ghi
+     * mới chèn lên đầu, offset sẽ làm lặp/nhảy bản ghi giữa các trang.
+     */
     public function index(Request $request): JsonResponse
     {
-        $bookings = Booking::with(['driver.driverProfile', 'voucher'])
+        $page = Booking::with(['driver.driverProfile', 'voucher'])
             ->where('customer_id', $request->user()->id)
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
-            ->latest()
-            ->get()
-            ->map(fn ($b) => $this->formatBooking($b));
+            // ⚠️ Phải có tiebreaker `id`: cursor pagination sinh mệnh đề
+            // `WHERE created_at < X`, nên nhiều bản ghi TRÙNG created_at (đặt
+            // hàng loạt trong cùng một giây) sẽ bị loại sạch ở trang sau —
+            // `latest()` đơn thuần trả về trang 2 rỗng.
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->cursorPaginate(self::HISTORY_PER_PAGE);
 
-        return response()->json($bookings);
+        return response()->json([
+            'data'        => collect($page->items())->map(fn ($b) => $this->formatBooking($b))->values(),
+            'next_cursor' => $page->nextCursor()?->encode(),
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -114,6 +134,10 @@ class BookingController extends Controller
             'collaborator_id' => $collaboratorId,
         ]);
 
+        // Cuốc mới vào sàn — vô hiệu hoá cache danh sách. Bỏ bước này thì tài xế
+        // nhận được thông báo "có cuốc mới" rồi mở app ra lại thấy danh sách cũ.
+        AvailableTripsCache::flush();
+
         Redis::publish('driver.trips.events', json_encode([
             'type'       => 'new_booking',
             'booking_id' => $booking->id,
@@ -198,6 +222,9 @@ class BookingController extends Controller
         });
 
         $request->user()->notify(new CustomerCancelledNotification($booking));
+
+        // Khách huỷ — cuốc rời sàn, vô hiệu hoá cache danh sách.
+        AvailableTripsCache::flush();
 
         Redis::publish('driver.trips.events', json_encode([
             'type'       => 'booking_cancelled',

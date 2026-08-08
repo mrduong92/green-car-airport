@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getBookingHistory } from '@/api/bookings'
 import StatusBadge from '@/components/common/StatusBadge'
@@ -20,10 +20,20 @@ export default function BookingHistoryPage() {
   const [filter, setFilter] = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
 
-  const { data } = useQuery({
+  const {
+    data: pages,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['bookings', filter],
-    queryFn: () => getBookingHistory({ status: filter || undefined }).then((r) => r.data),
+    queryFn: ({ pageParam }) =>
+      getBookingHistory({ status: filter || undefined, cursor: pageParam }).then((r) => r.data),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor,
   })
+
+  const data = pages?.pages.flatMap((p) => p.data)
 
   return (
     <div className="w-full flex flex-col gap-0">
@@ -91,6 +101,16 @@ export default function BookingHistoryPage() {
             )}
           </div>
         ))}
+
+        {hasNextPage && (
+          <button
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="w-full h-11 rounded-pill border border-primary text-primary text-sm font-semibold disabled:opacity-50"
+          >
+            {isFetchingNextPage ? 'Đang tải...' : 'Xem thêm'}
+          </button>
+        )}
       </div>
     </div>
   )

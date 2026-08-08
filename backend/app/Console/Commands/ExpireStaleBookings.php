@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Booking;
 use App\Notifications\BookingExpiredNotification;
+use App\Support\AvailableTripsCache;
 use Illuminate\Console\Command;
 
 class ExpireStaleBookings extends Command
@@ -25,6 +26,11 @@ class ExpireStaleBookings extends Command
                 'cancelled_by' => 'system',
             ]);
             $booking->customer?->notify(new BookingExpiredNotification($booking));
+        }
+
+        if ($staleBookings->isNotEmpty()) {
+            // Cuốc rời sàn → cache danh sách chờ của tài xế đã cũ.
+            AvailableTripsCache::flush();
         }
 
         $this->info("Expired {$staleBookings->count()} stale booking(s).");
