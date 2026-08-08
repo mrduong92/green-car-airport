@@ -128,24 +128,36 @@ fan-out, không phải bản thân noti.
 4. **Lọc theo khoảng cách** — chỉ bắn cho tài xế trong bán kính ~10km. `driver_profiles`
    đã có `latitude`/`longitude`, `TripController` đã có hàm `haversine`.
    ⚠️ Chặn: **hiện chỉ 2/9 tài xế có toạ độ** — phải làm app báo vị trí đều đặn trước.
-5. Thêm worker — chỉ giảm triệu chứng, làm sau cùng.
+5. ~~Thêm worker~~ — ✅ **đã làm** (`5954c50`): chuyển sang unit template systemd,
+   chạy 4 worker (`greenca-queue@{1..4}`). Đúng như ghi chú, đây chỉ là giảm triệu
+   chứng — 4 mục trên vẫn còn nguyên giá trị và nên làm theo đúng thứ tự đó.
 
-### 5. Ba bộ lọc còn thiếu khi gửi push
+### 5. Ba bộ lọc còn thiếu khi gửi push — ✅ XONG 2/3
 
-Đã có: `role=driver`, `status=active`, `is_online=true`, và **loại xe** (mới thêm
-`79e7a29`). Còn thiếu:
+Đã có: `role=driver`, `status=active`, `is_online=true`, **loại xe** (`79e7a29`).
 
-- **Khoảng cách** — tài xế Hà Nội vẫn nhận noti cuốc TP.HCM.
-- **Tài xế đang bận** — `accept` giới hạn 5 cuốc đồng thời, nhưng noti vẫn bắn cho
-  tài xế đã đủ 5. Họ bấm vào không nhận được — phiền y như bug `vehicle_type` vừa sửa.
-- **Cuốc còn trống không** — job nằm queue, tới lúc chạy cuốc có thể đã có người nhận,
-  vẫn bắn "Có cuốc mới!".
+- ✅ **Tài xế đang bận** — xong ở `9e24c2c`. Bỏ tài xế đã đạt `MAX_ACTIVE_TRIPS`
+  (`whereHas(..., '<', n)`, KHÔNG dùng `withCount()+having()` vì sqlite từ chối).
+- ✅ **Cuốc còn trống không** — xong ở `9e24c2c`. Job kiểm `status === 'finding_driver'`
+  ngay đầu `handle()`; `SerializesModels` nạp lại model lúc chạy nên đọc ra giá trị hiện tại.
+- 🟡 **Khoảng cách** — CÒN LẠI, xem mục "Lọc theo khoảng cách" ở cuối file.
 
-### 6. Bảng `notifications` phình + đã có sự cố
+### 6. Bảng `notifications` phình — ✅ XONG
 
-Kênh `database` ghi 1 dòng cho **mỗi** tài xế, độc lập với push. 1000 cuốc × 100 tài xế
-= 100.000 dòng. Commit Reverb ghi nhận **"sự cố 2026-08-08: unread-count 48s"** khi
-bảng mới có 184 dòng. Cần: index phù hợp, và/hoặc dọn định kỳ noti đã đọc/quá cũ.
+- ✅ `NewBookingAvailableNotification` **bỏ kênh `database`**, chỉ còn web push
+  (`6ea2820`). Đây là loại duy nhất tăng theo (số cuốc × số tài xế online); mọi loại
+  khác chỉ tăng theo số cuốc. Đo trên production khi mới có ~4 tài xế online: loại
+  này đã chiếm 39% bảng.
+- ✅ Lệnh `notifications:prune` chạy 3h sáng — xoá noti đã đọc >30 ngày, mọi noti
+  >90 ngày, xoá theo lô 1000 dòng (bảng dùng khoá chính UUID nên xoá một cục sẽ giữ
+  khoá lâu và chặn ghi mới).
+
+> ⚠️ **Đính chính:** mục này từng ghi *"sự cố 2026-08-08: unread-count 48s"* là do
+> bảng `notifications` phình. **Không phải.** Đã truy nguyên nhân thật: `pm.max_children = 5`
+> của PHP-FPM, trong khi 2 endpoint SSE giữ trọn 1 worker cho mỗi client PWA suốt
+> 300s → cạn worker → mọi API xếp hàng. 48s là thời gian **nằm chờ worker**, không
+> phải thời gian chạy query — bảng lúc đó chỉ có 184 dòng, `unread-count` chạy vài ms.
+> Chi tiết trong `docs/DEPLOY.md`. Ghi lại để lần sau không ai đi tối ưu nhầm chỗ.
 
 ---
 
@@ -222,11 +234,14 @@ DB thật đang lẫn tài khoản QA: `Test Auth QA`, `Test Driver QA`, `Referr
 là data test** và 2 cuốc là chủ app tự đặt tự nhận. Nên dọn trước khi mở rộng người dùng,
 hoặc ít nhất đánh dấu để không lẫn vào báo cáo doanh thu.
 
-### 15. Redis `maxmemory=0`
+### 15. Redis `maxmemory=0` — ✅ XONG trên production
 
-Không giới hạn bộ nhớ. `maxmemory-policy noeviction` là **đúng** cho queue (đổi sang
-`allkeys-lru` sẽ khiến job bị xoá = mất thông báo), nhưng nên đặt giới hạn và theo dõi,
-hoặc tách cache/session sang Redis DB khác với queue.
+Đã đặt `maxmemory 512mb` + **`volatile-lru`** (không phải `allkeys-lru`): cache và
+session có TTL nên bị đuổi trước, job trong queue không có TTL nên được giữ lại —
+đúng mối lo đã ghi ở đây. Xem `docs/DEPLOY.md` mục tuning.
+
+🟡 Còn lại: **staging chưa làm**, và ý "tách cache/session sang Redis DB khác với
+queue" vẫn đáng làm — `volatile-lru` chỉ là lớp bảo vệ chứ không tách bạch hoàn toàn.
 
 ### 16. Staging sẽ mất bypass `000000` ở lần deploy tới
 
@@ -255,6 +270,57 @@ thực sự có mã.
 không bị đổi ngược. Chấp nhận tồn tại song song.
 
 ---
+
+## 🟡 Hiệu ứng đàn ong khi có cuốc mới — đã giảm, chưa cắt hẳn
+
+Khi có cuốc mới, **mọi tài xế đang mở app cùng gọi `/api/driver/trips` trong cùng một
+khoảnh khắc**. 500 tài xế online = 500 request cho mỗi cuốc.
+
+Đã làm (`6ea2820`): **rải ngẫu nhiên trong 3 giây** + cache danh sách TTL 5s ở backend,
+nên gần như toàn bộ số request rải ra chỉ đọc cache. Và (`0baa7fd`): tài xế đã đủ
+`MAX_ACTIVE_TRIPS` thì bỏ qua sự kiện cuốc mới.
+
+Vẫn còn: số request **không giảm**, chỉ được dàn mỏng.
+
+### Phương án cắt hẳn: nhét dữ liệu cuốc vào event ("payload")
+
+Hiện event chỉ mang `booking_id`, nên client buộc phải gọi API để (a) lấy dữ liệu
+hiển thị và (b) biết cuốc có hợp xe mình không. Nếu event mang sẵn cả hai thì
+**0 request**, và cuốc hiện **tức thì** thay vì chờ tới 3 giây.
+
+```
+{ type: "new_booking",
+  trip: { id, pickup, destination, price, distance_km, ... },
+  fits_vehicle_types: ["sedan_4","suv_5","mpv_7"] }   ← server tính bằng VehicleCapacity
+```
+
+Client chỉ làm `fits_vehicle_types.includes(xeCuaToi)` — **không có luật nghiệp vụ nào
+bị nhân đôi**, luật vẫn nằm một chỗ ở `VehicleCapacity`, client chỉ nhận kết quả.
+
+**Ba việc cần làm:**
+
+1. Event mang thêm `trip` + `fits_vehicle_types`
+2. Tách `TripController::formatTrip()` (đang `private`) ra chỗ dùng chung, bỏ nhánh
+   `distance_to_driver` vì trường đó tính riêng cho từng tài xế
+3. ⚠️ **`/driver/profile` phải trả thêm `vehicle_type`** — hiện API này trả
+   `vehicle_color/make/model/plate/year` nhưng **KHÔNG có loại xe**. Client hôm nay
+   hoàn toàn không biết xe mình mấy chỗ, vì trước giờ server luôn lọc sẵn rồi mới trả
+   danh sách. Thiếu bước này thì client không có cách nào tự lọc.
+
+**Rủi ro phải xử lý:** lọc trùng theo `id` khi chèn (resync và event có thể chen nhau);
+cắt bớt cho khớp trần 50 dòng của server; khi đang sắp xếp "gần nhất" thì vẫn refetch
+như cũ vì chèn lên đầu là sai thứ tự.
+
+**Vì sao để đó:** phương án này **dịch việc lọc từ server sang client** — server đang
+lọc gọn bằng một câu SQL, chuyển sang client thì phải mang luật theo từng frame và
+phải bổ sung field vào profile. Ở quy mô hiện tại (vài chục tài xế) jitter + cache đã
+đủ. **Mốc nên làm lại:** khi số tài xế online thật sự lên hàng trăm.
+
+**Đã cân nhắc và LOẠI:** chia kênh riêng theo loại xe (`driver.trips.sedan_4`…).
+Nhìn dữ liệu thật thì **78% cuốc là `sedan_4`**, mà cuốc 4 chỗ thì *mọi* tài xế đều
+chở được — nên chia kênh chỉ cắt được **~12%** số người nhận, không đáng với chi phí
+thêm kênh động + luật phân quyền mới. (Mẫu 32 cuốc, còn nhỏ — nên xác nhận lại khi
+có nhiều dữ liệu hơn.)
 
 ## Lọc người nhận thông báo "có cuốc mới"
 
