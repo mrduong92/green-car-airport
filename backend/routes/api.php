@@ -93,6 +93,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/trips', [TripController::class, 'index']);
         Route::get('/driver/trips/mine', [TripController::class, 'mine']);
         Route::get('/driver/trips/history', [TripController::class, 'history']);
+        // ⚠️ PHẢI nằm SAU /mine và /history — Laravel khớp route theo thứ tự đăng
+        // ký, đảo lên trên là "mine" bị khớp thành {booking} và cả hai màn hình vỡ.
+        Route::get('/driver/trips/{booking}', [TripController::class, 'show']);
         Route::post('/driver/trips/{booking}/accept', [TripController::class, 'accept']);
         Route::patch('/driver/trips/{booking}/status', [TripController::class, 'updateStatus']);
         Route::patch('/driver/trips/{booking}/cancel', [TripController::class, 'cancel']);

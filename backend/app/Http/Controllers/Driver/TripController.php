@@ -322,6 +322,29 @@ class TripController extends Controller
         return response()->json($trips);
     }
 
+    /**
+     * Chi tiết MỘT cuốc của tài xế, không phụ thuộc trạng thái.
+     *
+     * Trước đây màn hình chi tiết đi quét danh sách `mine` (chỉ có cuốc đang
+     * chạy), nên bấm vào cuốc trong tab Lịch sử — vốn là cuốc `completed` — luôn
+     * ra "Không tìm thấy cuốc xe này". Cuốc bị khách huỷ cũng dính lỗi tương tự
+     * vì không nằm trong danh sách nào.
+     *
+     * ⚠️ Route này phải đăng ký SAU `/driver/trips/mine` và `/history`, nếu không
+     * Laravel sẽ khớp "mine" thành {booking} và cả hai màn hình cùng vỡ.
+     */
+    public function show(Request $request, Booking $booking): JsonResponse
+    {
+        if ($booking->driver_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        return response()->json($this->formatTrip(
+            $booking->load('customer'),
+            $request->user()->driverProfile,
+        ));
+    }
+
     private const VEHICLE_CAPACITY_RANK = [
         'sedan_4' => 4,
         'suv_5' => 5,

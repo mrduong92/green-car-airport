@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getMyTrips, updateTripStatus, cancelTrip } from '@/api/trips'
+import { getTrip, updateTripStatus, cancelTrip } from '@/api/trips'
 import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
@@ -25,16 +25,20 @@ export default function TripDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false)
   const [earlyOpen, setEarlyOpen]   = useState(false)
 
-  const { data: trips, isPending } = useQuery({
-    queryKey: ['my-trips'],
-    queryFn: () => getMyTrips().then((r) => r.data),
+  // Lấy theo ID chứ KHÔNG quét danh sách. Trước đây trang này tìm trong `my-trips`
+  // — endpoint chỉ trả cuốc đang chạy — nên bấm vào bất kỳ cuốc nào ở tab Lịch sử
+  // (cuốc đã hoàn thành) đều ra "Không tìm thấy cuốc xe này". Cuốc bị khách huỷ
+  // cũng vậy vì nó không nằm trong danh sách nào.
+  const { data: trip, isPending } = useQuery({
+    queryKey: ['driver-trip', Number(id)],
+    queryFn: () => getTrip(Number(id)).then((r) => r.data),
     refetchOnMount: 'always',
   })
-  const trip = trips?.find((t) => t.id === Number(id))
 
   const statusMutation = useMutation({
     mutationFn: (status: App.TripStatus) => updateTripStatus(Number(id), status),
     onSuccess: (_, status) => {
+      qc.invalidateQueries({ queryKey: ['driver-trip', Number(id)] })
       qc.invalidateQueries({ queryKey: ['my-trips'] })
       qc.invalidateQueries({ queryKey: ['trips'] })
       if (status === 'completed') {
@@ -51,6 +55,7 @@ export default function TripDetailPage() {
   const cancelMutation = useMutation({
     mutationFn: () => cancelTrip(Number(id)),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['driver-trip', Number(id)] })
       qc.invalidateQueries({ queryKey: ['my-trips'] })
       qc.invalidateQueries({ queryKey: ['trips'] })
       qc.invalidateQueries({ queryKey: ['wallet'] })

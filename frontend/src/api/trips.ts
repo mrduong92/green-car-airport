@@ -9,6 +9,12 @@ export const getMyTrips = () =>
 export const getTripHistory = () =>
   api.get<App.Trip[]>('/driver/trips/history')
 
+// Chi tiết MỘT cuốc, không phụ thuộc trạng thái. Trang chi tiết trước đây quét
+// danh sách `mine` (chỉ cuốc đang chạy) nên mọi cuốc trong tab Lịch sử đều ra
+// "Không tìm thấy cuốc xe này".
+export const getTrip = (id: number) =>
+  api.get<App.Trip>(`/driver/trips/${id}`)
+
 export const acceptTrip = (id: number) => api.post<App.Trip>(`/driver/trips/${id}/accept`)
 
 export const updateTripStatus = (id: number, status: App.TripStatus) =>

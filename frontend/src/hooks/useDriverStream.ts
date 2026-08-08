@@ -102,6 +102,9 @@ export function useDriverStream(enabled: boolean, atCapacity = false) {
               t.id === data.booking_id ? { ...t, status: 'cancelled' as App.TripStatus } : t
             ) ?? old,
           )
+          // Nếu tài xế đang MỞ trang chi tiết cuốc này thì phải nạp lại, nếu
+          // không màn hình vẫn hiện như cuốc còn sống.
+          queryClient.invalidateQueries({ queryKey: ['driver-trip', data.booking_id] })
           showToast('Khách đã hủy cuốc xe', 'info')
         } else {
           queryClient.invalidateQueries({ queryKey: ['my-trips'] })
