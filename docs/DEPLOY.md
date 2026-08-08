@@ -97,6 +97,38 @@ tail -f /var/log/greenca-queue.log          # mỗi job in RUNNING rồi DONE/FA
 php artisan queue:failed                    # job chết nằm ở đây
 ```
 
+### ⚠️ PHP-FPM — SSE phải chạy pool RIÊNG
+
+| Pool | Socket | Phục vụ | max_children |
+|---|---|---|---|
+| `www` | `php8.5-fpm.sock` | toàn bộ API thường | 20 |
+| `sse` | `php8.5-fpm-sse.sock` | `/api/customer/stream`, `/api/driver/stream` | 30 (ondemand) |
+
+Config nằm trong repo: `deploy/php-fpm/sse.conf` + `deploy/nginx/greenca-common.conf`.
+Pool `www` là file của distro, phải sửa tay (mặc định Ubuntu chỉ **5**).
+
+**Lý do:** 2 controller SSE giữ kết nối tới 300s, blocking trong `$redis->subscribe()`.
+PHP-FPM là mô hình 1 kết nối = 1 process, nên mỗi client PWA đang mở app chiếm trọn
+1 worker suốt 5 phút. Chung pool thì số client realtime ≥ `pm.max_children` là API
+thường hết worker, mọi request xếp hàng.
+
+**Sự cố 2026-08-08:** `pm.max_children=5`, cao điểm 47 request stream/giờ (≈3,9 worker
+bị chiếm liên tục) và 7 client đồng thời → `unread-count` mất **48,66s**,
+`trips/{id}/status` **34,29s**.
+
+⚠️ **Bẫy chẩn đoán:** load average lúc đó chỉ **0.17**, RAM còn 6,8GB. Worker không
+đốt CPU — chúng nằm chờ Redis. Nhìn `top`/`uptime` sẽ kết luận sai là "server khoẻ".
+Lệnh đúng để soi:
+
+```bash
+grep max_children /var/log/php8.5-fpm.log                              # bằng chứng cạn pool
+ps --no-headers -o args -C php-fpm8.5 | sed 's/php-fpm: //' | sort | uniq -c   # child theo pool
+redis-cli client list | grep -c cmd=subscribe                          # số stream đang mở
+```
+
+Còn giới hạn: trần mới là 30 client realtime đồng thời. Vượt ngưỡng sẽ tắc lại,
+khác là chỉ SSE chết còn API vẫn sống. Hết hẳn thì phải đưa SSE ra khỏi PHP-FPM.
+
 ## Quy trình deploy
 
 ### 1. Backend (chạy trên server)
