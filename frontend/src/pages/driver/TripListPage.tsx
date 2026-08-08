@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getAvailableTrips, getMyTrips, getTripHistory, getWallet, toggleOnline, acceptTrip, getDriverProfile } from '@/api/trips'
+import { getAvailableTrips, getTripHistory, getWallet, toggleOnline, acceptTrip, getDriverProfile } from '@/api/trips'
 import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
+import { useDriverCapacity } from '@/hooks/useDriverCapacity'
 import { MAX_ACTIVE_TRIPS } from '@/rules'
 import clsx from 'clsx'
 
@@ -28,11 +29,9 @@ export default function TripListPage() {
     queryFn: () => getWallet().then((r) => r.data),
   })
 
-  const { data: myTrips = [] } = useQuery({
-    queryKey: ['my-trips'],
-    queryFn: () => getMyTrips().then((r) => r.data),
-  })
-  const atCapacity = myTrips.length >= MAX_ACTIVE_TRIPS
+  // Dùng chung với DriverLayout (nơi quyết định có bỏ qua sự kiện cuốc mới hay
+  // không) để ngưỡng "đủ việc" chỉ định nghĩa ở MỘT chỗ.
+  const { myTrips, atCapacity } = useDriverCapacity()
 
   const { data: history = [] } = useQuery({
     queryKey: ['trip-history'],

@@ -3,6 +3,7 @@ import ToastContainer from '@/components/common/Toast'
 import AppHeader from '@/components/common/AppHeader'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useDriverStream } from '@/hooks/useDriverStream'
+import { useDriverCapacity } from '@/hooks/useDriverCapacity'
 import clsx from 'clsx'
 
 const TABS = [
@@ -16,7 +17,8 @@ const TABS = [
 
 export default function DriverLayout() {
   const { unreadCount } = useNotifications()
-  useDriverStream(true)
+  const { atCapacity } = useDriverCapacity()
+  useDriverStream(true, atCapacity)
 
   return (
     <div className="flex flex-col min-h-svh w-full bg-warm-white">

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -19,8 +19,29 @@ type TripsEvent = {
  *
  * ⚠️ WebSocket chết khi khoá màn hình / app chạy nền — giống hệt SSE và polling.
  * Kênh duy nhất tới được tài xế lúc đó là web push (SendNewBookingBroadcastJob).
+ *
+ * @param atCapacity Tài xế đã đủ MAX_ACTIVE_TRIPS cuốc. Khi đó BỎ QUA sự kiện
+ *   cuốc mới — họ có bấm nhận cũng chỉ ăn 422, mà mỗi sự kiện lại kéo theo một
+ *   lượt gọi API cho mỗi tài xế online.
+ *
+ *   ⚠️ Chỉ bỏ qua sự kiện cuốc mới, KHÔNG ngắt kênh. Kênh `driver.trips` còn
+ *   mang sự kiện "khách huỷ cuốc CỦA BẠN" — ngắt đi thì đúng nhóm tài xế đang
+ *   bận nhất lại không biết cuốc của mình vừa bị huỷ. Thứ tốn kém là request
+ *   API, không phải frame WebSocket (~18KB mỗi kết nối).
  */
-export function useDriverStream(enabled: boolean) {
+export function useDriverStream(enabled: boolean, atCapacity = false) {
+  // Đọc qua ref chứ KHÔNG đọc thẳng biến trong closure của listener.
+  //
+  // Lần chạy effect đầu tiên xảy ra khi query `my-trips` CHƯA về, nên atCapacity
+  // lúc đó luôn là false. Nếu listener giữ giá trị đó trong closure thì nó vẫn
+  // dùng false mãi — đã đo được: tài xế 5/5 cuốc vẫn refetch sau mỗi cuốc mới.
+  // Ref luôn trỏ tới giá trị mới nhất, và tránh phải huỷ/đăng ký lại kênh mỗi
+  // lần số cuốc của tài xế thay đổi.
+  const atCapacityRef = useRef(atCapacity)
+  useEffect(() => {
+    atCapacityRef.current = atCapacity
+  }, [atCapacity])
+
   const queryClient = useQueryClient()
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
@@ -56,7 +77,10 @@ export function useDriverStream(enabled: boolean) {
 
     channel.listen('.trips.updated', (data: TripsEvent) => {
       if (data.type === 'new_booking') {
-        refetchTripsSoon()
+        // Đủ việc rồi thì không refetch — accept() chặn ở MAX_ACTIVE_TRIPS nên
+        // danh sách cuốc mới cũng chẳng dùng được, mà mỗi lượt refetch của mỗi
+        // tài xế online là một request đổ vào API.
+        if (!atCapacityRef.current) refetchTripsSoon()
       } else if (data.type === 'trip_taken') {
         // Gỡ cuốc đã bị nhận khỏi danh sách mà không cần gọi mạng
         queryClient.setQueriesData<App.Trip[]>(
