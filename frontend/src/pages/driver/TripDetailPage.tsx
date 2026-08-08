@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getMyTrips, updateTripStatus, cancelTrip } from '@/api/trips'
+import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
@@ -22,6 +23,7 @@ export default function TripDetailPage() {
   const showToast = useUiStore((s) => s.showToast)
 
   const [cancelOpen, setCancelOpen] = useState(false)
+  const [earlyOpen, setEarlyOpen]   = useState(false)
 
   const { data: trips, isPending } = useQuery({
     queryKey: ['my-trips'],
@@ -91,6 +93,13 @@ export default function TripDetailPage() {
   )
 
   const nextStep = NEXT_STEP[trip.status] ?? null
+
+  // Cuốc đặt cho NGÀY khác hôm nay -> hỏi lại trước khi đổi trạng thái.
+  // So sánh theo ngày (không theo giờ) đúng như yêu cầu: tài xế đến sớm vài
+  // phút trong cùng ngày là chuyện bình thường, hỏi lại sẽ thành phiền.
+  // `trip.date` là chuỗi 'YYYY-MM-DD' nên so sánh chuỗi là đủ và không dính
+  // lệch múi giờ như khi dựng Date rồi so.
+  const isEarly = !!trip.date && trip.date > dayjs().format('YYYY-MM-DD')
 
   const hasMap = trip.pickup_lat && trip.pickup_lng && trip.destination_lat && trip.destination_lng
 
@@ -182,7 +191,7 @@ export default function TripDetailPage() {
       {/* Actions */}
       {nextStep && (
         <Button fullWidth size="lg" loading={statusMutation.isPending}
-          onClick={() => statusMutation.mutate(nextStep.status)}>
+          onClick={() => isEarly ? setEarlyOpen(true) : statusMutation.mutate(nextStep.status)}>
           {nextStep.label}
         </Button>
       )}
@@ -194,6 +203,22 @@ export default function TripDetailPage() {
           Huỷ cuốc
         </button>
       )}
+
+      {/* Cuốc đặt trước: bấm nhầm là KHÔNG lùi lại được (không có đường chuyển
+          completed/in_progress ngược về accepted), nên chặn bằng một lần xác nhận. */}
+      <ConfirmDialog
+        open={earlyOpen}
+        title={`Cuốc này đặt cho ${fmtDateTime(trip.date, trip.time)}`}
+        description={
+          nextStep?.status === 'completed'
+            ? 'Chưa tới ngày đón khách. Hoàn thành bây giờ sẽ chốt cuốc và trừ phí app — KHÔNG hoàn tác được. Bạn chắc chắn chứ?'
+            : 'Chưa tới ngày đón khách. Bạn chắc chắn muốn bắt đầu cuốc này bây giờ? Thao tác này KHÔNG hoàn tác được.'
+        }
+        confirmLabel={nextStep?.label ?? 'Xác nhận'}
+        loading={statusMutation.isPending}
+        onConfirm={() => { if (nextStep) statusMutation.mutate(nextStep.status); setEarlyOpen(false) }}
+        onCancel={() => setEarlyOpen(false)}
+      />
 
       <ConfirmDialog
         open={cancelOpen}

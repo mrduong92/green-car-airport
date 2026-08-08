@@ -79,11 +79,18 @@ const DATE_CHIPS = Array.from({ length: 7 }, (_, i) => {
 const fmtTimeValue = (h: number, m: number) =>
   `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 
-const TIME_ROWS: string[][] = [
-  Array.from({ length: 7 }, (_, i) => i + 5).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),   // 05:00–11:30
-  Array.from({ length: 7 }, (_, i) => i + 12).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),  // 12:00–18:30
-  Array.from({ length: 5 }, (_, i) => i + 19).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),  // 19:00–23:30
-]
+// 24/24 — chuyến sân bay có nhiều chuyến bay đêm và rạng sáng, nên KHÔNG giới
+// hạn khung giờ (quyết định 2026-08-08).
+//
+// Lịch sử: bản đầu dùng <input type="time"> nên chọn được mọi giờ. Commit
+// `3d11680 Update design v2` thay bằng lưới chip này và bắt đầu từ 5h — khung
+// 00:00–04:30 mất đi từ đó, là hệ quả phụ của việc đổi giao diện chứ không
+// phải quyết định nghiệp vụ.
+//
+// 3 hàng × 8 tiếng = 48 ô nửa tiếng, phủ trọn 00:00–23:30.
+const TIME_ROWS: string[][] = [0, 8, 16].map((start) =>
+  Array.from({ length: 8 }, (_, i) => i + start).flatMap((h) => [fmtTimeValue(h, 0), fmtTimeValue(h, 30)]),
+)
 
 // ─── Section label ────────────────────────────────────────────────────────────
 
@@ -129,6 +136,9 @@ export default function BookingFormPage() {
   const [discount,      setDiscount]      = useState(0)
   const [, setVoucherIsCapped] = useState(false)
   const [showVouchers,  setShowVouchers]  = useState(false)
+  // Mặc định BẬT: phần lớn khách đặt xe là đi luôn, bắt chọn ngày giờ mỗi lần
+  // là thừa. Tắt ô này mới hiện lưới chọn ngày/giờ để đặt trước.
+  const [goNow, setGoNow] = useState(true)
   const [vehicleType, setVehicleType] = useState<VehicleType>('sedan_4')
   const [pickupLatLng,   setPickupLatLng]   = useState<LatLng | null>(null)
   const [destLatLng,     setDestLatLng]     = useState<LatLng | null>(null)
@@ -259,6 +269,15 @@ export default function BookingFormPage() {
     mutationFn: (data: FormData) =>
       createBooking({
         ...data,
+        // "Đi ngay" lấy MỐC THỜI GIAN LÚC BẤM, không dùng giá trị trong form:
+        // form có thể đã giữ ngày/giờ khách chọn trước khi tích ô, và khách có
+        // thể mở màn này từ lâu rồi mới bấm đặt.
+        //
+        // Lưu ý: đường này CỐ Ý bỏ qua quy tắc "đặt hôm nay phải cách 30 phút"
+        // của lưới chọn giờ — đi ngay tức là bây giờ, đó là mục đích của nó.
+        ...(goNow
+          ? { date: dayjs().format('YYYY-MM-DD'), time: dayjs().format('HH:mm') }
+          : {}),
         pickup_lat:      pickupLatLng?.lat,
         pickup_lng:      pickupLatLng?.lng,
         destination_lat: destLatLng?.lat,
@@ -393,6 +412,36 @@ export default function BookingFormPage() {
           })}
         </div>
 
+        {/* ── ĐẶT ĐI NGAY ───────────────────────────────────── */}
+        <SectionLabel>Thời gian khởi hành</SectionLabel>
+        <button
+          type="button"
+          onClick={() => setGoNow((v) => !v)}
+          className={clsx(
+            'w-full flex items-center gap-3 rounded-card border px-3.5 py-3 text-left transition-colors',
+            goNow ? 'border-primary bg-light-green' : 'border-border-gray bg-white',
+          )}
+        >
+          <span
+            className={clsx(
+              'w-5 h-5 rounded-[6px] border-2 flex items-center justify-center shrink-0',
+              goNow ? 'bg-primary border-primary' : 'border-border-gray bg-white',
+            )}
+          >
+            {goNow && <span className="material-symbols-outlined text-white text-[15px]">check</span>}
+          </span>
+          <span className="flex-1">
+            <span className="block text-[14px] font-medium text-navy">Đặt đi ngay</span>
+            <span className="block text-[11px] text-neutral-gray">
+              {goNow ? 'Khởi hành ngay bây giờ, không cần chọn ngày giờ' : 'Chọn ngày và giờ đón bên dưới'}
+            </span>
+          </span>
+        </button>
+
+        {/* Ẩn hẳn phần chọn ngày/giờ khi "đi ngay" — hiện ra mà vô tác dụng thì
+            khách tưởng mình chọn được giờ nhưng hệ thống lại lấy giờ hiện tại. */}
+        {!goNow && (
+        <>
         {/* ── NGÀY KHỞI HÀNH ────────────────────────────────── */}
         <SectionLabel>Ngày khởi hành</SectionLabel>
         <div className="overflow-x-auto -mx-4 px-4 pb-0.5">
@@ -450,6 +499,8 @@ export default function BookingFormPage() {
             </div>
           ))}
         </div>
+        </>
+        )}
 
         {/* ── BẢNG GIÁ THAM KHẢO ───────────────────────────── */}
         <SectionLabel>Bảng giá tham khảo</SectionLabel>
