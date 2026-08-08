@@ -220,7 +220,7 @@ SANCTUM_STATEFUL_DOMAINS=greenca.vn,driver.greenca.vn,admin.greenca.vn
 
 ### 5.2 CORS thì không phải vấn đề
 
-Staging và production đang trả `Access-Control-Allow-Origin: *` (mặc định Laravel 11+ khi không có `config/cors.php`), nên app gọi API được ngay, SSE cũng chạy. Chỉ cần lưu ý nếu sau này siết CORS về danh sách cụ thể thì phải thêm origin `https://app.greenca.vn`.
+Staging và production đang trả `Access-Control-Allow-Origin: *` (mặc định Laravel 11+ khi không có `config/cors.php`), nên app gọi API được ngay. Chỉ cần lưu ý nếu sau này siết CORS về danh sách cụ thể thì phải thêm origin `https://app.greenca.vn`.
 
 ### 5.3 Lỗi Capacitor nội bộ trong log — bỏ qua được
 
@@ -271,7 +271,7 @@ git checkout poc/capacitor-android
 
 Theo thứ tự ưu tiên:
 
-1. **Vỏ app tài xế** — lặp lại mục 4 với `mobile/driver`, `webDir` là `../../frontend/dist-driver`, appId `vn.greenca.driver`, hostname `driver-app.greenca.vn`. Đây là app cần kiểm chứng SSE nhận cuốc realtime.
+1. **Vỏ app tài xế** — lặp lại mục 4 với `mobile/driver`, `webDir` là `../../frontend/dist-driver`, appId `vn.greenca.driver`, hostname `driver-app.greenca.vn`. Đây là app cần kiểm chứng realtime Reverb khi nhận cuốc.
 2. **Tách build theo môi trường** — bản staging phải có appId khác (`vn.greenca.customer.staging`) để cài song song với bản production trên máy tester mà không ghi đè nhau.
 3. **Cơ chế buộc cập nhật** — chưa có, và phải có mặt ngay ở bản phát hành đầu tiên. Người dùng không bắt buộc cập nhật app, nên nếu sau này đổi domain hoặc cần sửa lỗi nghiêm trọng thì không có cách nào tiếp cận những người đang dùng bản cũ.
 4. **Push notification FCM** — xem mục 3 của spec. Test được toàn bộ trên Ubuntu, kể cả bằng emulator, không cần tài khoản Play Console.

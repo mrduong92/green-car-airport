@@ -111,7 +111,19 @@ const api = axios.create({
 - Build web: để trống → giữ nguyên hành vi hiện tại, không hồi quy.
 - Build cho app native: `VITE_API_BASE_URL=https://greenca.vn`.
 
-**Áp dụng cho cả SSE.** `useCustomerStream.ts` và `useDriverStream.ts` tạo `EventSource` — phải dùng cùng base URL, nếu không realtime chết trong app mà API vẫn chạy, rất khó truy.
+**Áp dụng cho cả realtime — và đây là chỗ nhiều bẫy nhất.** Dự án đã chuyển từ SSE sang **Laravel Reverb (WebSocket)**, nên `src/echo.ts` có ba chỗ suy ra sai trong app native, **tất cả đều hỏng im lặng** đúng như `CLAUDE.md` cảnh báo về Reverb:
+
+| Chỗ | Trong app native nó thành gì | Hậu quả |
+|---|---|---|
+| `window.location.hostname` | `app.greenca.vn` — tên giả của WebView | Nối WebSocket vào host không tồn tại |
+| `window.location.protocol === 'https:'` | Android `https:` (đúng) nhưng **iOS `capacitor:`** | iOS suy ra không TLS → nối cổng 8081 → chết |
+| `authEndpoint: '/api/broadcasting/auth'` | `https://app.greenca.vn/api/...` | 404 → xác thực kênh private thất bại |
+
+Xử lý: khi `API_BASE` có giá trị (tức bản build cho app native) thì lấy host và giao thức từ chính nó, và tuyệt đối hoá `authEndpoint`. Bản web để `API_BASE` rỗng nên hành vi không đổi. **Đã làm và kiểm chứng trên bundle build ra.**
+
+**Reverb `allowed_origins` bắt buộc phải mở.** Ghi chú trong `echo.ts` giải thích lý do chọn cùng domain là để khỏi phải mở `allowed_origins`. Lập luận đó đúng cho web nhưng **vô hiệu với app native** — app luôn cross-origin vì origin của nó là vỏ ứng dụng, không phải server. Phải thêm origin của WebView vào cấu hình Reverb, nếu không handshake bị từ chối.
+
+**Nối lại khi app quay lại từ nền.** iOS treo WebView khi app vào nền nên socket chết. `EventSource` trước đây tự nối lại theo chuẩn; với WebSocket thì client thường không phát hiện kịp, dẫn tới tài xế mở app ra thấy danh sách cuốc cũ mà không biết là cũ. Bắt sự kiện `appStateChange` của `@capacitor/app`: khi resume thì ngắt và nối lại Echo, đồng thời `invalidateQueries` để tải lại dữ liệu.
 
 ### 2.2 Origin của WebView, Sanctum và CORS
 
@@ -154,7 +166,7 @@ Bước 1 là đủ để app chạy, nhưng bước 2 mới là sửa đúng g�
 ],
 ```
 
-Áp dụng cho cả route API lẫn endpoint SSE.
+Áp dụng cho cả route API lẫn handshake WebSocket của Reverb.
 
 ### 2.3 Cờ nền tảng
 
@@ -244,7 +256,7 @@ Message gửi kèm **cả khối `notification` lẫn khối `data`**. Khối `n
 
 **Dọn token chết:** FCM trả mã lỗi khi token không còn hợp lệ (gỡ app, cài lại máy) — gặp `UNREGISTERED` hoặc `INVALID_ARGUMENT` thì xoá bản ghi, đúng cách `WebPushChannel` đang xử lý subscription hết hạn.
 
-**Hỏng thì không kéo sập:** thiếu credentials hoặc Firebase lỗi thì chỉ ghi log cảnh báo và trả về. Thông báo trong ứng dụng (bảng `notifications`) và luồng SSE vẫn hoạt động — đúng triết lý "push là phụ" của mã hiện tại.
+**Hỏng thì không kéo sập:** thiếu credentials hoặc Firebase lỗi thì chỉ ghi log cảnh báo và trả về. Thông báo trong ứng dụng (bảng `notifications`) và luồng realtime Reverb vẫn hoạt động — đúng triết lý "push là phụ" của mã hiện tại.
 
 ### 3.5 Tầng frontend
 
@@ -501,7 +513,7 @@ Mất keystore Android là **vĩnh viễn** không cập nhật được app đ�
 |---|---|
 | **Luồng hành chính** (bắt đầu ngày đầu tiên) | Xin mã D-U-N-S → đăng ký Apple Developer; đăng ký Google Play **dạng tổ chức**; tạo dự án Firebase và 4 app; cài Node 22, Xcode, Android Studio |
 | **Tuần 1 — Backend** | Migration `device_tokens`; gộp `PushChannel` + hai transport; `FcmTransport`; `SANCTUM_STATEFUL_DOMAINS` tường minh; endpoint xoá tài khoản; endpoint `/api/app/version`; cấu hình tài khoản reviewer; trang tĩnh `xoa-tai-khoan`; test Pest |
-| **Tuần 2 — Frontend web** | `platform.ts`; tách `src/push/`; `route.ts` dùng chung với `sw.ts`; `VITE_API_BASE_URL` cho axios và SSE **(đã xong ở POC)**; ẩn UI web-only; giao diện xoá tài khoản; màn chặn buộc cập nhật; facade lưu token |
+| **Tuần 2 — Frontend web** | `platform.ts`; tách `src/push/`; `route.ts` dùng chung với `sw.ts`; `VITE_API_BASE_URL` cho axios và `echo.ts` **(đã xong ở POC)**; nối lại Echo khi app resume; ẩn UI web-only; giao diện xoá tài khoản; màn chặn buộc cập nhật; facade lưu token |
 | **Tuần 3 — Vỏ native** | Khởi tạo hai project Capacitor **(app khách hàng đã xong ở POC)**; icon/splash; cài và cấu hình plugin; `google-services.json` / `GoogleService-Info.plist`; chuỗi quyền tiếng Việt; các chạm native mục 6.2; màn hướng dẫn tối ưu pin cho app tài xế (mục 3.7); Makefile và script đồng bộ phiên bản |
 | **Tuần 4 — Kiểm thử và nộp** | Kiểm thử thiết bị thật; ảnh chụp màn hình và mô tả cho store; khai Data Safety và App Privacy; nộp |
 

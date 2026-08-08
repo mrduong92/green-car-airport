@@ -1,5 +1,6 @@
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
+import { API_BASE } from '@/api/base'
 
 // Reverb nói giao thức Pusher nên client vẫn là pusher-js.
 ;(window as unknown as { Pusher: typeof Pusher }).Pusher = Pusher
@@ -28,8 +29,24 @@ export function getEcho(token: string): Echo<'reverb'> {
   // cấu hình sai. Cùng domain thì nginx đã proxy sẵn `location /app/`.
   //
   // Chỉ dev mới cần override, vì Reverb chạy ở cổng 8081 riêng.
-  const isSecure = window.location.protocol === 'https:'
-  const host = import.meta.env.VITE_REVERB_HOST || window.location.hostname
+  //
+  // ⚠️ APP NATIVE (Capacitor) là ngoại lệ của toàn bộ lập luận trên. Ở đó trang
+  // được nạp từ chính vỏ app chứ không từ server, nên `window.location` KHÔNG trỏ
+  // vào hệ thống:
+  //   - hostname là `app.greenca.vn` — tên giả đặt cho WebView (xem
+  //     mobile/*/capacitor.config.ts), không có Reverb nào ở đó;
+  //   - protocol là `https:` trên Android nhưng `capacitor:` trên iOS, nên suy ra
+  //     TLS từ protocol sẽ cho ra sai trên iOS → nối cổng 8081 không TLS.
+  // Cả hai đều hỏng IM LẶNG: không có lỗi nào, chỉ là realtime không bao giờ tới.
+  //
+  // Vì vậy khi API_BASE có giá trị (tức bản build cho app native) thì lấy host và
+  // giao thức từ chính nó. Bản web để API_BASE rỗng nên hành vi không đổi.
+  const apiBaseUrl = API_BASE ? new URL(API_BASE) : null
+  const isSecure = apiBaseUrl
+    ? apiBaseUrl.protocol === 'https:'
+    : window.location.protocol === 'https:'
+  const host =
+    import.meta.env.VITE_REVERB_HOST || apiBaseUrl?.hostname || window.location.hostname
   // Dùng `||` chứ không `??`: khi build truyền biến RỖNG để bỏ override dev,
   // `??` sẽ để lọt chuỗi rỗng và Number('') ra 0 → nối vào cổng 0.
   const port = Number(import.meta.env.VITE_REVERB_PORT || (isSecure ? 443 : 8081))
@@ -45,7 +62,9 @@ export function getEcho(token: string): Echo<'reverb'> {
     wssPort: port,
     forceTLS,
     enabledTransports: ['ws', 'wss'],
-    authEndpoint: '/api/broadcasting/auth',
+    // Tuyệt đối hoá vì lý do như trên: trong app native, đường dẫn tương đối sẽ
+    // trỏ vào vỏ app và trả 404 → xác thực kênh private thất bại.
+    authEndpoint: `${API_BASE}/api/broadcasting/auth`,
     auth: {
       headers: { Authorization: `Bearer ${token}` },
     },
