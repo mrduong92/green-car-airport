@@ -189,13 +189,12 @@ Ba trần đã chạm và cách xử lý:
    ⚠️ Phải `systemctl restart nginx`, `reload` KHÔNG áp được directive này.
 2. **Tiến trình Reverb `Max open files` = 1024.** `LimitNOFILE=524288` trong
    unit chỉ nâng hard limit, tiến trình vẫn dùng soft. Đã ghi `65535:65535`.
-3. **`stream_select()` của PHP giới hạn `FD_SETSIZE = 1024`** — CHƯA xử lý.
-   ReactPHP đang dùng `React\EventLoop\StreamSelectLoop` vì máy chưa có
-   `ext-event`/`ext-ev`/`ext-uv`. Đây là trần thật hiện tại:
+3. **`stream_select()` của PHP giới hạn `FD_SETSIZE = 1024`** — đã xử lý bằng
+   `ext-event`. Không có extension này, ReactPHP rơi về `StreamSelectLoop`:
 
    ```bash
    php -r 'require "vendor/autoload.php"; echo get_class(React\EventLoop\Loop::get());'
-   # StreamSelectLoop  → trần ~1000
+   # StreamSelectLoop  → trần ~1000, PHẢI sửa
    # ExtEventLoop      → dùng epoll, không còn trần 1024
    ```
 
@@ -204,7 +203,29 @@ Ba trần đã chạm và cách xử lý:
    **toàn bộ client mất kết nối** — trông như crash ngẫu nhiên chứ không giống
    hết tài nguyên.
 
-**Trần hiện tại: ~1.000 client realtime đồng thời** (SSE cũ là ~90).
+#### Cài `ext-event` (đã làm trên production 2026-08-09)
+
+```bash
+apt-get install -y php8.5-dev libevent-dev libssl-dev build-essential
+printf "\n\n\n\n\n\n" | pecl install event      # 6 câu hỏi tương tác, để mặc định
+# CHỈ bật cho CLI — Reverb chạy CLI, FPM không dùng nên không cần thêm rủi ro.
+# Priority 30 để nạp SAU sockets (20), là yêu cầu của ext-event.
+ln -sf /etc/php/8.5/mods-available/event.ini /etc/php/8.5/cli/conf.d/30-event.ini
+systemctl restart greenca-reverb
+```
+
+Danh sách gói trước/sau khi cài lưu ở `/root/pkgs-{before,after}-event.txt`
+(80 gói thêm mới, chủ yếu là bộ công cụ biên dịch).
+
+#### Kết quả SAU khi gỡ cả 3 trần
+
+| Số kết nối | RSS Reverb | CPU | fd | RAM trống | API | restart |
+|---|---|---|---|---|---|---|
+| 3.000 | — | — | — | 6,4GB | 200 / 32–47ms | 0 |
+| **4.996** | **153MB** | **3,4%** | 5.005 | 6,2GB | 200 / 31–43ms | **0** |
+
+**Đạt mục tiêu 5.000 tài xế đồng thời**, chi phí ~18KB mỗi kết nối, CPU 3,4%,
+RAM còn trống 6,2GB, API hoàn toàn không bị ảnh hưởng. Mở 5.000 kết nối mất 28s.
 
 #### ⚠️ Build frontend PHẢI dùng `--mode staging` / `--mode production`
 
