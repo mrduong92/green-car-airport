@@ -21,13 +21,27 @@ let echo: Echo<'reverb'> | null = null
 export function getEcho(token: string): Echo<'reverb'> {
   if (echo) return echo
 
+  // Mặc định kết nối về CHÍNH domain đang mở, không phải một host cố định nướng
+  // vào lúc build. Lý do: 3 app nằm trên 3 subdomain (greenca.vn,
+  // driver.greenca.vn, admin.greenca.vn) — chốt cứng một host thì 2 app còn lại
+  // nối cross-origin và phải mở allowed_origins của Reverb, thừa một chỗ để
+  // cấu hình sai. Cùng domain thì nginx đã proxy sẵn `location /app/`.
+  //
+  // Chỉ dev mới cần override, vì Reverb chạy ở cổng 8081 riêng.
+  const isSecure = window.location.protocol === 'https:'
+  const host = import.meta.env.VITE_REVERB_HOST || window.location.hostname
+  const port = Number(import.meta.env.VITE_REVERB_PORT ?? (isSecure ? 443 : 8081))
+  const forceTLS = import.meta.env.VITE_REVERB_SCHEME
+    ? import.meta.env.VITE_REVERB_SCHEME === 'https'
+    : isSecure
+
   echo = new Echo({
     broadcaster: 'reverb',
     key: import.meta.env.VITE_REVERB_APP_KEY,
-    wsHost: import.meta.env.VITE_REVERB_HOST,
-    wsPort: Number(import.meta.env.VITE_REVERB_PORT ?? 8081),
-    wssPort: Number(import.meta.env.VITE_REVERB_PORT ?? 443),
-    forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'http') === 'https',
+    wsHost: host,
+    wsPort: port,
+    wssPort: port,
+    forceTLS,
     enabledTransports: ['ws', 'wss'],
     authEndpoint: '/api/broadcasting/auth',
     auth: {
