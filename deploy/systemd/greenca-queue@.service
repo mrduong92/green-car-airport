@@ -1,0 +1,41 @@
+[Unit]
+Description=GreenCA queue worker %i (Laravel, Redis)
+After=network.target redis-server.service mysql.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+# Chạy bằng www-data: chạy root sẽ làm file storage/ và bootstrap/cache/ thuộc
+# root, PHP-FPM mất quyền ghi và mọi request sau đó trả 500 không để lại vết.
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/green-car-airport/backend
+
+# Unit TEMPLATE: bật nhiều tiến trình bằng
+#   systemctl enable --now greenca-queue@{1..4}
+#
+# Vì sao cần nhiều worker: mỗi cuốc mới sinh MỘT job thông báo cho MỖI tài xế
+# đang online, và mỗi job mất ~0,4s vì phải gọi HTTP ra dịch vụ push. Đo trên
+# production 2026-08-09: với 1 worker và 500 tài xế online, một cuốc mất ~200
+# giây mới báo xong — cuốc mới đến nhanh hơn thế nên hàng đợi phình vô hạn.
+#
+# Job loại này CHỜ MẠNG chứ không ăn CPU, nên chạy 4 tiến trình trên 2 vCPU vẫn
+# thoải mái. Mỗi worker ~50MB.
+#
+# --max-time=3600: worker tự thoát sau 1 giờ rồi systemd khởi động lại, để không
+# giữ code cũ mãi sau khi deploy và giải phóng bộ nhớ rò rỉ.
+ExecStart=/usr/bin/php artisan queue:work redis \
+  --queue=default \
+  --sleep=3 \
+  --tries=3 \
+  --backoff=10 \
+  --max-time=3600 \
+  --max-jobs=1000
+
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/greenca-queue.log
+StandardError=append:/var/log/greenca-queue.log
+
+[Install]
+WantedBy=multi-user.target

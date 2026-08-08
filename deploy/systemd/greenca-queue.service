@@ -1,0 +1,32 @@
+[Unit]
+Description=GreenCA queue worker (Laravel, Redis)
+After=network.target redis-server.service mysql.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+# Chạy bằng www-data để file worker ghi ra (storage/logs, cache) không
+# đổi chủ sở hữu — chạy bằng root sẽ làm PHP-FPM mất quyền ghi và mọi
+# request sau đó trả 500 mà không để lại vết.
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/green-car-airport/backend
+
+# --max-time=3600: worker tự thoát sau 1 giờ rồi systemd khởi động lại.
+# Giữ cho worker không giữ code cũ mãi sau khi deploy, và giải phóng bộ nhớ rò rỉ.
+# --tries=3 + --backoff: job lỗi thử lại 3 lần rồi vào bảng failed_jobs.
+ExecStart=/usr/bin/php artisan queue:work redis \
+  --queue=default \
+  --sleep=3 \
+  --tries=3 \
+  --backoff=10 \
+  --max-time=3600 \
+  --max-jobs=1000
+
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/greenca-queue.log
+StandardError=append:/var/log/greenca-queue.log
+
+[Install]
+WantedBy=multi-user.target
