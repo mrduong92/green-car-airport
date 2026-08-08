@@ -69,7 +69,15 @@ return [
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
-            'block_for' => null,
+
+            // Worker dùng BLPOP: nhận job NGAY khi có, thay vì ngủ `--sleep` giây
+            // rồi mới hỏi lại Redis. Trước khi bật, độ trễ realtime đo được trên
+            // staging là 2,4–2,8s và gần như toàn bộ là thời gian worker đang ngủ —
+            // tức là chậm hơn cả cơ chế SSE cũ mà Reverb thay thế.
+            //
+            // KHÔNG đặt 0: 0 nghĩa là block vô hạn, worker sẽ không bao giờ tới
+            // được vòng kiểm --max-time / --max-jobs để tự khởi động lại.
+            'block_for' => (int) env('REDIS_QUEUE_BLOCK_FOR', 5),
             'after_commit' => false,
         ],
 
