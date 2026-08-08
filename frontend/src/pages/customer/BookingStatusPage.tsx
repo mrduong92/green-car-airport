@@ -75,7 +75,25 @@ export default function BookingStatusPage() {
   )
 
   const isActive = ['accepted', 'in_progress'].includes(booking.status)
-  const statusInfo = STATUS_INFO[booking.status]
+
+  // Cuốc đặt trước: tài xế mới NHẬN cuốc chứ chưa lên đường. Dùng chung nhãn
+  // "đang trên đường đến đón bạn" cho cả cuốc của 2 ngày sau là sai thực tế —
+  // khách sẽ tưởng xe đang tới và gọi điện hỏi tài xế đang ở đâu.
+  //
+  // So sánh theo NGÀY (không theo giờ), khớp với modal xác nhận bên app tài xế:
+  // trong cùng ngày thì tài xế sắp đi đón thật, nói "đang đến đón" là đúng.
+  // `booking.date` là chuỗi 'YYYY-MM-DD' nên so chuỗi là đủ, không dính lệch múi giờ.
+  const isScheduledAhead =
+    booking.status === 'accepted' && !!booking.date && booking.date.slice(0, 10) > dayjs().format('YYYY-MM-DD')
+
+  const statusInfo = isScheduledAhead
+    ? {
+        ...STATUS_INFO.accepted,
+        label: `Tài xế đã nhận cuốc · Đón bạn lúc ${fmtDateTime(booking.date, booking.time)}`,
+        icon:  'event_available',
+        step:  'Đã có tài xế · Chờ đến giờ đón',
+      }
+    : STATUS_INFO[booking.status]
   const hasMap = booking.pickup_lat && booking.pickup_lng && booking.destination_lat && booking.destination_lng
 
   // ── In-progress view ─────────────────────────────────────────────────────
@@ -87,7 +105,12 @@ export default function BookingStatusPage() {
         <div className="px-4 py-5 flex flex-col gap-2" style={{ background: statusInfo.bg }}>
           {/* Top row */}
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-white/80 animate-pulse" />
+            {/* Chấm nhấp nháy = "đang diễn ra". Cuốc còn chờ tới ngày thì để
+                tĩnh, nhấp nháy sẽ khiến khách tưởng xe đang chạy tới. */}
+            <span className={clsx(
+              'inline-block w-2 h-2 rounded-full bg-white/80',
+              !isScheduledAhead && 'animate-pulse',
+            )} />
             <span className="text-white/70 text-[11px] font-semibold uppercase tracking-widest flex-1">
               {statusInfo.step}
             </span>
