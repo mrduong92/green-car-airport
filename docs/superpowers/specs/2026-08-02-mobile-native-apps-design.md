@@ -272,6 +272,24 @@ iOS cần tạo khoá APNs `.p8` trong tài khoản Apple Developer rồi tải 
 
 ---
 
+### 3.7 Đảm bảo tài xế thực sự nhận được thông báo
+
+Gửi push thành công không có nghĩa tài xế nhận được. Samsung, Xiaomi, Oppo, Vivo đều có cơ chế tiết kiệm pin riêng, hung hãn hơn Android gốc nhiều: đưa app vào diện "bị hạn chế" sau vài ngày ít mở, chặn tự khởi động sau khi khởi động lại máy, và làm chậm hoặc chặn hẳn thông báo. Ở Việt Nam đây đúng là những hãng chiếm thị phần lớn nhất — phải coi là trường hợp mặc định, không phải ngoại lệ.
+
+Emulator chạy Android gốc nên **không bao giờ tái hiện được**. Chỉ phát hiện được trên máy thật, và đây là lý do chính buộc phải có máy thật ở bước nghiệm thu.
+
+**Xử lý trong app tài xế:** một màn hình "Đảm bảo nhận được cuốc", hiện tự động một lần sau khi hồ sơ tài xế được duyệt, và truy cập lại được từ phần Cài đặt:
+
+- Nhận diện hãng máy qua `Build.MANUFACTURER`, hiển thị đúng các bước cho hãng đó.
+- Nút mở thẳng màn hình cài đặt hệ thống tương ứng (tối ưu pin, tự khởi động).
+- Hiển thị trạng thái hiện tại: app có đang bị đưa vào diện tối ưu pin hay không.
+
+**Lưu ý chính sách:** quyền `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` bị Google Play hạn chế, xin trực tiếp qua API có thể bị từ chối khi duyệt. An toàn hơn là **dẫn người dùng tới màn hình cài đặt hệ thống** để họ tự bật.
+
+iOS không có vấn đề này — APNs do hệ điều hành quản lý, hãng máy không can thiệp được.
+
+---
+
 ## 4. Xoá tài khoản
 
 Apple (điều 5.1.1(v)) và Google đều bắt buộc: app cho phép đăng ký tài khoản thì phải cho xoá ngay trong app. Đây là **phần việc mới**, không nằm trong phạm vi "chỉ đóng gói", nhưng không có là bị từ chối chắc chắn.
@@ -301,9 +319,53 @@ Số điện thoại được giải phóng, người dùng đăng ký lại b�
 
 ---
 
-## 5. Vượt cửa duyệt store
+## 5. Phiên bản, tương thích và buộc cập nhật
 
-### 5.1 Tài khoản demo cho reviewer — bẫy lớn nhất
+Đây là hệ quả kiến trúc lớn nhất của việc có app, và nó ràng buộc cả backend chứ không riêng phần mobile.
+
+### 5.1 Bản cũ tồn tại vĩnh viễn
+
+Web SPA: mỗi lần tải lại trang là code mới nhất, nên **không bao giờ tồn tại client cũ hơn lần deploy gần nhất**. App thì bundle nằm trong file cài trên máy người dùng, và không ai bắt buộc họ cập nhật — một tài xế hoàn toàn có thể đang chạy bản build từ một năm trước.
+
+Hai hệ quả bắt buộc phải chấp nhận:
+
+**Backend không được đổi API theo kiểu phá vỡ tương thích nữa.** Trước đây sửa API và sửa frontend cùng lúc là xong. Từ khi có app, mỗi thay đổi phải tự hỏi "bản app cũ nhất còn đang chạy ngoài kia có gọi được không". Đổi tên trường, bỏ trường, đổi kiểu dữ liệu, siết validate — đều là thay đổi phá vỡ. Cách làm: chỉ thêm trường mới và giữ trường cũ; nếu buộc phải phá vỡ thì nâng `min_supported` (mục 5.2) trước, đợi người dùng cập nhật, rồi mới đổi.
+
+**Sai sót không sửa được bằng deploy.** Web: deploy lại 2 phút. App: build lại → nộp store → chờ duyệt 1–3 ngày → rồi vẫn phải chờ người dùng bấm cập nhật.
+
+### 5.2 Cơ chế buộc cập nhật — phải có ngay ở bản phát hành đầu tiên
+
+Endpoint công khai, không cần đăng nhập:
+
+```
+GET /api/app/version?platform=android|ios
+→ { "min_supported": "1.2.0", "latest": "1.4.0", "store_url": "https://..." }
+```
+
+App gọi lúc khởi động và mỗi lần quay lại từ nền:
+
+- Phiên bản hiện tại **thấp hơn `min_supported`** → màn chặn toàn màn hình, chỉ có nút mở store, không bỏ qua được.
+- Thấp hơn `latest` nhưng vẫn đạt `min_supported` → banner nhắc nhẹ, bỏ qua được.
+
+Ba chi tiết dễ làm sai:
+
+1. **Lấy phiên bản từ tầng native** (`@capacitor/app` → `getInfo()`), không lấy từ hằng số trong bundle JS — nếu sau này dùng cập nhật OTA thì hai con số sẽ lệch nhau.
+2. **Hỏng thì cho qua (fail-open).** Endpoint lỗi hoặc máy mất mạng → cho vào app bình thường. Làm ngược lại thì server sập đồng nghĩa toàn bộ người dùng bị khoá ngoài app.
+3. **Phải có mặt ngay ở bản đầu tiên.** Cơ chế này chỉ bảo vệ được những bản đã chứa nó. Thêm ở phiên bản 2 thì đúng những người không cập nhật — tức đối tượng cần nó nhất — lại là những người không có nó.
+
+`min_supported` lưu trong bảng cấu hình để admin sửa được, mặc định bằng phiên bản phát hành đầu tiên.
+
+### 5.3 Lưu token đăng nhập
+
+Token hiện nằm trong `localStorage` qua `persist` của Zustand. Trong WebView, dữ liệu này có thể bị hệ điều hành xoá khi máy sắp hết dung lượng → tài xế bị đăng xuất giữa ca mà không hiểu vì sao, và đó là lúc khó hỗ trợ nhất.
+
+Chuyển sang kho lưu trữ an toàn của hệ điều hành (Keychain trên iOS, Keystore/EncryptedSharedPreferences trên Android) qua plugin. Bản web giữ nguyên `localStorage` — cùng một facade, hai cách hiện thực, đúng mô hình đã dùng cho push ở mục 3.5.
+
+---
+
+## 6. Vượt cửa duyệt store
+
+### 6.1 Tài khoản demo cho reviewer — bẫy lớn nhất
 
 App đăng nhập bằng OTP qua SMS. Reviewer của Apple ở nước ngoài không nhận được tin nhắn về số Việt Nam, không vào được app, và từ chối ngay.
 
@@ -318,7 +380,7 @@ AUTH_REVIEW_OTP=<mã 6 số ngẫu nhiên, không phải 000000>
 
 Ghi cặp số/mã này vào ô ghi chú khi nộp App Store Connect và Play Console.
 
-### 5.2 Rủi ro điều 4.2 — "chỉ là website đóng gói"
+### 6.2 Rủi ro điều 4.2 — "chỉ là website đóng gói"
 
 Apple loại app chỉ mở WebView lên một trang web. Cách xử lý không phải giấu giếm, mà là dùng thật những thứ chỉ app mới làm được:
 
@@ -338,7 +400,7 @@ Danh sách phiên bản cụ thể của từng gói chốt khi triển khai, th
 
 Ngoài ra ở tầng CSS: tắt hiệu ứng nảy khi cuộn quá đà, chặn tự zoom khi focus ô nhập trên iOS, tôn trọng vùng an toàn tai thỏ và thanh gạt dưới.
 
-### 5.3 Quyền riêng tư và khai báo
+### 6.3 Quyền riêng tư và khai báo
 
 - **Nhãn App Privacy** (Apple) và **form Data Safety** (Google): khai số điện thoại, vị trí (chỉ khi dùng, để điền điểm đón), dữ liệu chuyến đi, dữ liệu sử dụng.
 - Link tới trang `privacy` và `terms` — **đã có sẵn** trong CMS tĩnh.
@@ -346,13 +408,13 @@ Ngoài ra ở tầng CSS: tắt hiệu ứng nảy khi cuộn quá đà, chặn 
 - `Info.plist` phải có câu giải thích **bằng tiếng Việt** cho từng quyền. Ví dụ quyền vị trí: "GreenCA dùng vị trí của bạn để tự động điền điểm đón." Để trống là bị loại.
 - `AndroidManifest.xml`: `INTERNET`, `POST_NOTIFICATIONS` (Android 13+), `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION`.
 
-### 5.4 Nạp ví tài xế và quy định thanh toán
+### 6.4 Nạp ví tài xế và quy định thanh toán
 
 Apple bắt buộc dùng In-App Purchase (chiết khấu 15-30%) cho hàng hoá số, nhưng **miễn trừ cho dịch vụ đời thực**. Điểm ví tài xế là phí hoa hồng cho dịch vụ vận tải thật, thuộc diện miễn trừ — giống Grab/Be. Rủi ro thấp nhưng không bằng không.
 
 **Quyết định:** giữ chức năng nạp ví trong app. **Phương án dự phòng** nếu Apple chất vấn: chuyển việc nạp tiền sang web, app tài xế chỉ hiển thị số dư và một liên kết mở trình duyệt.
 
-### 5.5 Tài khoản nhà phát triển — đường găng của dự án
+### 6.5 Tài khoản nhà phát triển — đường găng của dự án
 
 Hiện **chưa có tài khoản nào**. Đây là việc mất thời gian chờ nhất, phải khởi động ngay ngày đầu:
 
@@ -361,9 +423,9 @@ Hiện **chưa có tài khoản nào**. Đây là việc mất thời gian chờ
 
 ---
 
-## 6. Build và phát hành
+## 7. Build và phát hành
 
-### 6.1 Điều kiện môi trường
+### 7.1 Điều kiện môi trường
 
 Máy phát triển hiện tại **chưa đủ**:
 
@@ -374,7 +436,7 @@ Máy phát triển hiện tại **chưa đủ**:
 | Android Studio | chưa cài | cài, kèm Android SDK |
 | Thiết bị thật | — | tối thiểu 1 iPhone + 1 máy Android (push iOS không chạy trên giả lập) |
 
-### 6.2 Quy trình
+### 7.2 Quy trình
 
 Ba nhịp: build web → đồng bộ sang vỏ native → mở IDE ký và nộp. Hai nhịp đầu gói vào Makefile:
 
@@ -393,13 +455,13 @@ Nhịp thứ ba thủ công qua Xcode và Android Studio — đó là chỗ ký 
 
 **Live reload khi phát triển:** đặt tạm `server.url` trong `capacitor.config.ts` trỏ về Vite dev server trên máy để không phải build lại mỗi lần sửa. Phải nhớ gỡ trước khi build phát hành — ghi rõ trong `docs/MOBILE.md` và thêm bước kiểm trong danh sách kiểm phát hành.
 
-### 6.3 Khoá ký — thứ không được mất
+### 7.3 Khoá ký — thứ không được mất
 
 Mất keystore Android là **vĩnh viễn** không cập nhật được app đã phát hành: phải đăng app mới và bỏ toàn bộ người dùng cũ. Ngay khi tạo: cất vào nơi lưu trữ bí mật của công ty, và bật **Play App Signing** để Google giữ bản sao dự phòng. Chứng chỉ iOS quản lý qua tài khoản Apple Developer, mất thì tạo lại được.
 
 ---
 
-## 7. Kiểm thử
+## 8. Kiểm thử
 
 **Playwright hiện có** — giữ nguyên, chạy trên bản web. Vỏ native không đổi hành vi web nên bộ e2e này vẫn là lưới an toàn cho phần logic. Cần bổ sung một kiểm tra hồi quy: `VITE_API_BASE_URL` để trống thì URL sinh ra vẫn đúng như cũ.
 
@@ -425,19 +487,22 @@ Mất keystore Android là **vĩnh viễn** không cập nhật được app đ�
 - Mất mạng giữa chừng rồi có lại.
 - Vùng an toàn trên máy có tai thỏ và máy có thanh gạt dưới.
 - Xoá tài khoản: cả trường hợp bị chặn lẫn trường hợp thành công.
+- **Nhận cuốc sau khi để máy nằm im vài giờ** — bài kiểm quan trọng nhất, chỉ có ý nghĩa trên máy thật (xem mục 3.7). Chạy trên ít nhất một máy Samsung và một máy Xiaomi.
+- Buộc cập nhật: đặt `min_supported` cao hơn phiên bản đang cài → app phải chặn; tắt mạng → app phải cho vào bình thường (fail-open).
+- Token còn sau khi tắt app hoàn toàn và khởi động lại máy.
 
 ---
 
-## 8. Lộ trình
+## 9. Lộ trình
 
 Đường găng là thủ tục tài khoản, không phải lập trình. Hai luồng chạy song song.
 
 | | Việc |
 |---|---|
 | **Luồng hành chính** (bắt đầu ngày đầu tiên) | Xin mã D-U-N-S → đăng ký Apple Developer; đăng ký Google Play **dạng tổ chức**; tạo dự án Firebase và 4 app; cài Node 22, Xcode, Android Studio |
-| **Tuần 1 — Backend** | Migration `device_tokens`; gộp `PushChannel` + hai transport; `FcmTransport`; CORS; endpoint xoá tài khoản; cấu hình tài khoản reviewer; trang tĩnh `xoa-tai-khoan`; test Pest |
-| **Tuần 2 — Frontend web** | `platform.ts`; tách `src/push/`; `route.ts` dùng chung với `sw.ts`; `VITE_API_BASE_URL` cho axios và SSE; ẩn UI web-only; giao diện xoá tài khoản |
-| **Tuần 3 — Vỏ native** | Khởi tạo hai project Capacitor; icon/splash; cài và cấu hình plugin; `google-services.json` / `GoogleService-Info.plist`; chuỗi quyền tiếng Việt; các chạm native mục 5.2; Makefile và script đồng bộ phiên bản |
+| **Tuần 1 — Backend** | Migration `device_tokens`; gộp `PushChannel` + hai transport; `FcmTransport`; `SANCTUM_STATEFUL_DOMAINS` tường minh; endpoint xoá tài khoản; endpoint `/api/app/version`; cấu hình tài khoản reviewer; trang tĩnh `xoa-tai-khoan`; test Pest |
+| **Tuần 2 — Frontend web** | `platform.ts`; tách `src/push/`; `route.ts` dùng chung với `sw.ts`; `VITE_API_BASE_URL` cho axios và SSE **(đã xong ở POC)**; ẩn UI web-only; giao diện xoá tài khoản; màn chặn buộc cập nhật; facade lưu token |
+| **Tuần 3 — Vỏ native** | Khởi tạo hai project Capacitor **(app khách hàng đã xong ở POC)**; icon/splash; cài và cấu hình plugin; `google-services.json` / `GoogleService-Info.plist`; chuỗi quyền tiếng Việt; các chạm native mục 6.2; màn hướng dẫn tối ưu pin cho app tài xế (mục 3.7); Makefile và script đồng bộ phiên bản |
 | **Tuần 4 — Kiểm thử và nộp** | Kiểm thử thiết bị thật; ảnh chụp màn hình và mô tả cho store; khai Data Safety và App Privacy; nộp |
 
 Sau khi nộp: Apple thường duyệt 1-3 ngày mỗi vòng, dự trù 2-3 vòng cho lần đầu. Google thường trong 24 giờ.
@@ -446,17 +511,21 @@ Sau khi nộp: Apple thường duyệt 1-3 ngày mỗi vòng, dự trù 2-3 vòn
 
 ---
 
-## 9. Rủi ro
+## 10. Rủi ro
 
 | Rủi ro | Mức | Xử lý |
 |---|---|---|
 | Không có tài khoản Apple kịp tiến độ | Cao | Khởi động thủ tục ngày đầu; nếu chậm thì phát hành Android trước, iOS sau |
-| Apple từ chối theo điều 4.2 | Trung bình | Đã chuẩn bị danh sách tính năng native mục 5.2; nếu vẫn bị, bổ sung Universal Links và widget theo dõi chuyến rồi nộp lại — không đổi công nghệ |
-| Reviewer không đăng nhập được vì OTP | Cao nếu quên | Tài khoản reviewer mục 5.1 là hạng mục bắt buộc trong danh sách kiểm trước khi nộp |
+| Apple từ chối theo điều 4.2 | Trung bình | Đã chuẩn bị danh sách tính năng native mục 6.2; nếu vẫn bị, bổ sung Universal Links và widget theo dõi chuyến rồi nộp lại — không đổi công nghệ |
+| Reviewer không đăng nhập được vì OTP | Cao nếu quên | Tài khoản reviewer mục 6.1 là hạng mục bắt buộc trong danh sách kiểm trước khi nộp |
 | Đường bỏ qua OTP dành cho reviewer bị lạm dụng | Trung bình | Chỉ chấp nhận khi số điện thoại khớp chính xác `AUTH_REVIEW_PHONE`; không khai biến thì tính năng tắt hoàn toàn. Không dùng mã dễ đoán như `000000`. Có test Pest chặn trường hợp số khác dùng được mã reviewer |
 | Mất keystore Android | Rất cao nếu xảy ra | Bật Play App Signing; cất khoá vào kho bí mật công ty ngay khi tạo |
 | Push trùng (vừa web vừa native trên cùng thiết bị) | Thấp | Chấp nhận. Người dùng gỡ PWA sau khi cài app là hết. Không đáng dựng cơ chế khử trùng |
 | Bản đồ Goong giật trong WebView | Trung bình | Giảm số marker, tắt hiệu ứng thừa. Nếu vẫn nặng thì cân nhắc plugin bản đồ native ở phase sau |
 | Cấu hình `server.url` live-reload lọt vào bản phát hành | Trung bình | Bước kiểm bắt buộc trong danh sách kiểm phát hành |
+| **Hãng máy Android giết app nền → tài xế mất thông báo cuốc** | **Cao** | Emulator không tái hiện được. Màn hướng dẫn tối ưu pin (mục 3.7) + bắt buộc nghiệm thu trên máy Samsung và Xiaomi thật |
+| Đổi API phá vỡ tương thích với bản app cũ đang chạy | Cao, tích luỹ theo thời gian | Chỉ thêm trường, không bỏ/đổi trường (mục 5.1). Khi buộc phải phá vỡ thì nâng `min_supported` trước, đợi người dùng cập nhật |
+| Quên đưa cơ chế buộc cập nhật vào bản đầu tiên | Cao, không sửa được về sau | Đưa vào danh sách kiểm bắt buộc trước khi nộp. Bản 1 không có nó thì vĩnh viễn không tiếp cận được nhóm người dùng không cập nhật |
+| Token bị hệ điều hành xoá → tài xế đăng xuất giữa ca | Trung bình | Chuyển sang Keychain/Keystore (mục 5.3) thay vì `localStorage` |
 
 **Đường lui tổng thể:** dự án này **cộng thêm** chứ không thay thế. PWA chạy nguyên vẹn suốt quá trình. Nếu store từ chối hoặc dự án dừng giữa chừng, không có gì đổ vỡ — người dùng vẫn dùng web như cũ, và các thay đổi backend đều có giá trị độc lập.
