@@ -1,4 +1,5 @@
 <?php
+
 // backend/tests/Feature/AvailableTripsListTest.php
 
 namespace Tests\Feature;
@@ -33,13 +34,13 @@ class AvailableTripsListTest extends TestCase
     {
         $driver = User::factory()->create(['role' => 'driver']);
         $driver->driverProfile()->create([
-            'vehicle_make'  => 'Toyota',
+            'vehicle_make' => 'Toyota',
             'vehicle_model' => 'Camry',
             'vehicle_plate' => '51G-'.random_int(10000, 99999),
-            'vehicle_year'  => 2020,
+            'vehicle_year' => 2020,
             'vehicle_color' => 'Trắng',
-            'vehicle_type'  => $vehicleType,
-            'status'        => 'active',
+            'vehicle_type' => $vehicleType,
+            'status' => 'active',
         ]);
 
         return $driver;
@@ -48,17 +49,17 @@ class AvailableTripsListTest extends TestCase
     private function makeWaitingBooking(?string $vehicleType): Booking
     {
         return Booking::create([
-            'customer_id'  => User::factory()->create(['role' => 'customer'])->id,
-            'pickup'       => 'Hà Nội',
-            'destination'  => 'Sân bay Nội Bài',
-            'date'         => now()->addDay()->format('Y-m-d'),
-            'time'         => '08:00',
+            'customer_id' => User::factory()->create(['role' => 'customer'])->id,
+            'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài',
+            'date' => now()->addDay()->format('Y-m-d'),
+            'time' => '08:00',
             'vehicle_type' => $vehicleType,
-            'distance_km'  => 30,
-            'price'        => 500_000,
-            'discount'     => 0,
-            'surcharge'    => 0,
-            'status'       => 'finding_driver',
+            'distance_km' => 30,
+            'price' => 500_000,
+            'discount' => 0,
+            'surcharge' => 0,
+            'status' => 'finding_driver',
         ]);
     }
 
@@ -140,7 +141,7 @@ class AvailableTripsListTest extends TestCase
     public function test_new_booking_shows_up_immediately_despite_cache(): void
     {
         Notification::fake();
-        $driver   = $this->makeDriver('sedan_4');
+        $driver = $this->makeDriver('sedan_4');
         $customer = User::factory()->create(['role' => 'customer']);
 
         // Nạp cache với danh sách rỗng
@@ -149,13 +150,13 @@ class AvailableTripsListTest extends TestCase
 
         // Khách đặt cuốc — store() phải flush cache
         $this->actingAs($customer, 'sanctum')->postJson('/api/bookings', [
-            'pickup'       => 'Hà Nội',
-            'destination'  => 'Sân bay Nội Bài',
-            'date'         => now()->addDay()->format('Y-m-d'),
-            'time'         => '08:00',
+            'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài',
+            'date' => now()->addDay()->format('Y-m-d'),
+            'time' => '08:00',
             'vehicle_type' => 'sedan_4',
-            'distance_km'  => 30,
-            'price'        => 500_000,
+            'distance_km' => 30,
+            'price' => 500_000,
         ])->assertSuccessful();
 
         // Không chờ TTL: tài xế phải thấy ngay, nếu không thì nhận được thông

@@ -1,0 +1,23 @@
+[Unit]
+Description=GreenCA Reverb — WebSocket server (realtime)
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/green-car-airport/backend
+
+# Bind 127.0.0.1 chứ KHÔNG 0.0.0.0: nginx đứng trước proxy WSS qua 443, nên
+# không cần và không nên phơi cổng 8081 ra ngoài (ufw chỉ mở 22/80/443, nhưng
+# đây là lớp phòng thủ thứ hai nếu firewall bị nới).
+ExecStart=/usr/bin/php artisan reverb:start --host=127.0.0.1 --port=8081
+
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/greenca-reverb.log
+StandardError=append:/var/log/greenca-reverb.log
+
+[Install]
+WantedBy=multi-user.target

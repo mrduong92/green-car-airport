@@ -129,6 +129,56 @@ redis-cli client list | grep -c cmd=subscribe                          # số st
 Còn giới hạn: trần mới là 30 client realtime đồng thời. Vượt ngưỡng sẽ tắc lại,
 khác là chỉ SSE chết còn API vẫn sống. Hết hẳn thì phải đưa SSE ra khỏi PHP-FPM.
 
+### ⚠️ Reverb — WebSocket server, BẮT BUỘC chạy
+
+Realtime đã chuyển từ SSE sang Reverb. Không chạy tiến trình này thì app vẫn hoạt
+động bình thường nhưng **không có cập nhật realtime nào** — tài xế không thấy cuốc
+mới xuất hiện, khách không thấy trạng thái đổi cho tới khi tự refresh.
+
+| Thành phần | Nơi cấu hình |
+|---|---|
+| Service | `deploy/systemd/greenca-reverb.service` → `/etc/systemd/system/` |
+| Proxy WSS | `location /app/` trong `deploy/nginx/greenca-common.conf` |
+| Log | `/var/log/greenca-reverb.log` |
+
+```bash
+cp deploy/systemd/greenca-reverb.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now greenca-reverb
+systemctl status greenca-reverb
+```
+
+#### ⚠️ Bẫy: `REVERB_HOST` ở backend và frontend là HAI giá trị KHÁC nhau
+
+Cùng tên biến nhưng hai vai trò ngược nhau — đặt nhầm thì broadcast đi vào hư
+không mà **không có lỗi nào** (đã dính đúng lỗi này lúc dựng ở môi trường dev).
+
+| | Giá trị production | Vai trò |
+|---|---|---|
+| `backend/.env` → `REVERB_HOST` | `127.0.0.1`, port `8081`, scheme `http` | Nơi **backend gửi** sự kiện tới Reverb |
+| build frontend → `VITE_REVERB_HOST` | `greenca.vn`, port `443`, scheme `https` | Nơi **trình duyệt kết nối** tới (qua nginx) |
+
+`REVERB_APP_KEY` / `SECRET` / `APP_ID` phải sinh riêng cho production, không dùng
+lại của dev. `VITE_REVERB_APP_KEY` phải khớp `REVERB_APP_KEY`.
+
+#### Sau mỗi lần deploy
+
+```bash
+systemctl restart greenca-reverb    # tiến trình giữ code CŨ trong bộ nhớ, giống queue worker
+```
+
+#### Kiểm tra
+
+```bash
+systemctl is-active greenca-reverb
+ss -tlnp | grep 8081                                    # phải nghe ở 127.0.0.1
+curl -s -o /dev/null -w '%{http_code}\n' https://greenca.vn/app/test   # KHÔNG được 502
+tail -f /var/log/greenca-reverb.log
+```
+
+Hai endpoint SSE cũ (`/api/driver/stream`, `/api/customer/stream`) **vẫn còn** để
+app đã cài trên máy người dùng không chết trong lúc chuyển đổi. Gỡ chúng cùng pool
+FPM `sse` sau khi toàn bộ client đã cập nhật.
+
 ### Tuning server (2026-08-08)
 
 Server dựng xong để nguyên mặc định distro. Đã tune, config versioned trong repo:

@@ -95,6 +95,8 @@ docker compose exec app php artisan test --filter=ExampleTest
 
 Login không còn role-picker: mỗi app hardcode `role` khi gọi `checkPhone`/`login` (hook `useAuthLogin(role)`). Production: `greenca.vn` = customer, `driver.greenca.vn` = driver, `admin.greenca.vn` = admin (xem `deploy/nginx/`).
 
+**Realtime:** Laravel Reverb (WebSocket), KHÔNG còn SSE. Backend phát `App\Events\DriverTripsUpdated` (kênh private `driver.trips`) và `CustomerBookingUpdated` (kênh private `customer.{id}`); frontend nghe qua `src/echo.ts` + 2 hook `useDriverStream`/`useCustomerStream`. Phân quyền kênh ở `routes/channels.php`, endpoint auth là `/api/broadcasting/auth` (Sanctum Bearer, không phải route `/broadcasting/auth` mặc định dùng session). Chạy bằng service riêng — không chạy thì mất sạch realtime mà không có lỗi nào.
+
 **Tên thương hiệu:** `GreenCA`, khai báo duy nhất ở `frontend/src/brand.ts` (`BRAND`) — `vite.config.ts` cũng import từ đó để derive title/manifest, `index.html` dùng placeholder `__APP_TITLE__` / `__APP_SHORT_NAME__`. Đừng hardcode tên app ở chỗ khác. Logo mark = `components/common/BrandGlyph.tsx` (monogram chữ G), bản có nền gradient nằm ở `public/favicon.svg` + `public/icons/*.png`.
 
 **Forms:** React Hook Form + Zod validation. See `BookingFormPage` and `VouchersPage` for patterns.

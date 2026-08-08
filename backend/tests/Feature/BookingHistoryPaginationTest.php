@@ -1,4 +1,5 @@
 <?php
+
 // backend/tests/Feature/BookingHistoryPaginationTest.php
 
 namespace Tests\Feature;
@@ -18,17 +19,17 @@ class BookingHistoryPaginationTest extends TestCase
     {
         for ($i = 0; $i < $count; $i++) {
             Booking::create([
-                'customer_id'  => $customer->id,
-                'pickup'       => "Điểm đón $i",
-                'destination'  => 'Sân bay Nội Bài',
-                'date'         => now()->subDays($i)->format('Y-m-d'),
-                'time'         => '08:00',
+                'customer_id' => $customer->id,
+                'pickup' => "Điểm đón $i",
+                'destination' => 'Sân bay Nội Bài',
+                'date' => now()->subDays($i)->format('Y-m-d'),
+                'time' => '08:00',
                 'vehicle_type' => 'sedan_4',
-                'distance_km'  => 30,
-                'price'        => 500_000,
-                'discount'     => 0,
-                'surcharge'    => 0,
-                'status'       => $status,
+                'distance_km' => 30,
+                'price' => 500_000,
+                'discount' => 0,
+                'surcharge' => 0,
+                'status' => $status,
             ]);
         }
     }
@@ -49,7 +50,7 @@ class BookingHistoryPaginationTest extends TestCase
         $customer = User::factory()->create(['role' => 'customer']);
         $this->seedBookings($customer, 25);
 
-        $first  = $this->actingAs($customer, 'sanctum')->getJson('/api/bookings')->assertOk();
+        $first = $this->actingAs($customer, 'sanctum')->getJson('/api/bookings')->assertOk();
         $cursor = $first->json('next_cursor');
 
         $second = $this->actingAs($customer, 'sanctum')
@@ -86,7 +87,7 @@ class BookingHistoryPaginationTest extends TestCase
 
     public function test_only_returns_own_bookings(): void
     {
-        $me      = User::factory()->create(['role' => 'customer']);
+        $me = User::factory()->create(['role' => 'customer']);
         $someone = User::factory()->create(['role' => 'customer']);
         $this->seedBookings($me, 3);
         $this->seedBookings($someone, 4);

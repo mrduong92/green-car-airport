@@ -1,4 +1,5 @@
 <?php
+
 // backend/tests/Feature/CustomerStatsTest.php
 
 namespace Tests\Feature;
@@ -15,25 +16,25 @@ class CustomerStatsTest extends TestCase
     private function makeBooking(User $customer, string $status, string $date, array $money = []): Booking
     {
         return Booking::create(array_merge([
-            'customer_id'    => $customer->id,
-            'pickup'         => 'Hà Nội',
-            'destination'    => 'Sân bay Nội Bài',
-            'date'           => $date,
-            'time'           => '08:00',
-            'vehicle_type'   => 'sedan_4',
-            'distance_km'    => 30,
-            'price'          => 500_000,
-            'discount'       => 0,
-            'surcharge'      => 0,
+            'customer_id' => $customer->id,
+            'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài',
+            'date' => $date,
+            'time' => '08:00',
+            'vehicle_type' => 'sedan_4',
+            'distance_km' => 30,
+            'price' => 500_000,
+            'discount' => 0,
+            'surcharge' => 0,
             'collection_fee' => 0,
-            'status'         => $status,
+            'status' => $status,
         ], $money));
     }
 
     public function test_totals_use_final_price_formula(): void
     {
         $customer = User::factory()->create(['role' => 'customer']);
-        $today    = now()->format('Y-m-d');
+        $today = now()->format('Y-m-d');
 
         // final_price = price - discount + surcharge + collection_fee
         $this->makeBooking($customer, 'completed', $today, [
@@ -55,9 +56,9 @@ class CustomerStatsTest extends TestCase
 
     public function test_only_counts_own_bookings(): void
     {
-        $me      = User::factory()->create(['role' => 'customer']);
+        $me = User::factory()->create(['role' => 'customer']);
         $someone = User::factory()->create(['role' => 'customer']);
-        $today   = now()->format('Y-m-d');
+        $today = now()->format('Y-m-d');
 
         $this->makeBooking($me, 'completed', $today);
         $this->makeBooking($someone, 'completed', $today);

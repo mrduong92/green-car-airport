@@ -31,13 +31,13 @@ class StatsController extends Controller
 
         $period = $request->query('period', 'month');
         $userId = $request->user()->id;
-        $today  = Carbon::today();
+        $today = Carbon::today();
 
         // Cửa sổ cho biểu đồ. Luôn có giới hạn — kể cả 'all' — để số dòng phải
         // gom nhóm bị chặn, không phụ thuộc khách đã đi bao nhiêu chuyến.
         [$chartFrom, $bucket] = match ($period) {
-            'week'  => [$today->copy()->subDays(6),      'day'],
-            'all'   => [$today->copy()->subMonths(5)->startOfMonth(), 'month'],
+            'week' => [$today->copy()->subDays(6),      'day'],
+            'all' => [$today->copy()->subMonths(5)->startOfMonth(), 'month'],
             default => [$today->copy()->startOfMonth(),  'day'],
         };
 
@@ -52,8 +52,8 @@ class StatsController extends Controller
 
         $completedCount = (clone $scope())->where('status', 'completed')->count();
         $cancelledCount = (clone $scope())->where('status', 'cancelled')->count();
-        $totalSpent     = (int) (clone $scope())->where('status', 'completed')->sum(DB::raw($finalPrice));
-        $totalSaved     = (int) (clone $scope())->sum('discount');
+        $totalSpent = (int) (clone $scope())->where('status', 'completed')->sum(DB::raw($finalPrice));
+        $totalSaved = (int) (clone $scope())->sum('discount');
 
         // Gom nhóm theo cột `date` — portable cả MySQL lẫn SQLite. Việc dồn ngày
         // thành tháng cho biểu đồ 'all' làm ở PHP trên tối đa ~180 dòng đã gom.
@@ -64,12 +64,12 @@ class StatsController extends Controller
             ->pluck(DB::raw('SUM('.$finalPrice.')'), 'date');
 
         return response()->json([
-            'period'      => $period,
-            'completed'   => $completedCount,
-            'cancelled'   => $cancelledCount,
+            'period' => $period,
+            'completed' => $completedCount,
+            'cancelled' => $cancelledCount,
             'total_spent' => $totalSpent,
             'total_saved' => $totalSaved,
-            'points'      => $this->buildPoints($rows, $chartFrom, $today, $bucket),
+            'points' => $this->buildPoints($rows, $chartFrom, $today, $bucket),
         ]);
     }
 
@@ -92,11 +92,11 @@ class StatsController extends Controller
 
         while ($cursor->lessThanOrEqualTo($today)) {
             if ($bucket === 'month') {
-                $key   = $cursor->format('Y-m');
+                $key = $cursor->format('Y-m');
                 $label = $cursor->format('m/y');
                 $cursor->addMonth();
             } else {
-                $key   = $cursor->format('Y-m-d');
+                $key = $cursor->format('Y-m-d');
                 $label = $cursor->format('d/m');
                 $cursor->addDay();
             }

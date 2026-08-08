@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Driver;
 
+use App\Events\CustomerBookingUpdated;
+use App\Events\DriverTripsUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\BookingAcceptedNotification;
 use App\Notifications\BookingCompletedCustomerNotification;
@@ -16,7 +19,6 @@ use App\Support\AvailableTripsCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redis;
 
 class TripController extends Controller
 {
@@ -122,8 +124,8 @@ class TripController extends Controller
         // Check số dư TRƯỚC khi cập nhật booking — cột points là UNSIGNED, trừ âm sẽ
         // crash SQL và để lại booking đã accepted nhưng chưa trừ phí.
         $totalCollected = $booking->price - $booking->discount;
-        $feePoints      = (int) round($totalCollected * 0.20 / 1000);
-        $wallet    = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
+        $feePoints = (int) round($totalCollected * 0.20 / 1000);
+        $wallet = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
 
         if ($wallet->points < $feePoints) {
             return response()->json([
@@ -132,33 +134,27 @@ class TripController extends Controller
         }
 
         $booking->update([
-            'driver_id'   => $request->user()->id,
-            'status'      => 'accepted',
+            'driver_id' => $request->user()->id,
+            'status' => 'accepted',
             'accepted_at' => now(),
         ]);
 
         $wallet->decrement('points', $feePoints);
         WalletTransaction::create([
-            'wallet_id'   => $wallet->id,
-            'booking_id'  => $booking->id,
-            'type'        => 'debit',
+            'wallet_id' => $wallet->id,
+            'booking_id' => $booking->id,
+            'type' => 'debit',
             'description' => "Phí app 20% cuốc #{$booking->id}",
-            'points'      => $feePoints,
+            'points' => $feePoints,
         ]);
 
         // Cuốc rời khỏi sàn — vô hiệu hoá cache danh sách, nếu không tài xế khác
         // vẫn thấy cuốc này trong danh sách và bấm nhận rồi mới ăn lỗi 422.
         AvailableTripsCache::flush();
 
-        Redis::publish('driver.trips.events', json_encode([
-            'type'       => 'trip_taken',
-            'booking_id' => $booking->id,
-        ]));
+        DriverTripsUpdated::dispatch('trip_taken', $booking->id);
 
-        Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
-            'type'       => 'booking_accepted',
-            'booking_id' => $booking->id,
-        ]));
+        CustomerBookingUpdated::dispatch($booking->customer_id, 'booking_accepted', $booking->id);
 
         // K2 — notify customer that a driver accepted
         $booking->customer?->notify(new BookingAcceptedNotification($booking, $request->user()));
@@ -178,7 +174,7 @@ class TripController extends Controller
 
         // accepted → in_progress → completed
         $transitions = [
-            'accepted'    => 'in_progress',
+            'accepted' => 'in_progress',
             'in_progress' => 'completed',
         ];
 
@@ -191,10 +187,7 @@ class TripController extends Controller
         $booking->update(['status' => $newStatus]);
 
         if ($newStatus === 'in_progress') {
-            Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
-                'type'       => 'trip_started',
-                'booking_id' => $booking->id,
-            ]));
+            CustomerBookingUpdated::dispatch($booking->customer_id, 'trip_started', $booking->id);
             // K3 — notify customer trip has started
             $booking->customer?->notify(new TripStartedNotification($booking));
         }
@@ -209,15 +202,15 @@ class TripController extends Controller
                 // Deduct surcharge from driver wallet — surcharge goes to company
                 if ($booking->surcharge > 0) {
                     $surchargePoints = (int) round($booking->surcharge / 1000);
-                    $driverWallet    = $request->user()->wallet()->first();
+                    $driverWallet = $request->user()->wallet()->first();
                     if ($driverWallet && $surchargePoints > 0) {
                         $driverWallet->decrement('points', $surchargePoints);
                         WalletTransaction::create([
-                            'wallet_id'   => $driverWallet->id,
-                            'booking_id'  => $booking->id,
-                            'type'        => 'debit',
+                            'wallet_id' => $driverWallet->id,
+                            'booking_id' => $booking->id,
+                            'type' => 'debit',
                             'description' => "Phí phạt huỷ khách cuốc #{$booking->id}",
-                            'points'      => $surchargePoints,
+                            'points' => $surchargePoints,
                         ]);
                     }
                 }
@@ -225,33 +218,33 @@ class TripController extends Controller
                 // Debit driver full thu hộ, credit 80% to collaborator (company retains 20% gap)
                 if ($booking->collection_fee > 0 && $booking->collaborator_id) {
                     $collectionPoints = (int) round($booking->collection_fee / 1000);
-                    $collabPoints     = (int) floor($booking->collection_fee * 0.80 / 1000);
+                    $collabPoints = (int) floor($booking->collection_fee * 0.80 / 1000);
 
                     // Debit driver: full thu hộ collected in cash from customer
                     $driverWallet = $request->user()->wallet()->first();
                     if ($driverWallet && $collectionPoints > 0) {
                         $driverWallet->decrement('points', $collectionPoints);
                         WalletTransaction::create([
-                            'wallet_id'   => $driverWallet->id,
-                            'booking_id'  => $booking->id,
-                            'type'        => 'debit',
+                            'wallet_id' => $driverWallet->id,
+                            'booking_id' => $booking->id,
+                            'type' => 'debit',
                             'description' => "Thu hộ cuốc #{$booking->id}",
-                            'points'      => $collectionPoints,
+                            'points' => $collectionPoints,
                         ]);
                     }
 
                     // Credit collaborator 80%
-                    $collabWallet = \App\Models\Wallet::firstOrCreate(
+                    $collabWallet = Wallet::firstOrCreate(
                         ['user_id' => $booking->collaborator_id],
-                        ['points'  => 0]
+                        ['points' => 0]
                     );
                     $collabWallet->increment('points', $collabPoints);
                     WalletTransaction::create([
-                        'wallet_id'   => $collabWallet->id,
-                        'booking_id'  => $booking->id,
-                        'type'        => 'credit',
+                        'wallet_id' => $collabWallet->id,
+                        'booking_id' => $booking->id,
+                        'type' => 'credit',
                         'description' => "Thu hộ cuốc #{$booking->id}",
-                        'points'      => $collabPoints,
+                        'points' => $collabPoints,
                     ]);
                 }
             });
@@ -260,10 +253,7 @@ class TripController extends Controller
                 $request->user()->fresh(['driverProfile', 'referredBy'])
             );
 
-            Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
-                'type'       => 'trip_completed',
-                'booking_id' => $booking->id,
-            ]));
+            CustomerBookingUpdated::dispatch($booking->customer_id, 'trip_completed', $booking->id);
 
             // K4 — notify customer trip completed
             $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
@@ -292,18 +282,15 @@ class TripController extends Controller
 
         // Phí app 20% đã trừ khi nhận — không hoàn, booking trở lại hàng đợi
         $booking->update([
-            'driver_id'   => null,
-            'status'      => 'finding_driver',
+            'driver_id' => null,
+            'status' => 'finding_driver',
             'accepted_at' => null,
         ]);
 
         // Cuốc QUAY LẠI sàn — không flush thì tài xế khác không thấy nó xuất hiện lại.
         AvailableTripsCache::flush();
 
-        Redis::publish('customer.' . $booking->customer_id . '.events', json_encode([
-            'type'       => 'booking_cancelled_by_driver',
-            'booking_id' => $booking->id,
-        ]));
+        CustomerBookingUpdated::dispatch($booking->customer_id, 'booking_cancelled_by_driver', $booking->id);
 
         // K5 — notify customer that driver cancelled, searching for new driver
         $booking->customer?->notify(new DriverCancelledNotification($booking));
@@ -337,8 +324,8 @@ class TripController extends Controller
 
     private const VEHICLE_CAPACITY_RANK = [
         'sedan_4' => 4,
-        'suv_5'   => 5,
-        'mpv_7'   => 7,
+        'suv_5' => 5,
+        'mpv_7' => 7,
     ];
 
     /**
@@ -368,7 +355,7 @@ class TripController extends Controller
         }
 
         $bookingRank = self::VEHICLE_CAPACITY_RANK[$bookingType] ?? 0;
-        $driverRank  = self::VEHICLE_CAPACITY_RANK[$driverType];
+        $driverRank = self::VEHICLE_CAPACITY_RANK[$driverType];
 
         return $bookingRank <= $driverRank;
     }
@@ -376,17 +363,17 @@ class TripController extends Controller
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
         $totalCollected = $b->price - $b->discount + ($b->collection_fee ?? 0);
-        $appFee         = (int) round($totalCollected * 0.20);
-        $netEarning     = $totalCollected - $appFee - ($b->collection_fee ?? 0);
-        $phone       = $b->customer?->phone ?? '';
+        $appFee = (int) round($totalCollected * 0.20);
+        $netEarning = $totalCollected - $appFee - ($b->collection_fee ?? 0);
+        $phone = $b->customer?->phone ?? '';
         $durationMin = (int) round((float) $b->distance_km / 30 * 60);
 
         $statusMap = [
             'finding_driver' => 'available',
-            'accepted'       => 'accepted',
-            'picking_up'     => 'picking_up',
-            'in_progress'    => 'in_progress',
-            'completed'      => 'completed',
+            'accepted' => 'accepted',
+            'picking_up' => 'picking_up',
+            'in_progress' => 'in_progress',
+            'completed' => 'completed',
         ];
 
         $distanceToDriver = null;
@@ -400,33 +387,33 @@ class TripController extends Controller
         }
 
         return [
-            'id'                    => $b->id,
-            'booking_id'            => $b->id,
-            'pickup'                => $b->pickup,
-            'pickup_lat'            => $b->pickup_lat ? (float) $b->pickup_lat : null,
-            'pickup_lng'            => $b->pickup_lng ? (float) $b->pickup_lng : null,
-            'destination'           => $b->destination,
-            'destination_lat'       => $b->destination_lat ? (float) $b->destination_lat : null,
-            'destination_lng'       => $b->destination_lng ? (float) $b->destination_lng : null,
-            'date'                  => $b->date,
-            'time'                  => $b->time,
-            'distance_km'           => (float) $b->distance_km,
-            'duration_min'          => $durationMin,
-            'price'                 => $b->price,
-            'discount'              => $b->discount,
-            'surcharge'             => $b->surcharge,
-            'collection_fee'        => (int) ($b->collection_fee ?? 0),
-            'final_price'           => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
-            'app_fee'               => $appFee,
-            'net_earning'           => $netEarning,
-            'status'                => $statusMap[$b->status] ?? $b->status,
-            'is_new'                => $b->created_at?->gt(now()->subMinutes(30)) ?? false,
-            'customer_name'         => $b->customer?->name,
-            'customer_phone'        => $phone,
-            'customer_phone_masked' => $phone ? substr($phone, 0, -3) . '***' : '',
-            'customer_note'         => $b->note,
-            'created_at'            => $b->created_at?->toISOString(),
-            'distance_to_driver'    => $distanceToDriver,
+            'id' => $b->id,
+            'booking_id' => $b->id,
+            'pickup' => $b->pickup,
+            'pickup_lat' => $b->pickup_lat ? (float) $b->pickup_lat : null,
+            'pickup_lng' => $b->pickup_lng ? (float) $b->pickup_lng : null,
+            'destination' => $b->destination,
+            'destination_lat' => $b->destination_lat ? (float) $b->destination_lat : null,
+            'destination_lng' => $b->destination_lng ? (float) $b->destination_lng : null,
+            'date' => $b->date,
+            'time' => $b->time,
+            'distance_km' => (float) $b->distance_km,
+            'duration_min' => $durationMin,
+            'price' => $b->price,
+            'discount' => $b->discount,
+            'surcharge' => $b->surcharge,
+            'collection_fee' => (int) ($b->collection_fee ?? 0),
+            'final_price' => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
+            'app_fee' => $appFee,
+            'net_earning' => $netEarning,
+            'status' => $statusMap[$b->status] ?? $b->status,
+            'is_new' => $b->created_at?->gt(now()->subMinutes(30)) ?? false,
+            'customer_name' => $b->customer?->name,
+            'customer_phone' => $phone,
+            'customer_phone_masked' => $phone ? substr($phone, 0, -3).'***' : '',
+            'customer_note' => $b->note,
+            'created_at' => $b->created_at?->toISOString(),
+            'distance_to_driver' => $distanceToDriver,
         ];
     }
 
@@ -436,10 +423,10 @@ class TripController extends Controller
             return PHP_FLOAT_MAX;
         }
 
-        $R  = 6371;
+        $R = 6371;
         $dL = deg2rad($lat2 - $lat1);
         $dl = deg2rad($lng2 - $lng1);
-        $a  = sin($dL / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dl / 2) ** 2;
+        $a = sin($dL / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dl / 2) ** 2;
 
         return $R * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
