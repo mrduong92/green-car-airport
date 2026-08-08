@@ -129,6 +129,40 @@ redis-cli client list | grep -c cmd=subscribe                          # số st
 Còn giới hạn: trần mới là 30 client realtime đồng thời. Vượt ngưỡng sẽ tắc lại,
 khác là chỉ SSE chết còn API vẫn sống. Hết hẳn thì phải đưa SSE ra khỏi PHP-FPM.
 
+### Tuning server (2026-08-08)
+
+Server dựng xong để nguyên mặc định distro. Đã tune, config versioned trong repo:
+
+| File repo | Copy tới |
+|---|---|
+| `deploy/mysql/zz-greenca.cnf` | `/etc/mysql/mysql.conf.d/` |
+| `deploy/php-fpm/99-greenca.ini` | `/etc/php/8.5/fpm/conf.d/` |
+| `deploy/php-fpm/sse.conf` | `/etc/php/8.5/fpm/pool.d/` |
+| `deploy/nginx/greenca-common.conf` | `/etc/nginx/snippets/` |
+
+| Hạng mục | Trước | Sau |
+|---|---|---|
+| `innodb_buffer_pool_size` | 128MB | 2GB |
+| `innodb_redo_log_capacity` | 100MB | 1GB |
+| `slow_query_log` | OFF | ON, `long_query_time=1` → `/var/log/mysql/slow.log` |
+| `max_connections` | 151 | 300 |
+| PHP `memory_limit` | **-1 (vô hạn)** | 256M |
+| PHP opcache | 128MB, validate_timestamps=1 | 256MB, validate_timestamps=**0** |
+| nginx `worker_connections` | 768 | 8192 |
+| nginx `gzip_types` | **bị comment** → chỉ nén HTML | bật đủ JS/CSS/JSON |
+| Cache asset | không có header | `/assets/` immutable 1 năm |
+| Redis | `maxmemory 0` + `noeviction` | 512MB + `volatile-lru` |
+
+`innodb_flush_log_at_trx_commit` **giữ nguyên = 1** — ví điểm là tiền, không đánh
+đổi độ bền ghi lấy tốc độ.
+
+Redis dùng `volatile-lru` chứ KHÔNG phải `allkeys-lru`: cache/session có TTL nên
+bị đuổi trước, còn job trong queue không có TTL nên được giữ lại. Chọn nhầm
+`allkeys-lru` là mất job.
+
+Kết quả đo: JS bundle 1085KB → **337KB** qua gzip; 30 request song song chậm nhất
+0,150s; EXPLAIN các truy vấn nóng chuyển từ full scan sang dùng index.
+
 ## Quy trình deploy
 
 ### 1. Backend (chạy trên server)

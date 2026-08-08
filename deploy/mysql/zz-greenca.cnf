@@ -1,0 +1,21 @@
+# Tuning GreenCA — file zz-* nạp SAU mysqld.cnf của distro nên ghi đè được.
+# Ngân sách RAM máy 8GB: MySQL 2G + PHP www 1G + PHP sse 1.5G + Redis 0.5G + OS.
+[mysqld]
+# Mặc định 128M — toàn bộ working set phải đọc từ disk khi dữ liệu lớn dần.
+innodb_buffer_pool_size = 2G
+innodb_buffer_pool_instances = 2
+
+# Mặc định 100M — nghẽn ghi khi nhiều booking/notification đồng thời.
+innodb_redo_log_capacity = 1G
+
+# KHÔNG đổi innodb_flush_log_at_trx_commit (giữ = 1): ví điểm là tiền,
+# mất 1 giao dịch khi mất điện là hỏng sổ sách.
+
+# Bật slow log để LẦN SAU có dữ liệu mà tối ưu, thay vì đoán.
+slow_query_log = ON
+slow_query_log_file = /var/log/mysql/slow.log
+long_query_time = 1
+
+tmp_table_size = 64M
+max_heap_table_size = 64M
+max_connections = 300

@@ -3,6 +3,15 @@
 | File | Copy tới | Ghi chú |
 |---|---|---|
 | `sse.conf` | `/etc/php/8.5/fpm/pool.d/sse.conf` | pool riêng cho 2 endpoint SSE |
+| `99-greenca.ini` | `/etc/php/8.5/fpm/conf.d/99-greenca.ini` | memory_limit + opcache |
+
+## ⚠️ `opcache.validate_timestamps = 0` — bắt buộc reload sau mỗi deploy
+
+`99-greenca.ini` tắt việc PHP `stat()` từng file ở mọi request. Đổi lại, **code
+mới không có hiệu lực cho tới khi chạy `systemctl reload php8.5-fpm`** — và
+không có lỗi nào báo, chỉ là server im lặng chạy bản cũ.
+
+Bước reload đã nằm sẵn trong quy trình ở `docs/DEPLOY.md`. Đừng bỏ.
 
 Pool `www` (file mặc định của distro, không giữ trong repo) phải sửa tay:
 
