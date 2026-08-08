@@ -10,7 +10,9 @@ use Illuminate\Support\Str;
 
 class ReferralService
 {
-    private const DRIVER_REWARD_POINTS       = 100;
+    // 1 điểm = 1.000đ, nên 50 điểm = 50.000đ cho MỖI bên (người giới thiệu và
+    // tài xế được giới thiệu). Giảm từ 100 xuống 50 ngày 2026-08-08 theo yêu cầu.
+    private const DRIVER_REWARD_POINTS       = 50;
     private const CUSTOMER_VOUCHER_VALUE     = 50000;
     private const REFERRER_VOUCHER_COUNT     = 2;
     private const NEW_CUSTOMER_VOUCHER_COUNT = 4;

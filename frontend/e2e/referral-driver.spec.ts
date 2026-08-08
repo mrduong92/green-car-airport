@@ -13,7 +13,7 @@ import {
   readDriverWalletPoints,
 } from './fixtures/flows'
 
-const DRIVER_REFERRAL_REWARD = 100
+const DRIVER_REFERRAL_REWARD = 50
 const APP_FEE_POINTS = 100 // 20% of 500.000đ, at 1 point = 1.000đ
 
 // Force-closes any newActor() context left open by a test that throws before
@@ -22,7 +22,7 @@ const APP_FEE_POINTS = 100 // 20% of 500.000đ, at 1 point = 1.000đ
 test.afterEach(cleanupActors)
 
 test.describe('Referral tài xế → tài xế', () => {
-  test('thưởng 100 điểm cho cả hai bên sau chuyến đầu tiên của tài xế được giới thiệu', async ({
+  test('thưởng 50 điểm cho cả hai bên sau chuyến đầu tiên của tài xế được giới thiệu', async ({
     browser,
   }) => {
     const driverBPhone = randomPhone()
@@ -88,7 +88,7 @@ test.describe('Referral tài xế → tài xế', () => {
     // created them, so unclosed actors starve the pool into 504s.
     await admin.context().close()
 
-    // ── TC1.3 — B hoàn thành chuyến đầu tiên → cả A và B nhận 100 điểm ──────
+    // ── TC1.3 — B hoàn thành chuyến đầu tiên → cả A và B nhận 50 điểm ───────
     const customer = await newActor(browser)
     await stubGoong(customer)
     await registerCustomer(customer, customerPhone)
@@ -98,7 +98,7 @@ test.describe('Referral tài xế → tài xế', () => {
     await driverCompleteTrip(driverB)
 
     expect(await readDriverWalletPoints(driverA)).toBe(aPointsBefore + DRIVER_REFERRAL_REWARD)
-    // B: nạp 500 − phí app 100 + thưởng 100
+    // B: nạp 500 − phí app 100 + thưởng 50
     expect(await readDriverWalletPoints(driverB)).toBe(500 - APP_FEE_POINTS + DRIVER_REFERRAL_REWARD)
 
     // ── TC1.4 — chuyến thứ hai không phát thêm thưởng referral ──────────────

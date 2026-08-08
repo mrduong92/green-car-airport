@@ -53,7 +53,7 @@ class ReferralTriggerTest extends TestCase
             ->patchJson("/api/driver/trips/{$booking->id}/status", ['status' => 'completed'])
             ->assertOk();
 
-        $this->assertEquals(100, $referrer->wallet->fresh()->points);
+        $this->assertEquals(50, $referrer->wallet->fresh()->points);
         $this->assertNotNull($newDriver->fresh()->referral_rewarded_at);
     }
 
@@ -128,6 +128,6 @@ class ReferralTriggerTest extends TestCase
             ->patchJson("/api/admin/drivers/{$newDriver->id}/approve")
             ->assertOk();
 
-        $this->assertEquals(100, $referrer->wallet->fresh()->points);
+        $this->assertEquals(50, $referrer->wallet->fresh()->points);
     }
 }

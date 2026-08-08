@@ -189,7 +189,7 @@ export default function DriverProfilePage() {
             <p className="text-sm font-semibold text-navy">Giới thiệu tài xế</p>
           </div>
           <p className="text-[12px] text-neutral-gray mb-3">
-            Mời tài xế mới — cả hai nhận 100.000 điểm khi họ hoàn thành chuyến đầu tiên
+            Mời tài xế mới — cả hai nhận 50 điểm (50.000đ) khi họ hoàn thành chuyến đầu tiên
           </p>
           <div className="bg-light-green rounded-input px-3 py-2.5 flex items-center mb-3">
             <span className="text-primary font-bold text-sm tracking-wider flex-1">{user.referral_code}</span>
@@ -209,7 +209,7 @@ export default function DriverProfilePage() {
               <button
                 onClick={() => navigator.share({
                   title: BRAND.name,
-                  text: `Tham gia ${BRAND.name} và nhận 100.000 điểm!`,
+                  text: `Tham gia ${BRAND.name} và nhận 50 điểm (50.000đ)!`,
                   url: `${window.location.origin}/login?ref=${user.referral_code}`,
                 })}
                 className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"

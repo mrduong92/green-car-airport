@@ -74,14 +74,15 @@ class ReferralServiceTest extends TestCase
 
     // ── Driver referral tests ─────────────────────────────────────────────────
 
-    public function test_driver_referral_credits_100_points_to_both(): void
+    /** 50 điểm = 50.000đ (1 điểm = 1.000đ), cho MỖI bên. */
+    public function test_driver_referral_credits_50_points_to_both(): void
     {
         [$referrer, $newDriver] = $this->makeDriverPair();
 
         $this->service->processDriverReferral($newDriver);
 
-        $this->assertEquals(100, $referrer->wallet->fresh()->points);
-        $this->assertEquals(100, $newDriver->wallet->fresh()->points);
+        $this->assertEquals(50, $referrer->wallet->fresh()->points);
+        $this->assertEquals(50, $newDriver->wallet->fresh()->points);
     }
 
     public function test_driver_referral_sets_referral_rewarded_at(): void
@@ -100,7 +101,7 @@ class ReferralServiceTest extends TestCase
         $this->service->processDriverReferral($newDriver);
         $this->service->processDriverReferral($newDriver->fresh());
 
-        $this->assertEquals(100, $referrer->wallet->fresh()->points);
+        $this->assertEquals(50, $referrer->wallet->fresh()->points);
     }
 
     public function test_driver_referral_skipped_when_no_referrer(): void
@@ -162,7 +163,7 @@ class ReferralServiceTest extends TestCase
 
         $this->service->processDriverReferral($newDriver);
 
-        $this->assertDatabaseHas('wallet_transactions', ['type' => 'referral', 'points' => 100]);
+        $this->assertDatabaseHas('wallet_transactions', ['type' => 'referral', 'points' => 50]);
         $this->assertEquals(2, \App\Models\WalletTransaction::where('type', 'referral')->count());
     }
 
