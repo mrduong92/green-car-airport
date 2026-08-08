@@ -166,6 +166,46 @@ lại của dev. `VITE_REVERB_APP_KEY` phải khớp `REVERB_APP_KEY`.
 systemctl restart greenca-reverb    # tiến trình giữ code CŨ trong bộ nhớ, giống queue worker
 ```
 
+#### Kết quả load test trên production (2026-08-09, nửa đêm, không có người dùng)
+
+Đo bằng bộ tạo tải Node mở WebSocket thật vào `wss://greenca.vn/app/<key>`.
+**Không dùng trình duyệt để đo sức chứa** — Chrome chặn ~255 WebSocket mỗi host,
+đo bằng trình duyệt sẽ ra kết luận sai là "server chỉ chịu được 255".
+
+| Số kết nối | RSS Reverb | CPU | RAM trống | API |
+|---|---|---|---|---|
+| 0 (nền) | 61–67MB | 0,2% | 6,6GB | 60ms |
+| 255 | 69MB | 0,3% | 6,6GB | bình thường |
+| 1003 | 82MB | 0,3% | 6,5GB | **thất bại** → đã sửa |
+| >1016 | — | — | — | Reverb thoát, rớt sạch kết nối |
+
+**Chi phí mỗi kết nối ~15KB.** RAM không phải nút thắt: 5.000 kết nối ≈ 75MB.
+
+Ba trần đã chạm và cách xử lý:
+
+1. **nginx worker `Max open files` = 1024.** Mỗi WS proxy tốn 2 fd (client +
+   upstream). Khi cạn, **API thường cũng ngừng phục vụ** — đúng loại sự cố cũ,
+   chỉ chuyển từ PHP-FPM sang nginx. Đã thêm `worker_rlimit_nofile 65535`.
+   ⚠️ Phải `systemctl restart nginx`, `reload` KHÔNG áp được directive này.
+2. **Tiến trình Reverb `Max open files` = 1024.** `LimitNOFILE=524288` trong
+   unit chỉ nâng hard limit, tiến trình vẫn dùng soft. Đã ghi `65535:65535`.
+3. **`stream_select()` của PHP giới hạn `FD_SETSIZE = 1024`** — CHƯA xử lý.
+   ReactPHP đang dùng `React\EventLoop\StreamSelectLoop` vì máy chưa có
+   `ext-event`/`ext-ev`/`ext-uv`. Đây là trần thật hiện tại:
+
+   ```bash
+   php -r 'require "vendor/autoload.php"; echo get_class(React\EventLoop\Loop::get());'
+   # StreamSelectLoop  → trần ~1000
+   # ExtEventLoop      → dùng epoll, không còn trần 1024
+   ```
+
+   Triệu chứng khi chạm trần rất dễ chẩn đoán nhầm: Reverb **thoát sạch**
+   (`Deactivated successfully`, đỉnh bộ nhớ chỉ 57MB), systemd khởi động lại,
+   **toàn bộ client mất kết nối** — trông như crash ngẫu nhiên chứ không giống
+   hết tài nguyên.
+
+**Trần hiện tại: ~1.000 client realtime đồng thời** (SSE cũ là ~90).
+
 #### ⚠️ Build frontend PHẢI dùng `--mode staging` / `--mode production`
 
 Vite ưu tiên file `.env` **HƠN** biến môi trường truyền lúc build, nên
