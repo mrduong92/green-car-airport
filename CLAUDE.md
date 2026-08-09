@@ -127,7 +127,17 @@ Custom utilities: `rounded-card` (12px), `rounded-input` (8px), `rounded-pill` (
 **Laravel 13.9 / PHP 8.4 — API-only, no Blade views.**
 
 ### Auth
-OTP-based, no passwords. `POST /api/auth/otp/send` stores a 6-digit code, `POST /api/auth/otp/verify` issues a Sanctum personal access token. **Dev bypass:** gated on `app()->environment(['local', 'testing'])` only — in those environments any OTP/password authenticates (`firstOrCreate` the user, return a token, skip the OTP table). The magic value `000000` is NOT a bypass on its own; on `APP_ENV=production` a real OTP is always required. `testing` must stay in the list — `phpunit.xml` sets `APP_ENV=testing` and the auth tests rely on it.
+**Login uses a password, NOT an OTP.** OTP is only for registration and password reset.
+
+- `POST /api/auth/login` — `phone` + `password` (+ optional `role`, each app hardcodes its own). The "password" is a **6-digit numeric PIN** (`size:6`, `regex:/^\d{6}$/`), not a free-form password.
+- `POST /api/auth/otp/send` — optional `purpose` of `register` | `driver_register` | `reset`. It validates the phone against that purpose: `register`/`driver_register` reject a phone already registered *in that role*, `reset` rejects a phone that doesn't exist. Sending deletes any previous OTP for that phone.
+- OTP is consumed by `register`, `register/driver` and `reset-password` — all three call the shared `AuthController::consumeOtp()`.
+- `POST /api/auth/otp/verify` (`OtpController`) is **legacy** from the old OTP-login flow. No frontend or e2e code calls it. Don't build on it.
+- Sanctum personal access token is issued on login and register.
+
+**Dev bypass:** gated on `app()->environment(['local', 'testing'])` in both `AuthController::consumeOtp()` and `OtpController::verify()` — in those environments any OTP passes. The magic value `000000` is NOT a bypass on its own; on `APP_ENV=production` a real OTP is always required. `testing` must stay in the list — `phpunit.xml` sets `APP_ENV=testing` and the auth tests rely on it.
+
+**Cost note:** OTP is billed per message (ZNS), so the bill scales with *new registrations and password resets* — not with logins. Keeping users signed in longer does not reduce it.
 
 ### Role middleware
 `EnsureRole` (registered as `role` alias in `bootstrap/app.php`) checks `$request->user()->role`. Three roles: `customer`, `driver`, `admin`. Route groups in `routes/api.php` are nested `auth:sanctum` → `role:X`.
