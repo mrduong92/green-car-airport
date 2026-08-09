@@ -7,18 +7,42 @@ import EmptyState from '@/components/common/EmptyState'
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 
-const ACTIVE_STATUSES: App.BookingStatus[] = ['finding_driver', 'accepted', 'in_progress']
-
 const FILTERS = [
   { key: '', label: 'Tất cả' },
   { key: 'completed', label: 'Hoàn thành' },
   { key: 'cancelled', label: 'Đã huỷ' },
 ]
 
+function dateLabel(dateStr: string): string {
+  const d = dayjs(dateStr)
+  const now = dayjs()
+  if (d.isSame(now, 'day')) return 'Hôm nay'
+  if (d.isSame(now.subtract(1, 'day'), 'day')) return 'Hôm qua'
+  return d.format('DD/MM/YYYY')
+}
+
+/**
+ * Gom chuyến theo ngày, giữ nguyên thứ tự server trả về (mới nhất trước).
+ * Không sắp xếp lại: danh sách phân trang theo cursor nên tự ý sắp lại ở client
+ * sẽ làm các trang tải sau chèn sai chỗ.
+ */
+function groupByDate(bookings: App.Booking[]) {
+  const map = new Map<string, App.Booking[]>()
+  for (const b of bookings) {
+    if (!map.has(b.date)) map.set(b.date, [])
+    map.get(b.date)!.push(b)
+  }
+
+  return Array.from(map.entries()).map(([date, items]) => ({
+    date,
+    label: dateLabel(date),
+    items,
+  }))
+}
+
 export default function BookingHistoryPage() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('')
-  const [expanded, setExpanded] = useState<number | null>(null)
 
   const {
     data: pages,
@@ -33,7 +57,8 @@ export default function BookingHistoryPage() {
     getNextPageParam: (lastPage) => lastPage.next_cursor,
   })
 
-  const data = pages?.pages.flatMap((p) => p.data)
+  const data = pages?.pages.flatMap((p) => p.data) ?? []
+  const groups = groupByDate(data)
 
   return (
     <div className="w-full flex flex-col gap-0">
@@ -50,55 +75,61 @@ export default function BookingHistoryPage() {
         </div>
       </div>
 
-      <div className="flex flex-col px-4 py-4 gap-3">
-        {!data?.length && (
+      <div className="flex flex-col px-4 py-4 gap-4">
+        {!data.length && (
           <EmptyState icon="receipt_long" title="Chưa có chuyến nào"
             description="Các chuyến đã đặt sẽ xuất hiện ở đây"
             action={{ label: 'Đặt xe ngay', onClick: () => navigate('/customer/booking') }} />
         )}
-        {data?.map((b) => (
-          <div key={b.id} className="bg-white rounded-card shadow-card overflow-hidden"
-            onClick={() => ACTIVE_STATUSES.includes(b.status)
-              ? navigate(`/customer/booking/${b.id}`)
-              : setExpanded(expanded === b.id ? null : b.id)
-            }>
-            <div className="flex p-4 gap-3">
-              {/* Date column */}
-              <div className="flex flex-col items-center justify-center w-12 shrink-0">
-                <span className="text-2xl font-bold text-navy leading-none">{dayjs(b.date).format('DD')}</span>
-                <span className="text-caption text-neutral-gray">{dayjs(b.date).format('MMM')}</span>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-1 text-sm text-navy mb-1">
-                  <span className="truncate">{b.pickup}</span>
-                  <span className="material-symbols-outlined text-sm text-neutral-gray shrink-0">arrow_right_alt</span>
-                  <span className="truncate">{b.destination}</span>
-                </div>
-                <StatusBadge status={b.status} />
-              </div>
-              <span className="font-bold text-primary text-sm shrink-0">{(b.final_price ?? b.price).toLocaleString('vi')} đ</span>
+
+        {groups.map(({ date, label, items }) => (
+          <div key={date} className="flex flex-col gap-2">
+            {/* Đầu nhóm ngày — cùng bố cục với màn Lịch sử của tài xế.
+                KHÔNG hiện tổng tiền như bên tài xế: danh sách này phân trang nên
+                tổng cộng ở client chỉ tính được phần đã tải, cuộn thêm là số nhảy.
+                Tổng chi tiêu chính xác nằm ở tab Thống kê (tính bằng SQL). */}
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-semibold text-neutral-gray uppercase tracking-wide">{label}</span>
+              <div className="flex-1 h-px bg-border-gray" />
             </div>
-            {expanded === b.id && (
-              <div className="border-t border-border-gray px-4 py-3 bg-light-green/30 flex flex-col gap-1">
-                <p className="text-caption text-neutral-gray">Tài xế: {b.driver?.name ?? 'Chưa có'}</p>
-                <p className="text-caption text-neutral-gray">Khoảng cách: {b.distance_km} km</p>
-                <p className="text-caption text-neutral-gray">Giá gốc: {b.price.toLocaleString('vi')}đ</p>
-                {(b.discount ?? 0) > 0 && (
-                  <p className="text-caption text-success-green">
-                    Voucher {b.voucher_code}: -{(b.discount ?? 0).toLocaleString('vi')}đ
-                  </p>
-                )}
-                {(b.surcharge ?? 0) > 0 && (
-                  <p className="text-caption text-danger-red">
-                    Phụ phí: +{(b.surcharge ?? 0).toLocaleString('vi')}đ
-                  </p>
-                )}
-                {b.note && (
-                  <p className="text-caption text-neutral-gray">Ghi chú: {b.note}</p>
-                )}
-                <p className="text-caption text-neutral-gray">Mã đặt: #{b.id}</p>
-              </div>
-            )}
+
+            {items.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => navigate(`/customer/booking/${b.id}`)}
+                className="w-full bg-white rounded-card shadow-card overflow-hidden text-left"
+              >
+                <div className="flex items-center p-4 gap-3">
+                  {/* Giờ đón + quãng đường, thay cho cột ngày cũ vì ngày đã nằm ở
+                      đầu nhóm — tránh lặp lại cùng một thông tin hai lần. */}
+                  <div className="shrink-0 w-11 text-center">
+                    <p className="text-[15px] font-bold text-navy leading-tight">{b.time.slice(0, 5)}</p>
+                    <p className="text-[10px] text-neutral-gray mt-0.5">{b.distance_km} km</p>
+                  </div>
+
+                  <div className="w-px self-stretch bg-border-gray" />
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 text-sm text-navy mb-1">
+                      <span className="truncate">{b.pickup}</span>
+                      <span className="material-symbols-outlined text-sm text-neutral-gray shrink-0">arrow_right_alt</span>
+                      <span className="truncate">{b.destination}</span>
+                    </div>
+                    <StatusBadge status={b.status} />
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="font-bold text-primary text-sm">
+                      {(b.final_price ?? b.price).toLocaleString('vi')} đ
+                    </span>
+                    {/* Dấu hiệu "bấm vào mở trang" — trước đây thẻ này mở rộng tại
+                        chỗ nên không có gì báo cho người dùng biết nó dẫn đi đâu. */}
+                    <span className="material-symbols-outlined text-neutral-gray text-[18px]">chevron_right</span>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
         ))}
 
