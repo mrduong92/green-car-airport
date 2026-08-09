@@ -80,7 +80,14 @@ export default function AddressInput({ value, onChange, onPlaceSelect, onClear, 
     setQuerySilent(description)
     setPredictions([])
     try {
-      const detail = await goongPlaceDetail(placeId, crypto.randomUUID())
+      // Phải dùng ĐÚNG session token của phiên autocomplete vừa rồi, không sinh
+      // token mới: Goong gom các lượt gõ phím + lượt lấy chi tiết địa điểm có
+      // cùng token thành MỘT phiên tính tiền. Truyền token lạ vào đây thì phiên
+      // autocomplete và lượt Place Detail bị tính thành hai khoản riêng.
+      //
+      // Token được reset ở cuối hàm — sau khi đã chọn xong thì phiên kết thúc,
+      // lần gõ tiếp theo bắt đầu phiên mới.
+      const detail = await goongPlaceDetail(placeId, sessionToken.current)
       const finalAddr = detail.address || description
       onChange(finalAddr)
       setQuerySilent(finalAddr)
