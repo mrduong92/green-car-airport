@@ -43,6 +43,7 @@ export const driverRegisterApi = (data: {
   insurance_number: string
   insurance_expiry: string
   referral_code?: string
+  is_vip?: boolean
 }) =>
   api.post<{ token: string; user: App.User }>('/auth/register/driver', data)
 

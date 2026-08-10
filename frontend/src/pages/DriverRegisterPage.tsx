@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
+import clsx from 'clsx'
 import { sendOtp, driverRegisterApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -47,6 +48,7 @@ export default function DriverRegisterPage() {
   const [vehicleYear, setYear]      = useState('')
   const [vehicleColor, setColor]    = useState('')
   const [vehicleType, setVType]     = useState<VehicleType>('sedan_4')
+  const [isVip, setIsVip]           = useState(false)
   const [cccdNumber,       setCccd]    = useState('')
   const [gplxNumber,       setGplx]    = useState('')
   const [vehicleRegNumber, setVehReg]  = useState('')
@@ -101,6 +103,7 @@ export default function DriverRegisterPage() {
       insurance_number:          insuranceNumber,
       insurance_expiry:          insuranceExpiry,
       referral_code:             referralCode || undefined,
+      is_vip:                    isVip,
     }),
     onSuccess: ({ data }) => {
       setAuth(data.user, data.token)
@@ -294,6 +297,32 @@ export default function DriverRegisterPage() {
                 ))}
               </div>
             </div>
+
+            {/* Tài xế tự khai; admin xác nhận khi duyệt hồ sơ. Hệ thống chỉ lưu chuỗi
+                biển số nên không tự phân biệt được biển trắng/vàng. */}
+            <button
+              type="button"
+              onClick={() => setIsVip((v) => !v)}
+              className={clsx(
+                'w-full flex items-center gap-3 rounded-card border px-3.5 py-3 text-left transition-colors',
+                isVip ? 'border-gold bg-gold-tint' : 'border-border-gray bg-white',
+              )}
+            >
+              <span
+                className={clsx(
+                  'w-5 h-5 rounded-[6px] border-2 flex items-center justify-center shrink-0',
+                  isVip ? 'bg-gold border-gold' : 'border-border-gray bg-white',
+                )}
+              >
+                {isVip && <span className="material-symbols-outlined text-white text-[15px]">check</span>}
+              </span>
+              <span className="flex-1">
+                <span className="block text-[14px] font-medium text-navy">Xe cá nhân (biển trắng)</span>
+                <span className="block text-[11px] text-neutral-gray">
+                  Nhận thêm cuốc VIP. Admin sẽ kiểm tra khi duyệt hồ sơ.
+                </span>
+              </span>
+            </button>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
