@@ -16,6 +16,7 @@ use App\Notifications\TripCompletedDriverNotification;
 use App\Notifications\TripStartedNotification;
 use App\Services\ReferralService;
 use App\Support\AvailableTripsCache;
+use App\Support\VehicleCapacity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,18 +46,22 @@ class TripController extends Controller
         //
         // Cache theo LOẠI XE chứ không theo tài xế — cùng loại xe thì cùng danh
         // sách, nên 5.000 tài xế chỉ còn vài query mỗi 5 giây.
-        $allowed = $this->vehicleTypesFittingDriver($profile?->vehicle_type);
+        $allowed = VehicleCapacity::bookingTypesFittingDriver($profile?->vehicle_type);
+        $driverIsVip = (bool) $profile?->is_vip;
 
         // ⚠️ Cache MẢNG ĐÃ FORMAT, tuyệt đối không cache Eloquent Collection:
         // collection/model serialize xuống Redis rồi unserialize lên sẽ thành
         // __PHP_Incomplete_Class và nổ ngay ở lần ĐỌC cache đầu tiên (lần ghi
         // vẫn chạy ngon, nên lỗi chỉ hiện ở request thứ hai trở đi).
-        $trips = AvailableTripsCache::remember($allowed, fn () => Booking::with('customer')
+        $trips = AvailableTripsCache::remember($allowed, $driverIsVip, fn () => Booking::with('customer')
             ->where('status', 'finding_driver')
             // `bookings.vehicle_type` là enum('sedan_4','suv_5','mpv_7') NOT NULL
             // default 'sedan_4', nên whereIn là đủ — không cần nhánh phòng thủ cho
             // null/giá trị lạ vì DB không cho phép tồn tại (xem test parity bên dưới).
             ->whereIn('vehicle_type', $allowed)
+            // Tài xế thường không thấy cuốc VIP. Tài xế VIP thấy cả hai — xe
+            // biển trắng chạy cuốc thường được, không có lý do chặn.
+            ->when(! $driverIsVip, fn ($q) => $q->where('is_vip', false))
             ->latest()
             ->limit(self::AVAILABLE_TRIPS_LIMIT)
             ->get()
@@ -106,8 +111,21 @@ class TripController extends Controller
             return response()->json(['message' => 'Chuyến này đã được nhận hoặc không còn khả dụng.'], 422);
         }
 
-        if (! $this->fitsDriverVehicle($booking->vehicle_type, $request->user()->driverProfile?->vehicle_type)) {
-            return response()->json(['message' => 'Cuốc này cần xe lớn hơn, không phù hợp với xe của bạn.'], 422);
+        $profile = $request->user()->driverProfile;
+
+        if (! VehicleCapacity::fits(
+            $booking->vehicle_type,
+            $profile?->vehicle_type,
+            (bool) $booking->is_vip,
+            (bool) $profile?->is_vip,
+        )) {
+            // Chọn thông báo theo lý do THẬT: báo nhầm "cần xe lớn hơn" cho một
+            // tài xế bị chặn vì không phải xe cá nhân sẽ khiến họ đi đổi xe.
+            return response()->json([
+                'message' => $booking->is_vip && ! $profile?->is_vip
+                    ? 'Cuốc VIP chỉ dành cho tài xế xe cá nhân (biển trắng).'
+                    : 'Cuốc này cần xe lớn hơn, không phù hợp với xe của bạn.',
+            ], 422);
         }
 
         $activeCount = Booking::where('driver_id', $request->user()->id)
@@ -345,44 +363,6 @@ class TripController extends Controller
         ));
     }
 
-    private const VEHICLE_CAPACITY_RANK = [
-        'sedan_4' => 4,
-        'suv_5' => 5,
-        'mpv_7' => 7,
-    ];
-
-    /**
-     * Bản SQL-hoá của fitsDriverVehicle(): trả về các loại xe mà tài xế chở được.
-     * Xe không rõ loại → cho phép tất cả, khớp với nhánh `! $driverType` bên dưới.
-     *
-     * @return list<string>
-     */
-    private function vehicleTypesFittingDriver(?string $driverType): array
-    {
-        if (! $driverType || ! isset(self::VEHICLE_CAPACITY_RANK[$driverType])) {
-            return array_keys(self::VEHICLE_CAPACITY_RANK);
-        }
-
-        $driverRank = self::VEHICLE_CAPACITY_RANK[$driverType];
-
-        return array_keys(array_filter(
-            self::VEHICLE_CAPACITY_RANK,
-            fn (int $rank) => $rank <= $driverRank,
-        ));
-    }
-
-    private function fitsDriverVehicle(?string $bookingType, ?string $driverType): bool
-    {
-        if (! $driverType || ! isset(self::VEHICLE_CAPACITY_RANK[$driverType])) {
-            return true;
-        }
-
-        $bookingRank = self::VEHICLE_CAPACITY_RANK[$bookingType] ?? 0;
-        $driverRank = self::VEHICLE_CAPACITY_RANK[$driverType];
-
-        return $bookingRank <= $driverRank;
-    }
-
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
         $totalCollected = $b->price - $b->discount + ($b->collection_fee ?? 0);
@@ -421,6 +401,7 @@ class TripController extends Controller
             'date' => $b->date,
             'time' => $b->time,
             'distance_km' => (float) $b->distance_km,
+            'is_vip' => (bool) $b->is_vip,
             'duration_min' => $durationMin,
             'price' => $b->price,
             'discount' => $b->discount,

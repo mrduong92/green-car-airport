@@ -10,6 +10,7 @@ class PriceConfig extends Model
         'service_type',
         'trip_type',
         'vehicle_type',
+        'is_vip',
         'price_type',
         'min_price',
         'max_price',
@@ -19,5 +20,6 @@ class PriceConfig extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_vip'    => 'boolean',
     ];
 }

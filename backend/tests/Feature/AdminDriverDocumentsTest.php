@@ -60,4 +60,26 @@ class AdminDriverDocumentsTest extends TestCase
         $this->assertEquals('BH999999',     $driverData['insurance_number']);
         $this->assertNotNull($driverData['insurance_expiry']);
     }
+
+    public function test_admin_can_toggle_driver_vip_flag(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $driver = User::factory()->create(['role' => 'driver']);
+        $driver->driverProfile()->create([
+            'vehicle_make' => 'Toyota',
+            'vehicle_model' => 'Camry',
+            'vehicle_plate' => '51G-12345',
+            'vehicle_year' => 2020,
+            'vehicle_color' => 'Trắng',
+            'vehicle_type' => 'sedan_4',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/admin/drivers/{$driver->id}", ['is_vip' => true])
+            ->assertOk()
+            ->assertJsonPath('is_vip', true);
+
+        $this->assertTrue($driver->driverProfile->fresh()->is_vip);
+    }
 }

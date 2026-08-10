@@ -75,6 +75,7 @@ class DriverController extends Controller
             'vehicle_plate' => 'sometimes|string|max:20',
             'vehicle_year'  => 'sometimes|integer|min:1990|max:2030',
             'vehicle_color' => 'sometimes|string|max:30',
+            'is_vip'        => 'sometimes|boolean',
         ]);
 
         if (isset($data['name'])) {
@@ -120,6 +121,7 @@ class DriverController extends Controller
             'vehicle_plate'  => $p?->vehicle_plate,
             'vehicle_color'  => $p?->vehicle_color,
             'vehicle_type'   => $p?->vehicle_type,
+            'is_vip' => (bool) $p?->is_vip,
             'status'         => $p?->status ?? 'pending',
             'blocked_reason' => $p?->blocked_reason,
             'is_verified'    => (bool) ($p?->is_verified),

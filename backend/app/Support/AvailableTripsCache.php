@@ -27,9 +27,15 @@ class AvailableTripsCache
 
     private const VERSION_KEY = 'trips:available:version';
 
-    public static function remember(array $vehicleTypes, Closure $callback): mixed
+    /**
+     * @param  bool  $driverIsVip  Tài xế lái xe cá nhân — thấy được cả cuốc VIP.
+     *                             PHẢI nằm trong khoá cache: hai nhóm tài xế có danh sách khác nhau, dùng
+     *                             chung entry thì nhóm thường đọc trúng cache do nhóm VIP nạp và nhìn
+     *                             thấy cuốc VIP, dù query lọc đúng.
+     */
+    public static function remember(array $vehicleTypes, bool $driverIsVip, Closure $callback): mixed
     {
-        return Cache::remember(self::key($vehicleTypes), self::TTL, $callback);
+        return Cache::remember(self::key($vehicleTypes, $driverIsVip), self::TTL, $callback);
     }
 
     /** Gọi ở MỌI nơi tập cuốc `finding_driver` thay đổi: tạo, nhận, huỷ, hết hạn. */
@@ -44,11 +50,13 @@ class AvailableTripsCache
         }
     }
 
-    private static function key(array $vehicleTypes): string
+    private static function key(array $vehicleTypes, bool $driverIsVip): string
     {
         sort($vehicleTypes);
 
-        return 'trips:available:v'.self::version().':'.implode(',', $vehicleTypes);
+        return 'trips:available:v'.self::version()
+            .':'.implode(',', $vehicleTypes)
+            .($driverIsVip ? ':vip' : '');
     }
 
     private static function version(): int

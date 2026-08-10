@@ -13,6 +13,7 @@ export const getCustomers = (params?: { search?: string }) =>
 export const updateDriver = (id: number, data: {
   name?: string; vehicle_make?: string; vehicle_model?: string
   vehicle_plate?: string; vehicle_year?: number; vehicle_color?: string
+  is_vip?: boolean
 }) => api.put(`/admin/drivers/${id}`, data)
 
 export const blockDriver = (id: number, reason: string) =>

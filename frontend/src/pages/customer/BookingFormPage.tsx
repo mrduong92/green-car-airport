@@ -45,12 +45,16 @@ function findPriceConfig(
   configs: App.PriceConfig[],
   vehicleType: VehicleType,
   serviceType: 'airport' | 'provincial',
+  isVip: boolean,
 ): App.PriceConfig | undefined {
   return configs.find(
     (c) =>
       c.trip_type === 'one_way' &&
       c.vehicle_type === vehicleType &&
       c.service_type === serviceType &&
+      // Ép về boolean hai phía: API trả 0/1 ở một số cấu hình PHP, mà `0 === false`
+      // là sai — thiếu bước này thì mọi dòng giá VIP đều không khớp.
+      Boolean(c.is_vip) === isVip &&
       c.is_active,
   )
 }
@@ -140,6 +144,7 @@ export default function BookingFormPage() {
   // là thừa. Tắt ô này mới hiện lưới chọn ngày/giờ để đặt trước.
   const [goNow, setGoNow] = useState(true)
   const [vehicleType, setVehicleType] = useState<VehicleType>('sedan_4')
+  const [isVip, setIsVip] = useState(false)
   const [pickupLatLng,   setPickupLatLng]   = useState<LatLng | null>(null)
   const [destLatLng,     setDestLatLng]     = useState<LatLng | null>(null)
   // Địa chỉ ĐÃ chọn từ gợi ý (khác text đang gõ) — xem detectedService bên dưới
@@ -148,6 +153,8 @@ export default function BookingFormPage() {
 
   const vehicleTypeRef = useRef(vehicleType)
   vehicleTypeRef.current = vehicleType
+  const isVipRef = useRef(isVip)
+  isVipRef.current = isVip
 
   const {
     register,
@@ -197,7 +204,13 @@ export default function BookingFormPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const activeConfig = findPriceConfig(priceConfigs, vehicleType, detectedService)
+  const activeConfig = findPriceConfig(priceConfigs, vehicleType, detectedService, isVip)
+  // Chỉ cho bật VIP khi có bảng giá VIP cho đúng tổ hợp xe/dịch vụ hiện tại —
+  // nếu không, khách sẽ đặt cuốc VIP với giá của cuốc thường một cách âm thầm.
+  // priceConfigs rỗng nghĩa là đang loading, không tính là "không có" để tránh
+  // disable nhầm lúc mới vào trang.
+  const vipConfigExists =
+    priceConfigs.length === 0 || !!findPriceConfig(priceConfigs, vehicleType, detectedService, true)
 
   // Khoảng giá tham khảo hiển thị cho khách
   const suggestedMin = configPrice(activeConfig, distance, 'min')
@@ -210,7 +223,7 @@ export default function BookingFormPage() {
     const applyKm = (km: number, label: string) => {
       setValue('distance_km', km, { shouldValidate: true })
       // Auto-fill giá = ĐÁY của dải giá tham khảo đang hiển thị
-      const cfg = findPriceConfig(priceConfigs, vehicleTypeRef.current, detectedServiceRef.current)
+      const cfg = findPriceConfig(priceConfigs, vehicleTypeRef.current, detectedServiceRef.current, isVipRef.current)
       if (cfg) {
         setValue('price', configPrice(cfg, km, 'min'), { shouldValidate: true })
       }
@@ -233,6 +246,16 @@ export default function BookingFormPage() {
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupLatLng, destLatLng, setValue, showToast, priceConfigs])
+
+  // Nếu đang bật VIP mà đổi loại xe/dịch vụ khiến bảng giá VIP cho tổ hợp mới
+  // không còn tồn tại, tự tắt VIP — tránh trạng thái "đang bật VIP nhưng giá
+  // áp dụng là giá thường".
+  useEffect(() => {
+    if (isVip && priceConfigs.length > 0 && !findPriceConfig(priceConfigs, vehicleType, detectedService, true)) {
+      setIsVip(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleType, detectedService, priceConfigs])
 
   // Khi hết giờ hôm nay, tự động chuyển sang ngày mai
   useEffect(() => {
@@ -258,7 +281,20 @@ export default function BookingFormPage() {
     setVehicleType(v)
     setValue('vehicle_type', v)
     if (distance > 0) {
-      const cfg = findPriceConfig(priceConfigs, v, detectedService)
+      const cfg = findPriceConfig(priceConfigs, v, detectedService, isVip)
+      if (cfg) {
+        setValue('price', configPrice(cfg, distance, 'min'), { shouldValidate: true })
+      }
+    }
+  }
+
+  // Bật/tắt VIP đổi bảng giá áp dụng, nên phải tính lại giá auto-fill y như khi
+  // đổi loại xe — nếu không, dải "Mức giá tham khảo" nhảy sang giá VIP trong khi
+  // ô "Giá bạn muốn trả" vẫn giữ số của bảng giá thường.
+  const handleVipChange = (next: boolean) => {
+    setIsVip(next)
+    if (distance > 0) {
+      const cfg = findPriceConfig(priceConfigs, vehicleType, detectedService, next)
       if (cfg) {
         setValue('price', configPrice(cfg, distance, 'min'), { shouldValidate: true })
       }
@@ -285,6 +321,7 @@ export default function BookingFormPage() {
         voucher_code:    voucherCode || undefined,
         note:            data.note || undefined,
         collection_fee:  data.collection_fee && data.collection_fee > 0 ? data.collection_fee : undefined,
+        is_vip:          isVip,
       }),
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['vouchers-list'] })
@@ -411,6 +448,38 @@ export default function BookingFormPage() {
             )
           })}
         </div>
+
+        {/* Xe cá nhân — vuông góc với số chỗ nên là công tắc riêng, không phải
+            chip thứ tư: chọn chip VIP thì mất chỗ chọn 4/5/7 chỗ. */}
+        <button
+          type="button"
+          disabled={!vipConfigExists}
+          onClick={() => handleVipChange(!isVip)}
+          className={clsx(
+            'w-full flex items-center gap-3 rounded-card border px-3.5 py-3 text-left transition-colors mt-2',
+            isVip ? 'border-gold bg-gold-tint' : 'border-border-gray bg-white',
+            !vipConfigExists && 'opacity-50 cursor-not-allowed',
+          )}
+        >
+          <span
+            className={clsx(
+              'w-5 h-5 rounded-[6px] border-2 flex items-center justify-center shrink-0',
+              isVip ? 'bg-gold border-gold' : 'border-border-gray bg-white',
+            )}
+          >
+            {isVip && <span className="material-symbols-outlined text-white text-[15px]">check</span>}
+          </span>
+          <span className="flex-1">
+            <span className="block text-[14px] font-medium text-navy">Xe VIP</span>
+            <span className="block text-[11px] text-neutral-gray">
+              {vipConfigExists
+                ? 'Xe cá nhân, biển trắng — không phải xe dịch vụ'
+                : 'Chưa có bảng giá VIP cho tuyến này'}
+            </span>
+          </span>
+          <span className="material-symbols-outlined text-gold text-[20px]"
+                style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
+        </button>
 
         {/* ── ĐẶT ĐI NGAY ───────────────────────────────────── */}
         <SectionLabel>Thời gian khởi hành</SectionLabel>

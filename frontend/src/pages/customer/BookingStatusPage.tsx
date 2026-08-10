@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/common/StatusBadge'
+import VipBadge from '@/components/common/VipBadge'
 import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import { fmtDateTime } from '@/utils/date'
@@ -114,6 +115,7 @@ export default function BookingStatusPage() {
             <span className="text-white/70 text-[11px] font-semibold uppercase tracking-widest flex-1">
               {statusInfo.step}
             </span>
+            {booking.is_vip && <VipBadge />}
             <StatusBadge status={booking.status} />
           </div>
 
@@ -327,7 +329,10 @@ export default function BookingStatusPage() {
       {/* Booking ref + status */}
       <div className="flex items-center justify-between">
         <span className="text-caption text-neutral-gray">Đơn #{booking.id}</span>
-        <StatusBadge status={booking.status} />
+        <div className="flex items-center gap-1.5">
+          {booking.is_vip && <VipBadge />}
+          <StatusBadge status={booking.status} />
+        </div>
       </div>
 
       {/* Progress stepper */}

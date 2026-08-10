@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, topupDriver } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
+import VipBadge from '@/components/common/VipBadge'
 import Button from '@/components/common/Button'
 import clsx from 'clsx'
 
@@ -22,11 +23,13 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 interface EditForm {
   name: string; vehicle_make: string; vehicle_model: string
   vehicle_plate: string; vehicle_year: string; vehicle_color: string
+  is_vip: boolean
 }
 
 const emptyForm = (): EditForm => ({
   name: '', vehicle_make: '', vehicle_model: '',
   vehicle_plate: '', vehicle_year: '', vehicle_color: '',
+  is_vip: false,
 })
 
 export default function DriversPage() {
@@ -56,6 +59,7 @@ export default function DriversPage() {
       vehicle_plate: d.vehicle_plate ?? '',
       vehicle_year:  d.vehicle_year?.toString() ?? '',
       vehicle_color: d.vehicle_color ?? '',
+      is_vip:        d.is_vip ?? false,
     })
   }
 
@@ -67,6 +71,7 @@ export default function DriversPage() {
       vehicle_plate: form.vehicle_plate || undefined,
       vehicle_year:  form.vehicle_year ? Number(form.vehicle_year) : undefined,
       vehicle_color: form.vehicle_color || undefined,
+      is_vip:        form.is_vip,
     }),
     onSuccess: () => {
       showToast('Đã cập nhật thông tin', 'success')
@@ -158,7 +163,13 @@ export default function DriversPage() {
                 {d.name[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-navy">{d.name} <span className="text-caption font-normal text-neutral-gray">#{d.id}</span></p>
+                <p className="text-sm font-semibold text-navy">{d.name} <span className="text-caption font-normal text-neutral-gray">#{d.id}</span>
+                  {d.is_vip && (
+                    <span className="ml-1.5 inline-flex align-middle">
+                      <VipBadge />
+                    </span>
+                  )}
+                </p>
                 <p className="text-caption text-neutral-gray">{d.phone}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <StatusBadge status={d.status} />
@@ -291,6 +302,15 @@ export default function DriversPage() {
                   </div>
                 ))}
               </div>
+              <label className="flex items-center gap-2 text-sm text-navy">
+                <input
+                  type="checkbox"
+                  checked={form.is_vip}
+                  onChange={(e) => setForm((f) => ({ ...f, is_vip: e.target.checked }))}
+                  className="w-4 h-4 accent-gold"
+                />
+                Xe cá nhân (biển trắng) — nhận cuốc VIP
+              </label>
             </div>
             <div className="px-4 pb-6 pt-3 flex gap-3 shrink-0 border-t border-border-soft">
               <Button fullWidth variant="outline" onClick={() => setEditTarget(null)}>Huỷ</Button>

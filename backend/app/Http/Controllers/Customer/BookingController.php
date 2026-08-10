@@ -69,6 +69,7 @@ class BookingController extends Controller
             'voucher_code' => 'nullable|string',
             'note' => 'nullable|string|max:500',
             'collection_fee' => 'nullable|integer|min:0',
+            'is_vip' => 'sometimes|boolean',
         ]);
 
         // Giờ đặt xe hôm nay phải cách ít nhất 30 phút so với hiện tại
@@ -130,6 +131,7 @@ class BookingController extends Controller
             'voucher_id' => $voucherId,
             'status' => 'finding_driver',
             'vehicle_type' => $data['vehicle_type'],
+            'is_vip' => $request->boolean('is_vip'),
             'note' => $data['note'] ?? null,
             'collection_fee' => $collectionFee,
             'collaborator_id' => $collaboratorId,
@@ -256,6 +258,7 @@ class BookingController extends Controller
             'status' => $b->status,
             'cancel_reason' => $b->cancel_reason,
             'vehicle_type' => $b->vehicle_type,
+            'is_vip' => (bool) $b->is_vip,
             'created_at' => $b->created_at?->toISOString(),
             'accepted_at' => $b->accepted_at?->toISOString(),
             'driver' => $driver ? [

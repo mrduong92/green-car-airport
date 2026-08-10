@@ -8,6 +8,7 @@ import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
+import VipBadge from '@/components/common/VipBadge'
 
 const GoongTripMap = lazy(() => import('@/components/common/GoongTripMap'))
 
@@ -112,7 +113,10 @@ export default function TripDetailPage() {
     <div className="w-full flex flex-col gap-4 px-4 py-4">
       <div className="flex items-center justify-between">
         <span className="text-caption text-neutral-gray">Cuốc #{trip.id}</span>
-        <StatusBadge status={trip.status} />
+        <div className="flex items-center gap-1.5">
+          {trip.is_vip && <VipBadge />}
+          <StatusBadge status={trip.status} />
+        </div>
       </div>
 
       {/* Map */}

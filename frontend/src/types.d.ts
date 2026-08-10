@@ -34,6 +34,7 @@ declare namespace App {
     voucher_code?: string | null
     note?: string | null
     vehicle_type?: VehicleType
+    is_vip?: boolean
     status: BookingStatus
     driver?: {
       id: number
@@ -64,6 +65,7 @@ declare namespace App {
     distance_km: number
     price: number
     vehicle_type: VehicleType
+    is_vip?: boolean
     voucher_code?: string
     note?: string
     collection_fee?: number
@@ -81,6 +83,7 @@ declare namespace App {
     date: string
     time: string
     distance_km: number
+    is_vip?: boolean
     duration_min: number
     price: number
     discount: number
@@ -144,6 +147,7 @@ declare namespace App {
     vehicle_year: number
     vehicle_color: string
     vehicle_type?: VehicleType | null
+    is_vip?: boolean
     trips_count: number
     rating: number
     months_active: number
@@ -275,6 +279,7 @@ declare namespace App {
     service_type: 'airport' | 'provincial'
     trip_type: 'one_way' | 'round_trip'
     vehicle_type: VehicleType
+    is_vip: boolean
     price_type: 'range' | 'per_km'
     min_price: number
     max_price: number

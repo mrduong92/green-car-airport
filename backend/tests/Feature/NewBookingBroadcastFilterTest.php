@@ -142,4 +142,37 @@ class NewBookingBroadcastFilterTest extends TestCase
 
         Notification::assertSentTo($driver, NewBookingAvailableNotification::class);
     }
+
+    public function test_cuoc_vip_chi_bao_cho_tai_xe_xe_ca_nhan(): void
+    {
+        Notification::fake();
+
+        $vipDriver = $this->makeDriver();
+        $vipDriver->driverProfile->update(['is_vip' => true]);
+
+        $plainDriver = $this->makeDriver();
+        $plainDriver->driverProfile->update(['is_vip' => false]);
+
+        $booking = $this->makeBooking();
+        $booking->update(['is_vip' => true]);
+
+        (new SendNewBookingBroadcastJob($booking))->handle();
+
+        Notification::assertSentTo($vipDriver, NewBookingAvailableNotification::class);
+        Notification::assertNotSentTo($plainDriver, NewBookingAvailableNotification::class);
+    }
+
+    public function test_cuoc_thuong_van_bao_cho_ca_tai_xe_vip(): void
+    {
+        Notification::fake();
+
+        $vipDriver = $this->makeDriver();
+        $vipDriver->driverProfile->update(['is_vip' => true]);
+
+        $booking = $this->makeBooking();
+
+        (new SendNewBookingBroadcastJob($booking))->handle();
+
+        Notification::assertSentTo($vipDriver, NewBookingAvailableNotification::class);
+    }
 }
