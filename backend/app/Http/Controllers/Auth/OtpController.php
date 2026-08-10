@@ -88,6 +88,48 @@ class OtpController extends Controller
         return response()->json(['message' => 'OTP đã được gửi.']);
     }
 
+    /**
+     * Bước 2 của form đăng ký: kiểm mã OTP rồi ĐÁNH DẤU đã xác thực, nhưng
+     * KHÔNG tạo user và KHÔNG cấp token đăng nhập (khác hẳn `verify()`).
+     *
+     * Vì sao tách riêng: form tài xế có 6 bước, bước 5 bắt tra 7 ô giấy tờ nên
+     * thường quá 5 phút. Nếu để tới submit cuối mới kiểm mã thì mã đã hết hạn —
+     * đúng bug production 2026-08-10. Từ đây bước cuối chỉ dùng `verified_at`,
+     * không đụng tới mã nữa, nên người dùng điền bao lâu cũng được.
+     */
+    public function verifyForRegistration(Request $request): JsonResponse
+    {
+        $request->validate([
+            'phone' => 'required|string|max:20',
+            'otp'   => 'required|string|size:6',
+        ]);
+
+        $phone = PhoneNumber::normalize($request->phone);
+
+        if (app()->environment(['local', 'testing'])) {
+            // Dev/test: đánh dấu dòng OTP mới nhất nếu có, để luồng phía sau chạy được.
+            Otp::where('phone', $phone)->whereNull('used_at')
+                ->latest('id')->first()?->update(['verified_at' => now()]);
+
+            return response()->json(['message' => 'Đã xác thực số điện thoại.']);
+        }
+
+        $otp = Otp::where('phone', $phone)
+            ->where('code', $request->otp)
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if (! $otp) {
+            return response()->json(['message' => 'Mã OTP không hợp lệ hoặc đã hết hạn.'], 422);
+        }
+
+        // Chỉ đánh dấu, KHÔNG set used_at — mã sẽ được "tiêu" ở bước đăng ký cuối.
+        $otp->update(['verified_at' => now()]);
+
+        return response()->json(['message' => 'Đã xác thực số điện thoại.']);
+    }
+
     public function verify(Request $request): JsonResponse
     {
         $request->validate([

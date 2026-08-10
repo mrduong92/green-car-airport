@@ -43,6 +43,8 @@ Route::get('/customer/stream', [CustomerStreamController::class, 'bookings']);
 // ── Public ────────────────────────────────────────────────────────────────────
 Route::post('/auth/otp/send', [OtpController::class,  'send']);
 Route::post('/auth/otp/verify', [OtpController::class,  'verify']);
+// Bước 2 của form đăng ký — chỉ đánh dấu đã xác thực SĐT, không cấp token.
+Route::post('/auth/otp/verify-registration', [OtpController::class, 'verifyForRegistration']);
 Route::post('/auth/check-phone', [AuthController::class, 'checkPhone']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);

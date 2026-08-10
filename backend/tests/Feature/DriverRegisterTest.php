@@ -128,16 +128,25 @@ class DriverRegisterTest extends TestCase
             ->assertJsonValidationErrors(['vehicle_inspection_expiry']);
     }
 
-    public function test_driver_register_requires_otp(): void
+    /**
+     * `otp` KHÔNG còn bắt buộc ở submit cuối — hợp đồng đổi ngày 2026-08-11.
+     *
+     * Form đăng ký giờ xác thực OTP ở bước 2 (`POST /auth/otp/verify-registration`)
+     * và bước cuối chỉ dùng dấu `otps.verified_at`. Bắt buộc `otp` ở đây chính là
+     * nguyên nhân bug production: mã sống 5 phút mà form có 6 bước.
+     *
+     * Vẫn gửi kèm `otp` thì vẫn chạy (app cũ chưa cập nhật). Việc chặn khi CHƯA
+     * xác thực nằm ở RegistrationOtpSessionTest — phải giả lập env production
+     * mới chạm được, vì `consumeVerifiedOtp` thoát sớm ở môi trường testing.
+     */
+    public function test_driver_register_khong_con_bat_buoc_otp_o_buoc_cuoi(): void
     {
         $data = array_merge($this->payload(), $this->docPayload());
         unset($data['otp']);
 
-        $this->postJson('/api/auth/register/driver', $data)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['otp']);
+        $this->postJson('/api/auth/register/driver', $data)->assertCreated();
 
-        $this->assertDatabaseMissing('users', ['phone' => '0911111111', 'role' => 'driver']);
+        $this->assertDatabaseHas('users', ['phone' => '0911111111', 'role' => 'driver']);
     }
 
     public function test_driver_register_with_documents_creates_pending_profile(): void

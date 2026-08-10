@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { sendOtp, registerApi } from '@/api/auth'
+import { sendOtp, registerApi, verifyOtpForRegistration } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { registerPushSubscription } from '@/push'
@@ -67,9 +67,21 @@ export default function RegisterPage() {
     },
   })
 
+  // Xác thực OTP ngay ở bước 2 thay vì để tới submit cuối — xem ghi chú ở
+  // verifyOtpForRegistration (api/auth.ts). Bước cuối không gửi `otp` nữa.
+  const verifyMutation = useMutation({
+    mutationFn: () => verifyOtpForRegistration(phone, otp.join('')),
+    onSuccess: () => setStep(3),
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      showToast(err.response?.data?.message ?? 'Mã OTP không hợp lệ hoặc đã hết hạn.', 'error')
+      setOtp(['', '', '', '', '', ''])
+      otpRefs.current[0]?.focus()
+    },
+  })
+
   const registerMutation = useMutation({
     mutationFn: () =>
-      registerApi(phone, otp.join(''), password, name, referralCode || undefined),
+      registerApi(phone, password, name, referralCode || undefined),
     onSuccess: onAuthSuccess,
     onError: (err: { response?: { data?: { message?: string } } }) => {
       showToast(err.response?.data?.message ?? 'Đăng ký thất bại. Vui lòng thử lại.', 'error')
@@ -248,8 +260,9 @@ export default function RegisterPage() {
             <Button
               fullWidth
               size="lg"
+              loading={verifyMutation.isPending}
               disabled={otp.some((d) => d === '')}
-              onClick={() => setStep(3)}
+              onClick={() => verifyMutation.mutate()}
             >
               Xác nhận OTP
             </Button>

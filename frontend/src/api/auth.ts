@@ -3,6 +3,16 @@ import api from './axios'
 export const sendOtp = (phone: string, purpose?: 'register' | 'driver_register' | 'reset') =>
   api.post('/auth/otp/send', { phone, ...(purpose ? { purpose } : {}) })
 
+/**
+ * Bước 2 của form đăng ký: xác thực OTP và đánh dấu vào DB, KHÔNG đăng nhập.
+ *
+ * Từ đây bước cuối không gửi `otp` nữa. Trước đây nút "Xác nhận OTP" chỉ chuyển
+ * bước, nên mã (sống 5 phút) mãi tới submit cuối mới được kiểm — form tài xế có
+ * 6 bước nên tài xế thật liên tục nhận "Mã OTP không hợp lệ hoặc đã hết hạn".
+ */
+export const verifyOtpForRegistration = (phone: string, otp: string) =>
+  api.post('/auth/otp/verify-registration', { phone, otp })
+
 export const checkPhoneApi = (phone: string) =>
   api.post<{ exists: boolean; roles: App.Role[] }>('/auth/check-phone', { phone })
 
@@ -11,14 +21,12 @@ export const loginApi = (phone: string, password: string, role?: App.Role) =>
 
 export const registerApi = (
   phone: string,
-  otp: string,
   password: string,
   name: string,
   referralCode?: string,
 ) =>
   api.post<{ token: string; user: App.User }>('/auth/register', {
     phone,
-    otp,
     password,
     ...(name ? { name } : {}),
     ...(referralCode ? { referral_code: referralCode } : {}),
@@ -26,7 +34,6 @@ export const registerApi = (
 
 export const driverRegisterApi = (data: {
   phone: string
-  otp: string
   password: string
   name: string
   vehicle_make: string

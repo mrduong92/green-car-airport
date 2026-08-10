@@ -98,7 +98,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'phone'         => 'required|string|max:20',
-            'otp'           => 'required|string|size:6',
+            'otp'           => 'nullable|string|size:6',
             'password'      => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
             'name'          => 'nullable|string|max:100',
             'referral_code' => 'nullable|string|max:10',
@@ -110,7 +110,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Số điện thoại đã được đăng ký.'], 422);
         }
 
-        $this->consumeOtp($phone, $request->otp);
+        $this->consumeRegistrationOtp($request, $phone);
 
         $referredById = null;
         if ($request->referral_code) {
@@ -142,7 +142,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'phone'                     => 'required|string|max:20',
-            'otp'                       => 'required|string|size:6',
+            'otp'                       => 'nullable|string|size:6',
             'password'                  => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
             'name'                      => 'required|string|max:100',
             'vehicle_make'              => 'required|string|max:50',
@@ -168,7 +168,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
 
-        $this->consumeOtp($phone, $request->otp);
+        $this->consumeRegistrationOtp($request, $phone);
 
         $referredById = null;
         if ($request->referral_code) {
@@ -268,6 +268,53 @@ class AuthController extends Controller
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Tiêu "dấu đã xác thực" mà bước 2 của form đăng ký đã ghi.
+     *
+     * KHÔNG kiểm lại mã OTP và KHÔNG tính thời gian — người dùng đã chứng minh
+     * sở hữu số điện thoại ở bước 2, không có lý do gì bắt chứng cứ đó hết hạn
+     * trong lúc họ đang tra giấy tờ để điền form (bug production 2026-08-10).
+     *
+     * Vẫn an toàn nhờ ba ràng buộc sẵn có: dấu gắn với ĐÚNG một số điện thoại,
+     * dùng MỘT lần (`used_at`), và `OtpController::send()` xoá mọi dòng cũ của
+     * số đó nên xin mã mới là dấu cũ tự mất.
+     */
+    private function consumeVerifiedOtp(string $phone): void
+    {
+        if (app()->environment(['local', 'testing'])) return;
+
+        $otp = Otp::where('phone', $phone)
+            ->whereNotNull('verified_at')
+            ->whereNull('used_at')
+            ->latest('id')
+            ->first();
+
+        if (! $otp) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'otp' => 'Phiên đăng ký không hợp lệ, vui lòng xác thực lại số điện thoại.',
+            ]);
+        }
+
+        $otp->update(['used_at' => now()]);
+    }
+
+    /**
+     * Chọn đường xác thực theo phiên bản app đang gọi.
+     *
+     * PWA đã cài KHÔNG tự cập nhật (xem docs/BACKLOG.md P0-3), nên bản cũ vẫn
+     * gửi kèm `otp` ở submit cuối và không hề gọi endpoint bước 2. Bỏ nhánh đó
+     * là chặn hết người đang dùng bản cũ.
+     */
+    private function consumeRegistrationOtp(Request $request, string $phone): void
+    {
+        if ($request->filled('otp')) {
+            $this->consumeOtp($phone, $request->otp);   // app cũ
+            return;
+        }
+
+        $this->consumeVerifiedOtp($phone);              // app mới
+    }
 
     private function consumeOtp(string $phone, string $code): void
     {

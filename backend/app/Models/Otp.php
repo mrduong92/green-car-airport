@@ -11,6 +11,7 @@ class Otp extends Model
         'code',
         'expires_at',
         'used_at',
+        'verified_at',
         'client_req_id',
         'tracking_id',
         'delivery_status',
@@ -20,6 +21,7 @@ class Otp extends Model
     protected $casts = [
         'expires_at'   => 'datetime',
         'used_at'      => 'datetime',
+        'verified_at'  => 'datetime',
         'delivered_at' => 'datetime',
     ];
 

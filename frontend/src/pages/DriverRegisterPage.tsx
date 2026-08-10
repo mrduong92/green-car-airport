@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { sendOtp, driverRegisterApi } from '@/api/auth'
+import { sendOtp, driverRegisterApi, verifyOtpForRegistration } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { registerPushSubscription } from '@/push'
@@ -83,10 +83,22 @@ export default function DriverRegisterPage() {
     },
   })
 
+  // Xác thực OTP NGAY ở bước 2 thay vì để tới submit cuối. Mã OTP sống 5 phút
+  // mà form còn 4 bước nữa (bước 5 phải tra 7 ô giấy tờ) — để tới cuối là chắc
+  // chắn hết hạn. Backend đánh dấu `otps.verified_at`, bước cuối chỉ dùng dấu đó.
+  const verifyMutation = useMutation({
+    mutationFn: () => verifyOtpForRegistration(phone, otp.join('')),
+    onSuccess: () => setStep(3),
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      showToast(err.response?.data?.message ?? 'Mã OTP không hợp lệ hoặc đã hết hạn.', 'error')
+      setOtp(['', '', '', '', '', ''])
+      otpRefs.current[0]?.focus()
+    },
+  })
+
   const registerMutation = useMutation({
     mutationFn: () => driverRegisterApi({
       phone,
-      otp: otp.join(''),
       password,
       name,
       vehicle_make:              vehicleMake,
@@ -236,7 +248,7 @@ export default function DriverRegisterPage() {
                 />
               ))}
             </div>
-            <Button fullWidth size="lg" disabled={otp.some((d) => d === '')} onClick={() => setStep(3)}>
+            <Button fullWidth size="lg" loading={verifyMutation.isPending} disabled={otp.some((d) => d === '')} onClick={() => verifyMutation.mutate()}>
               Xác nhận OTP
             </Button>
             <p className="text-center text-sm text-neutral-gray">
