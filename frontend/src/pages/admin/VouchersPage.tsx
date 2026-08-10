@@ -54,53 +54,11 @@ type CreateFormData = z.infer<typeof createFields>
 const editFields = z.object({
   type: z.enum(['fixed', 'percent']),
   target: z.enum(['all', 'specific']),
-  user_id: z.number({ coerce: true }).optional(),
   value: z.number({ coerce: true }).min(1),
   expires_at: z.string().min(1),
   usage_limit: z.number({ coerce: true }).min(1),
-}).refine((d) => d.target === 'all' || d.user_id !== undefined, {
-  message: 'Chọn khách để cấp voucher riêng', path: ['user_id'],
 })
 type EditFormData = z.infer<typeof editFields>
-
-// Chọn đúng 1 khách — dùng ở form sửa (voucher đã tạo chỉ gắn được 1 người).
-function CustomerPicker({ value, onChange }: { value: PickedCustomer | null; onChange: (c: PickedCustomer | null) => void }) {
-  const [search, setSearch] = useState('')
-  const { data: results = [] } = useQuery({
-    queryKey: ['customers', 'search', search],
-    queryFn: () => getCustomers({ search }).then((r) => r.data),
-    enabled: search.length >= 3,
-  })
-
-  if (value) {
-    return (
-      <div className="flex items-center justify-between border border-border-gray rounded-input px-3 py-2 text-sm">
-        <span>{value.name} · {value.phone}</span>
-        <button type="button" onClick={() => onChange(null)} className="text-neutral-gray">
-          <span className="material-symbols-outlined text-base">close</span>
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <input value={search} onChange={(e) => setSearch(e.target.value)}
-        placeholder="Tìm khách theo số điện thoại"
-        className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
-      {results.length > 0 && (
-        <div className="border border-border-gray rounded-input mt-1 overflow-hidden max-h-40 overflow-y-auto">
-          {results.map((c) => (
-            <button key={c.id} type="button" onClick={() => { onChange(c); setSearch('') }}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-light-green border-b border-border-gray last:border-b-0">
-              {c.name} · {c.phone}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  )
-}
 
 // Chọn NHIỀU khách — dùng ở form tạo, khi cấp riêng cho khách (1 hoặc nhiều người,
 // mỗi người nhận 1 voucher cá nhân riêng, mã tự sinh).
@@ -155,10 +113,10 @@ function MultiCustomerPicker({ value, onChange }: { value: PickedCustomer[]; onC
 function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: () => void }) {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
-  const [selectedCustomer, setSelectedCustomer] = useState<PickedCustomer | null>(
+  const [recipients, setRecipients] = useState<PickedCustomer[]>(
     voucher.target === 'specific' && voucher.user && voucher.user_id
-      ? { id: voucher.user_id, name: voucher.user.name, phone: voucher.user.phone }
-      : null,
+      ? [{ id: voucher.user_id, name: voucher.user.name, phone: voucher.user.phone }]
+      : [],
   )
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<EditFormData>({
@@ -166,7 +124,6 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
     defaultValues: {
       type: voucher.type,
       target: voucher.target,
-      user_id: voucher.user_id ?? undefined,
       value: voucher.value,
       expires_at: voucher.expires_at.slice(0, 10),
       usage_limit: voucher.usage_limit,
@@ -175,15 +132,27 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
   const type = watch('type')
   const target = watch('target')
 
+  // Voucher chỉ gắn được đúng 1 user_id — người đầu trong danh sách chọn thì "giữ"
+  // đúng voucher này (update), người thêm vào sau được cấp voucher MỚI cùng điều
+  // khoản (mã tự sinh riêng), vì 1 mã không thể gắn cho nhiều người.
   const updateMutation = useMutation({
-    mutationFn: (d: EditFormData) => updateVoucher(voucher.id, {
-      type: d.type,
-      value: d.value,
-      target: d.target,
-      user_id: d.target === 'specific' ? d.user_id : null,
-      expires_at: d.expires_at,
-      usage_limit: d.usage_limit,
-    }),
+    mutationFn: async (d: EditFormData) => {
+      const [first, ...rest] = recipients
+      await updateVoucher(voucher.id, {
+        type: d.type,
+        value: d.value,
+        target: d.target,
+        user_id: d.target === 'specific' ? first?.id ?? null : null,
+        expires_at: d.expires_at,
+        usage_limit: d.usage_limit,
+      })
+      if (d.target === 'specific' && rest.length > 0) {
+        await bulkGrantVouchers({
+          user_ids: rest.map((c) => c.id), type: d.type, value: d.value,
+          expires_at: d.expires_at, usage_limit: d.usage_limit,
+        })
+      }
+    },
     onSuccess: () => {
       showToast('Đã lưu thay đổi', 'success')
       qc.invalidateQueries({ queryKey: ['vouchers'] })
@@ -192,8 +161,16 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
     onError: () => showToast('Lưu thất bại', 'error'),
   })
 
+  const onSubmitEdit = (d: EditFormData) => {
+    if (d.target === 'specific' && recipients.length === 0) {
+      showToast('Chọn ít nhất 1 khách', 'error')
+      return
+    }
+    updateMutation.mutate(d)
+  }
+
   return (
-    <form onSubmit={handleSubmit((d) => updateMutation.mutate(d))}
+    <form onSubmit={handleSubmit(onSubmitEdit)}
       className="bg-light-green rounded-card p-4 flex flex-col gap-3 mt-2">
       <div>
         <label className="text-xs text-neutral-gray mb-1 block">Loại giảm giá</label>
@@ -225,12 +202,12 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
         <label className="text-xs text-neutral-gray mb-1 block">Phạm vi áp dụng</label>
         <OptionCards
           options={TARGET_OPTIONS.map((o) => o.value === 'specific'
-            ? { ...o, label: 'Cấp riêng cho khách này', hint: 'Chỉ khách được chọn dưới đây dùng được' }
+            ? { ...o, label: 'Cấp riêng cho khách', hint: '1 người giữ voucher này, thêm người khác sẽ nhận mã mới cùng điều khoản' }
             : o)}
           value={target}
           onChange={(v) => {
             setValue('target', v)
-            if (v === 'all') { setValue('user_id', undefined); setSelectedCustomer(null) }
+            if (v === 'all') setRecipients([])
           }}
         />
       </div>
@@ -238,8 +215,7 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
       {target === 'specific' && (
         <div>
           <label className="text-xs text-neutral-gray mb-1 block">Khách nhận voucher</label>
-          <CustomerPicker value={selectedCustomer} onChange={(c) => { setSelectedCustomer(c); setValue('user_id', c?.id ?? undefined) }} />
-          {errors.user_id && <p className="text-danger-red text-xs mt-1">{errors.user_id.message}</p>}
+          <MultiCustomerPicker value={recipients} onChange={setRecipients} />
         </div>
       )}
 
