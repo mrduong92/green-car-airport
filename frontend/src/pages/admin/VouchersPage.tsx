@@ -200,6 +200,27 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
         <OptionCards options={TYPE_OPTIONS} value={type} onChange={(v) => setValue('type', v)} />
       </div>
 
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="text-xs text-neutral-gray mb-1 block">{type === 'fixed' ? 'Giá trị giảm (đ)' : 'Phần trăm giảm (%)'}</label>
+          <input type="number" {...register('value')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.value && <p className="text-danger-red text-xs mt-1">{errors.value.message}</p>}
+        </div>
+        <div className="flex-1">
+          <label className="text-xs text-neutral-gray mb-1 block">Giới hạn lượt dùng</label>
+          <input type="number" {...register('usage_limit')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
+        <input type="date" {...register('expires_at')}
+          className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
+        {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
+      </div>
+
       <div>
         <label className="text-xs text-neutral-gray mb-1 block">Phạm vi áp dụng</label>
         <OptionCards
@@ -221,27 +242,6 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
           {errors.user_id && <p className="text-danger-red text-xs mt-1">{errors.user_id.message}</p>}
         </div>
       )}
-
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="text-xs text-neutral-gray mb-1 block">{type === 'fixed' ? 'Giá trị giảm (đ)' : 'Phần trăm giảm (%)'}</label>
-          <input type="number" {...register('value')}
-            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
-          {errors.value && <p className="text-danger-red text-xs mt-1">{errors.value.message}</p>}
-        </div>
-        <div className="flex-1">
-          <label className="text-xs text-neutral-gray mb-1 block">Giới hạn lượt dùng</label>
-          <input type="number" {...register('usage_limit')}
-            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
-        <input type="date" {...register('expires_at')}
-          className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
-        {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
-      </div>
 
       <div className="flex gap-2">
         <Button type="submit" fullWidth loading={updateMutation.isPending}>Lưu</Button>
@@ -336,6 +336,27 @@ export default function VouchersPage() {
             <OptionCards options={TYPE_OPTIONS} value={type} onChange={(v) => setValue('type', v)} />
           </div>
 
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs text-neutral-gray mb-1 block">{type === 'fixed' ? 'Giá trị giảm (đ)' : 'Phần trăm giảm (%)'}</label>
+              <input type="number" {...register('value')}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+              {errors.value && <p className="text-danger-red text-xs mt-1">{errors.value.message}</p>}
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-neutral-gray mb-1 block">Giới hạn lượt dùng</label>
+              <input type="number" {...register('usage_limit')}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
+            <input type="date" {...register('expires_at')}
+              className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
+            {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
+          </div>
+
           <div>
             <label className="text-xs text-neutral-gray mb-1 block">Phạm vi áp dụng</label>
             <OptionCards options={TARGET_OPTIONS} value={target} onChange={(v) => {
@@ -360,30 +381,9 @@ export default function VouchersPage() {
             <div>
               <label className="text-xs text-neutral-gray mb-1 block">Khách nhận voucher</label>
               <MultiCustomerPicker value={recipients} onChange={setRecipients} />
-              <p className="text-xs text-neutral-gray mt-1">Mỗi khách được chọn sẽ nhận 1 mã voucher riêng, tự sinh.</p>
+              <p className="text-xs text-neutral-gray mt-1">Gõ SĐT để tìm và thêm — chọn được nhiều khách, mỗi người nhận 1 mã voucher riêng.</p>
             </div>
           )}
-
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-xs text-neutral-gray mb-1 block">{type === 'fixed' ? 'Giá trị giảm (đ)' : 'Phần trăm giảm (%)'}</label>
-              <input type="number" {...register('value')}
-                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
-              {errors.value && <p className="text-danger-red text-xs mt-1">{errors.value.message}</p>}
-            </div>
-            <div className="flex-1">
-              <label className="text-xs text-neutral-gray mb-1 block">Giới hạn lượt dùng</label>
-              <input type="number" {...register('usage_limit')}
-                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
-            <input type="date" {...register('expires_at')}
-              className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
-            {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
-          </div>
 
           <Button type="submit" fullWidth loading={createMutation.isPending || bulkGrantMutation.isPending}>
             {target === 'specific' ? `Cấp cho ${recipients.length || ''} khách`.trim() : 'Tạo Voucher'}
