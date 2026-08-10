@@ -18,16 +18,113 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
+// Sửa không có `name`/`trigger` — backend CampaignController::update() không nhận 2
+// field này (đổi trigger sau khi đã có grants sẽ gây nhầm lẫn, xem spec).
+const editSchema = schema.omit({ name: true })
+type EditFormData = z.infer<typeof editSchema>
+
 // Chỉ 1 loại trigger khả dụng hiện tại — xem App\Support\CampaignTrigger ở backend.
 // Thêm loại mới thì thêm ở đó trước, dropdown này mới có gì để chọn.
 const TRIGGER_LABELS: Record<string, string> = {
   customer_registered: 'Khách đăng ký mới',
 }
 
+function toDateInput(v: string | null): string {
+  return v ? v.slice(0, 10) : ''
+}
+
+function EditCampaignForm({ campaign, onDone }: { campaign: App.Campaign; onDone: () => void }) {
+  const qc = useQueryClient()
+  const showToast = useUiStore((s) => s.showToast)
+
+  const { register, handleSubmit, formState: { errors } } = useForm<EditFormData>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      voucher_count: campaign.reward.voucher_count,
+      voucher_value: campaign.reward.voucher_value,
+      voucher_expires_days: campaign.reward.voucher_expires_days,
+      starts_at: toDateInput(campaign.starts_at),
+      ends_at: toDateInput(campaign.ends_at),
+      max_grants: campaign.max_grants ?? undefined,
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (d: EditFormData) => updateCampaign(campaign.id, {
+      reward: {
+        voucher_count: d.voucher_count,
+        voucher_value: d.voucher_value,
+        voucher_expires_days: d.voucher_expires_days,
+      },
+      starts_at: d.starts_at || null,
+      ends_at: d.ends_at || null,
+      max_grants: d.max_grants ?? null,
+    }),
+    onSuccess: () => {
+      showToast('Đã lưu thay đổi', 'success')
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+      onDone()
+    },
+    onError: () => showToast('Lưu thất bại', 'error'),
+  })
+
+  return (
+    <form onSubmit={handleSubmit((d) => updateMutation.mutate(d))}
+      className="bg-light-green rounded-card p-4 flex flex-col gap-3 mt-2">
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Số voucher</label>
+          <input type="number" {...register('voucher_count')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.voucher_count && <p className="text-danger-red text-xs mt-1">{errors.voucher_count.message}</p>}
+        </div>
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Mệnh giá (đ)</label>
+          <input type="number" {...register('voucher_value')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.voucher_value && <p className="text-danger-red text-xs mt-1">{errors.voucher_value.message}</p>}
+        </div>
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Hạn (ngày)</label>
+          <input type="number" {...register('voucher_expires_days')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.voucher_expires_days && <p className="text-danger-red text-xs mt-1">{errors.voucher_expires_days.message}</p>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Bắt đầu (để trống = ngay)</label>
+          <input type="date" {...register('starts_at')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+        </div>
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Kết thúc (để trống = chưa chốt)</label>
+          <input type="date" {...register('ends_at')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs text-neutral-gray mb-1 block">Trần số người nhận (để trống = không trần)</label>
+        <input type="number" {...register('max_grants')}
+          className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" fullWidth loading={updateMutation.isPending}>Lưu</Button>
+        <button type="button" onClick={onDone}
+          className="text-sm text-neutral-gray border border-border-gray rounded-input px-4">Huỷ</button>
+      </div>
+    </form>
+  )
+}
+
 export default function CampaignsPage() {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ['campaigns'],
@@ -134,23 +231,33 @@ export default function CampaignsPage() {
 
       <div className="flex flex-col gap-3">
         {campaigns.map((c) => (
-          <div key={c.id} className="bg-white rounded-card shadow-card p-4 flex items-center gap-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-navy text-sm">{c.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-pill ${c.is_active ? 'bg-light-green text-primary' : 'bg-border-gray text-neutral-gray'}`}>
-                  {c.is_active ? 'Đang chạy' : 'Đã tắt'}
-                </span>
+          <div key={c.id} className="bg-white rounded-card shadow-card p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-semibold text-navy text-sm">{c.name}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-pill ${c.is_active ? 'bg-light-green text-primary' : 'bg-border-gray text-neutral-gray'}`}>
+                    {c.is_active ? 'Đang chạy' : 'Đã tắt'}
+                  </span>
+                </div>
+                <p className="text-caption text-neutral-gray">
+                  {c.reward.voucher_count} × {c.reward.voucher_value.toLocaleString('vi')}đ, hạn {c.reward.voucher_expires_days} ngày
+                  {' · '}{c.grants_count}/{c.max_grants ?? '∞'} đã phát
+                </p>
               </div>
-              <p className="text-caption text-neutral-gray">
-                {c.reward.voucher_count} × {c.reward.voucher_value.toLocaleString('vi')}đ, hạn {c.reward.voucher_expires_days} ngày
-                {' · '}{c.grants_count}/{c.max_grants ?? '∞'} đã phát
-              </p>
+              <button onClick={() => setEditingId(editingId === c.id ? null : c.id)}
+                className="text-xs text-primary border border-primary rounded-pill px-3 py-1.5">
+                {editingId === c.id ? 'Đóng' : 'Sửa'}
+              </button>
+              <button onClick={() => toggleActiveMutation.mutate(c)}
+                className="text-xs text-neutral-gray border border-border-gray rounded-pill px-3 py-1.5">
+                {c.is_active ? 'Tắt' : 'Bật'}
+              </button>
             </div>
-            <button onClick={() => toggleActiveMutation.mutate(c)}
-              className="text-xs text-neutral-gray border border-border-gray rounded-pill px-3 py-1.5">
-              {c.is_active ? 'Tắt' : 'Bật'}
-            </button>
+
+            {editingId === c.id && (
+              <EditCampaignForm campaign={c} onDone={() => setEditingId(null)} />
+            )}
           </div>
         ))}
         {campaigns.length === 0 && (
