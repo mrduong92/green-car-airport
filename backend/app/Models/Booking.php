@@ -9,12 +9,13 @@ class Booking extends Model
         'destination','destination_lat','destination_lng',
         'date','time','distance_km','price','discount','surcharge',
         'collection_fee','collaborator_id',
-        'status','vehicle_type',
+        'status','vehicle_type','is_vip',
         'cancelled_at','cancelled_by','cancel_reason','accepted_at','note',
     ];
     protected $casts = [
         'cancelled_at' => 'datetime',
         'accepted_at'  => 'datetime',
+        'is_vip'       => 'boolean',
     ];
 
     public function customer() { return $this->belongsTo(User::class, 'customer_id'); }
