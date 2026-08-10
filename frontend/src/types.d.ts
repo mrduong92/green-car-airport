@@ -143,6 +143,7 @@ declare namespace App {
     vehicle_plate: string
     vehicle_year: number
     vehicle_color: string
+    vehicle_type?: VehicleType | null
     trips_count: number
     rating: number
     months_active: number

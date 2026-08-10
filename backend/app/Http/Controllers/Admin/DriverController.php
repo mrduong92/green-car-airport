@@ -119,6 +119,7 @@ class DriverController extends Controller
             'vehicle_model'  => $p?->vehicle_model,
             'vehicle_plate'  => $p?->vehicle_plate,
             'vehicle_color'  => $p?->vehicle_color,
+            'vehicle_type'   => $p?->vehicle_type,
             'status'         => $p?->status ?? 'pending',
             'blocked_reason' => $p?->blocked_reason,
             'is_verified'    => (bool) ($p?->is_verified),

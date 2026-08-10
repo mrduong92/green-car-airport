@@ -13,6 +13,12 @@ const FILTERS = [
   { key: 'blocked', label: 'Đã block' },
 ]
 
+const VEHICLE_TYPE_LABELS: Record<string, string> = {
+  sedan_4: 'Sedan 4 chỗ',
+  suv_5: 'SUV 5 chỗ',
+  mpv_7: 'MPV 7 chỗ',
+}
+
 interface EditForm {
   name: string; vehicle_make: string; vehicle_model: string
   vehicle_plate: string; vehicle_year: string; vehicle_color: string
@@ -152,7 +158,7 @@ export default function DriversPage() {
                 {d.name[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-navy">{d.name}</p>
+                <p className="text-sm font-semibold text-navy">{d.name} <span className="text-caption font-normal text-neutral-gray">#{d.id}</span></p>
                 <p className="text-caption text-neutral-gray">{d.phone}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <StatusBadge status={d.status} />
@@ -205,6 +211,9 @@ export default function DriversPage() {
                 <span>{d.vehicle_make} {d.vehicle_model}</span>
                 {d.vehicle_plate && <span className="font-semibold text-navy">· {d.vehicle_plate}</span>}
                 {d.vehicle_color && <span>· {d.vehicle_color}</span>}
+                {d.vehicle_type && VEHICLE_TYPE_LABELS[d.vehicle_type] && (
+                  <span className="font-semibold text-primary">· {VEHICLE_TYPE_LABELS[d.vehicle_type]}</span>
+                )}
               </div>
             )}
 
