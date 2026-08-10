@@ -52,6 +52,38 @@ class AdminVoucherController extends Controller
         return response()->json($this->formatVoucher($voucher), 201);
     }
 
+    public function update(Request $request, Voucher $voucher): JsonResponse
+    {
+        $data = $request->validate([
+            'type'        => 'sometimes|in:fixed,percent',
+            'value'       => 'sometimes|integer|min:1',
+            'target'      => 'sometimes|in:all,specific',
+            'user_id'     => 'sometimes|nullable|exists:users,id',
+            'expires_at'  => 'sometimes|date|after:today',
+            'usage_limit' => 'sometimes|nullable|integer|min:1',
+        ]);
+
+        // Ràng buộc chéo target/user_id giống store() — tính trên giá trị SAU khi áp
+        // update (field không gửi lên thì giữ giá trị hiện tại của voucher).
+        $target = $data['target'] ?? $voucher->target;
+        $userId = array_key_exists('user_id', $data) ? $data['user_id'] : $voucher->user_id;
+
+        if ($target === 'specific' && empty($userId)) {
+            throw ValidationException::withMessages([
+                'user_id' => 'target=specific bắt buộc chọn khách (user_id).',
+            ]);
+        }
+        if ($target === 'all' && ! empty($userId)) {
+            throw ValidationException::withMessages([
+                'user_id' => 'target=all không được kèm user_id.',
+            ]);
+        }
+
+        $voucher->update($data);
+
+        return response()->json($this->formatVoucher($voucher->fresh()->loadMissing('user')));
+    }
+
     public function deactivate(Request $request, Voucher $voucher): JsonResponse
     {
         $voucher->update(['is_active' => false]);

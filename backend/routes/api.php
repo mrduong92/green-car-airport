@@ -120,6 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/drivers/{user}/approve', [DriverController::class, 'approve']);
         Route::get('/admin/vouchers', [AdminVoucherController::class, 'index']);
         Route::post('/admin/vouchers', [AdminVoucherController::class, 'store']);
+        Route::patch('/admin/vouchers/{voucher}', [AdminVoucherController::class, 'update']);
         Route::patch('/admin/vouchers/{voucher}/deactivate', [AdminVoucherController::class, 'deactivate']);
         Route::get('/admin/campaigns', [CampaignController::class, 'index']);
         Route::post('/admin/campaigns', [CampaignController::class, 'store']);

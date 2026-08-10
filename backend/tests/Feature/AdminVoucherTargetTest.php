@@ -39,6 +39,14 @@ class AdminVoucherTargetTest extends TestCase
         ], $overrides);
     }
 
+    private function publicVoucher(array $overrides = []): array
+    {
+        return array_merge([
+            'code' => 'PUB' . uniqid(), 'type' => 'fixed', 'value' => 50000, 'target' => 'all',
+            'expires_at' => now()->addMonth(), 'usage_limit' => 100, 'usage_count' => 0, 'is_active' => true,
+        ], $overrides);
+    }
+
     public function test_target_specific_without_user_id_returns_422(): void
     {
         $this->actingAs($this->admin(), 'sanctum')
@@ -71,6 +79,77 @@ class AdminVoucherTargetTest extends TestCase
             ->assertJsonPath('user.phone', $customer->phone);
 
         $this->assertDatabaseHas('vouchers', ['code' => 'TESTCODE1', 'target' => 'specific', 'user_id' => $customer->id]);
+    }
+
+    public function test_update_can_assign_existing_public_voucher_to_a_customer(): void
+    {
+        $customer = $this->customer();
+        $voucher  = Voucher::create($this->publicVoucher());
+
+        $response = $this->actingAs($this->admin(), 'sanctum')
+            ->patchJson("/api/admin/vouchers/{$voucher->id}", [
+                'target' => 'specific', 'user_id' => $customer->id,
+            ])
+            ->assertOk();
+
+        $response->assertJsonPath('target', 'specific')
+            ->assertJsonPath('user_id', $customer->id)
+            ->assertJsonPath('user.phone', $customer->phone);
+
+        $this->assertDatabaseHas('vouchers', [
+            'id' => $voucher->id, 'target' => 'specific', 'user_id' => $customer->id,
+        ]);
+    }
+
+    public function test_update_target_specific_without_user_id_returns_422(): void
+    {
+        $voucher = Voucher::create($this->publicVoucher());
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->patchJson("/api/admin/vouchers/{$voucher->id}", ['target' => 'specific'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['user_id']);
+    }
+
+    public function test_update_target_all_with_user_id_returns_422(): void
+    {
+        $customer = $this->customer();
+        $voucher  = Voucher::create($this->publicVoucher());
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->patchJson("/api/admin/vouchers/{$voucher->id}", ['target' => 'all', 'user_id' => $customer->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['user_id']);
+    }
+
+    public function test_update_keeps_existing_user_id_when_only_value_changes(): void
+    {
+        $customer = $this->customer();
+        $voucher  = Voucher::create(array_merge($this->publicVoucher(), [
+            'target' => 'specific', 'user_id' => $customer->id,
+        ]));
+
+        // Không gửi target/user_id — phải giữ nguyên target=specific hiện tại, không
+        // bị validate chéo từ chối (đây là ca dùng "chỉ đổi mệnh giá").
+        $this->actingAs($this->admin(), 'sanctum')
+            ->patchJson("/api/admin/vouchers/{$voucher->id}", ['value' => 70000])
+            ->assertOk()
+            ->assertJsonPath('value', 70000)
+            ->assertJsonPath('user_id', $customer->id);
+    }
+
+    public function test_update_can_unassign_back_to_public(): void
+    {
+        $customer = $this->customer();
+        $voucher  = Voucher::create(array_merge($this->publicVoucher(), [
+            'target' => 'specific', 'user_id' => $customer->id,
+        ]));
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->patchJson("/api/admin/vouchers/{$voucher->id}", ['target' => 'all', 'user_id' => null])
+            ->assertOk()
+            ->assertJsonPath('target', 'all')
+            ->assertJsonPath('user_id', null);
     }
 
     public function test_specific_voucher_does_not_appear_in_public_list(): void
