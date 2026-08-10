@@ -39,9 +39,14 @@ class DriverRegisterTest extends TestCase
         ], $overrides);
     }
 
+    private function validDriverPayload(array $overrides = []): array
+    {
+        return array_merge($this->payload(), $this->docPayload(), $overrides);
+    }
+
     public function test_driver_register_creates_user_with_driver_role(): void
     {
-        $data = array_merge($this->payload(), $this->docPayload());
+        $data = $this->validDriverPayload();
 
         $this->postJson('/api/auth/register/driver', $data)
             ->assertCreated()
@@ -149,6 +154,31 @@ class DriverRegisterTest extends TestCase
             'cccd_number'      => '079123456789',
             'gplx_number'      => '012345678910',
             'insurance_number' => 'BH789012',
+        ]);
+    }
+
+    public function test_driver_can_declare_private_plate_vehicle(): void
+    {
+        $payload = $this->validDriverPayload();
+        $payload['is_vip'] = true;
+
+        $this->postJson('/api/auth/register/driver', $payload)->assertCreated();
+
+        $this->assertDatabaseHas('driver_profiles', [
+            'vehicle_plate' => $payload['vehicle_plate'],
+            'is_vip' => true,
+        ]);
+    }
+
+    public function test_driver_defaults_to_non_vip(): void
+    {
+        $payload = $this->validDriverPayload();
+
+        $this->postJson('/api/auth/register/driver', $payload)->assertCreated();
+
+        $this->assertDatabaseHas('driver_profiles', [
+            'vehicle_plate' => $payload['vehicle_plate'],
+            'is_vip' => false,
         ]);
     }
 }
