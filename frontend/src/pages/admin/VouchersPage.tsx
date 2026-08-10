@@ -6,7 +6,6 @@ import { z } from 'zod'
 import { getVouchers, createVoucher, updateVoucher, deactivateVoucher, bulkGrantVouchers, getCustomers } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
-import DateInputVN from '@/components/common/DateInputVN'
 import dayjs from 'dayjs'
 
 interface PickedCustomer { id: number; name: string; phone: string }
@@ -205,7 +204,7 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
 
       <div>
         <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
-        <DateInputVN value={watch('expires_at')} onChange={(iso) => setValue('expires_at', iso)}
+        <input type="date" lang="en-GB" {...register('expires_at')}
           className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
         {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng nhập đúng ngày hết hạn (dd/mm/yyyy)</p>}
       </div>
@@ -347,7 +346,7 @@ export default function VouchersPage() {
 
           <div>
             <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
-            <DateInputVN value={watch('expires_at')} onChange={(iso) => setValue('expires_at', iso)}
+            <input type="date" lang="en-GB" {...register('expires_at')}
               className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
             {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng nhập đúng ngày hết hạn (dd/mm/yyyy)</p>}
           </div>
