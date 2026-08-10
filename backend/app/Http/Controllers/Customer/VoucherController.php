@@ -15,6 +15,7 @@ class VoucherController extends Controller
     {
         $vouchers = Voucher::where('is_active', true)
             ->where('expires_at', '>=', today())
+            ->where('target', 'all')
             ->whereNull('user_id')
             ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
             ->whereDoesntHave('bookings', fn ($q) => $q->where('customer_id', $request->user()->id))
@@ -61,7 +62,10 @@ class VoucherController extends Controller
             ->where('is_active', true)
             ->where('expires_at', '>=', today())
             ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
-            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $request->user()->id))
+            ->where(function ($q) use ($request) {
+                $q->where('target', 'all')
+                    ->orWhere(fn ($q2) => $q2->where('target', 'specific')->where('user_id', $request->user()->id));
+            })
             ->first();
 
         if (! $voucher) {

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { getVouchers, createVoucher, deactivateVoucher } from '@/api/admin'
+import { getVouchers, createVoucher, deactivateVoucher, getCustomers } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 import dayjs from 'dayjs'
@@ -13,8 +13,12 @@ const schema = z.object({
   type: z.enum(['fixed', 'percent']),
   value: z.number({ coerce: true }).min(1),
   target: z.enum(['all', 'specific']),
+  user_id: z.number({ coerce: true }).optional(),
   expires_at: z.string().min(1),
   usage_limit: z.number({ coerce: true }).min(1),
+}).refine((d) => d.target === 'all' || d.user_id !== undefined, {
+  message: 'Chọn khách để cấp voucher riêng',
+  path: ['user_id'],
 })
 type FormData = z.infer<typeof schema>
 
@@ -22,10 +26,18 @@ export default function VouchersPage() {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
   const [showForm, setShowForm] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState<App.AdminCustomer | null>(null)
 
   const { data: vouchers = [] } = useQuery({
     queryKey: ['vouchers'],
     queryFn: () => getVouchers().then((r) => r.data),
+  })
+
+  const { data: customerResults = [] } = useQuery({
+    queryKey: ['customers', 'search', customerSearch],
+    queryFn: () => getCustomers({ search: customerSearch }).then((r) => r.data),
+    enabled: customerSearch.length >= 3,
   })
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({
@@ -33,10 +45,18 @@ export default function VouchersPage() {
     defaultValues: { type: 'fixed', target: 'all', usage_limit: 100 },
   })
   const type = watch('type')
+  const target = watch('target')
 
   const createMutation = useMutation({
     mutationFn: (d: FormData) => createVoucher(d),
-    onSuccess: () => { showToast('Tạo voucher thành công', 'success'); qc.invalidateQueries({ queryKey: ['vouchers'] }); reset(); setShowForm(false) },
+    onSuccess: () => {
+      showToast('Tạo voucher thành công', 'success')
+      qc.invalidateQueries({ queryKey: ['vouchers'] })
+      reset()
+      setSelectedCustomer(null)
+      setCustomerSearch('')
+      setShowForm(false)
+    },
     onError: () => showToast('Tạo voucher thất bại', 'error'),
   })
 
@@ -46,6 +66,12 @@ export default function VouchersPage() {
   })
 
   const genCode = () => setValue('code', `${import.meta.env.VITE_CODE_PREFIX}${Math.random().toString(36).slice(2, 8).toUpperCase()}`)
+
+  const pickCustomer = (c: App.AdminCustomer) => {
+    setSelectedCustomer(c)
+    setValue('user_id', c.id)
+    setCustomerSearch('')
+  }
 
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
@@ -78,6 +104,50 @@ export default function VouchersPage() {
               </button>
             ))}
           </div>
+
+          {/* Target toggle */}
+          <div className="flex rounded-input overflow-hidden border border-border-gray">
+            {(['all', 'specific'] as const).map((t) => (
+              <button key={t} type="button" onClick={() => {
+                setValue('target', t)
+                if (t === 'all') { setValue('user_id', undefined); setSelectedCustomer(null); setCustomerSearch('') }
+              }}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${target === t ? 'bg-primary text-white' : 'text-neutral-gray'}`}>
+                {t === 'all' ? 'Công khai (mọi khách)' : 'Cấp riêng 1 khách'}
+              </button>
+            ))}
+          </div>
+
+          {target === 'specific' && (
+            <div>
+              {selectedCustomer ? (
+                <div className="flex items-center justify-between border border-border-gray rounded-input px-3 py-2 text-sm">
+                  <span>{selectedCustomer.name} · {selectedCustomer.phone}</span>
+                  <button type="button" onClick={() => { setSelectedCustomer(null); setValue('user_id', undefined) }}
+                    className="text-neutral-gray">
+                    <span className="material-symbols-outlined text-base">close</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Tìm khách theo số điện thoại"
+                    className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+                  {customerResults.length > 0 && (
+                    <div className="border border-border-gray rounded-input mt-1 overflow-hidden max-h-40 overflow-y-auto">
+                      {customerResults.map((c) => (
+                        <button key={c.id} type="button" onClick={() => pickCustomer(c)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-light-green border-b border-border-gray last:border-b-0">
+                          {c.name} · {c.phone}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              {errors.user_id && <p className="text-danger-red text-xs mt-1">{errors.user_id.message}</p>}
+            </div>
+          )}
 
           <div className="flex gap-2">
             <div className="flex-1">
@@ -116,6 +186,9 @@ export default function VouchersPage() {
                 {' · '}HSD: {dayjs(v.expires_at).format('DD/MM/YYYY')}
                 {' · '}{v.usage_count}/{v.usage_limit} lượt
               </p>
+              {v.target === 'specific' && v.user && (
+                <p className="text-caption text-primary font-medium">Riêng: {v.user.name} · {v.user.phone}</p>
+              )}
             </div>
             {v.is_active && (
               <div className="flex gap-2">

@@ -12,6 +12,7 @@ const TABS = [
   { to: '/dashboard', icon: 'dashboard',           label: 'Dashboard' },
   { to: '/drivers',   icon: 'people',              label: 'Tài xế' },
   { to: '/vouchers',  icon: 'confirmation_number', label: 'Voucher' },
+  { to: '/campaigns', icon: 'campaign',            label: 'Chiến dịch', short: 'C.dịch' },
   { to: '/revenue',   icon: 'bar_chart',           label: 'Doanh thu' },
   { to: '/prices',    icon: 'sell',                label: 'Bảng giá' },
   // `short` dùng cho bottom nav mobile — 8 tab trên khung 430px, nhãn dài hơn ~7 ký tự sẽ xuống dòng.

@@ -1,0 +1,162 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { getCampaigns, createCampaign, updateCampaign } from '@/api/admin'
+import { useUiStore } from '@/stores/ui'
+import Button from '@/components/common/Button'
+
+const schema = z.object({
+  name: z.string().min(3),
+  voucher_count: z.number({ coerce: true }).min(1).max(20),
+  voucher_value: z.number({ coerce: true }).min(1000),
+  voucher_expires_days: z.number({ coerce: true }).min(1).max(365),
+  starts_at: z.string().optional(),
+  ends_at: z.string().optional(),
+  max_grants: z.number({ coerce: true }).min(1).optional(),
+})
+type FormData = z.infer<typeof schema>
+
+// Chỉ 1 loại trigger khả dụng hiện tại — xem App\Support\CampaignTrigger ở backend.
+// Thêm loại mới thì thêm ở đó trước, dropdown này mới có gì để chọn.
+const TRIGGER_LABELS: Record<string, string> = {
+  customer_registered: 'Khách đăng ký mới',
+}
+
+export default function CampaignsPage() {
+  const qc = useQueryClient()
+  const showToast = useUiStore((s) => s.showToast)
+  const [showForm, setShowForm] = useState(false)
+
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ['campaigns'],
+    queryFn: () => getCampaigns().then((r) => r.data),
+  })
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (d: FormData) => createCampaign({
+      name: d.name,
+      trigger: 'customer_registered',
+      reward: {
+        voucher_count: d.voucher_count,
+        voucher_value: d.voucher_value,
+        voucher_expires_days: d.voucher_expires_days,
+      },
+      starts_at: d.starts_at || null,
+      ends_at: d.ends_at || null,
+      max_grants: d.max_grants ?? null,
+    }),
+    onSuccess: () => {
+      showToast('Tạo chiến dịch thành công', 'success')
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+      reset()
+      setShowForm(false)
+    },
+    onError: () => showToast('Tạo chiến dịch thất bại', 'error'),
+  })
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: (c: App.Campaign) => updateCampaign(c.id, { is_active: !c.is_active }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }) },
+  })
+
+  return (
+    <div className="flex flex-col px-4 py-4 gap-4">
+      <div className="flex items-center justify-between">
+        <h1 className="hidden lg:block text-h2 text-navy font-semibold">Chiến dịch</h1>
+        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <span className="material-symbols-outlined text-lg">add</span>
+          Tạo mới
+        </Button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit((d) => createMutation.mutate(d))}
+          className="bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
+          <div>
+            <input {...register('name')} placeholder="Tên chiến dịch"
+              className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+            {errors.name && <p className="text-danger-red text-xs mt-1">{errors.name.message}</p>}
+          </div>
+
+          <p className="text-caption text-neutral-gray">
+            Kích hoạt khi: {TRIGGER_LABELS.customer_registered}
+          </p>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs text-neutral-gray mb-1 block">Số voucher</label>
+              <input type="number" {...register('voucher_count')}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+              {errors.voucher_count && <p className="text-danger-red text-xs mt-1">{errors.voucher_count.message}</p>}
+            </div>
+            <div>
+              <label className="text-xs text-neutral-gray mb-1 block">Mệnh giá (đ)</label>
+              <input type="number" {...register('voucher_value')}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+              {errors.voucher_value && <p className="text-danger-red text-xs mt-1">{errors.voucher_value.message}</p>}
+            </div>
+            <div>
+              <label className="text-xs text-neutral-gray mb-1 block">Hạn (ngày)</label>
+              <input type="number" {...register('voucher_expires_days')}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+              {errors.voucher_expires_days && <p className="text-danger-red text-xs mt-1">{errors.voucher_expires_days.message}</p>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-neutral-gray mb-1 block">Bắt đầu (để trống = ngay)</label>
+              <input type="date" {...register('starts_at')}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-neutral-gray mb-1 block">Kết thúc (để trống = chưa chốt)</label>
+              <input type="date" {...register('ends_at')}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Trần số người nhận (để trống = không trần)</label>
+            <input type="number" {...register('max_grants')}
+              className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          </div>
+
+          <Button type="submit" fullWidth loading={createMutation.isPending}>Tạo chiến dịch</Button>
+        </form>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {campaigns.map((c) => (
+          <div key={c.id} className="bg-white rounded-card shadow-card p-4 flex items-center gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-semibold text-navy text-sm">{c.name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-pill ${c.is_active ? 'bg-light-green text-primary' : 'bg-border-gray text-neutral-gray'}`}>
+                  {c.is_active ? 'Đang chạy' : 'Đã tắt'}
+                </span>
+              </div>
+              <p className="text-caption text-neutral-gray">
+                {c.reward.voucher_count} × {c.reward.voucher_value.toLocaleString('vi')}đ, hạn {c.reward.voucher_expires_days} ngày
+                {' · '}{c.grants_count}/{c.max_grants ?? '∞'} đã phát
+              </p>
+            </div>
+            <button onClick={() => toggleActiveMutation.mutate(c)}
+              className="text-xs text-neutral-gray border border-border-gray rounded-pill px-3 py-1.5">
+              {c.is_active ? 'Tắt' : 'Bật'}
+            </button>
+          </div>
+        ))}
+        {campaigns.length === 0 && (
+          <p className="text-caption text-neutral-gray text-center py-10">Chưa có chiến dịch nào</p>
+        )}
+      </div>
+    </div>
+  )
+}

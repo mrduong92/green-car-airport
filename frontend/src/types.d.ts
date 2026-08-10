@@ -201,6 +201,8 @@ declare namespace App {
     type: 'fixed' | 'percent'
     value: number
     target: 'all' | 'specific'
+    user_id: number | null
+    user: { phone: string; name: string } | null
     expires_at: string
     usage_limit: number
     usage_count: number
@@ -212,8 +214,36 @@ declare namespace App {
     type: 'fixed' | 'percent'
     value: number
     target: 'all' | 'specific'
+    user_id?: number
     expires_at: string
     usage_limit: number
+  }
+
+  interface CampaignReward {
+    voucher_count: number
+    voucher_value: number
+    voucher_expires_days: number
+  }
+
+  interface Campaign {
+    id: number
+    name: string
+    trigger: string
+    reward: CampaignReward
+    starts_at: string | null
+    ends_at: string | null
+    max_grants: number | null
+    grants_count: number
+    is_active: boolean
+  }
+
+  interface CampaignPayload {
+    name: string
+    trigger: string
+    reward: CampaignReward
+    starts_at?: string | null
+    ends_at?: string | null
+    max_grants?: number | null
   }
 
   interface RevenueReport {

@@ -34,6 +34,14 @@ export const createVoucher = (data: App.VoucherPayload) =>
 export const deactivateVoucher = (id: number) =>
   api.patch(`/admin/vouchers/${id}/deactivate`)
 
+export const getCampaigns = () => api.get<App.Campaign[]>('/admin/campaigns')
+
+export const createCampaign = (data: App.CampaignPayload) =>
+  api.post<App.Campaign>('/admin/campaigns', data)
+
+export const updateCampaign = (id: number, data: Partial<App.Campaign>) =>
+  api.patch<App.Campaign>(`/admin/campaigns/${id}`, data)
+
 export const getRevenue = (params: { period: string; from?: string; to?: string }) =>
   api.get<App.RevenueReport>('/admin/revenue', { params })
 

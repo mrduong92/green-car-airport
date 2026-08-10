@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVoucherController;
+use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\AdminWalletController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -120,6 +121,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/vouchers', [AdminVoucherController::class, 'index']);
         Route::post('/admin/vouchers', [AdminVoucherController::class, 'store']);
         Route::patch('/admin/vouchers/{voucher}/deactivate', [AdminVoucherController::class, 'deactivate']);
+        Route::get('/admin/campaigns', [CampaignController::class, 'index']);
+        Route::post('/admin/campaigns', [CampaignController::class, 'store']);
+        Route::patch('/admin/campaigns/{campaign}', [CampaignController::class, 'update']);
         Route::get('/admin/revenue', [RevenueController::class, 'index']);
         Route::get('/admin/customers', [AdminCustomerController::class, 'index']);
         Route::patch('/admin/customers/{user}', [AdminCustomerController::class, 'update']);

@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             WalletSeeder::class,
             BookingSeeder::class,
             VoucherSeeder::class,
+            CampaignSeeder::class,
             PriceConfigSeeder::class,
             StaticPageSeeder::class,
         ]);

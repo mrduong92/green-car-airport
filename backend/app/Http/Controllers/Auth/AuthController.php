@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Otp;
 use App\Models\User;
+use App\Services\CampaignService;
 use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -124,6 +125,8 @@ class AuthController extends Controller
         ]);
 
         $token = $user->createToken('api')->plainTextToken;
+
+        app(CampaignService::class)->runOnCustomerRegistered($user);
 
         return response()->json([
             'user'  => $this->userPayload($user),

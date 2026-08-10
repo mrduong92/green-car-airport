@@ -3,10 +3,8 @@
 namespace App\Services;
 
 use App\Models\User;
-use App\Models\Voucher;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class ReferralService
 {
@@ -16,6 +14,8 @@ class ReferralService
     private const CUSTOMER_VOUCHER_VALUE     = 50000;
     private const REFERRER_VOUCHER_COUNT     = 2;
     private const NEW_CUSTOMER_VOUCHER_COUNT = 4;
+
+    public function __construct(private VoucherIssuer $voucherIssuer) {}
 
     public function processDriverReferral(User $driver): void
     {
@@ -70,17 +70,7 @@ class ReferralService
     private function issueVouchers(User $user, int $count): void
     {
         for ($i = 0; $i < $count; $i++) {
-            Voucher::create([
-                'code'        => 'REF-' . $user->id . '-' . strtoupper(Str::random(4)),
-                'type'        => 'fixed',
-                'value'       => self::CUSTOMER_VOUCHER_VALUE,
-                'target'      => 'specific',
-                'expires_at'  => now()->addMonth(),
-                'usage_limit' => 1,
-                'usage_count' => 0,
-                'is_active'   => true,
-                'user_id'     => $user->id,
-            ]);
+            $this->voucherIssuer->issue($user, 'REF', self::CUSTOMER_VOUCHER_VALUE, now()->addMonth());
         }
     }
 }
