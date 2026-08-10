@@ -8,6 +8,7 @@ use App\Http\Controllers\Driver\TripController;
 use App\Models\Booking;
 use App\Models\User;
 use App\Support\AvailableTripsCache;
+use App\Support\VehicleCapacity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -124,6 +125,48 @@ class AvailableTripsListTest extends TestCase
         $rank = ['sedan_4' => 4, 'suv_5' => 5, 'mpv_7' => 7];
 
         return $rank[$bookingType] <= $rank[$driverType];
+    }
+
+    /**
+     * Parity cho chiều VIP: bộ lọc SQL trong index() và vị từ PHP
+     * VehicleCapacity::fits() phải khớp ở MỌI tổ hợp (loại xe × VIP).
+     * Lệch nhau nghĩa là cuốc hiện trong danh sách nhưng bấm nhận thì 422.
+     */
+    public function test_sql_filter_matches_fits_for_every_vip_combination(): void
+    {
+        $types = ['sedan_4', 'suv_5', 'mpv_7'];
+        $cases = [];
+        foreach ($types as $t) {
+            foreach ([false, true] as $vip) {
+                $booking = $this->makeWaitingBooking($t);
+                $booking->update(['is_vip' => $vip]);
+                $cases[] = ['id' => $booking->id, 'type' => $t, 'vip' => $vip];
+            }
+        }
+
+        foreach ($types as $driverType) {
+            foreach ([false, true] as $driverVip) {
+                $driver = $this->makeDriver($driverType);
+                $driver->driverProfile->update(['is_vip' => $driverVip]);
+                AvailableTripsCache::flush();
+
+                $returned = collect($this->actingAs($driver, 'sanctum')
+                    ->getJson('/api/driver/trips')->assertOk()->json())
+                    ->pluck('id')->sort()->values()->all();
+
+                $expected = collect($cases)
+                    ->filter(fn ($c) => VehicleCapacity::fits(
+                        $c['type'], $driverType, $c['vip'], $driverVip,
+                    ))
+                    ->pluck('id')->sort()->values()->all();
+
+                $this->assertEquals(
+                    $expected,
+                    $returned,
+                    "lệch ở tài xế xe $driverType, vip=".var_export($driverVip, true),
+                );
+            }
+        }
     }
 
     public function test_list_is_capped(): void

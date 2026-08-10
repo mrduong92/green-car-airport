@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Support\AvailableTripsCache;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class VipTripVisibilityTest extends TestCase
@@ -104,5 +105,54 @@ class VipTripVisibilityTest extends TestCase
             ->getJson('/api/driver/trips')->assertOk()->json())->pluck('id')->all();
 
         $this->assertContains($fresh->id, $ids);
+    }
+
+    public function test_normal_driver_cannot_accept_vip_booking(): void
+    {
+        Notification::fake();
+
+        $booking = $this->makeBooking(true);
+        $driver = $this->makeDriver(false);
+
+        $this->actingAs($driver, 'sanctum')
+            ->postJson("/api/driver/trips/{$booking->id}/accept")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Cuốc VIP chỉ dành cho tài xế xe cá nhân (biển trắng).');
+
+        $this->assertEquals('finding_driver', $booking->fresh()->status);
+        $this->assertNull($booking->fresh()->driver_id);
+    }
+
+    public function test_vip_driver_can_accept_vip_booking(): void
+    {
+        Notification::fake();
+
+        $booking = $this->makeBooking(true);
+        $driver = $this->makeDriver(true);
+
+        $this->actingAs($driver, 'sanctum')
+            ->postJson("/api/driver/trips/{$booking->id}/accept")
+            ->assertOk();
+
+        $this->assertEquals('accepted', $booking->fresh()->status);
+        $this->assertEquals($driver->id, $booking->fresh()->driver_id);
+    }
+
+    /**
+     * Thông báo lỗi phải nói đúng lý do. Tài xế VIP xe 4 chỗ bấm cuốc VIP 7 chỗ
+     * là hỏng vì SỨC CHỨA, không phải vì VIP — báo nhầm thì tài xế đi liên hệ
+     * admin xin duyệt VIP trong khi vấn đề là xe nhỏ.
+     */
+    public function test_capacity_message_wins_when_driver_is_vip(): void
+    {
+        Notification::fake();
+
+        $booking = $this->makeBooking(true, 'mpv_7');
+        $driver = $this->makeDriver(true, 'sedan_4');
+
+        $this->actingAs($driver, 'sanctum')
+            ->postJson("/api/driver/trips/{$booking->id}/accept")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Cuốc này cần xe lớn hơn, không phù hợp với xe của bạn.');
     }
 }
