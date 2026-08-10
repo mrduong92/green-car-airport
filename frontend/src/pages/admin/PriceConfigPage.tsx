@@ -23,6 +23,7 @@ const schema = z.object({
   service_type: z.enum(['airport', 'provincial']),
   trip_type:    z.enum(['one_way', 'round_trip']),
   vehicle_type: z.enum(['sedan_4', 'suv_5', 'mpv_7']),
+  is_vip:       z.boolean().default(false),
   price_type:   z.enum(['range', 'per_km']),
   min_price:    z.number({ coerce: true }).min(1),
   max_price:    z.number({ coerce: true }).min(1),
@@ -43,7 +44,7 @@ export default function PriceConfigPage() {
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { service_type: 'airport', trip_type: 'one_way', vehicle_type: 'sedan_4', price_type: 'range', sort_order: 0 },
+    defaultValues: { service_type: 'airport', trip_type: 'one_way', vehicle_type: 'sedan_4', is_vip: false, price_type: 'range', sort_order: 0 },
   })
   const priceType = watch('price_type')
 
@@ -80,6 +81,7 @@ export default function PriceConfigPage() {
     setValue('service_type', cfg.service_type)
     setValue('trip_type', cfg.trip_type)
     setValue('vehicle_type', cfg.vehicle_type)
+    setValue('is_vip', cfg.is_vip)
     setValue('price_type', cfg.price_type)
     setValue('min_price', cfg.min_price)
     setValue('max_price', cfg.max_price)
@@ -147,6 +149,11 @@ export default function PriceConfigPage() {
             </div>
           </div>
 
+          <label className="flex items-center gap-2 text-sm text-navy">
+            <input type="checkbox" {...register('is_vip')} className="w-4 h-4 accent-gold" />
+            Xe VIP (cá nhân, biển trắng)
+          </label>
+
           {/* Price type toggle */}
           <div>
             <label className="text-xs text-neutral-gray mb-1 block">Cách tính giá</label>
@@ -207,6 +214,11 @@ export default function PriceConfigPage() {
                 <span className="text-xs text-neutral-gray border border-border-gray rounded-pill px-2 py-0.5">
                   {VEHICLE_LABELS[cfg.vehicle_type]}
                 </span>
+                {cfg.is_vip && (
+                  <span className="text-xs font-semibold text-gold border border-gold rounded-pill px-2 py-0.5">
+                    VIP
+                  </span>
+                )}
                 <span className="text-xs text-neutral-gray">
                   {cfg.price_type === 'per_km' ? 'Theo km' : 'Cố định'}
                 </span>

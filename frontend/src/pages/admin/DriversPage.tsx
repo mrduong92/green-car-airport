@@ -158,7 +158,13 @@ export default function DriversPage() {
                 {d.name[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-navy">{d.name} <span className="text-caption font-normal text-neutral-gray">#{d.id}</span></p>
+                <p className="text-sm font-semibold text-navy">{d.name} <span className="text-caption font-normal text-neutral-gray">#{d.id}</span>
+                  {d.is_vip && (
+                    <span className="ml-1.5 text-[10px] font-bold text-gold border border-gold rounded-pill px-1.5 py-0.5">
+                      VIP
+                    </span>
+                  )}
+                </p>
                 <p className="text-caption text-neutral-gray">{d.phone}</p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <StatusBadge status={d.status} />
