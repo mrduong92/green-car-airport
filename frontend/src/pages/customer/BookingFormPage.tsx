@@ -500,20 +500,24 @@ export default function BookingFormPage() {
                 onClick={() => setGoNow(opt.value)}
                 aria-pressed={active}
                 className={clsx(
-                  'flex flex-col items-center gap-1 py-3 rounded-card border transition-all',
+                  'flex flex-col items-center gap-0.5 py-2.5 rounded-card border transition-all',
                   active
                     ? 'border-primary bg-primary-tint shadow-[0_0_0_3px_rgba(0,106,54,0.18)]'
                     : 'border-border-gray bg-white',
                 )}
               >
-                <span
-                  className={clsx('material-symbols-outlined text-[26px]', active ? 'text-primary' : 'text-neutral-gray')}
-                  style={{ fontVariationSettings: "'wght' 300" }}
-                >
-                  {opt.icon}
-                </span>
-                <span className={clsx('text-[13px] font-semibold', active ? 'text-primary' : 'text-navy')}>
-                  {opt.label}
+                {/* Icon nằm CÙNG dòng với nhãn, chú thích xuống dòng dưới — hai
+                    dòng thay vì ba, để khối này không cao hơn lưới chọn loại xe. */}
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={clsx('material-symbols-outlined text-[18px]', active ? 'text-primary' : 'text-neutral-gray')}
+                    style={{ fontVariationSettings: "'wght' 400" }}
+                  >
+                    {opt.icon}
+                  </span>
+                  <span className={clsx('text-[14px] font-semibold', active ? 'text-primary' : 'text-navy')}>
+                    {opt.label}
+                  </span>
                 </span>
                 <span className="text-[11px] text-neutral-gray">{opt.hint}</span>
               </button>
