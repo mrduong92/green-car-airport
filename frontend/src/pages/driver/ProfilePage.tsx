@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { getDriverProfile, updateDriverProfile } from '@/api/trips'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { apiMessage } from '@/utils/apiError'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useLogout } from '@/hooks/useLogout'
 import StatusBadge from '@/components/common/StatusBadge'
@@ -71,7 +72,7 @@ export default function DriverProfilePage() {
       showToast('Đã cập nhật hồ sơ', 'success')
       setEditing(false)
     },
-    onError: () => showToast('Cập nhật thất bại', 'error'),
+    onError: (err) => showToast(apiMessage(err, 'Cập nhật thất bại'), 'error'),
   })
 
   const field = (key: keyof EditForm, label: string, placeholder?: string, type = 'text') => (

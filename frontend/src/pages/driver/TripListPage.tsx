@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getAvailableTrips, getTripHistory, getWallet, toggleOnline, acceptTrip, getDriverProfile } from '@/api/trips'
 import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
+import { apiMessage } from '@/utils/apiError'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import VipBadge from '@/components/common/VipBadge'
@@ -100,7 +101,9 @@ export default function TripListPage() {
       qc.invalidateQueries({ queryKey: ['trips'] })
       navigate(`/driver/trips/${id}`)
     },
-    onError: () => showToast('Nhận cuốc thất bại', 'error'),
+    // Hiện đúng lý do backend trả về. Nguyên nhân hay gặp nhất là hết điểm ví,
+    // và tài xế chỉ biết đường nạp thêm nếu đọc được câu đó.
+    onError: (err) => showToast(apiMessage(err, 'Nhận cuốc thất bại'), 'error'),
   })
 
   return (

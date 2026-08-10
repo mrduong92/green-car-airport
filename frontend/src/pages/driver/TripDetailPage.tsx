@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTrip, updateTripStatus, cancelTrip } from '@/api/trips'
 import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
+import { apiMessage } from '@/utils/apiError'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
@@ -50,7 +51,7 @@ export default function TripDetailPage() {
         navigate('/driver/trips')
       }
     },
-    onError: () => showToast('Cập nhật thất bại', 'error'),
+    onError: (err) => showToast(apiMessage(err, 'Cập nhật thất bại'), 'error'),
   })
 
   const cancelMutation = useMutation({
@@ -63,7 +64,7 @@ export default function TripDetailPage() {
       showToast('Đã huỷ cuốc', 'info')
       navigate('/driver/trips', { replace: true })
     },
-    onError: () => { showToast('Huỷ cuốc thất bại', 'error'); setCancelOpen(false) },
+    onError: (err) => { showToast(apiMessage(err, 'Huỷ cuốc thất bại'), 'error'); setCancelOpen(false) },
   })
 
   if (isPending) return (
