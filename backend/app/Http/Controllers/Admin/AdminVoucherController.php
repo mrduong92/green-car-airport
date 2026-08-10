@@ -22,46 +22,34 @@ class AdminVoucherController extends Controller
         return response()->json($vouchers);
     }
 
+    /**
+     * Tạo voucher CÔNG KHAI — 1 mã (admin tự đặt/tự sinh), ai cũng dùng được tới khi
+     * hết usage_limit. Voucher cấp riêng cho khách (1 hoặc nhiều người) đi qua
+     * storeBulk() — mỗi khách 1 mã riêng, không thể gộp vào 1 mã chung (unique).
+     */
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'code'        => 'required|string|unique:vouchers,code',
             'type'        => 'required|in:fixed,percent',
             'value'       => 'required|integer|min:1',
-            'target'      => 'required|in:all,specific',
-            'user_id'     => 'nullable|exists:users,id',
             'expires_at'  => 'required|date|after:today',
             'usage_limit' => 'nullable|integer|min:1',
         ]);
 
-        // target=specific bắt buộc user_id (voucher cấp riêng cho 1 khách); target=all
-        // phải không có user_id — trộn hai cái là đúng lỗ hổng đã sửa (xem
-        // docs/superpowers/specs/2026-08-10-campaign-voucher-design.md — Phần 1).
-        if ($data['target'] === 'specific' && empty($data['user_id'])) {
-            throw ValidationException::withMessages([
-                'user_id' => 'target=specific bắt buộc chọn khách (user_id).',
-            ]);
-        }
-        if ($data['target'] === 'all' && ! empty($data['user_id'])) {
-            throw ValidationException::withMessages([
-                'user_id' => 'target=all không được kèm user_id.',
-            ]);
-        }
-
+        $data['target']      = 'all';
         $data['is_active']   = true;
         $data['usage_count'] = 0;
 
         $voucher = Voucher::create($data);
-        $voucher->loadMissing('user');
 
         return response()->json($this->formatVoucher($voucher), 201);
     }
 
     /**
-     * Cấp voucher cá nhân cho N khách trong một lượt — mỗi khách 1 voucher riêng
-     * (mã tự sinh, usage_limit riêng), KHÁC với store() (1 voucher, 1 mã, cho 1 hoặc
-     * mọi khách). Dùng lại VoucherIssuer — cùng cơ chế sinh mã chống trùng như
-     * campaign/referral, không viết lại Voucher::create() ở đây.
+     * Cấp voucher cá nhân cho 1 hoặc nhiều khách trong một lượt — mỗi khách 1 voucher
+     * riêng (mã tự sinh, usage_limit riêng). Dùng lại VoucherIssuer — cùng cơ chế sinh
+     * mã chống trùng như campaign/referral, không viết lại Voucher::create() ở đây.
      */
     public function storeBulk(Request $request): JsonResponse
     {

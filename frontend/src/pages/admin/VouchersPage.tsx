@@ -10,33 +10,60 @@ import dayjs from 'dayjs'
 
 interface PickedCustomer { id: number; name: string; phone: string }
 
-const voucherFields = z.object({
+const TYPE_OPTIONS = [
+  { value: 'fixed', label: 'Giảm số tiền cố định', hint: 'VD: giảm 50.000đ mỗi cuốc' },
+  { value: 'percent', label: 'Giảm theo phần trăm', hint: 'VD: giảm 10% giá cuốc' },
+] as const
+
+const TARGET_OPTIONS = [
+  { value: 'all', label: 'Công khai', hint: 'Mọi khách dùng chung 1 mã, tới khi hết lượt' },
+  { value: 'specific', label: 'Cấp riêng cho khách', hint: 'Chọn 1 hoặc nhiều khách, mỗi người nhận 1 mã riêng' },
+] as const
+
+// Dạng thẻ chọn (giống trang Chiến dịch) — rõ nghĩa hơn segmented button ngang.
+function OptionCards<T extends string>({
+  options, value, onChange,
+}: { options: readonly { value: T; label: string; hint: string }[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {options.map((o) => (
+        <button key={o.value} type="button" onClick={() => onChange(o.value)}
+          className={`text-left px-3 py-2 rounded-input border transition-colors ${
+            value === o.value ? 'border-primary bg-light-green' : 'border-border-gray'
+          }`}>
+          <p className={`text-sm font-medium ${value === o.value ? 'text-primary' : 'text-navy'}`}>{o.label}</p>
+          <p className="text-xs text-neutral-gray">{o.hint}</p>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+const createFields = z.object({
   type: z.enum(['fixed', 'percent']),
-  value: z.number({ coerce: true }).min(1),
   target: z.enum(['all', 'specific']),
-  user_id: z.number({ coerce: true }).optional(),
+  code: z.string().optional(),
+  value: z.number({ coerce: true }).min(1),
   expires_at: z.string().min(1),
   usage_limit: z.number({ coerce: true }).min(1),
+}).refine((d) => d.target === 'specific' || (!!d.code && d.code.length >= 3), {
+  message: 'Nhập mã voucher (ít nhất 3 ký tự)', path: ['code'],
 })
-const targetRefineMessage = { message: 'Chọn khách để cấp voucher riêng', path: ['user_id'] }
+type CreateFormData = z.infer<typeof createFields>
 
-const schema = voucherFields.extend({ code: z.string().min(3) })
-  .refine((d) => d.target === 'all' || d.user_id !== undefined, targetRefineMessage)
-type FormData = z.infer<typeof schema>
-
-const editSchema = voucherFields
-  .refine((d) => d.target === 'all' || d.user_id !== undefined, targetRefineMessage)
-type EditFormData = z.infer<typeof editSchema>
-
-const bulkSchema = z.object({
+const editFields = z.object({
   type: z.enum(['fixed', 'percent']),
+  target: z.enum(['all', 'specific']),
+  user_id: z.number({ coerce: true }).optional(),
   value: z.number({ coerce: true }).min(1),
   expires_at: z.string().min(1),
-  usage_limit: z.number({ coerce: true }).min(1).optional(),
+  usage_limit: z.number({ coerce: true }).min(1),
+}).refine((d) => d.target === 'all' || d.user_id !== undefined, {
+  message: 'Chọn khách để cấp voucher riêng', path: ['user_id'],
 })
-type BulkFormData = z.infer<typeof bulkSchema>
+type EditFormData = z.infer<typeof editFields>
 
-// Dùng chung cho form tạo + form sửa — tìm khách theo SĐT, chọn 1 người.
+// Chọn đúng 1 khách — dùng ở form sửa (voucher đã tạo chỉ gắn được 1 người).
 function CustomerPicker({ value, onChange }: { value: PickedCustomer | null; onChange: (c: PickedCustomer | null) => void }) {
   const [search, setSearch] = useState('')
   const { data: results = [] } = useQuery({
@@ -75,8 +102,8 @@ function CustomerPicker({ value, onChange }: { value: PickedCustomer | null; onC
   )
 }
 
-// Chọn NHIỀU khách — dùng riêng cho form "Cấp cho nhiều khách" (mỗi khách nhận 1
-// voucher cá nhân, khác CustomerPicker chỉ chọn đúng 1 người để gắn vào 1 voucher).
+// Chọn NHIỀU khách — dùng ở form tạo, khi cấp riêng cho khách (1 hoặc nhiều người,
+// mỗi người nhận 1 voucher cá nhân riêng, mã tự sinh).
 function MultiCustomerPicker({ value, onChange }: { value: PickedCustomer[]; onChange: (list: PickedCustomer[]) => void }) {
   const [search, setSearch] = useState('')
   const { data: results = [] } = useQuery({
@@ -135,12 +162,12 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
   )
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<EditFormData>({
-    resolver: zodResolver(editSchema),
+    resolver: zodResolver(editFields),
     defaultValues: {
       type: voucher.type,
-      value: voucher.value,
       target: voucher.target,
       user_id: voucher.user_id ?? undefined,
+      value: voucher.value,
       expires_at: voucher.expires_at.slice(0, 10),
       usage_limit: voucher.usage_limit,
     },
@@ -168,29 +195,28 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
   return (
     <form onSubmit={handleSubmit((d) => updateMutation.mutate(d))}
       className="bg-light-green rounded-card p-4 flex flex-col gap-3 mt-2">
-      <div className="flex rounded-input overflow-hidden border border-border-gray">
-        {(['fixed', 'percent'] as const).map((t) => (
-          <button key={t} type="button" onClick={() => setValue('type', t)}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${type === t ? 'bg-primary text-white' : 'text-neutral-gray'}`}>
-            {t === 'fixed' ? 'Số tiền cố định' : 'Phần trăm'}
-          </button>
-        ))}
+      <div>
+        <label className="text-xs text-neutral-gray mb-1 block">Loại giảm giá</label>
+        <OptionCards options={TYPE_OPTIONS} value={type} onChange={(v) => setValue('type', v)} />
       </div>
 
-      <div className="flex rounded-input overflow-hidden border border-border-gray">
-        {(['all', 'specific'] as const).map((t) => (
-          <button key={t} type="button" onClick={() => {
-            setValue('target', t)
-            if (t === 'all') { setValue('user_id', undefined); setSelectedCustomer(null) }
+      <div>
+        <label className="text-xs text-neutral-gray mb-1 block">Phạm vi áp dụng</label>
+        <OptionCards
+          options={TARGET_OPTIONS.map((o) => o.value === 'specific'
+            ? { ...o, label: 'Cấp riêng cho khách này', hint: 'Chỉ khách được chọn dưới đây dùng được' }
+            : o)}
+          value={target}
+          onChange={(v) => {
+            setValue('target', v)
+            if (v === 'all') { setValue('user_id', undefined); setSelectedCustomer(null) }
           }}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${target === t ? 'bg-primary text-white' : 'text-neutral-gray'}`}>
-            {t === 'all' ? 'Công khai (mọi khách)' : 'Cấp riêng 1 khách'}
-          </button>
-        ))}
+        />
       </div>
 
       {target === 'specific' && (
         <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Khách nhận voucher</label>
           <CustomerPicker value={selectedCustomer} onChange={(c) => { setSelectedCustomer(c); setValue('user_id', c?.id ?? undefined) }} />
           {errors.user_id && <p className="text-danger-red text-xs mt-1">{errors.user_id.message}</p>}
         </div>
@@ -198,12 +224,14 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
 
       <div className="flex gap-2">
         <div className="flex-1">
-          <input type="number" {...register('value')} placeholder={type === 'fixed' ? 'Giá trị (đ)' : 'Phần trăm (%)'}
+          <label className="text-xs text-neutral-gray mb-1 block">{type === 'fixed' ? 'Giá trị giảm (đ)' : 'Phần trăm giảm (%)'}</label>
+          <input type="number" {...register('value')}
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
           {errors.value && <p className="text-danger-red text-xs mt-1">{errors.value.message}</p>}
         </div>
         <div className="flex-1">
-          <input type="number" {...register('usage_limit')} placeholder="Giới hạn dùng"
+          <label className="text-xs text-neutral-gray mb-1 block">Giới hạn lượt dùng</label>
+          <input type="number" {...register('usage_limit')}
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
         </div>
       </div>
@@ -228,33 +256,49 @@ export default function VouchersPage() {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
   const [showForm, setShowForm] = useState(false)
-  const [showBulkForm, setShowBulkForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [selectedCustomer, setSelectedCustomer] = useState<PickedCustomer | null>(null)
-  const [bulkCustomers, setBulkCustomers] = useState<PickedCustomer[]>([])
+  const [recipients, setRecipients] = useState<PickedCustomer[]>([])
 
   const { data: vouchers = [] } = useQuery({
     queryKey: ['vouchers'],
     queryFn: () => getVouchers().then((r) => r.data),
   })
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<CreateFormData>({
+    resolver: zodResolver(createFields),
     defaultValues: { type: 'fixed', target: 'all', usage_limit: 100 },
   })
   const type = watch('type')
   const target = watch('target')
 
+  const closeForm = () => {
+    reset()
+    setRecipients([])
+    setShowForm(false)
+  }
+
   const createMutation = useMutation({
-    mutationFn: (d: FormData) => createVoucher(d),
+    mutationFn: (d: CreateFormData) => createVoucher({
+      code: d.code!, type: d.type, value: d.value, expires_at: d.expires_at, usage_limit: d.usage_limit,
+    }),
     onSuccess: () => {
       showToast('Tạo voucher thành công', 'success')
       qc.invalidateQueries({ queryKey: ['vouchers'] })
-      reset()
-      setSelectedCustomer(null)
-      setShowForm(false)
+      closeForm()
     },
     onError: () => showToast('Tạo voucher thất bại', 'error'),
+  })
+
+  const bulkGrantMutation = useMutation({
+    mutationFn: (d: CreateFormData) => bulkGrantVouchers({
+      user_ids: recipients.map((c) => c.id), type: d.type, value: d.value, expires_at: d.expires_at, usage_limit: d.usage_limit,
+    }),
+    onSuccess: (res) => {
+      showToast(`Đã cấp voucher cho ${res.data.length} khách`, 'success')
+      qc.invalidateQueries({ queryKey: ['vouchers'] })
+      closeForm()
+    },
+    onError: () => showToast('Cấp voucher thất bại', 'error'),
   })
 
   const deactivateMutation = useMutation({
@@ -264,145 +308,72 @@ export default function VouchersPage() {
 
   const genCode = () => setValue('code', `${import.meta.env.VITE_CODE_PREFIX}${Math.random().toString(36).slice(2, 8).toUpperCase()}`)
 
-  const {
-    register: registerBulk, handleSubmit: handleSubmitBulk, reset: resetBulk, setValue: setBulkValue, watch: watchBulk,
-    formState: { errors: bulkErrors },
-  } = useForm<BulkFormData>({
-    resolver: zodResolver(bulkSchema),
-    defaultValues: { type: 'fixed', usage_limit: 1 },
-  })
-  const bulkType = watchBulk('type')
-
-  const bulkGrantMutation = useMutation({
-    mutationFn: (d: BulkFormData) => bulkGrantVouchers({
-      user_ids: bulkCustomers.map((c) => c.id),
-      type: d.type,
-      value: d.value,
-      expires_at: d.expires_at,
-      usage_limit: d.usage_limit,
-    }),
-    onSuccess: (res) => {
-      showToast(`Đã cấp voucher cho ${res.data.length} khách`, 'success')
-      qc.invalidateQueries({ queryKey: ['vouchers'] })
-      resetBulk()
-      setBulkCustomers([])
-      setShowBulkForm(false)
-    },
-    onError: () => showToast('Cấp voucher thất bại', 'error'),
-  })
+  const onSubmitCreate = (d: CreateFormData) => {
+    if (d.target === 'specific') {
+      if (recipients.length === 0) { showToast('Chọn ít nhất 1 khách', 'error'); return }
+      bulkGrantMutation.mutate(d)
+    } else {
+      createMutation.mutate(d)
+    }
+  }
 
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between">
         <h1 className="hidden lg:block text-h2 text-navy font-semibold">Voucher</h1>
-        <div className="flex gap-2 ml-auto">
-          <Button size="sm" variant="outline" onClick={() => setShowBulkForm(!showBulkForm)}>
-            <span className="material-symbols-outlined text-lg">group_add</span>
-            Cấp cho nhiều khách
-          </Button>
-          <Button size="sm" onClick={() => setShowForm(!showForm)}>
-            <span className="material-symbols-outlined text-lg">add</span>
-            Tạo mới
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => (showForm ? closeForm() : setShowForm(true))}>
+          <span className="material-symbols-outlined text-lg">add</span>
+          Tạo mới
+        </Button>
       </div>
-
-      {/* Bulk-grant form — mỗi khách chọn nhận 1 voucher cá nhân riêng (mã tự sinh) */}
-      {showBulkForm && (
-        <form onSubmit={handleSubmitBulk((d) => {
-          if (bulkCustomers.length === 0) { showToast('Chọn ít nhất 1 khách', 'error'); return }
-          bulkGrantMutation.mutate(d)
-        })}
-          className="bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
-          <div>
-            <label className="text-xs text-neutral-gray mb-1 block">Khách nhận voucher</label>
-            <MultiCustomerPicker value={bulkCustomers} onChange={setBulkCustomers} />
-          </div>
-
-          <div className="flex rounded-input overflow-hidden border border-border-gray">
-            {(['fixed', 'percent'] as const).map((t) => (
-              <button key={t} type="button" onClick={() => setBulkValue('type', t)}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${bulkType === t ? 'bg-primary text-white' : 'text-neutral-gray'}`}>
-                {t === 'fixed' ? 'Số tiền cố định' : 'Phần trăm'}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <input type="number" {...registerBulk('value')} placeholder={bulkType === 'fixed' ? 'Giá trị (đ)' : 'Phần trăm (%)'}
-                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
-              {bulkErrors.value && <p className="text-danger-red text-xs mt-1">{bulkErrors.value.message}</p>}
-            </div>
-            <div className="flex-1">
-              <input type="number" {...registerBulk('usage_limit')} placeholder="Giới hạn dùng (mặc định 1)"
-                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
-            <input type="date" {...registerBulk('expires_at')}
-              className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
-            {bulkErrors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
-          </div>
-
-          <Button type="submit" fullWidth loading={bulkGrantMutation.isPending}>
-            Cấp cho {bulkCustomers.length || ''} khách
-          </Button>
-        </form>
-      )}
 
       {/* Create form */}
       {showForm && (
-        <form onSubmit={handleSubmit((d) => createMutation.mutate(d))}
+        <form onSubmit={handleSubmit(onSubmitCreate)}
           className="bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
-          {/* Code */}
-          <div className="flex gap-2">
-            <input {...register('code')} placeholder="Mã voucher"
-              className="flex-1 border border-border-gray rounded-input px-3 py-2 text-sm outline-none uppercase" />
-            <button type="button" onClick={genCode}
-              className="text-xs text-primary border border-primary rounded-input px-3">Tự tạo</button>
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Loại giảm giá</label>
+            <OptionCards options={TYPE_OPTIONS} value={type} onChange={(v) => setValue('type', v)} />
           </div>
 
-          {/* Type toggle */}
-          <div className="flex rounded-input overflow-hidden border border-border-gray">
-            {(['fixed', 'percent'] as const).map((t) => (
-              <button key={t} type="button" onClick={() => setValue('type', t)}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${type === t ? 'bg-primary text-white' : 'text-neutral-gray'}`}>
-                {t === 'fixed' ? 'Số tiền cố định' : 'Phần trăm'}
-              </button>
-            ))}
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Phạm vi áp dụng</label>
+            <OptionCards options={TARGET_OPTIONS} value={target} onChange={(v) => {
+              setValue('target', v)
+              setValue('usage_limit', v === 'specific' ? 1 : 100)
+              if (v === 'specific') setValue('code', undefined)
+            }} />
           </div>
 
-          {/* Target toggle */}
-          <div className="flex rounded-input overflow-hidden border border-border-gray">
-            {(['all', 'specific'] as const).map((t) => (
-              <button key={t} type="button" onClick={() => {
-                setValue('target', t)
-                if (t === 'all') { setValue('user_id', undefined); setSelectedCustomer(null) }
-              }}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${target === t ? 'bg-primary text-white' : 'text-neutral-gray'}`}>
-                {t === 'all' ? 'Công khai (mọi khách)' : 'Cấp riêng 1 khách'}
-              </button>
-            ))}
-          </div>
-
-          {target === 'specific' && (
+          {target === 'all' ? (
             <div>
-              <CustomerPicker value={selectedCustomer} onChange={(c) => { setSelectedCustomer(c); setValue('user_id', c?.id ?? undefined) }} />
-              {errors.user_id && <p className="text-danger-red text-xs mt-1">{errors.user_id.message}</p>}
+              <label className="text-xs text-neutral-gray mb-1 block">Mã voucher</label>
+              <div className="flex gap-2">
+                <input {...register('code')} placeholder="VD: AIRPORT50K"
+                  className="flex-1 border border-border-gray rounded-input px-3 py-2 text-sm outline-none uppercase" />
+                <button type="button" onClick={genCode}
+                  className="text-xs text-primary border border-primary rounded-input px-3">Tự tạo</button>
+              </div>
+              {errors.code && <p className="text-danger-red text-xs mt-1">{errors.code.message}</p>}
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs text-neutral-gray mb-1 block">Khách nhận voucher</label>
+              <MultiCustomerPicker value={recipients} onChange={setRecipients} />
+              <p className="text-xs text-neutral-gray mt-1">Mỗi khách được chọn sẽ nhận 1 mã voucher riêng, tự sinh.</p>
             </div>
           )}
 
           <div className="flex gap-2">
             <div className="flex-1">
-              <input type="number" {...register('value')} placeholder={type === 'fixed' ? 'Giá trị (đ)' : 'Phần trăm (%)'}
+              <label className="text-xs text-neutral-gray mb-1 block">{type === 'fixed' ? 'Giá trị giảm (đ)' : 'Phần trăm giảm (%)'}</label>
+              <input type="number" {...register('value')}
                 className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
               {errors.value && <p className="text-danger-red text-xs mt-1">{errors.value.message}</p>}
             </div>
             <div className="flex-1">
-              <input type="number" {...register('usage_limit')} placeholder="Giới hạn dùng"
+              <label className="text-xs text-neutral-gray mb-1 block">Giới hạn lượt dùng</label>
+              <input type="number" {...register('usage_limit')}
                 className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
             </div>
           </div>
@@ -414,7 +385,9 @@ export default function VouchersPage() {
             {errors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
           </div>
 
-          <Button type="submit" fullWidth loading={createMutation.isPending}>Tạo Voucher</Button>
+          <Button type="submit" fullWidth loading={createMutation.isPending || bulkGrantMutation.isPending}>
+            {target === 'specific' ? `Cấp cho ${recipients.length || ''} khách`.trim() : 'Tạo Voucher'}
+          </Button>
         </form>
       )}
 

@@ -209,12 +209,12 @@ declare namespace App {
     is_active: boolean
   }
 
+  // Tạo voucher công khai — luôn target=all, 1 mã. Cấp riêng cho khách (1 hoặc
+  // nhiều) đi qua bulkGrantVouchers(), không qua payload này.
   interface VoucherPayload {
     code: string
     type: 'fixed' | 'percent'
     value: number
-    target: 'all' | 'specific'
-    user_id?: number
     expires_at: string
     usage_limit: number
   }

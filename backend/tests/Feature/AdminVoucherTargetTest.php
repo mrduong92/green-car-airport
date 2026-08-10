@@ -27,18 +27,6 @@ class AdminVoucherTargetTest extends TestCase
         return User::factory()->create(['role' => 'customer']);
     }
 
-    private function payload(array $overrides = []): array
-    {
-        return array_merge([
-            'code'        => 'TESTCODE1',
-            'type'        => 'fixed',
-            'value'       => 50000,
-            'target'      => 'all',
-            'expires_at'  => now()->addMonth()->format('Y-m-d'),
-            'usage_limit' => 100,
-        ], $overrides);
-    }
-
     private function publicVoucher(array $overrides = []): array
     {
         return array_merge([
@@ -47,38 +35,22 @@ class AdminVoucherTargetTest extends TestCase
         ], $overrides);
     }
 
-    public function test_target_specific_without_user_id_returns_422(): void
-    {
-        $this->actingAs($this->admin(), 'sanctum')
-            ->postJson('/api/admin/vouchers', $this->payload(['target' => 'specific']))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['user_id']);
-
-        $this->assertDatabaseMissing('vouchers', ['code' => 'TESTCODE1']);
-    }
-
-    public function test_target_all_with_user_id_returns_422(): void
+    public function test_store_always_creates_public_voucher_even_if_target_sent(): void
     {
         $customer = $this->customer();
 
-        $this->actingAs($this->admin(), 'sanctum')
-            ->postJson('/api/admin/vouchers', $this->payload(['target' => 'all', 'user_id' => $customer->id]))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['user_id']);
-    }
-
-    public function test_target_specific_with_valid_user_id_creates_voucher(): void
-    {
-        $customer = $this->customer();
-
+        // store() không còn nhận target/user_id — gửi kèm cũng bị bỏ qua lặng lẽ
+        // (Laravel validate() chỉ trả field có trong rule list), voucher vẫn target=all.
         $response = $this->actingAs($this->admin(), 'sanctum')
-            ->postJson('/api/admin/vouchers', $this->payload(['target' => 'specific', 'user_id' => $customer->id]))
+            ->postJson('/api/admin/vouchers', [
+                'code' => 'TESTCODE1', 'type' => 'fixed', 'value' => 50000,
+                'target' => 'specific', 'user_id' => $customer->id,
+                'expires_at' => now()->addMonth()->format('Y-m-d'), 'usage_limit' => 100,
+            ])
             ->assertCreated();
 
-        $response->assertJsonPath('user_id', $customer->id)
-            ->assertJsonPath('user.phone', $customer->phone);
-
-        $this->assertDatabaseHas('vouchers', ['code' => 'TESTCODE1', 'target' => 'specific', 'user_id' => $customer->id]);
+        $response->assertJsonPath('target', 'all')->assertJsonPath('user_id', null);
+        $this->assertDatabaseHas('vouchers', ['code' => 'TESTCODE1', 'target' => 'all', 'user_id' => null]);
     }
 
     public function test_update_can_assign_existing_public_voucher_to_a_customer(): void
