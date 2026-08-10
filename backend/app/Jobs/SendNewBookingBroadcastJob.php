@@ -38,10 +38,16 @@ class SendNewBookingBroadcastJob implements ShouldQueue
         // phòng thủ "không rõ loại thì cho phép tất cả" của VehicleCapacity.
         $fittingTypes = VehicleCapacity::driverTypesFittingBooking($this->booking->vehicle_type);
 
+        // Cuốc VIP chỉ tới tài xế xe cá nhân. Không lọc ở đây thì tài xế thường
+        // nhận noti rồi bấm vào chỉ ăn 422 — đúng thứ bộ lọc loại xe sinh ra để
+        // tránh.
+        $bookingIsVip = (bool) $this->booking->is_vip;
+
         User::where('role', 'driver')
             ->whereHas('driverProfile', fn ($q) => $q
                 ->where('status', 'active')
                 ->where('is_online', true)
+                ->when($bookingIsVip, fn ($q2) => $q2->where('is_vip', true))
                 ->where(fn ($q2) => $q2
                     ->whereIn('vehicle_type', $fittingTypes)
                     ->orWhereNull('vehicle_type')))
