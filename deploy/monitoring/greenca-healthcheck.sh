@@ -68,8 +68,18 @@ fi
 problems=()
 
 # 1) Worker còn sống? — hỏng kiểu này im lặng nhất
-if ! systemctl is-active --quiet greenca-queue; then
-    problems+=("QUEUE WORKER CHẾT (greenca-queue không active) → mọi thông báo ngừng gửi, KHÔNG có lỗi nào được ghi")
+#
+# Worker chạy dưới dạng systemd TEMPLATE (greenca-queue@1..4), không phải unit
+# đơn. Kiểm `systemctl is-active greenca-queue` (tên cũ) sẽ LUÔN báo chết ->
+# cảnh báo giả liên tục, và vì có chống spam nên nó nuốt luôn cảnh báo thật.
+# Giữ nhánh unit đơn để phòng khi quay lại cấu hình cũ.
+workers_up=$(systemctl is-active 'greenca-queue@*' 2>/dev/null | grep -c '^active$')
+if [ "$workers_up" -eq 0 ] && systemctl is-active --quiet greenca-queue 2>/dev/null; then
+    workers_up=1
+fi
+
+if [ "$workers_up" -eq 0 ]; then
+    problems+=("QUEUE WORKER CHẾT (không instance greenca-queue@* nào active) → mọi thông báo ngừng gửi, KHÔNG có lỗi nào được ghi")
 fi
 
 # 2) Job chết
