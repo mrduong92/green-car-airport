@@ -47,12 +47,13 @@ class TripController extends Controller
         // Cache theo LOẠI XE chứ không theo tài xế — cùng loại xe thì cùng danh
         // sách, nên 5.000 tài xế chỉ còn vài query mỗi 5 giây.
         $allowed = VehicleCapacity::bookingTypesFittingDriver($profile?->vehicle_type);
+        $driverIsVip = (bool) $profile?->is_vip;
 
         // ⚠️ Cache MẢNG ĐÃ FORMAT, tuyệt đối không cache Eloquent Collection:
         // collection/model serialize xuống Redis rồi unserialize lên sẽ thành
         // __PHP_Incomplete_Class và nổ ngay ở lần ĐỌC cache đầu tiên (lần ghi
         // vẫn chạy ngon, nên lỗi chỉ hiện ở request thứ hai trở đi).
-        $trips = AvailableTripsCache::remember($allowed, fn () => Booking::with('customer')
+        $trips = AvailableTripsCache::remember($allowed, $driverIsVip, fn () => Booking::with('customer')
             ->where('status', 'finding_driver')
             // `bookings.vehicle_type` là enum('sedan_4','suv_5','mpv_7') NOT NULL
             // default 'sedan_4', nên whereIn là đủ — không cần nhánh phòng thủ cho
