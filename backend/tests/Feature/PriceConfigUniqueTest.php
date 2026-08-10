@@ -60,4 +60,32 @@ class PriceConfigUniqueTest extends TestCase
             ->postJson('/api/admin/price-configs', array_merge($this->validPayload(), ['vehicle_type' => 'suv_5']))
             ->assertCreated();
     }
+
+    /**
+     * Dòng giá VIP KHÔNG được coi là trùng dòng thường cùng tổ hợp. Thiếu
+     * is_vip trong Rule::unique thì admin không tạo nổi bảng giá VIP và nhận
+     * thông báo "Đã có bảng giá..." — sai hoàn toàn so với nguyên nhân.
+     */
+    public function test_store_allows_vip_row_alongside_normal_row(): void
+    {
+        PriceConfig::create($this->validPayload() + ['is_active' => true]);
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/admin/price-configs', $this->validPayload() + ['is_vip' => true])
+            ->assertCreated();
+
+        $this->assertDatabaseCount('price_configs', 2);
+    }
+
+    public function test_store_rejects_duplicate_vip_row(): void
+    {
+        PriceConfig::create($this->validPayload() + ['is_active' => true, 'is_vip' => true]);
+
+        $this->actingAs($this->makeAdmin(), 'sanctum')
+            ->postJson('/api/admin/price-configs', $this->validPayload() + ['is_vip' => true])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['service_type']);
+
+        $this->assertDatabaseCount('price_configs', 1);
+    }
 }
