@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { getCampaigns, createCampaign, updateCampaign } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
+import DateInputVN from '@/components/common/DateInputVN'
 
 type ApiError = { response?: { data?: { message?: string } } }
 
@@ -42,7 +43,7 @@ function EditCampaignForm({ campaign, onDone }: { campaign: App.Campaign; onDone
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<EditFormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<EditFormData>({
     resolver: zodResolver(editSchema),
     defaultValues: {
       name: campaign.name,
@@ -109,12 +110,12 @@ function EditCampaignForm({ campaign, onDone }: { campaign: App.Campaign; onDone
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-xs text-neutral-gray mb-1 block">Bắt đầu (để trống = ngay)</label>
-          <input type="date" {...register('starts_at')}
+          <DateInputVN value={watch('starts_at')} onChange={(iso) => setValue('starts_at', iso)}
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
         </div>
         <div>
           <label className="text-xs text-neutral-gray mb-1 block">Kết thúc (để trống = chưa chốt)</label>
-          <input type="date" {...register('ends_at')}
+          <DateInputVN value={watch('ends_at')} onChange={(iso) => setValue('ends_at', iso)}
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
         </div>
       </div>
@@ -237,14 +238,14 @@ export default function CampaignsPage() {
               <label className="text-xs text-neutral-gray mb-1 block">
                 Bắt đầu {trigger === 'customer_logged_in' ? '' : '(để trống = ngay)'}
               </label>
-              <input type="date" {...register('starts_at')}
+              <DateInputVN value={watch('starts_at')} onChange={(iso) => setValue('starts_at', iso)}
                 className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
             </div>
             <div>
               <label className="text-xs text-neutral-gray mb-1 block">
                 Kết thúc {trigger === 'customer_logged_in' ? '' : '(để trống = chưa chốt)'}
               </label>
-              <input type="date" {...register('ends_at')}
+              <DateInputVN value={watch('ends_at')} onChange={(iso) => setValue('ends_at', iso)}
                 className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
             </div>
           </div>
