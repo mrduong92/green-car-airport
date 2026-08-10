@@ -7,8 +7,17 @@ import { getCampaigns, createCampaign, updateCampaign } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 
+// Khớp App\Support\CampaignTrigger ở backend — thêm loại mới thì thêm ở đó trước,
+// dropdown này mới có gì để chọn.
+const TRIGGERS = ['customer_registered', 'customer_logged_in'] as const
+const TRIGGER_LABELS: Record<string, string> = {
+  customer_registered: 'Ra mắt — khách đăng ký mới',
+  customer_logged_in: 'Theo dịp (Tết…) — khách mở app trong khoảng ngày',
+}
+
 const schema = z.object({
   name: z.string().min(3),
+  trigger: z.enum(TRIGGERS),
   voucher_count: z.number({ coerce: true }).min(1).max(20),
   voucher_value: z.number({ coerce: true }).min(1000),
   voucher_expires_days: z.number({ coerce: true }).min(1).max(365),
@@ -18,16 +27,10 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-// Sửa không có `name`/`trigger` — backend CampaignController::update() không nhận 2
-// field này (đổi trigger sau khi đã có grants sẽ gây nhầm lẫn, xem spec).
-const editSchema = schema.omit({ name: true })
+// Sửa không có `trigger` — đổi loại chiến dịch sau khi đã có grants sẽ gây nhầm lẫn
+// (sổ campaign_grants đang gắn theo trigger cũ), xem spec. `name` sửa được bình thường.
+const editSchema = schema.omit({ trigger: true })
 type EditFormData = z.infer<typeof editSchema>
-
-// Chỉ 1 loại trigger khả dụng hiện tại — xem App\Support\CampaignTrigger ở backend.
-// Thêm loại mới thì thêm ở đó trước, dropdown này mới có gì để chọn.
-const TRIGGER_LABELS: Record<string, string> = {
-  customer_registered: 'Khách đăng ký mới',
-}
 
 function toDateInput(v: string | null): string {
   return v ? v.slice(0, 10) : ''
@@ -40,6 +43,7 @@ function EditCampaignForm({ campaign, onDone }: { campaign: App.Campaign; onDone
   const { register, handleSubmit, formState: { errors } } = useForm<EditFormData>({
     resolver: zodResolver(editSchema),
     defaultValues: {
+      name: campaign.name,
       voucher_count: campaign.reward.voucher_count,
       voucher_value: campaign.reward.voucher_value,
       voucher_expires_days: campaign.reward.voucher_expires_days,
@@ -51,6 +55,7 @@ function EditCampaignForm({ campaign, onDone }: { campaign: App.Campaign; onDone
 
   const updateMutation = useMutation({
     mutationFn: (d: EditFormData) => updateCampaign(campaign.id, {
+      name: d.name,
       reward: {
         voucher_count: d.voucher_count,
         voucher_value: d.voucher_value,
@@ -71,6 +76,13 @@ function EditCampaignForm({ campaign, onDone }: { campaign: App.Campaign; onDone
   return (
     <form onSubmit={handleSubmit((d) => updateMutation.mutate(d))}
       className="bg-light-green rounded-card p-4 flex flex-col gap-3 mt-2">
+      <div>
+        <label className="text-xs text-neutral-gray mb-1 block">Tên chiến dịch</label>
+        <input {...register('name')}
+          className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+        {errors.name && <p className="text-danger-red text-xs mt-1">{errors.name.message}</p>}
+      </div>
+
       <div className="grid grid-cols-3 gap-2">
         <div>
           <label className="text-xs text-neutral-gray mb-1 block">Số voucher</label>
@@ -131,14 +143,16 @@ export default function CampaignsPage() {
     queryFn: () => getCampaigns().then((r) => r.data),
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { trigger: 'customer_registered' },
   })
+  const trigger = watch('trigger')
 
   const createMutation = useMutation({
     mutationFn: (d: FormData) => createCampaign({
       name: d.name,
-      trigger: 'customer_registered',
+      trigger: d.trigger,
       reward: {
         voucher_count: d.voucher_count,
         voucher_value: d.voucher_value,
@@ -181,9 +195,19 @@ export default function CampaignsPage() {
             {errors.name && <p className="text-danger-red text-xs mt-1">{errors.name.message}</p>}
           </div>
 
-          <p className="text-caption text-neutral-gray">
-            Kích hoạt khi: {TRIGGER_LABELS.customer_registered}
-          </p>
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Loại chiến dịch</label>
+            <div className="flex flex-col gap-1.5">
+              {TRIGGERS.map((t) => (
+                <button key={t} type="button" onClick={() => setValue('trigger', t)}
+                  className={`text-left px-3 py-2 rounded-input border text-sm transition-colors ${
+                    trigger === t ? 'border-primary bg-light-green text-primary font-medium' : 'border-border-gray text-navy'
+                  }`}>
+                  {TRIGGER_LABELS[t]}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="grid grid-cols-3 gap-2">
             <div>
@@ -208,16 +232,25 @@ export default function CampaignsPage() {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-neutral-gray mb-1 block">Bắt đầu (để trống = ngay)</label>
+              <label className="text-xs text-neutral-gray mb-1 block">
+                Bắt đầu {trigger === 'customer_logged_in' ? '' : '(để trống = ngay)'}
+              </label>
               <input type="date" {...register('starts_at')}
                 className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
             </div>
             <div>
-              <label className="text-xs text-neutral-gray mb-1 block">Kết thúc (để trống = chưa chốt)</label>
+              <label className="text-xs text-neutral-gray mb-1 block">
+                Kết thúc {trigger === 'customer_logged_in' ? '' : '(để trống = chưa chốt)'}
+              </label>
               <input type="date" {...register('ends_at')}
                 className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
             </div>
           </div>
+          {trigger === 'customer_logged_in' && (
+            <p className="text-caption text-neutral-gray -mt-1">
+              Nên đặt đủ ngày bắt đầu/kết thúc cho chương trình theo dịp — để trống nghĩa là chạy vô thời hạn.
+            </p>
+          )}
 
           <div>
             <label className="text-xs text-neutral-gray mb-1 block">Trần số người nhận (để trống = không trần)</label>
@@ -240,6 +273,7 @@ export default function CampaignsPage() {
                     {c.is_active ? 'Đang chạy' : 'Đã tắt'}
                   </span>
                 </div>
+                <p className="text-caption text-neutral-gray">{TRIGGER_LABELS[c.trigger] ?? c.trigger}</p>
                 <p className="text-caption text-neutral-gray">
                   {c.reward.voucher_count} × {c.reward.voucher_value.toLocaleString('vi')}đ, hạn {c.reward.voucher_expires_days} ngày
                   {' · '}{c.grants_count}/{c.max_grants ?? '∞'} đã phát

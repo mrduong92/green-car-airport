@@ -56,6 +56,20 @@ class CampaignServiceTest extends TestCase
         ], $overrides));
     }
 
+    public function test_logged_in_trigger_grants_and_is_isolated_from_registered_trigger(): void
+    {
+        // Campaign trigger=customer_registered không được phát khi chạy trigger khác.
+        $this->campaign(['trigger' => CampaignTrigger::CUSTOMER_REGISTERED]);
+        $loggedInCampaign = $this->campaign(['trigger' => CampaignTrigger::CUSTOMER_LOGGED_IN]);
+        $user = $this->customer();
+
+        $this->service->runOnCustomerLoggedIn($user);
+
+        $vouchers = \App\Models\Voucher::where('user_id', $user->id)->get();
+        $this->assertCount(4, $vouchers);
+        $this->assertTrue($vouchers->every(fn ($v) => $v->campaign_id === $loggedInCampaign->id));
+    }
+
     public function test_running_campaign_grants_correct_vouchers(): void
     {
         $campaign = $this->campaign();

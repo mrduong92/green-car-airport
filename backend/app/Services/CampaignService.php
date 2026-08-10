@@ -16,7 +16,17 @@ class CampaignService
 
     public function runOnCustomerRegistered(User $user): void
     {
-        $campaigns = Campaign::where('trigger', CampaignTrigger::CUSTOMER_REGISTERED)->get();
+        $this->run(CampaignTrigger::CUSTOMER_REGISTERED, $user);
+    }
+
+    public function runOnCustomerLoggedIn(User $user): void
+    {
+        $this->run(CampaignTrigger::CUSTOMER_LOGGED_IN, $user);
+    }
+
+    private function run(string $trigger, User $user): void
+    {
+        $campaigns = Campaign::where('trigger', $trigger)->get();
 
         foreach ($campaigns as $campaign) {
             if ($this->eligible($campaign, $user)) {

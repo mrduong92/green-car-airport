@@ -14,6 +14,9 @@ namespace App\Support;
 class CampaignTrigger
 {
     public const CUSTOMER_REGISTERED = 'customer_registered';
+    // Khách đăng nhập trong khoảng starts_at/ends_at của campaign được nhận — dùng cho
+    // các chương trình theo dịp (Tết, ...). Không tự kích hoạt gì khác ngoài đăng nhập.
+    public const CUSTOMER_LOGGED_IN = 'customer_logged_in';
 
-    public const ALL = [self::CUSTOMER_REGISTERED];
+    public const ALL = [self::CUSTOMER_REGISTERED, self::CUSTOMER_LOGGED_IN];
 }

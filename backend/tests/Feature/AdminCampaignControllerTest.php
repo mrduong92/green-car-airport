@@ -89,6 +89,24 @@ class AdminCampaignControllerTest extends TestCase
             ->assertJsonPath('is_active', false);
     }
 
+    public function test_update_can_change_name(): void
+    {
+        $campaign = Campaign::create(array_merge($this->payload(), ['is_active' => true, 'grants_count' => 0]));
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->patchJson("/api/admin/campaigns/{$campaign->id}", ['name' => 'Tết 2027 — tặng khách cũ'])
+            ->assertOk()
+            ->assertJsonPath('name', 'Tết 2027 — tặng khách cũ');
+    }
+
+    public function test_store_accepts_customer_logged_in_trigger(): void
+    {
+        $this->actingAs($this->admin(), 'sanctum')
+            ->postJson('/api/admin/campaigns', $this->payload(['trigger' => CampaignTrigger::CUSTOMER_LOGGED_IN]))
+            ->assertCreated()
+            ->assertJsonPath('trigger', 'customer_logged_in');
+    }
+
     public function test_update_can_change_max_grants_and_reward(): void
     {
         $campaign = Campaign::create(array_merge($this->payload(), ['is_active' => true, 'grants_count' => 0]));

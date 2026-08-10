@@ -46,6 +46,7 @@ class CampaignController extends Controller
     public function update(Request $request, Campaign $campaign): JsonResponse
     {
         $request->validate([
+            'name'                        => 'sometimes|string|max:100',
             'is_active'                   => 'sometimes|boolean',
             'starts_at'                   => 'sometimes|nullable|date',
             'ends_at'                     => 'sometimes|nullable|date|after:starts_at',
@@ -55,7 +56,7 @@ class CampaignController extends Controller
             'reward.voucher_expires_days' => 'sometimes|required|integer|min:1|max:365',
         ]);
 
-        $data = $request->only(['is_active', 'starts_at', 'ends_at', 'max_grants']);
+        $data = $request->only(['name', 'is_active', 'starts_at', 'ends_at', 'max_grants']);
         if ($request->has('reward')) {
             $data['reward'] = $request->input('reward');
         }

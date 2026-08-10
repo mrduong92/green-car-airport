@@ -84,6 +84,10 @@ class AuthController extends Controller
 
         $token = $user->createToken('api')->plainTextToken;
 
+        if ($user->role === 'customer') {
+            app(CampaignService::class)->runOnCustomerLoggedIn($user);
+        }
+
         return response()->json([
             'user'  => $this->userPayload($user),
             'token' => $token,
