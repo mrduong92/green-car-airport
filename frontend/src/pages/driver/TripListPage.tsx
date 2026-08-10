@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
+import VipBadge from '@/components/common/VipBadge'
 import { useDriverCapacity } from '@/hooks/useDriverCapacity'
 import { MAX_ACTIVE_TRIPS } from '@/rules'
 import clsx from 'clsx'
@@ -260,6 +261,7 @@ export default function TripListPage() {
                   <span>{fmtDateTime(trip.date, trip.time)}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {trip.is_vip && <VipBadge />}
                   {trip.distance_to_driver != null && (
                     <span className="text-[10px] font-semibold bg-primary-tint text-primary px-2 py-0.5 rounded-pill">
                       ~{trip.distance_to_driver} km
