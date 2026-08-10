@@ -10,6 +10,8 @@ import dayjs from 'dayjs'
 
 interface PickedCustomer { id: number; name: string; phone: string }
 
+type ApiError = { response?: { data?: { message?: string } } }
+
 const TYPE_OPTIONS = [
   { value: 'fixed', label: 'Giảm số tiền cố định', hint: 'VD: giảm 50.000đ mỗi cuốc' },
   { value: 'percent', label: 'Giảm theo phần trăm', hint: 'VD: giảm 10% giá cuốc' },
@@ -167,7 +169,7 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       onDone()
     },
-    onError: () => showToast('Lưu thất bại', 'error'),
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Lưu thất bại', 'error'),
   })
 
   const onSubmitEdit = (d: EditFormData) => {
@@ -278,7 +280,7 @@ export default function VouchersPage() {
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       closeForm()
     },
-    onError: () => showToast('Tạo voucher thất bại', 'error'),
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Tạo voucher thất bại', 'error'),
   })
 
   const bulkGrantMutation = useMutation({
@@ -290,7 +292,7 @@ export default function VouchersPage() {
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       closeForm()
     },
-    onError: () => showToast('Cấp voucher thất bại', 'error'),
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Cấp voucher thất bại', 'error'),
   })
 
   const deactivateMutation = useMutation({

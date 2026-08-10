@@ -7,6 +7,8 @@ import { getCampaigns, createCampaign, updateCampaign } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 
+type ApiError = { response?: { data?: { message?: string } } }
+
 // Khớp App\Support\CampaignTrigger ở backend — thêm loại mới thì thêm ở đó trước,
 // dropdown này mới có gì để chọn.
 const TRIGGERS = ['customer_registered', 'customer_logged_in'] as const
@@ -70,7 +72,7 @@ function EditCampaignForm({ campaign, onDone }: { campaign: App.Campaign; onDone
       qc.invalidateQueries({ queryKey: ['campaigns'] })
       onDone()
     },
-    onError: () => showToast('Lưu thất bại', 'error'),
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Lưu thất bại', 'error'),
   })
 
   return (
@@ -168,7 +170,7 @@ export default function CampaignsPage() {
       reset()
       setShowForm(false)
     },
-    onError: () => showToast('Tạo chiến dịch thất bại', 'error'),
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Tạo chiến dịch thất bại', 'error'),
   })
 
   const toggleActiveMutation = useMutation({
