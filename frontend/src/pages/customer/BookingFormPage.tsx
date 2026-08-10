@@ -481,31 +481,45 @@ export default function BookingFormPage() {
                 style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
         </button>
 
-        {/* ── ĐẶT ĐI NGAY ───────────────────────────────────── */}
+        {/* ── THỜI GIAN KHỞI HÀNH ───────────────────────────── */}
+        {/* Hai nút riêng thay cho một ô tích "Đặt đi ngay": ô tích chỉ nêu tên
+            MỘT lựa chọn, lựa chọn còn lại nằm ẩn ở trạng thái bỏ tích nên khách
+            phải suy ra. Hai nút bày thẳng cả hai khả năng, và dùng chung phong
+            cách với lưới chọn loại xe ngay phía trên. */}
         <SectionLabel>Thời gian khởi hành</SectionLabel>
-        <button
-          type="button"
-          onClick={() => setGoNow((v) => !v)}
-          className={clsx(
-            'w-full flex items-center gap-3 rounded-card border px-3.5 py-3 text-left transition-colors',
-            goNow ? 'border-primary bg-light-green' : 'border-border-gray bg-white',
-          )}
-        >
-          <span
-            className={clsx(
-              'w-5 h-5 rounded-[6px] border-2 flex items-center justify-center shrink-0',
-              goNow ? 'bg-primary border-primary' : 'border-border-gray bg-white',
-            )}
-          >
-            {goNow && <span className="material-symbols-outlined text-white text-[15px]">check</span>}
-          </span>
-          <span className="flex-1">
-            <span className="block text-[14px] font-medium text-navy">Đặt đi ngay</span>
-            <span className="block text-[11px] text-neutral-gray">
-              {goNow ? 'Khởi hành ngay bây giờ, không cần chọn ngày giờ' : 'Chọn ngày và giờ đón bên dưới'}
-            </span>
-          </span>
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { value: true,  icon: 'bolt',     label: 'Đi ngay', hint: 'Khởi hành bây giờ' },
+            { value: false, icon: 'schedule', label: 'Hẹn giờ', hint: 'Chọn ngày và giờ' },
+          ].map((opt) => {
+            const active = goNow === opt.value
+            return (
+              <button
+                key={opt.label}
+                type="button"
+                onClick={() => setGoNow(opt.value)}
+                aria-pressed={active}
+                className={clsx(
+                  'flex flex-col items-center gap-1 py-3 rounded-card border transition-all',
+                  active
+                    ? 'border-primary bg-primary-tint shadow-[0_0_0_3px_rgba(0,106,54,0.18)]'
+                    : 'border-border-gray bg-white',
+                )}
+              >
+                <span
+                  className={clsx('material-symbols-outlined text-[26px]', active ? 'text-primary' : 'text-neutral-gray')}
+                  style={{ fontVariationSettings: "'wght' 300" }}
+                >
+                  {opt.icon}
+                </span>
+                <span className={clsx('text-[13px] font-semibold', active ? 'text-primary' : 'text-navy')}>
+                  {opt.label}
+                </span>
+                <span className="text-[11px] text-neutral-gray">{opt.hint}</span>
+              </button>
+            )
+          })}
+        </div>
 
         {/* Ẩn hẳn phần chọn ngày/giờ khi "đi ngay" — hiện ra mà vô tác dụng thì
             khách tưởng mình chọn được giờ nhưng hệ thống lại lấy giờ hiện tại. */}
