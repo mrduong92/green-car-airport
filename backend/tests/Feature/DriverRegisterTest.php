@@ -14,6 +14,7 @@ class DriverRegisterTest extends TestCase
     {
         return array_merge([
             'phone'         => '0911111111',
+            'otp'           => '000000',
             'password'      => '123456',
             'name'          => 'Nguyễn Tài Xế',
             'vehicle_make'  => 'Toyota',
@@ -120,6 +121,18 @@ class DriverRegisterTest extends TestCase
         $this->postJson('/api/auth/register/driver', $data)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['vehicle_inspection_expiry']);
+    }
+
+    public function test_driver_register_requires_otp(): void
+    {
+        $data = array_merge($this->payload(), $this->docPayload());
+        unset($data['otp']);
+
+        $this->postJson('/api/auth/register/driver', $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['otp']);
+
+        $this->assertDatabaseMissing('users', ['phone' => '0911111111', 'role' => 'driver']);
     }
 
     public function test_driver_register_with_documents_creates_pending_profile(): void

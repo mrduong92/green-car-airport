@@ -1,8 +1,15 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute } from 'workbox-precaching'
+import { clientsClaim } from 'workbox-core'
 import { BRAND } from './brand'
 
 declare const self: ServiceWorkerGlobalScope
+
+// Không có 2 dòng này, SW mới vào "waiting" và chỉ activate khi user đóng HẾT
+// các tab/PWA đang mở — với app cài như PWA gần như không bao giờ xảy ra, nên
+// user luôn kẹt ở bundle JS cũ (đăng ký/OTP gọi API không khớp version mới).
+self.skipWaiting()
+clientsClaim()
 
 // Injected by vite-plugin-pwa at build time
 precacheAndRoute(self.__WB_MANIFEST)

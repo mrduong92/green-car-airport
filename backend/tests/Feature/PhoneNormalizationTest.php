@@ -66,6 +66,7 @@ class PhoneNormalizationTest extends TestCase
     {
         $this->postJson('/api/auth/register/driver', [
             'phone'                     => '84901234599',
+            'otp'                       => '000000',
             'password'                  => '111111',
             'name'                      => 'Driver Test',
             'vehicle_make'              => 'Toyota',

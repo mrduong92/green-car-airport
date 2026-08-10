@@ -12,6 +12,7 @@ class CustomerAlsoRegistersAsDriverTest extends TestCase
 
     private array $driverPayload = [
         'phone'                     => '0911111111',
+        'otp'                       => '000000',
         'password'                  => '123456',
         'name'                      => 'Tài Xế Mới',
         'vehicle_make'              => 'Toyota',

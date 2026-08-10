@@ -135,6 +135,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'phone'                     => 'required|string|max:20',
+            'otp'                       => 'required|string|size:6',
             'password'                  => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
             'name'                      => 'required|string|max:100',
             'vehicle_make'              => 'required|string|max:50',
@@ -158,6 +159,8 @@ class AuthController extends Controller
         if (User::where('phone', $phone)->where('role', 'driver')->exists()) {
             return response()->json(['message' => 'Số điện thoại đã được đăng ký là tài xế.'], 422);
         }
+
+        $this->consumeOtp($phone, $request->otp);
 
         $referredById = null;
         if ($request->referral_code) {
