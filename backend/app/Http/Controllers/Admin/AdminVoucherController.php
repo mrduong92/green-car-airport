@@ -3,13 +3,18 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\Voucher;
+use App\Services\VoucherIssuer;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class AdminVoucherController extends Controller
 {
+    public function __construct(private VoucherIssuer $voucherIssuer) {}
+
     public function index(): JsonResponse
     {
         $vouchers = Voucher::with('user')->latest()->get()->map(fn ($v) => $this->formatVoucher($v));
@@ -50,6 +55,40 @@ class AdminVoucherController extends Controller
         $voucher->loadMissing('user');
 
         return response()->json($this->formatVoucher($voucher), 201);
+    }
+
+    /**
+     * Cấp voucher cá nhân cho N khách trong một lượt — mỗi khách 1 voucher riêng
+     * (mã tự sinh, usage_limit riêng), KHÁC với store() (1 voucher, 1 mã, cho 1 hoặc
+     * mọi khách). Dùng lại VoucherIssuer — cùng cơ chế sinh mã chống trùng như
+     * campaign/referral, không viết lại Voucher::create() ở đây.
+     */
+    public function storeBulk(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'user_ids'    => 'required|array|min:1',
+            'user_ids.*'  => 'integer|exists:users,id',
+            'type'        => 'required|in:fixed,percent',
+            'value'       => 'required|integer|min:1',
+            'expires_at'  => 'required|date|after:today',
+            'usage_limit' => 'nullable|integer|min:1',
+        ]);
+
+        $users    = User::whereIn('id', $data['user_ids'])->get();
+        $vouchers = $users->map(fn (User $user) => $this->voucherIssuer->issue(
+            $user,
+            'ADM',
+            $data['value'],
+            Carbon::parse($data['expires_at']),
+            null,
+            $data['type'],
+            $data['usage_limit'] ?? 1,
+        ));
+
+        return response()->json(
+            $vouchers->map(fn (Voucher $v) => $this->formatVoucher($v->loadMissing('user')))->values(),
+            201,
+        );
     }
 
     public function update(Request $request, Voucher $voucher): JsonResponse

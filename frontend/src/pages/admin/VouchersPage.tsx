@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { getVouchers, createVoucher, updateVoucher, deactivateVoucher, getCustomers } from '@/api/admin'
+import { getVouchers, createVoucher, updateVoucher, deactivateVoucher, bulkGrantVouchers, getCustomers } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 import dayjs from 'dayjs'
@@ -27,6 +27,14 @@ type FormData = z.infer<typeof schema>
 const editSchema = voucherFields
   .refine((d) => d.target === 'all' || d.user_id !== undefined, targetRefineMessage)
 type EditFormData = z.infer<typeof editSchema>
+
+const bulkSchema = z.object({
+  type: z.enum(['fixed', 'percent']),
+  value: z.number({ coerce: true }).min(1),
+  expires_at: z.string().min(1),
+  usage_limit: z.number({ coerce: true }).min(1).optional(),
+})
+type BulkFormData = z.infer<typeof bulkSchema>
 
 // Dùng chung cho form tạo + form sửa — tìm khách theo SĐT, chọn 1 người.
 function CustomerPicker({ value, onChange }: { value: PickedCustomer | null; onChange: (c: PickedCustomer | null) => void }) {
@@ -64,6 +72,56 @@ function CustomerPicker({ value, onChange }: { value: PickedCustomer | null; onC
         </div>
       )}
     </>
+  )
+}
+
+// Chọn NHIỀU khách — dùng riêng cho form "Cấp cho nhiều khách" (mỗi khách nhận 1
+// voucher cá nhân, khác CustomerPicker chỉ chọn đúng 1 người để gắn vào 1 voucher).
+function MultiCustomerPicker({ value, onChange }: { value: PickedCustomer[]; onChange: (list: PickedCustomer[]) => void }) {
+  const [search, setSearch] = useState('')
+  const { data: results = [] } = useQuery({
+    queryKey: ['customers', 'search', search],
+    queryFn: () => getCustomers({ search }).then((r) => r.data),
+    enabled: search.length >= 3,
+  })
+
+  const add = (c: App.AdminCustomer) => {
+    if (!value.some((v) => v.id === c.id)) onChange([...value, { id: c.id, name: c.name, phone: c.phone }])
+    setSearch('')
+  }
+  const remove = (id: number) => onChange(value.filter((v) => v.id !== id))
+
+  return (
+    <div className="flex flex-col gap-2">
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((c) => (
+            <span key={c.id} className="flex items-center gap-1 bg-light-green text-primary text-xs rounded-pill pl-2.5 pr-1.5 py-1">
+              {c.name} · {c.phone}
+              <button type="button" onClick={() => remove(c.id)} className="flex items-center">
+                <span className="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input value={search} onChange={(e) => setSearch(e.target.value)}
+        placeholder="Tìm khách theo số điện thoại để thêm"
+        className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+      {results.length > 0 && (
+        <div className="border border-border-gray rounded-input overflow-hidden max-h-40 overflow-y-auto">
+          {results.map((c) => {
+            const picked = value.some((v) => v.id === c.id)
+            return (
+              <button key={c.id} type="button" onClick={() => add(c)} disabled={picked}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-light-green border-b border-border-gray last:border-b-0 disabled:opacity-40 disabled:hover:bg-transparent">
+                {c.name} · {c.phone}{picked ? ' (đã chọn)' : ''}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -170,8 +228,10 @@ export default function VouchersPage() {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
   const [showForm, setShowForm] = useState(false)
+  const [showBulkForm, setShowBulkForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [selectedCustomer, setSelectedCustomer] = useState<PickedCustomer | null>(null)
+  const [bulkCustomers, setBulkCustomers] = useState<PickedCustomer[]>([])
 
   const { data: vouchers = [] } = useQuery({
     queryKey: ['vouchers'],
@@ -204,15 +264,94 @@ export default function VouchersPage() {
 
   const genCode = () => setValue('code', `${import.meta.env.VITE_CODE_PREFIX}${Math.random().toString(36).slice(2, 8).toUpperCase()}`)
 
+  const {
+    register: registerBulk, handleSubmit: handleSubmitBulk, reset: resetBulk, setValue: setBulkValue, watch: watchBulk,
+    formState: { errors: bulkErrors },
+  } = useForm<BulkFormData>({
+    resolver: zodResolver(bulkSchema),
+    defaultValues: { type: 'fixed', usage_limit: 1 },
+  })
+  const bulkType = watchBulk('type')
+
+  const bulkGrantMutation = useMutation({
+    mutationFn: (d: BulkFormData) => bulkGrantVouchers({
+      user_ids: bulkCustomers.map((c) => c.id),
+      type: d.type,
+      value: d.value,
+      expires_at: d.expires_at,
+      usage_limit: d.usage_limit,
+    }),
+    onSuccess: (res) => {
+      showToast(`Đã cấp voucher cho ${res.data.length} khách`, 'success')
+      qc.invalidateQueries({ queryKey: ['vouchers'] })
+      resetBulk()
+      setBulkCustomers([])
+      setShowBulkForm(false)
+    },
+    onError: () => showToast('Cấp voucher thất bại', 'error'),
+  })
+
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="hidden lg:block text-h2 text-navy font-semibold">Voucher</h1>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
-          <span className="material-symbols-outlined text-lg">add</span>
-          Tạo mới
-        </Button>
+        <div className="flex gap-2 ml-auto">
+          <Button size="sm" variant="outline" onClick={() => setShowBulkForm(!showBulkForm)}>
+            <span className="material-symbols-outlined text-lg">group_add</span>
+            Cấp cho nhiều khách
+          </Button>
+          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            <span className="material-symbols-outlined text-lg">add</span>
+            Tạo mới
+          </Button>
+        </div>
       </div>
+
+      {/* Bulk-grant form — mỗi khách chọn nhận 1 voucher cá nhân riêng (mã tự sinh) */}
+      {showBulkForm && (
+        <form onSubmit={handleSubmitBulk((d) => {
+          if (bulkCustomers.length === 0) { showToast('Chọn ít nhất 1 khách', 'error'); return }
+          bulkGrantMutation.mutate(d)
+        })}
+          className="bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Khách nhận voucher</label>
+            <MultiCustomerPicker value={bulkCustomers} onChange={setBulkCustomers} />
+          </div>
+
+          <div className="flex rounded-input overflow-hidden border border-border-gray">
+            {(['fixed', 'percent'] as const).map((t) => (
+              <button key={t} type="button" onClick={() => setBulkValue('type', t)}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${bulkType === t ? 'bg-primary text-white' : 'text-neutral-gray'}`}>
+                {t === 'fixed' ? 'Số tiền cố định' : 'Phần trăm'}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <input type="number" {...registerBulk('value')} placeholder={bulkType === 'fixed' ? 'Giá trị (đ)' : 'Phần trăm (%)'}
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+              {bulkErrors.value && <p className="text-danger-red text-xs mt-1">{bulkErrors.value.message}</p>}
+            </div>
+            <div className="flex-1">
+              <input type="number" {...registerBulk('usage_limit')} placeholder="Giới hạn dùng (mặc định 1)"
+                className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-neutral-gray mb-1 block">Ngày hết hạn</label>
+            <input type="date" {...registerBulk('expires_at')}
+              className="border border-border-gray rounded-input px-3 py-2 text-sm outline-none w-full" />
+            {bulkErrors.expires_at && <p className="text-danger-red text-xs mt-1">Vui lòng chọn ngày hết hạn</p>}
+          </div>
+
+          <Button type="submit" fullWidth loading={bulkGrantMutation.isPending}>
+            Cấp cho {bulkCustomers.length || ''} khách
+          </Button>
+        </form>
+      )}
 
       {/* Create form */}
       {showForm && (

@@ -15,17 +15,24 @@ use Illuminate\Support\Str;
  */
 class VoucherIssuer
 {
-    public function issue(User $user, string $codePrefix, int $value, \DateTimeInterface $expiresAt, ?int $campaignId = null): Voucher
-    {
+    public function issue(
+        User $user,
+        string $codePrefix,
+        int $value,
+        \DateTimeInterface $expiresAt,
+        ?int $campaignId = null,
+        string $type = 'fixed',
+        int $usageLimit = 1,
+    ): Voucher {
         return Voucher::create([
             'code'        => $this->uniqueCode($codePrefix, $user),
-            'type'        => 'fixed',
+            'type'        => $type,
             'value'       => $value,
             'target'      => 'specific',
             'user_id'     => $user->id,
             'campaign_id' => $campaignId,
             'expires_at'  => $expiresAt,
-            'usage_limit' => 1,
+            'usage_limit' => $usageLimit,
             'usage_count' => 0,
             'is_active'   => true,
         ]);

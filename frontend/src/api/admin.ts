@@ -31,6 +31,11 @@ export const getVouchers = () => api.get<App.Voucher[]>('/admin/vouchers')
 export const createVoucher = (data: App.VoucherPayload) =>
   api.post<App.Voucher>('/admin/vouchers', data)
 
+export const bulkGrantVouchers = (data: {
+  user_ids: number[]; type: 'fixed' | 'percent'; value: number
+  expires_at: string; usage_limit?: number
+}) => api.post<App.Voucher[]>('/admin/vouchers/bulk', data)
+
 export const updateVoucher = (id: number, data: {
   type?: 'fixed' | 'percent'; value?: number; target?: 'all' | 'specific'
   user_id?: number | null; expires_at?: string; usage_limit?: number | null
