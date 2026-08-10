@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
-import { logout as logoutApi } from '@/api/auth'
-import { unregisterPushSubscription } from '@/push'
-import { useMutation } from '@tanstack/react-query'
+import { useLogout } from '@/hooks/useLogout'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import BrandGlyph from '@/components/common/BrandGlyph'
 import { BRAND } from '@/brand'
@@ -72,17 +70,11 @@ const DRIVER_QUY_DINH = [
 export default function AppHeader() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const { user, clearAuth } = useAuthStore()
+  const { user } = useAuthStore()
   const [showQuyDinh, setShowQuyDinh] = useState(false)
   const { canInstall } = usePwaInstall()
 
-  const logoutMutation = useMutation({
-    mutationFn: logoutApi,
-    onSettled: () => {
-      unregisterPushSubscription()
-      clearAuth()
-    },
-  })
+  const logoutMutation = useLogout()
 
   const { title } = getRouteInfo(pathname)
   const inRootSet = ROOT_TABS.has(pathname)

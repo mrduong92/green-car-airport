@@ -1,18 +1,9 @@
-import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/stores/auth'
-import { logout } from '@/api/auth'
+import { useLogout } from '@/hooks/useLogout'
 import ToastContainer from '@/components/common/Toast'
 import Button from '@/components/common/Button'
-import { useMutation } from '@tanstack/react-query'
 
 export default function DriverPendingPage() {
-  const navigate  = useNavigate()
-  const clearAuth = useAuthStore((s) => s.clearAuth)
-
-  const logoutMutation = useMutation({
-    mutationFn: logout,
-    onSettled: () => { clearAuth(); navigate('/login', { replace: true }) },
-  })
+  const logoutMutation = useLogout()
 
   return (
     <div className="min-h-svh bg-warm-white flex flex-col items-center justify-center px-6 text-center gap-6">

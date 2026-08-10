@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { logout } from '@/api/auth'
 import { getCustomerProfile, updateCustomerProfile } from '@/api/customer'
 import { getCollaboratorWallet } from '@/api/collaborator'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { useLogout } from '@/hooks/useLogout'
 import Button from '@/components/common/Button'
 import VoucherSheet from '@/components/common/VoucherSheet'
 import { BRAND } from '@/brand'
 
 export default function CustomerProfilePage() {
-  const { user, setAuth, token, clearAuth } = useAuthStore()
+  const { user, setAuth, token } = useAuthStore()
   const showToast = useUiStore((s) => s.showToast)
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -35,7 +35,7 @@ export default function CustomerProfilePage() {
     enabled: !!user?.is_collaborator,
   })
 
-  const logoutMutation = useMutation({ mutationFn: logout, onSettled: clearAuth })
+  const logoutMutation = useLogout()
 
   const updateMutation = useMutation({
     mutationFn: () => updateCustomerProfile({ name: editName }),

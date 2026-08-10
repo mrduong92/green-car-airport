@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getDriverProfile, updateDriverProfile } from '@/api/trips'
-import { logout } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { useLogout } from '@/hooks/useLogout'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
 import { BRAND } from '@/brand'
@@ -20,7 +20,7 @@ interface EditForm {
 }
 
 export default function DriverProfilePage() {
-  const { clearAuth, user } = useAuthStore()
+  const { user } = useAuthStore()
   const showToast = useUiStore((s) => s.showToast)
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -55,7 +55,7 @@ export default function DriverProfilePage() {
     }
   }, [profile])
 
-  const logoutMutation = useMutation({ mutationFn: logout, onSettled: clearAuth })
+  const logoutMutation = useLogout()
 
   const updateMutation = useMutation({
     mutationFn: () => updateDriverProfile({
