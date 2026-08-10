@@ -205,6 +205,12 @@ export default function BookingFormPage() {
   })
 
   const activeConfig = findPriceConfig(priceConfigs, vehicleType, detectedService, isVip)
+  // Chỉ cho bật VIP khi có bảng giá VIP cho đúng tổ hợp xe/dịch vụ hiện tại —
+  // nếu không, khách sẽ đặt cuốc VIP với giá của cuốc thường một cách âm thầm.
+  // priceConfigs rỗng nghĩa là đang loading, không tính là "không có" để tránh
+  // disable nhầm lúc mới vào trang.
+  const vipConfigExists =
+    priceConfigs.length === 0 || !!findPriceConfig(priceConfigs, vehicleType, detectedService, true)
 
   // Khoảng giá tham khảo hiển thị cho khách
   const suggestedMin = configPrice(activeConfig, distance, 'min')
@@ -240,6 +246,16 @@ export default function BookingFormPage() {
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupLatLng, destLatLng, setValue, showToast, priceConfigs])
+
+  // Nếu đang bật VIP mà đổi loại xe/dịch vụ khiến bảng giá VIP cho tổ hợp mới
+  // không còn tồn tại, tự tắt VIP — tránh trạng thái "đang bật VIP nhưng giá
+  // áp dụng là giá thường".
+  useEffect(() => {
+    if (isVip && priceConfigs.length > 0 && !findPriceConfig(priceConfigs, vehicleType, detectedService, true)) {
+      setIsVip(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleType, detectedService, priceConfigs])
 
   // Khi hết giờ hôm nay, tự động chuyển sang ngày mai
   useEffect(() => {
@@ -437,10 +453,12 @@ export default function BookingFormPage() {
             chip thứ tư: chọn chip VIP thì mất chỗ chọn 4/5/7 chỗ. */}
         <button
           type="button"
+          disabled={!vipConfigExists}
           onClick={() => handleVipChange(!isVip)}
           className={clsx(
             'w-full flex items-center gap-3 rounded-card border px-3.5 py-3 text-left transition-colors mt-2',
             isVip ? 'border-gold bg-gold-tint' : 'border-border-gray bg-white',
+            !vipConfigExists && 'opacity-50 cursor-not-allowed',
           )}
         >
           <span
@@ -454,7 +472,9 @@ export default function BookingFormPage() {
           <span className="flex-1">
             <span className="block text-[14px] font-medium text-navy">Xe VIP</span>
             <span className="block text-[11px] text-neutral-gray">
-              Xe cá nhân, biển trắng — không phải xe dịch vụ
+              {vipConfigExists
+                ? 'Xe cá nhân, biển trắng — không phải xe dịch vụ'
+                : 'Chưa có bảng giá VIP cho tuyến này'}
             </span>
           </span>
           <span className="material-symbols-outlined text-gold text-[20px]"
