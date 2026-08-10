@@ -16,7 +16,6 @@ export default function TripListPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
-  const [sort, setSort] = useState('newest')
   const [hasLocation, setHasLocation] = useState(false)
 
   const { data: profile } = useQuery({
@@ -45,8 +44,8 @@ export default function TripListPage() {
   const todayRevenue = todayTrips.reduce((sum, t) => sum + (t.net_earning ?? 0), 0)
 
   const { data: trips = [] } = useQuery({
-    queryKey: ['trips', sort],
-    queryFn: () => getAvailableTrips({ sort }).then((r) => r.data),
+    queryKey: ['trips'],
+    queryFn: () => getAvailableTrips().then((r) => r.data),
     enabled: isOnline,
     refetchOnWindowFocus: true,
   })
@@ -231,17 +230,10 @@ export default function TripListPage() {
         <p className="text-[14px] font-semibold text-navy">
           {isOnline ? `${trips.length} cuốc đang chờ` : 'Cuốc xe'}
         </p>
-        <button className="flex items-center gap-1 text-[12px] text-primary font-semibold">
-          <span className="material-symbols-outlined text-[14px]">filter_list</span>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="bg-transparent border-0 outline-none text-primary font-semibold text-[12px] cursor-pointer"
-          >
-            <option value="newest">Mới nhất</option>
-            <option value="nearest">Gần nhất</option>
-          </select>
-        </button>
+        {/* Đã bỏ ô chọn sắp xếp: chỉ có "Mới nhất" và "Gần nhất", mà sắp theo
+            khoảng cách tới tài xế không hợp với app đặt xe theo lịch — khách đặt
+            trước cho ngày giờ khác, nên tài xế đang đứng ở đâu lúc này không nói
+            lên điều gì. Còn mỗi "Mới nhất" thì dropdown một lựa chọn là thừa. */}
       </div>
 
       {/* Trip list */}
@@ -265,11 +257,6 @@ export default function TripListPage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {trip.is_vip && <VipBadge />}
-                  {trip.distance_to_driver != null && (
-                    <span className="text-[10px] font-semibold bg-primary-tint text-primary px-2 py-0.5 rounded-pill">
-                      ~{trip.distance_to_driver} km
-                    </span>
-                  )}
                   {trip.is_new && (
                     <span className="text-[10px] font-bold bg-[#C8A24A] text-white px-2 py-0.5 rounded-pill">MỚI</span>
                   )}
@@ -285,8 +272,12 @@ export default function TripListPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-navy truncate">{trip.pickup}</p>
+                  {/* Chỉ còn quãng đường của chuyến. Bỏ "cách bạn ? km": nó đo
+                      từ vị trí tài xế lúc bật online, vô nghĩa với cuốc đặt cho
+                      ngày mai — và vì vị trí gần như luôn trống nên thực tế chỉ
+                      hiện đúng dấu "?". */}
                   <p className="text-[11px] text-neutral-gray my-1">
-                    {trip.distance_km} km · cách bạn {trip.distance_to_driver ?? '?'} km
+                    {trip.distance_km} km
                   </p>
                   <p className="text-[13px] font-semibold text-navy truncate">{trip.destination}</p>
                 </div>
