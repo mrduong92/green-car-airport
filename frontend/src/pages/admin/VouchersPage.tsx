@@ -152,9 +152,18 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
           expires_at: d.expires_at, usage_limit: d.usage_limit,
         })
       }
+      return rest.length
     },
-    onSuccess: () => {
-      showToast('Đã lưu thay đổi', 'success')
+    onSuccess: (extraCount) => {
+      // 1 mã chỉ gắn được 1 người — người thêm vào ngoài người đầu luôn ra 1 dòng
+      // voucher MỚI riêng trên danh sách, không gộp vào dòng đang sửa. Nói rõ ra
+      // để không tưởng "chỉ lưu được 1 người".
+      showToast(
+        extraCount > 0
+          ? `Đã lưu — tạo thêm ${extraCount} mã voucher mới cho ${extraCount} khách khác`
+          : 'Đã lưu thay đổi',
+        'success',
+      )
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       onDone()
     },
@@ -216,11 +225,18 @@ function EditVoucherForm({ voucher, onDone }: { voucher: App.Voucher; onDone: ()
         <div>
           <label className="text-xs text-neutral-gray mb-1 block">Khách nhận voucher</label>
           <MultiCustomerPicker value={recipients} onChange={setRecipients} />
+          {recipients.length > 1 && (
+            <p className="text-xs text-neutral-gray mt-1">
+              {recipients[0].name} giữ voucher này · {recipients.length - 1} người còn lại sẽ nhận mã mới cùng điều khoản.
+            </p>
+          )}
         </div>
       )}
 
       <div className="flex gap-2">
-        <Button type="submit" fullWidth loading={updateMutation.isPending}>Lưu</Button>
+        <Button type="submit" fullWidth loading={updateMutation.isPending}>
+          {target === 'specific' && recipients.length > 1 ? `Lưu · cấp thêm ${recipients.length - 1} mã mới` : 'Lưu'}
+        </Button>
         <button type="button" onClick={onDone}
           className="text-sm text-neutral-gray border border-border-gray rounded-input px-4">Huỷ</button>
       </div>
