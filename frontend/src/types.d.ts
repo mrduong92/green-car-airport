@@ -83,6 +83,7 @@ declare namespace App {
     date: string
     time: string
     distance_km: number
+    vehicle_type: VehicleType
     is_vip?: boolean
     duration_min: number
     price: number

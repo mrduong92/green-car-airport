@@ -401,6 +401,7 @@ class TripController extends Controller
             'date' => $b->date,
             'time' => $b->time,
             'distance_km' => (float) $b->distance_km,
+            'vehicle_type' => $b->vehicle_type,
             'is_vip' => (bool) $b->is_vip,
             'duration_min' => $durationMin,
             'price' => $b->price,

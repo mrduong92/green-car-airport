@@ -10,6 +10,7 @@ import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
 import StatusBadge from '@/components/common/StatusBadge'
 import VipBadge from '@/components/common/VipBadge'
+import { VEHICLE_TYPE_LABELS } from '@/utils/vehicleType'
 
 const GoongTripMap = lazy(() => import('@/components/common/GoongTripMap'))
 
@@ -115,6 +116,9 @@ export default function TripDetailPage() {
       <div className="flex items-center justify-between">
         <span className="text-caption text-neutral-gray">Cuốc #{trip.id}</span>
         <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-neutral-gray border border-border-gray rounded-pill px-1.5 py-0.5">
+            {VEHICLE_TYPE_LABELS[trip.vehicle_type]}
+          </span>
           {trip.is_vip && <VipBadge />}
           <StatusBadge status={trip.status} />
         </div>
