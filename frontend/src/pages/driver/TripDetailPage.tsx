@@ -25,8 +25,10 @@ export default function TripDetailPage() {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
 
+  const [reasonOpen, setReasonOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [earlyOpen, setEarlyOpen]   = useState(false)
+  const [selectedReason, setSelectedReason] = useState('')
 
   // Lấy theo ID chứ KHÔNG quét danh sách. Trước đây trang này tìm trong `my-trips`
   // — endpoint chỉ trả cuốc đang chạy — nên bấm vào bất kỳ cuốc nào ở tab Lịch sử
@@ -56,7 +58,7 @@ export default function TripDetailPage() {
   })
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelTrip(Number(id)),
+    mutationFn: () => cancelTrip(Number(id), selectedReason || undefined),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['driver-trip', Number(id)] })
       qc.invalidateQueries({ queryKey: ['my-trips'] })
@@ -84,21 +86,39 @@ export default function TripDetailPage() {
     </div>
   )
 
-  if (trip.status === 'cancelled') return (
-    <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-      <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
-        <span className="material-symbols-outlined text-3xl text-danger-red"
-              style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
+  if (trip.status === 'cancelled') {
+    const byLabels: Record<string, string> = { customer: 'khách hàng', driver: 'bạn', system: 'hệ thống' }
+    const byLabel = byLabels[trip.cancelled_by ?? ''] ?? 'không rõ'
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+          <span className="material-symbols-outlined text-3xl text-danger-red"
+                style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
+        </div>
+        <div>
+          <p className="text-[16px] font-semibold text-navy">Cuốc xe đã bị huỷ</p>
+          <p className="text-sm text-neutral-gray mt-1">Cuốc #{trip.id} đã bị huỷ bởi {byLabel}</p>
+        </div>
+        <div className="w-full flex flex-col gap-2 bg-warm-white rounded-card px-4 py-3 text-left">
+          {trip.cancel_reason && (
+            <div className="flex justify-between gap-3 text-[13px]">
+              <span className="text-neutral-gray shrink-0">Lý do</span>
+              <span className="text-navy font-medium text-right">{trip.cancel_reason}</span>
+            </div>
+          )}
+          {trip.cancelled_at && (
+            <div className="flex justify-between gap-3 text-[13px]">
+              <span className="text-neutral-gray shrink-0">Thời gian huỷ</span>
+              <span className="text-navy font-medium">{dayjs(trip.cancelled_at).format('HH:mm DD/MM/YYYY')}</span>
+            </div>
+          )}
+        </div>
+        <Button variant="outline" onClick={() => navigate('/driver/trips')}>
+          Quay lại danh sách
+        </Button>
       </div>
-      <div>
-        <p className="text-[16px] font-semibold text-navy">Khách đã hủy cuốc xe</p>
-        <p className="text-sm text-neutral-gray mt-1">Cuốc #{trip.id} đã bị hủy bởi khách hàng</p>
-      </div>
-      <Button variant="outline" onClick={() => navigate('/driver/trips')}>
-        Quay lại danh sách
-      </Button>
-    </div>
-  )
+    )
+  }
 
   const nextStep = NEXT_STEP[trip.status] ?? null
 
@@ -211,11 +231,50 @@ export default function TripDetailPage() {
       )}
       {['accepted', 'picking_up'].includes(trip.status) && (
         <button
-          onClick={() => setCancelOpen(true)}
+          onClick={() => setReasonOpen(true)}
           className="w-full text-center text-[13px] text-danger-red underline py-1"
         >
           Huỷ cuốc
         </button>
+      )}
+
+      {/* Reason selector modal */}
+      {reasonOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setReasonOpen(false)}>
+          <div className="w-full max-w-md bg-white rounded-t-2xl p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[15px] font-semibold text-navy mb-4">Lý do huỷ cuốc</p>
+            <div className="flex flex-col gap-2">
+              {['Khách không nghe máy', 'Khách yêu cầu huỷ', 'Xe gặp sự cố', 'Kẹt xe không tới kịp', 'Lý do khác'].map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => setSelectedReason(reason)}
+                  className={`w-full text-left px-4 py-3 rounded-input border text-sm transition-colors ${
+                    selectedReason === reason
+                      ? 'border-primary bg-light-green text-primary font-medium'
+                      : 'border-border-gray text-navy'
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => { setReasonOpen(false); setSelectedReason('') }}
+                className="flex-1 py-3 rounded-input border border-border-gray text-sm text-neutral-gray"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => { setReasonOpen(false); setCancelOpen(true) }}
+                disabled={!selectedReason}
+                className="flex-1 py-3 rounded-input bg-danger-red text-white text-sm font-semibold disabled:opacity-40"
+              >
+                Tiếp tục
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Cuốc đặt trước: bấm nhầm là KHÔNG lùi lại được (không có đường chuyển

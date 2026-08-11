@@ -93,6 +93,9 @@ declare namespace App {
     app_fee: number
     net_earning: number
     status: TripStatus
+    cancelled_at?: string | null
+    cancelled_by?: 'customer' | 'driver' | 'system' | null
+    cancel_reason?: string | null
     customer_note?: string | null
     is_new: boolean
     customer_phone: string

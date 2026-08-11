@@ -6,6 +6,7 @@ use App\Events\CustomerBookingUpdated;
 use App\Events\DriverTripsUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingDriverCancellation;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\BookingAcceptedNotification;
@@ -298,7 +299,20 @@ class TripController extends Controller
             return response()->json(['message' => 'Không thể huỷ ở trạng thái này.'], 422);
         }
 
-        // Phí app 20% đã trừ khi nhận — không hoàn, booking trở lại hàng đợi
+        $data = $request->validate(['reason' => 'nullable|string|max:255']);
+        $driverId = $request->user()->id;
+
+        // Phí app 20% đã trừ khi nhận — không hoàn, booking trở lại hàng đợi. Ghi lại
+        // việc BỎ cuốc vào bảng riêng (không phải bookings.cancelled_*) vì booking sẽ
+        // được tài xế khác nhận lại — cancelled_by/cancelled_at trên chính booking là
+        // để ghi trạng thái CUỐI của nó, không phải lịch sử từng tài xế đã bỏ.
+        BookingDriverCancellation::create([
+            'booking_id' => $booking->id,
+            'driver_id' => $driverId,
+            'reason' => $data['reason'] ?? null,
+            'cancelled_at' => now(),
+        ]);
+
         $booking->update([
             'driver_id' => null,
             'status' => 'finding_driver',
@@ -330,12 +344,34 @@ class TripController extends Controller
 
     public function history(Request $request): JsonResponse
     {
-        $trips = Booking::with('customer')
-            ->where('driver_id', $request->user()->id)
-            ->where('status', 'completed')
-            ->latest()
+        $driverId = $request->user()->id;
+
+        // Cuốc đã hoàn thành, hoặc bị khách/hệ thống huỷ MÀ VẪN gắn với tài xế này
+        // (khách huỷ giữ nguyên driver_id — xem BookingController::cancel()).
+        $ownBookings = Booking::with('customer')
+            ->where('driver_id', $driverId)
+            ->whereIn('status', ['completed', 'cancelled'])
             ->get()
-            ->map(fn ($b) => $this->formatTrip($b));
+            ->map(fn (Booking $b) => [
+                'at' => $b->cancelled_at ?? $b->updated_at,
+                'data' => $this->formatTrip($b),
+            ]);
+
+        // Cuốc tài xế NÀY từng nhận rồi tự bỏ (quay lại hàng đợi). Booking có thể đã
+        // được tài xế khác nhận/hoàn thành sau đó — dùng đúng bản ghi bỏ cuốc của
+        // tài xế này, không dùng trạng thái/driver_id HIỆN TẠI của booking.
+        $ownDrops = BookingDriverCancellation::with('booking.customer')
+            ->where('driver_id', $driverId)
+            ->get()
+            ->map(fn (BookingDriverCancellation $log) => [
+                'at' => $log->cancelled_at,
+                'data' => $this->formatDriverDrop($log),
+            ]);
+
+        $trips = $ownBookings->concat($ownDrops)
+            ->sortByDesc('at')
+            ->pluck('data')
+            ->values();
 
         return response()->json($trips);
     }
@@ -353,14 +389,25 @@ class TripController extends Controller
      */
     public function show(Request $request, Booking $booking): JsonResponse
     {
-        if ($booking->driver_id !== $request->user()->id) {
+        if ($booking->driver_id === $request->user()->id) {
+            return response()->json($this->formatTrip(
+                $booking->load('customer'),
+                $request->user()->driverProfile,
+            ));
+        }
+
+        // Không còn gắn với tài xế này (bị người khác nhận lại) — nhưng nếu chính
+        // tài xế này từng bỏ cuốc, vẫn phải mở được để xem lại lý do/thời gian.
+        $drop = BookingDriverCancellation::where('booking_id', $booking->id)
+            ->where('driver_id', $request->user()->id)
+            ->latest('cancelled_at')
+            ->first();
+
+        if (! $drop) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        return response()->json($this->formatTrip(
-            $booking->load('customer'),
-            $request->user()->driverProfile,
-        ));
+        return response()->json($this->formatDriverDrop($drop, $request->user()->driverProfile));
     }
 
     private function formatTrip(Booking $b, $driverProfile = null): array
@@ -412,6 +459,9 @@ class TripController extends Controller
             'app_fee' => $appFee,
             'net_earning' => $netEarning,
             'status' => $statusMap[$b->status] ?? $b->status,
+            'cancelled_at' => $b->cancelled_at?->toISOString(),
+            'cancelled_by' => $b->cancelled_by,
+            'cancel_reason' => $b->cancel_reason,
             'is_new' => $b->created_at?->gt(now()->subMinutes(30)) ?? false,
             'customer_name' => $b->customer?->name,
             'customer_phone' => $phone,
@@ -420,6 +470,26 @@ class TripController extends Controller
             'created_at' => $b->created_at?->toISOString(),
             'distance_to_driver' => $distanceToDriver,
         ];
+    }
+
+    /**
+     * Định dạng một cuốc mà TÀI XẾ NÀY từng bỏ (BookingDriverCancellation), độc
+     * lập với trạng thái/driver_id HIỆN TẠI của booking (có thể đã được tài xế
+     * khác nhận và hoàn thành). Với chính tài xế đã bỏ, cuốc này luôn hiển thị
+     * là "đã huỷ, bởi tài xế" — và không có thu nhập vì họ chưa từng hoàn thành nó.
+     */
+    private function formatDriverDrop(BookingDriverCancellation $log, $driverProfile = null): array
+    {
+        $base = $this->formatTrip($log->booking, $driverProfile);
+
+        return array_merge($base, [
+            'status' => 'cancelled',
+            'cancelled_at' => $log->cancelled_at->toISOString(),
+            'cancelled_by' => 'driver',
+            'cancel_reason' => $log->reason,
+            'app_fee' => 0,
+            'net_earning' => 0,
+        ]);
     }
 
     private function haversine(float $lat1, float $lng1, float $lat2, float $lng2): float
