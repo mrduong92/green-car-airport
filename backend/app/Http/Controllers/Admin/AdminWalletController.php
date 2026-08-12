@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\DriverTopUpCompletedNotification;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Log;
 
 class AdminWalletController extends Controller
 {
+    use AuthorizesRequests;
+
     public function topup(Request $request, User $user): JsonResponse
     {
         $request->validate([
@@ -64,9 +67,7 @@ class AdminWalletController extends Controller
             'reason' => 'required|string|max:255',
         ]);
 
-        if (! $user->is_collaborator) {
-            return response()->json(['message' => 'Chỉ có thể trừ điểm của Cộng tác viên.'], 422);
-        }
+        $this->authorize('deductPoints', $user);
 
         $wallet = Wallet::firstOrCreate(['user_id' => $user->id], ['points' => 0]);
         $points = $request->integer('points');

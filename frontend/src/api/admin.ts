@@ -59,6 +59,9 @@ export const getRevenue = (params: { period: string; from?: string; to?: string 
 export const topupDriver = (id: number, data: { points: number; description?: string }) =>
   api.post<{ points_added: number; new_balance: number }>(`/admin/drivers/${id}/topup`, data)
 
+export const deductDriverPoints = (id: number, data: { points: number; reason: string }) =>
+  api.post<{ message: string; new_balance: number }>(`/admin/customers/${id}/deduct-points`, data)
+
 export const getCustomerBookings = (id: number) =>
   api.get<App.AdminCustomerBooking[]>(`/admin/customers/${id}/bookings`)
 

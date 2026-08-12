@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, topupDriver } from '@/api/admin'
+import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, topupDriver, deductDriverPoints } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import VipBadge from '@/components/common/VipBadge'
 import Button from '@/components/common/Button'
 import clsx from 'clsx'
+
+type ApiError = { response?: { data?: { message?: string } } }
 
 const FILTERS = [
   { key: '',        label: 'Tất cả' },
@@ -44,6 +46,9 @@ export default function DriversPage() {
   const [topupTarget, setTopupTarget] = useState<App.DriverProfile | null>(null)
   const [topupPoints, setTopupPoints] = useState('')
   const [topupDesc, setTopupDesc] = useState('')
+  const [deductTarget, setDeductTarget] = useState<App.DriverProfile | null>(null)
+  const [deductPoints, setDeductPoints] = useState('')
+  const [deductReason, setDeductReason] = useState('')
 
   const { data: drivers = [] } = useQuery({
     queryKey: ['drivers', filter, search],
@@ -128,6 +133,25 @@ export default function DriversPage() {
     setTopupDesc('')
   }
 
+  const deductMutation = useMutation({
+    mutationFn: () => deductDriverPoints(deductTarget!.id, {
+      points: Number(deductPoints),
+      reason: deductReason,
+    }),
+    onSuccess: () => {
+      showToast('Đã trừ điểm', 'success')
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+      setDeductTarget(null)
+    },
+    onError: (err: ApiError) => showToast(err.response?.data?.message ?? 'Trừ điểm thất bại', 'error'),
+  })
+
+  const openDeduct = (d: App.DriverProfile) => {
+    setDeductTarget(d)
+    setDeductPoints('')
+    setDeductReason('')
+  }
+
   const inputCls = 'border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors'
 
   return (
@@ -195,6 +219,12 @@ export default function DriversPage() {
                   className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
                   Nạp điểm
                 </button>
+                {d.points != null && d.points > 0 && (
+                  <button onClick={() => openDeduct(d)}
+                    className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
+                    Trừ điểm
+                  </button>
+                )}
                 {d.status === 'pending' && (
                   <button onClick={() => approveMutation.mutate(d.id)}
                     className="text-xs bg-success-green text-white rounded-pill px-3 py-1.5 font-medium">
@@ -401,6 +431,60 @@ export default function DriversPage() {
                 onClick={() => topupMutation.mutate()}
               >
                 Nạp điểm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deduct points modal */}
+      {deductTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={() => setDeductTarget(null)}>
+          <div className="bg-white w-full rounded-t-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border-gray">
+              <p className="text-[15px] font-semibold text-navy">Trừ điểm tài xế</p>
+              <button onClick={() => setDeductTarget(null)}>
+                <span className="material-symbols-outlined text-neutral-gray text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="px-4 py-4 flex flex-col gap-3">
+              <p className="text-[12px] text-neutral-gray">
+                {deductTarget.name} · Số dư hiện tại: <span className="font-semibold text-navy">{(deductTarget.points ?? 0).toLocaleString('vi')} điểm</span>
+              </p>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] text-neutral-gray font-medium">Số điểm trừ <span className="text-danger-red">*</span></label>
+                <input
+                  type="number" min={1} max={deductTarget.points ?? 0} inputMode="numeric"
+                  value={deductPoints}
+                  onChange={(e) => setDeductPoints(e.target.value)}
+                  placeholder="Nhập số điểm cần trừ"
+                  className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors [appearance:textfield]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] text-neutral-gray font-medium">Lý do <span className="text-danger-red">*</span></label>
+                <textarea
+                  value={deductReason}
+                  onChange={(e) => setDeductReason(e.target.value)}
+                  placeholder="Ví dụ: Vi phạm chính sách"
+                  rows={3}
+                  className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary transition-colors resize-none"
+                />
+              </div>
+            </div>
+            <div className="px-4 pb-6 pt-3 flex gap-3 border-t border-border-gray">
+              <Button fullWidth variant="outline" onClick={() => setDeductTarget(null)}>Huỷ</Button>
+              <Button
+                fullWidth
+                variant="danger"
+                loading={deductMutation.isPending}
+                disabled={
+                  !deductPoints || Number(deductPoints) < 1 ||
+                  Number(deductPoints) > (deductTarget.points ?? 0) || !deductReason.trim()
+                }
+                onClick={() => deductMutation.mutate()}
+              >
+                Trừ điểm
               </Button>
             </div>
           </div>
