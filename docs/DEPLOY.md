@@ -537,6 +537,22 @@ staging) + 3 unit test cho 3 nhánh exit code.
 
 ## Lịch sử production
 
+- 2026-08-13: Deploy tính năng liên hệ Admin qua Zalo + admin tự sửa hotline/email/zalo
+  (bảng `app_settings` key-value, endpoint public `GET /api/settings/contact`, CRUD
+  `GET`/`PUT /api/admin/settings`, tab "Cài đặt" trên app admin). 1 migration mới, seed
+  bằng `php artisan db:seed --class=AppSettingSeeder --force` (KHÔNG seed trần). Verify: 3
+  app 200 + 3 hash khác nhau, marker "zalo.me"/"Liên hệ Admin qua Zalo"/"Cài đặt liên hệ"
+  có trong đúng bundle, API contact trả đúng giá trị, dev bypass vẫn 422.
+  ⚠️ **Runbook mục "Quy trình deploy" bên dưới ĐÃ LỖI THỜI về queue worker** — phần
+  "Backend (chạy trên server)" còn ghi `php artisan queue:restart` + service đơn
+  `greenca-queue.service`, nhưng production đã chuyển sang template 4 worker
+  `greenca-queue@1..4` từ 2026-08-09 (xem lịch sử Reverb ở trên) mà không ai cập nhật
+  đoạn quy trình. Làm đúng theo bước cũ ở đây gây hiểu nhầm "worker chết" (kiểm
+  `systemctl is-active greenca-queue` ra `inactive` dù 4 worker thật vẫn khỏe) và có
+  thể vô tình bật thêm 1 worker thừa ngoài ý muốn. Việc `queue:restart` (broadcast
+  restart signal qua cache, không cần biết tên unit) vẫn đúng và đủ cho template 4
+  worker — **không cần và không nên chạy `systemctl enable --now greenca-queue`**.
+  TODO: sửa lại đoạn quy trình bên dưới cho khớp thực tế.
 - 2026-08-06: Dựng server production lần đầu. Cài nginx 1.28 + PHP 8.5 + MySQL 8.4 + Redis 8.0 + certbot.
   Deploy commit `3c50f33` (= code của `605bcab` trên staging + fix tắt dev bypass; 2 commit ở giữa chỉ sửa docs).
   DB khởi tạo trống, chỉ seed `PriceConfigSeeder` (6 dòng) + `StaticPageSeeder` (2 trang) — KHÔNG seed user dev.
