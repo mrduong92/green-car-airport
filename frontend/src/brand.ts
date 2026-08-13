@@ -5,10 +5,8 @@
 // Đổi tên app = sửa ở đây (+ `APP_NAME` trong backend/.env).
 
 export const BRAND = {
-  name:         'GreenCA',
-  tagline:      'AIRPORT TRANSFER · VIETNAM',
-  legalName:    'GreenCA Co.',
-  supportEmail: 'support@greenca.vn',
-  zaloOa:       'GreenCA',
-  domain:       'greenca.vn',
+  name:      'GreenCA',
+  tagline:   'AIRPORT TRANSFER · VIETNAM',
+  legalName: 'GreenCA Co.',
+  domain:    'greenca.vn',
 } as const

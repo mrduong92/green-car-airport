@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getDriverProfile, updateDriverProfile } from '@/api/trips'
+import { getContactSettings } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { apiMessage } from '@/utils/apiError'
@@ -9,6 +10,7 @@ import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useLogout } from '@/hooks/useLogout'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
+import { zaloLink } from '@/utils/zalo'
 import { BRAND } from '@/brand'
 
 interface EditForm {
@@ -35,6 +37,11 @@ export default function DriverProfilePage() {
   const { data: profile } = useQuery({
     queryKey: ['driver-profile'],
     queryFn: () => getDriverProfile().then((r) => r.data),
+  })
+
+  const { data: contact } = useQuery({
+    queryKey: ['contact-settings'],
+    queryFn: getContactSettings,
   })
 
   const isNewDriver = profile !== undefined && !profile?.vehicle_plate
@@ -162,6 +169,18 @@ export default function DriverProfilePage() {
 
       {/* Actions */}
       <div className="bg-white mx-4 mt-3 rounded-card shadow-card divide-y divide-border-gray">
+        {contact && (
+          <a
+            href={zaloLink(contact.zalo_phone)}
+            target="_blank"
+            rel="noreferrer"
+            className="w-full flex items-center gap-3 px-4 py-4 text-navy"
+          >
+            <span className="material-symbols-outlined text-primary">chat_bubble</span>
+            <span className="text-sm font-medium flex-1 text-left">Liên hệ Admin qua Zalo</span>
+            <span className="material-symbols-outlined text-neutral-gray text-[16px]">chevron_right</span>
+          </a>
+        )}
         {canInstall && (
           <button
             onClick={() => navigate('/install')}

@@ -19,6 +19,7 @@ const TABS = [
   { to: '/customers', icon: 'manage_accounts',     label: 'Khách hàng', short: 'Khách' },
   { to: '/pages',     icon: 'article',             label: 'Trang tĩnh' },
   { to: '/admins',    icon: 'admin_panel_settings', label: 'Admin' },
+  { to: '/settings',  icon: 'settings',            label: 'Cài đặt', short: 'C.đặt' },
 ]
 
 export default function AdminLayout() {

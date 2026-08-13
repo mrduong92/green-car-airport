@@ -299,6 +299,12 @@ declare namespace App {
     is_active: boolean
   }
 
+  interface ContactSettings {
+    hotline: string
+    email: string
+    zalo_phone: string
+  }
+
   interface CustomerProfile {
     id: number
     name: string

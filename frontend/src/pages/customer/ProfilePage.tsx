@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getCustomerProfile, updateCustomerProfile } from '@/api/customer'
 import { getCollaboratorWallet } from '@/api/collaborator'
+import { getContactSettings } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useLogout } from '@/hooks/useLogout'
 import Button from '@/components/common/Button'
 import VoucherSheet from '@/components/common/VoucherSheet'
+import { zaloLink } from '@/utils/zalo'
 import { BRAND } from '@/brand'
 
 export default function CustomerProfilePage() {
@@ -33,6 +35,11 @@ export default function CustomerProfilePage() {
     queryKey: ['collaborator-wallet'],
     queryFn: () => getCollaboratorWallet().then((r) => r.data),
     enabled: !!user?.is_collaborator,
+  })
+
+  const { data: contact } = useQuery({
+    queryKey: ['contact-settings'],
+    queryFn: getContactSettings,
   })
 
   const logoutMutation = useLogout()
@@ -305,11 +312,12 @@ export default function CustomerProfilePage() {
             </div>
             <div className="px-4 py-5 flex flex-col gap-5">
               {[
-                { icon: 'phone',        label: 'Hotline hỗ trợ',  value: '1800 6789',          sub: 'Miễn phí · 7:00–22:00 hằng ngày' },
-                { icon: 'mail',         label: 'Email',            value: BRAND.supportEmail,    sub: 'Phản hồi trong vòng 24 giờ' },
-                { icon: 'chat_bubble',  label: 'Zalo',             value: `Zalo OA: ${BRAND.zaloOa}`, sub: 'Phản hồi nhanh trong giờ hành chính' },
-              ].map(({ icon, label, value, sub }) => (
-                <div key={icon} className="flex items-start gap-3">
+                { icon: 'phone',       label: 'Hotline hỗ trợ', value: contact?.hotline ?? '—', sub: 'Miễn phí · 7:00–22:00 hằng ngày', href: contact ? `tel:${contact.hotline.replace(/\s+/g, '')}` : undefined },
+                { icon: 'mail',        label: 'Email',          value: contact?.email ?? '—',   sub: 'Phản hồi trong vòng 24 giờ',       href: contact ? `mailto:${contact.email}` : undefined },
+                { icon: 'chat_bubble', label: 'Zalo',           value: contact?.zalo_phone ?? '—', sub: 'Phản hồi nhanh trong giờ hành chính', href: contact ? zaloLink(contact.zalo_phone) : undefined },
+              ].map(({ icon, label, value, sub, href }) => (
+                <a key={icon} href={href} target={icon === 'chat_bubble' ? '_blank' : undefined} rel="noreferrer"
+                  className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
                     <span className="material-symbols-outlined text-primary text-[18px]">{icon}</span>
                   </div>
@@ -318,7 +326,7 @@ export default function CustomerProfilePage() {
                     <p className="text-sm font-semibold text-navy">{value}</p>
                     <p className="text-[11px] text-neutral-gray mt-0.5">{sub}</p>
                   </div>
-                </div>
+                </a>
               ))}
             </div>
             <div className="px-4 pb-8">
