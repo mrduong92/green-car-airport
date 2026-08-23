@@ -7,7 +7,7 @@
 
 ## Vấn đề
 
-Save Go hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/` tài xế, `dist-admin/` admin). Chủ sản phẩm cần app có mặt trên CH Play và App Store vì bốn lý do:
+GreenCA hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/` tài xế, `dist-admin/` admin). Chủ sản phẩm cần app có mặt trên CH Play và App Store vì bốn lý do:
 
 1. **Marketing và uy tín** — người dùng phổ thông tìm app trên store, không ai biết "Thêm vào màn hình chính".
 2. **Push notification không tin cậy** — iOS Safari chỉ cho phép Web Push khi PWA đã được cài vào màn hình chính (iOS 16.4+), và iOS thu hồi quyền khá tuỳ tiện. Tài xế bỏ lỡ cuốc là thiệt hại trực tiếp.
@@ -16,7 +16,7 @@ Save Go hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/
 
 ## Mục tiêu
 
-- Hai ứng dụng native trên cả CH Play và App Store: **Save Go** (khách hàng) và **Save Go Tài Xế**.
+- Hai ứng dụng native trên cả CH Play và App Store: **GreenCA** (khách hàng) và **GreenCA Tài Xế**.
 - Giữ **một codebase UI duy nhất** — `frontend/src` phục vụ đồng thời web PWA và app native. Sửa một lần, chạy cả hai.
 - Push notification native qua FCM (Android) và APNs (iOS, chuyển tiếp bởi FCM), với chuông riêng độ ưu tiên cao cho thông báo "Có cuốc mới" xuyên qua chế độ im lặng/Tập trung.
 - Đạt điều kiện duyệt của Apple và Google ngay từ vòng nộp đầu: xoá tài khoản trong app, tài khoản demo cho reviewer, khai báo quyền riêng tư, đủ tính năng native để không bị coi là website đóng gói.
@@ -26,7 +26,7 @@ Save Go hiện là PWA với 3 build target (`dist/` khách hàng, `dist-driver/
 
 - **Theo dõi vị trí tài xế realtime.** Hệ thống hiện chỉ dùng GPS một lần để điền điểm đón; bản đồ hiển thị lộ trình của khách chứ không cập nhật vị trí xe. Không bổ sung trong đợt này — sẽ là spec riêng.
 - **App Admin.** Giữ nguyên PWA web trên `admin.*`. Admin dùng desktop, lên store không có giá trị và dễ bị Apple từ chối vì "app chỉ dành cho nội bộ".
-- **Universal Links / App Links** (mở link `savego.com.vn` bằng app). Cần đặt file xác thực lên server và cấu hình cả hai nền tảng; giá trị chủ yếu là marketing. Phase sau.
+- **Universal Links / App Links** (mở link `greenca.vn` bằng app). Cần đặt file xác thực lên server và cấu hình cả hai nền tảng; giá trị chủ yếu là marketing. Phase sau.
 - **Cập nhật OTA** (đẩy bản sửa lỗi JS không qua store, ví dụ Capgo). Phase sau.
 - **CI/CD ký và nộp tự động.** Tần suất phát hành ban đầu thấp, dựng pipeline ký app tốn công ngang phần còn lại. Build thủ công qua Xcode/Android Studio, có Makefile hỗ trợ hai nhịp đầu.
 - **Viết lại UI bằng React Native hoặc Flutter.** Xem mục "Phương án đã cân nhắc".
@@ -67,11 +67,11 @@ green-car-airport/
 │       └── sw.ts                  # dùng lại route.ts thay vì tự ánh xạ
 ├── mobile/
 │   ├── customer/
-│   │   ├── capacitor.config.ts    # appId vn.com.savego.customer, webDir ../../frontend/dist
+│   │   ├── capacitor.config.ts    # appId vn.greenca.customer, webDir ../../frontend/dist
 │   │   ├── package.json           # các plugin Capacitor (cho cap sync sinh mã native)
 │   │   ├── android/               # project Android Studio — commit vào git
 │   │   └── ios/                   # project Xcode — commit vào git
-│   └── driver/                    # tương tự, appId vn.com.savego.driver
+│   └── driver/                    # tương tự, appId vn.greenca.driver
 └── docs/MOBILE.md                 # MỚI — hướng dẫn build, ký, phát hành
 ```
 
@@ -85,8 +85,8 @@ green-car-airport/
 
 | | Khách hàng | Tài xế |
 |---|---|---|
-| App ID | `vn.com.savego.customer` | `vn.com.savego.driver` |
-| Tên hiển thị | Save Go | Save Go Tài Xế |
+| App ID | `vn.greenca.customer` | `vn.greenca.driver` |
+| Tên hiển thị | GreenCA | GreenCA Tài Xế |
 | webDir | `../../frontend/dist` | `../../frontend/dist-driver` |
 
 App ID **không đổi được** sau khi phát hành lên store. Chốt trước khi tạo bản ghi ứng dụng.
@@ -109,25 +109,64 @@ const api = axios.create({
 ```
 
 - Build web: để trống → giữ nguyên hành vi hiện tại, không hồi quy.
-- Build cho app native: `VITE_API_BASE_URL=https://savego.com.vn`.
+- Build cho app native: `VITE_API_BASE_URL=https://greenca.vn`.
 
-**Áp dụng cho cả SSE.** `useCustomerStream.ts` và `useDriverStream.ts` tạo `EventSource` — phải dùng cùng base URL, nếu không realtime chết trong app mà API vẫn chạy, rất khó truy.
+**Áp dụng cho cả realtime — và đây là chỗ nhiều bẫy nhất.** Dự án đã chuyển từ SSE sang **Laravel Reverb (WebSocket)**, nên `src/echo.ts` có ba chỗ suy ra sai trong app native, **tất cả đều hỏng im lặng** đúng như `CLAUDE.md` cảnh báo về Reverb:
 
-### 2.2 CORS
+| Chỗ | Trong app native nó thành gì | Hậu quả |
+|---|---|---|
+| `window.location.hostname` | `app.greenca.vn` — tên giả của WebView | Nối WebSocket vào host không tồn tại |
+| `window.location.protocol === 'https:'` | Android `https:` (đúng) nhưng **iOS `capacitor:`** | iOS suy ra không TLS → nối cổng 8081 → chết |
+| `authEndpoint: '/api/broadcasting/auth'` | `https://app.greenca.vn/api/...` | 404 → xác thực kênh private thất bại |
 
-Backend hiện không có `config/cors.php` (Laravel 11+ dùng mặc định của framework). Publish file cấu hình và thêm các origin của Capacitor:
+Xử lý: khi `API_BASE` có giá trị (tức bản build cho app native) thì lấy host và giao thức từ chính nó, và tuyệt đối hoá `authEndpoint`. Bản web để `API_BASE` rỗng nên hành vi không đổi. **Đã làm và kiểm chứng trên bundle build ra.**
+
+**Reverb `allowed_origins` — đã kiểm, KHÔNG cần sửa.** `config/reverb.php:85` đang đặt `'allowed_origins' => ['*']` nên handshake từ origin của WebView được chấp nhận sẵn. Ghi chú trong `echo.ts` nói chọn cùng domain để khỏi phải mở `allowed_origins` — lập luận đó đúng về ý định thiết kế, nhưng cấu hình thực tế đang mở hết. Nếu sau này siết về danh sách cụ thể thì phải thêm origin của WebView.
+
+**Nối lại khi app quay lại từ nền.** iOS treo WebView khi app vào nền nên socket chết. `EventSource` trước đây tự nối lại theo chuẩn; với WebSocket thì client thường không phát hiện kịp, dẫn tới tài xế mở app ra thấy danh sách cuốc cũ mà không biết là cũ. Bắt sự kiện `appStateChange` của `@capacitor/app`: khi resume thì ngắt và nối lại Echo, đồng thời `invalidateQueries` để tải lại dữ liệu.
+
+### 2.2 Origin của WebView, Sanctum và CORS
+
+**Đã kiểm chứng bằng POC trên emulator Android** (xem `docs/MOBILE.md`) — đây là chỗ vướng thật, không phải lo xa.
+
+Mặc định Capacitor nạp WebView từ `https://localhost` (Android) và `capacitor://localhost` (iOS). **Cả hai đều có host là `localhost`**, mà `localhost` nằm trong danh sách mặc định của `SANCTUM_STATEFUL_DOMAINS` (xem `config/sanctum.php:21-26`, và `.env` hiện **không** khai biến này nên đang dùng mặc định).
+
+Hệ quả: middleware `EnsureFrontendRequestsAreStateful` của Sanctum coi request từ app là first-party SPA, chuyển nó sang luồng session/cookie và bắt CSRF token. Mọi request từ app trả **419 `CSRF token mismatch`** — đăng nhập không thể thực hiện. Triệu chứng dễ chẩn đoán sai thành lỗi CORS hoặc lỗi mạng.
+
+**Cách xử lý — làm cả hai:**
+
+1. **Đặt hostname riêng cho WebView** trong `capacitor.config.ts` của cả hai app:
+
+```ts
+server: {
+  androidScheme: 'https',
+  hostname: 'app.greenca.vn',   // app tài xế: 'driver-app.greenca.vn'
+}
+```
+
+Origin trở thành `https://app.greenca.vn`, không còn khớp `localhost` → Sanctum để request đi luồng stateless bằng Bearer token, đúng như app cần. Sửa được ở phía client, không cần đụng server, và xử lý luôn cho cả iOS.
+
+2. **Khai tường minh `SANCTUM_STATEFUL_DOMAINS`** trên server, chỉ gồm các domain SPA thật:
+
+```
+SANCTUM_STATEFUL_DOMAINS=greenca.vn,driver.greenca.vn,admin.greenca.vn
+```
+
+Bước 1 là đủ để app chạy, nhưng bước 2 mới là sửa đúng gốc: dựa vào danh sách mặc định có `localhost` là một cái bẫy sẽ nổ lại ở bất kỳ client nào chạy trên localhost.
+
+**CORS.** Backend hiện không có `config/cors.php` (Laravel 11+ dùng mặc định của framework), và mặc định đó trả `Access-Control-Allow-Origin: *` — **đã kiểm chứng trên staging**, nên app gọi API được ngay mà chưa cần sửa gì. Nếu sau này siết CORS về danh sách cụ thể thì phải thêm origin của app:
 
 ```php
 'allowed_origins' => [
-    'https://savego.com.vn',
-    'https://driver.savego.com.vn',
-    'https://admin.savego.com.vn',
-    'capacitor://localhost',   // iOS
-    'https://localhost',        // Android
+    'https://greenca.vn',
+    'https://driver.greenca.vn',
+    'https://admin.greenca.vn',
+    'https://app.greenca.vn',          // WebView app khách hàng
+    'https://driver-app.greenca.vn',   // WebView app tài xế
 ],
 ```
 
-Áp dụng cho cả route API lẫn endpoint SSE. Thiếu bước này thì app trắng màn hình ngay ngày đầu và thông báo lỗi trong WebView rất khó đọc.
+Áp dụng cho cả route API lẫn handshake WebSocket của Reverb.
 
 ### 2.3 Cờ nền tảng
 
@@ -217,7 +256,7 @@ Message gửi kèm **cả khối `notification` lẫn khối `data`**. Khối `n
 
 **Dọn token chết:** FCM trả mã lỗi khi token không còn hợp lệ (gỡ app, cài lại máy) — gặp `UNREGISTERED` hoặc `INVALID_ARGUMENT` thì xoá bản ghi, đúng cách `WebPushChannel` đang xử lý subscription hết hạn.
 
-**Hỏng thì không kéo sập:** thiếu credentials hoặc Firebase lỗi thì chỉ ghi log cảnh báo và trả về. Thông báo trong ứng dụng (bảng `notifications`) và luồng SSE vẫn hoạt động — đúng triết lý "push là phụ" của mã hiện tại.
+**Hỏng thì không kéo sập:** thiếu credentials hoặc Firebase lỗi thì chỉ ghi log cảnh báo và trả về. Thông báo trong ứng dụng (bảng `notifications`) và luồng realtime Reverb vẫn hoạt động — đúng triết lý "push là phụ" của mã hiện tại.
 
 ### 3.5 Tầng frontend
 
@@ -242,6 +281,24 @@ Trách nhiệm của `native.ts`:
 Một dự án Firebase tên **SaveGo**, đăng ký 4 ứng dụng: khách hàng Android, khách hàng iOS, tài xế Android, tài xế iOS. Tải `google-services.json` (Android) và `GoogleService-Info.plist` (iOS) bỏ vào từng project native.
 
 iOS cần tạo khoá APNs `.p8` trong tài khoản Apple Developer rồi tải lên Firebase. **Bước này chặn** — không có tài khoản Apple thì không test được push iOS.
+
+---
+
+### 3.7 Đảm bảo tài xế thực sự nhận được thông báo
+
+Gửi push thành công không có nghĩa tài xế nhận được. Samsung, Xiaomi, Oppo, Vivo đều có cơ chế tiết kiệm pin riêng, hung hãn hơn Android gốc nhiều: đưa app vào diện "bị hạn chế" sau vài ngày ít mở, chặn tự khởi động sau khi khởi động lại máy, và làm chậm hoặc chặn hẳn thông báo. Ở Việt Nam đây đúng là những hãng chiếm thị phần lớn nhất — phải coi là trường hợp mặc định, không phải ngoại lệ.
+
+Emulator chạy Android gốc nên **không bao giờ tái hiện được**. Chỉ phát hiện được trên máy thật, và đây là lý do chính buộc phải có máy thật ở bước nghiệm thu.
+
+**Xử lý trong app tài xế:** một màn hình "Đảm bảo nhận được cuốc", hiện tự động một lần sau khi hồ sơ tài xế được duyệt, và truy cập lại được từ phần Cài đặt:
+
+- Nhận diện hãng máy qua `Build.MANUFACTURER`, hiển thị đúng các bước cho hãng đó.
+- Nút mở thẳng màn hình cài đặt hệ thống tương ứng (tối ưu pin, tự khởi động).
+- Hiển thị trạng thái hiện tại: app có đang bị đưa vào diện tối ưu pin hay không.
+
+**Lưu ý chính sách:** quyền `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` bị Google Play hạn chế, xin trực tiếp qua API có thể bị từ chối khi duyệt. An toàn hơn là **dẫn người dùng tới màn hình cài đặt hệ thống** để họ tự bật.
+
+iOS không có vấn đề này — APNs do hệ điều hành quản lý, hãng máy không can thiệp được.
 
 ---
 
@@ -274,13 +331,57 @@ Số điện thoại được giải phóng, người dùng đăng ký lại b�
 
 ---
 
-## 5. Vượt cửa duyệt store
+## 5. Phiên bản, tương thích và buộc cập nhật
 
-### 5.1 Tài khoản demo cho reviewer — bẫy lớn nhất
+Đây là hệ quả kiến trúc lớn nhất của việc có app, và nó ràng buộc cả backend chứ không riêng phần mobile.
+
+### 5.1 Bản cũ tồn tại vĩnh viễn
+
+Web SPA: mỗi lần tải lại trang là code mới nhất, nên **không bao giờ tồn tại client cũ hơn lần deploy gần nhất**. App thì bundle nằm trong file cài trên máy người dùng, và không ai bắt buộc họ cập nhật — một tài xế hoàn toàn có thể đang chạy bản build từ một năm trước.
+
+Hai hệ quả bắt buộc phải chấp nhận:
+
+**Backend không được đổi API theo kiểu phá vỡ tương thích nữa.** Trước đây sửa API và sửa frontend cùng lúc là xong. Từ khi có app, mỗi thay đổi phải tự hỏi "bản app cũ nhất còn đang chạy ngoài kia có gọi được không". Đổi tên trường, bỏ trường, đổi kiểu dữ liệu, siết validate — đều là thay đổi phá vỡ. Cách làm: chỉ thêm trường mới và giữ trường cũ; nếu buộc phải phá vỡ thì nâng `min_supported` (mục 5.2) trước, đợi người dùng cập nhật, rồi mới đổi.
+
+**Sai sót không sửa được bằng deploy.** Web: deploy lại 2 phút. App: build lại → nộp store → chờ duyệt 1–3 ngày → rồi vẫn phải chờ người dùng bấm cập nhật.
+
+### 5.2 Cơ chế buộc cập nhật — phải có ngay ở bản phát hành đầu tiên
+
+Endpoint công khai, không cần đăng nhập:
+
+```
+GET /api/app/version?platform=android|ios
+→ { "min_supported": "1.2.0", "latest": "1.4.0", "store_url": "https://..." }
+```
+
+App gọi lúc khởi động và mỗi lần quay lại từ nền:
+
+- Phiên bản hiện tại **thấp hơn `min_supported`** → màn chặn toàn màn hình, chỉ có nút mở store, không bỏ qua được.
+- Thấp hơn `latest` nhưng vẫn đạt `min_supported` → banner nhắc nhẹ, bỏ qua được.
+
+Ba chi tiết dễ làm sai:
+
+1. **Lấy phiên bản từ tầng native** (`@capacitor/app` → `getInfo()`), không lấy từ hằng số trong bundle JS — nếu sau này dùng cập nhật OTA thì hai con số sẽ lệch nhau.
+2. **Hỏng thì cho qua (fail-open).** Endpoint lỗi hoặc máy mất mạng → cho vào app bình thường. Làm ngược lại thì server sập đồng nghĩa toàn bộ người dùng bị khoá ngoài app.
+3. **Phải có mặt ngay ở bản đầu tiên.** Cơ chế này chỉ bảo vệ được những bản đã chứa nó. Thêm ở phiên bản 2 thì đúng những người không cập nhật — tức đối tượng cần nó nhất — lại là những người không có nó.
+
+`min_supported` lưu trong bảng cấu hình để admin sửa được, mặc định bằng phiên bản phát hành đầu tiên.
+
+### 5.3 Lưu token đăng nhập
+
+Token hiện nằm trong `localStorage` qua `persist` của Zustand. Trong WebView, dữ liệu này có thể bị hệ điều hành xoá khi máy sắp hết dung lượng → tài xế bị đăng xuất giữa ca mà không hiểu vì sao, và đó là lúc khó hỗ trợ nhất.
+
+Chuyển sang kho lưu trữ an toàn của hệ điều hành (Keychain trên iOS, Keystore/EncryptedSharedPreferences trên Android) qua plugin. Bản web giữ nguyên `localStorage` — cùng một facade, hai cách hiện thực, đúng mô hình đã dùng cho push ở mục 3.5.
+
+---
+
+## 6. Vượt cửa duyệt store
+
+### 6.1 Tài khoản demo cho reviewer — bẫy lớn nhất
 
 App đăng nhập bằng OTP qua SMS. Reviewer của Apple ở nước ngoài không nhận được tin nhắn về số Việt Nam, không vào được app, và từ chối ngay.
 
-Mã hiện tại có cơ chế bỏ qua OTP, nhưng đã kiểm chứng nó **không** bị giới hạn theo môi trường — `OtpController.php:98` là `$bypass = app()->environment('local') || $request->otp === '000000'`, nghĩa là bất kỳ ai gửi OTP `000000` với bất kỳ số điện thoại nào cũng đăng nhập được **trên production**. Đây là lỗ hổng cần bịt bất kể dự án app native (xem mục Rủi ro). Đường bỏ qua có kiểm soát dành cho reviewer thay thế nó:
+Mã hiện tại đã siết đúng: `OtpController.php:98` là `$bypass = app()->environment(['local', 'testing'])`, nên trên production luôn cần OTP thật — mã `000000` không phải đường bypass. Điều đó đúng về mặt an toàn nhưng khiến người duyệt không có cách nào vào app, nên cần một đường riêng có kiểm soát dành cho reviewer:
 
 ```
 AUTH_REVIEW_PHONE=0900000000
@@ -291,7 +392,7 @@ AUTH_REVIEW_OTP=<mã 6 số ngẫu nhiên, không phải 000000>
 
 Ghi cặp số/mã này vào ô ghi chú khi nộp App Store Connect và Play Console.
 
-### 5.2 Rủi ro điều 4.2 — "chỉ là website đóng gói"
+### 6.2 Rủi ro điều 4.2 — "chỉ là website đóng gói"
 
 Apple loại app chỉ mở WebView lên một trang web. Cách xử lý không phải giấu giếm, mà là dùng thật những thứ chỉ app mới làm được:
 
@@ -311,21 +412,21 @@ Danh sách phiên bản cụ thể của từng gói chốt khi triển khai, th
 
 Ngoài ra ở tầng CSS: tắt hiệu ứng nảy khi cuộn quá đà, chặn tự zoom khi focus ô nhập trên iOS, tôn trọng vùng an toàn tai thỏ và thanh gạt dưới.
 
-### 5.3 Quyền riêng tư và khai báo
+### 6.3 Quyền riêng tư và khai báo
 
 - **Nhãn App Privacy** (Apple) và **form Data Safety** (Google): khai số điện thoại, vị trí (chỉ khi dùng, để điền điểm đón), dữ liệu chuyến đi, dữ liệu sử dụng.
 - Link tới trang `privacy` và `terms` — **đã có sẵn** trong CMS tĩnh.
 - Link tới trang `xoa-tai-khoan` (mục 4).
-- `Info.plist` phải có câu giải thích **bằng tiếng Việt** cho từng quyền. Ví dụ quyền vị trí: "Save Go dùng vị trí của bạn để tự động điền điểm đón." Để trống là bị loại.
+- `Info.plist` phải có câu giải thích **bằng tiếng Việt** cho từng quyền. Ví dụ quyền vị trí: "GreenCA dùng vị trí của bạn để tự động điền điểm đón." Để trống là bị loại.
 - `AndroidManifest.xml`: `INTERNET`, `POST_NOTIFICATIONS` (Android 13+), `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION`.
 
-### 5.4 Nạp ví tài xế và quy định thanh toán
+### 6.4 Nạp ví tài xế và quy định thanh toán
 
 Apple bắt buộc dùng In-App Purchase (chiết khấu 15-30%) cho hàng hoá số, nhưng **miễn trừ cho dịch vụ đời thực**. Điểm ví tài xế là phí hoa hồng cho dịch vụ vận tải thật, thuộc diện miễn trừ — giống Grab/Be. Rủi ro thấp nhưng không bằng không.
 
 **Quyết định:** giữ chức năng nạp ví trong app. **Phương án dự phòng** nếu Apple chất vấn: chuyển việc nạp tiền sang web, app tài xế chỉ hiển thị số dư và một liên kết mở trình duyệt.
 
-### 5.5 Tài khoản nhà phát triển — đường găng của dự án
+### 6.5 Tài khoản nhà phát triển — đường găng của dự án
 
 Hiện **chưa có tài khoản nào**. Đây là việc mất thời gian chờ nhất, phải khởi động ngay ngày đầu:
 
@@ -334,9 +435,9 @@ Hiện **chưa có tài khoản nào**. Đây là việc mất thời gian chờ
 
 ---
 
-## 6. Build và phát hành
+## 7. Build và phát hành
 
-### 6.1 Điều kiện môi trường
+### 7.1 Điều kiện môi trường
 
 Máy phát triển hiện tại **chưa đủ**:
 
@@ -347,7 +448,7 @@ Máy phát triển hiện tại **chưa đủ**:
 | Android Studio | chưa cài | cài, kèm Android SDK |
 | Thiết bị thật | — | tối thiểu 1 iPhone + 1 máy Android (push iOS không chạy trên giả lập) |
 
-### 6.2 Quy trình
+### 7.2 Quy trình
 
 Ba nhịp: build web → đồng bộ sang vỏ native → mở IDE ký và nộp. Hai nhịp đầu gói vào Makefile:
 
@@ -366,13 +467,13 @@ Nhịp thứ ba thủ công qua Xcode và Android Studio — đó là chỗ ký 
 
 **Live reload khi phát triển:** đặt tạm `server.url` trong `capacitor.config.ts` trỏ về Vite dev server trên máy để không phải build lại mỗi lần sửa. Phải nhớ gỡ trước khi build phát hành — ghi rõ trong `docs/MOBILE.md` và thêm bước kiểm trong danh sách kiểm phát hành.
 
-### 6.3 Khoá ký — thứ không được mất
+### 7.3 Khoá ký — thứ không được mất
 
 Mất keystore Android là **vĩnh viễn** không cập nhật được app đã phát hành: phải đăng app mới và bỏ toàn bộ người dùng cũ. Ngay khi tạo: cất vào nơi lưu trữ bí mật của công ty, và bật **Play App Signing** để Google giữ bản sao dự phòng. Chứng chỉ iOS quản lý qua tài khoản Apple Developer, mất thì tạo lại được.
 
 ---
 
-## 7. Kiểm thử
+## 8. Kiểm thử
 
 **Playwright hiện có** — giữ nguyên, chạy trên bản web. Vỏ native không đổi hành vi web nên bộ e2e này vẫn là lưới an toàn cho phần logic. Cần bổ sung một kiểm tra hồi quy: `VITE_API_BASE_URL` để trống thì URL sinh ra vẫn đúng như cũ.
 
@@ -398,19 +499,22 @@ Mất keystore Android là **vĩnh viễn** không cập nhật được app đ�
 - Mất mạng giữa chừng rồi có lại.
 - Vùng an toàn trên máy có tai thỏ và máy có thanh gạt dưới.
 - Xoá tài khoản: cả trường hợp bị chặn lẫn trường hợp thành công.
+- **Nhận cuốc sau khi để máy nằm im vài giờ** — bài kiểm quan trọng nhất, chỉ có ý nghĩa trên máy thật (xem mục 3.7). Chạy trên ít nhất một máy Samsung và một máy Xiaomi.
+- Buộc cập nhật: đặt `min_supported` cao hơn phiên bản đang cài → app phải chặn; tắt mạng → app phải cho vào bình thường (fail-open).
+- Token còn sau khi tắt app hoàn toàn và khởi động lại máy.
 
 ---
 
-## 8. Lộ trình
+## 9. Lộ trình
 
 Đường găng là thủ tục tài khoản, không phải lập trình. Hai luồng chạy song song.
 
 | | Việc |
 |---|---|
 | **Luồng hành chính** (bắt đầu ngày đầu tiên) | Xin mã D-U-N-S → đăng ký Apple Developer; đăng ký Google Play **dạng tổ chức**; tạo dự án Firebase và 4 app; cài Node 22, Xcode, Android Studio |
-| **Tuần 1 — Backend** | **Bịt lỗ hổng OTP `000000`** (ưu tiên cao nhất, độc lập với dự án); migration `device_tokens`; gộp `PushChannel` + hai transport; `FcmTransport`; CORS; endpoint xoá tài khoản; cấu hình tài khoản reviewer; trang tĩnh `xoa-tai-khoan`; test Pest |
-| **Tuần 2 — Frontend web** | `platform.ts`; tách `src/push/`; `route.ts` dùng chung với `sw.ts`; `VITE_API_BASE_URL` cho axios và SSE; ẩn UI web-only; giao diện xoá tài khoản |
-| **Tuần 3 — Vỏ native** | Khởi tạo hai project Capacitor; icon/splash; cài và cấu hình plugin; `google-services.json` / `GoogleService-Info.plist`; chuỗi quyền tiếng Việt; các chạm native mục 5.2; Makefile và script đồng bộ phiên bản |
+| **Tuần 1 — Backend** | Migration `device_tokens`; gộp `PushChannel` + hai transport; `FcmTransport`; `SANCTUM_STATEFUL_DOMAINS` tường minh; endpoint xoá tài khoản; endpoint `/api/app/version`; cấu hình tài khoản reviewer; trang tĩnh `xoa-tai-khoan`; test Pest |
+| **Tuần 2 — Frontend web** | `platform.ts`; tách `src/push/`; `route.ts` dùng chung với `sw.ts`; `VITE_API_BASE_URL` cho axios và `echo.ts` **(đã xong ở POC)**; nối lại Echo khi app resume; ẩn UI web-only; giao diện xoá tài khoản; màn chặn buộc cập nhật; facade lưu token |
+| **Tuần 3 — Vỏ native** | Khởi tạo hai project Capacitor **(app khách hàng đã xong ở POC)**; icon/splash; cài và cấu hình plugin; `google-services.json` / `GoogleService-Info.plist`; chuỗi quyền tiếng Việt; các chạm native mục 6.2; màn hướng dẫn tối ưu pin cho app tài xế (mục 3.7); Makefile và script đồng bộ phiên bản |
 | **Tuần 4 — Kiểm thử và nộp** | Kiểm thử thiết bị thật; ảnh chụp màn hình và mô tả cho store; khai Data Safety và App Privacy; nộp |
 
 Sau khi nộp: Apple thường duyệt 1-3 ngày mỗi vòng, dự trù 2-3 vòng cho lần đầu. Google thường trong 24 giờ.
@@ -419,17 +523,21 @@ Sau khi nộp: Apple thường duyệt 1-3 ngày mỗi vòng, dự trù 2-3 vòn
 
 ---
 
-## 9. Rủi ro
+## 10. Rủi ro
 
 | Rủi ro | Mức | Xử lý |
 |---|---|---|
 | Không có tài khoản Apple kịp tiến độ | Cao | Khởi động thủ tục ngày đầu; nếu chậm thì phát hành Android trước, iOS sau |
-| Apple từ chối theo điều 4.2 | Trung bình | Đã chuẩn bị danh sách tính năng native mục 5.2; nếu vẫn bị, bổ sung Universal Links và widget theo dõi chuyến rồi nộp lại — không đổi công nghệ |
-| Reviewer không đăng nhập được vì OTP | Cao nếu quên | Tài khoản reviewer mục 5.1 là hạng mục bắt buộc trong danh sách kiểm trước khi nộp |
-| **Đường bỏ qua OTP `000000` đang mở trên production** | Nghiêm trọng, đã xác nhận | `OtpController.php:98` cho phép mã `000000` ở mọi môi trường → chiếm được bất kỳ tài khoản nào chỉ cần biết số điện thoại. Siết điều kiện về `app()->environment('local')`, thay bằng cơ chế reviewer mục 5.1. **Việc này cần làm ngay, độc lập với dự án app native** — đưa vào tuần 1 |
+| Apple từ chối theo điều 4.2 | Trung bình | Đã chuẩn bị danh sách tính năng native mục 6.2; nếu vẫn bị, bổ sung Universal Links và widget theo dõi chuyến rồi nộp lại — không đổi công nghệ |
+| Reviewer không đăng nhập được vì OTP | Cao nếu quên | Tài khoản reviewer mục 6.1 là hạng mục bắt buộc trong danh sách kiểm trước khi nộp |
+| Đường bỏ qua OTP dành cho reviewer bị lạm dụng | Trung bình | Chỉ chấp nhận khi số điện thoại khớp chính xác `AUTH_REVIEW_PHONE`; không khai biến thì tính năng tắt hoàn toàn. Không dùng mã dễ đoán như `000000`. Có test Pest chặn trường hợp số khác dùng được mã reviewer |
 | Mất keystore Android | Rất cao nếu xảy ra | Bật Play App Signing; cất khoá vào kho bí mật công ty ngay khi tạo |
 | Push trùng (vừa web vừa native trên cùng thiết bị) | Thấp | Chấp nhận. Người dùng gỡ PWA sau khi cài app là hết. Không đáng dựng cơ chế khử trùng |
 | Bản đồ Goong giật trong WebView | Trung bình | Giảm số marker, tắt hiệu ứng thừa. Nếu vẫn nặng thì cân nhắc plugin bản đồ native ở phase sau |
 | Cấu hình `server.url` live-reload lọt vào bản phát hành | Trung bình | Bước kiểm bắt buộc trong danh sách kiểm phát hành |
+| **Hãng máy Android giết app nền → tài xế mất thông báo cuốc** | **Cao** | Emulator không tái hiện được. Màn hướng dẫn tối ưu pin (mục 3.7) + bắt buộc nghiệm thu trên máy Samsung và Xiaomi thật |
+| Đổi API phá vỡ tương thích với bản app cũ đang chạy | Cao, tích luỹ theo thời gian | Chỉ thêm trường, không bỏ/đổi trường (mục 5.1). Khi buộc phải phá vỡ thì nâng `min_supported` trước, đợi người dùng cập nhật |
+| Quên đưa cơ chế buộc cập nhật vào bản đầu tiên | Cao, không sửa được về sau | Đưa vào danh sách kiểm bắt buộc trước khi nộp. Bản 1 không có nó thì vĩnh viễn không tiếp cận được nhóm người dùng không cập nhật |
+| Token bị hệ điều hành xoá → tài xế đăng xuất giữa ca | Trung bình | Chuyển sang Keychain/Keystore (mục 5.3) thay vì `localStorage` |
 
 **Đường lui tổng thể:** dự án này **cộng thêm** chứ không thay thế. PWA chạy nguyên vẹn suốt quá trình. Nếu store từ chối hoặc dự án dừng giữa chừng, không có gì đổ vỡ — người dùng vẫn dùng web như cũ, và các thay đổi backend đều có giá trị độc lập.
