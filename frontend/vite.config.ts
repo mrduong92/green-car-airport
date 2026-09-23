@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin, type UserConfig } from 'vite'
+import { defineConfig, loadEnv, type ConfigEnv, type Plugin, type UserConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
@@ -71,7 +71,32 @@ function appEntryPlugin(target: AppTarget): Plugin {
   }
 }
 
-export function createAppConfig(target: AppTarget): UserConfig {
+// Biến env mà thiếu là app "chết im lặng" ngoài production — không lỗi build,
+// không lỗi runtime, chỉ mất tính năng:
+// - VITE_VAPID_PUBLIC_KEY trống → push.ts thoát sớm, minifier xoá luôn đoạn xin
+//   quyền; tài xế không bao giờ được hỏi và không nhận noti cuốc mới. Đã xảy ra
+//   trên production 11/08→23/09/2026 (bundle build ở checkout chỉ có .env.local).
+// - VITE_REVERB_APP_KEY trống → Reverb từ chối kết nối, mất realtime.
+const REQUIRED_DEPLOY_ENV = ['VITE_VAPID_PUBLIC_KEY', 'VITE_REVERB_APP_KEY'] as const
+
+function assertDeployEnv(mode: string) {
+  const env = loadEnv(mode, __dirname)
+  const missing = REQUIRED_DEPLOY_ENV.filter((key) => !env[key])
+  if (missing.length === 0) return
+  throw new Error(
+    `[build --mode ${mode}] thiếu biến env bắt buộc: ${missing.join(', ')}. ` +
+    'Kiểm tra frontend/.env (không tracked — worktree mới không có sẵn) và frontend/.env.' + mode,
+  )
+}
+
+export function createAppConfig(target: AppTarget) {
+  return ({ command, mode }: ConfigEnv): UserConfig => {
+    if (command === 'build' && (mode === 'production' || mode === 'staging')) assertDeployEnv(mode)
+    return buildAppConfig(target)
+  }
+}
+
+function buildAppConfig(target: AppTarget): UserConfig {
   const app = APPS[target]
   return {
     plugins: [

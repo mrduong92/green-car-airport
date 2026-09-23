@@ -10,6 +10,7 @@ import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useLogout } from '@/hooks/useLogout'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
+import { PushSettingsRow } from '@/components/driver/PushNotificationSettings'
 import { zaloLink } from '@/utils/zalo'
 import { BRAND } from '@/brand'
 
@@ -169,6 +170,7 @@ export default function DriverProfilePage() {
 
       {/* Actions */}
       <div className="bg-white mx-4 mt-3 rounded-card shadow-card divide-y divide-border-gray">
+        <PushSettingsRow />
         {contact && (
           <a
             href={zaloLink(contact.zalo_phone)}

@@ -8,6 +8,7 @@ import { apiMessage } from '@/utils/apiError'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import VipBadge from '@/components/common/VipBadge'
+import { PushNudgeBanner } from '@/components/driver/PushNotificationSettings'
 import { VEHICLE_TYPE_LABELS } from '@/utils/vehicleType'
 import { useDriverCapacity } from '@/hooks/useDriverCapacity'
 import { MAX_ACTIVE_TRIPS } from '@/rules'
@@ -152,6 +153,9 @@ export default function TripListPage() {
           />
         </button>
       </div>
+
+      {/* Nhắc bật thông báo — tài xế không có push là mất cuốc khi tắt màn hình */}
+      <PushNudgeBanner />
 
       {/* Active trips section */}
       {myTrips.length > 0 && (

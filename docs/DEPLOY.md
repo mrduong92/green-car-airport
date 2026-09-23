@@ -324,14 +324,31 @@ php artisan queue:restart
 
 ### 2. Frontend (build local, rsync lên)
 
+⚠️ **Build từ checkout CÓ `frontend/.env`** (file không tracked — worktree mới
+không có sẵn). Sự cố 11/08→23/09/2026: bundle build ở một checkout chỉ có
+`.env.local` (2 key Goong) mà không có `.env` (nơi duy nhất có
+`VITE_VAPID_PUBLIC_KEY`) → push.ts thoát sớm, minifier xoá luôn đoạn xin quyền,
+220 tài xế mới không nhận được noti cuốc mới suốt 6 tuần mà không có lỗi nào.
+Từ commit sửa lỗi này, `vite build --mode production|staging` **fail ngay** nếu
+thiếu `VITE_VAPID_PUBLIC_KEY` / `VITE_REVERB_APP_KEY` (xem `vite.config.ts`).
+
 ```bash
 docker compose run --rm --no-deps -T -e VITE_DRIVER_APP_URL=https://driver.greenca.vn \
-  frontend sh -c "npm install && npm run build:customer && npm run build:driver && npm run build:admin"
+  frontend sh -c "npm install && npm run build:customer -- --mode production \
+    && npm run build:driver -- --mode production && npm run build:admin -- --mode production"
+
+# BẮT BUỘC trước khi rsync: key VAPID thật phải nằm trong cả 3 bundle
+VAPID=$(sed -n 's/^VITE_VAPID_PUBLIC_KEY=//p' frontend/.env | cut -c1-16)
+grep -l "$VAPID" frontend/dist*/assets/*.js | wc -l   # phải = 3 (dist, dist-driver, dist-admin)
 
 K=~/.ssh/ssh-17-37-18-6-8-2026-private.pem
 for d in dist dist-driver dist-admin; do
   rsync -az --delete -e "ssh -i $K" frontend/$d/ root@45.124.95.47:/var/www/green-car-airport/frontend/$d/
 done
+
+# Verify trên server: bundle đang phục vụ có key
+curl -s https://driver.greenca.vn/ | grep -oE 'assets/index-[^"]+\.js' | head -1 \
+  | xargs -I{} curl -s https://driver.greenca.vn/{} | grep -c "$VAPID"   # phải >= 1
 ```
 
 ### 3. Verify sau deploy
@@ -537,6 +554,17 @@ staging) + 3 unit test cho 3 nhánh exit code.
 
 ## Lịch sử production
 
+- 2026-09-23: **Sự cố push tài xế 6 tuần.** Tài xế báo không nhận noti cuốc mới; nghi
+  subscription hết hạn nhưng số liệu bác bỏ: 21 token cũ vẫn nhận push tới sáng 23/09,
+  còn 220 tài xế active tạo sau 11/08 có **0 token**. Nguyên nhân: bundle deploy 13/08 và
+  18/08 **không có `VITE_VAPID_PUBLIC_KEY`** (không còn cả chuỗi `requestPermission` —
+  minifier xoá vì guard `if (!vapidKey) return`). Dấu vân tay bundle (có Goong, có Reverb
+  prod, không VAPID) khớp checkout chỉ có `.env.local` mà không có `.env`. Sửa: (1) build
+  lại từ checkout chính; (2) `useNotifications` đồng bộ lại subscription mỗi lần mở app
+  khi đã có quyền, thêm hàng "Thông báo cuốc mới" ở Hồ sơ tài xế + banner nhắc bật trên
+  trang Cuốc xe (tài xế đã đăng nhập bằng bundle hỏng chưa từng được hỏi quyền, redeploy
+  không đủ); (3) `vite.config.ts` fail build production/staging khi thiếu VAPID/Reverb key,
+  runbook thêm bước grep key trước rsync.
 - 2026-08-13: Deploy tính năng liên hệ Admin qua Zalo + admin tự sửa hotline/email/zalo
   (bảng `app_settings` key-value, endpoint public `GET /api/settings/contact`, CRUD
   `GET`/`PUT /api/admin/settings`, tab "Cài đặt" trên app admin). 1 migration mới, seed

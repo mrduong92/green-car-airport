@@ -1,10 +1,14 @@
 import { useUiStore } from '@/stores/ui'
 
-function isStandaloneMode(): boolean {
+export function isStandaloneMode(): boolean {
   if (window.matchMedia('(display-mode: standalone)').matches) return true
   // iOS Safari sets navigator.standalone when running as installed PWA
   if ((navigator as { standalone?: boolean }).standalone === true) return true
   return false
+}
+
+export function isIosDevice(): boolean {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
 }
 
 export function usePwaInstall() {
@@ -13,7 +17,7 @@ export function usePwaInstall() {
   const isInstalled = useUiStore((s) => s.isInstalled)
 
   const isStandalone = isStandaloneMode()
-  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const isIos = isIosDevice()
   const isAndroid = /android/i.test(navigator.userAgent)
 
   // Show install UI when:

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getUnreadCount } from '@/api/notifications'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
+import { syncPushSubscription } from '@/push'
 
 export function useNotifications() {
   const queryClient = useQueryClient()
@@ -15,6 +16,13 @@ export function useNotifications() {
     refetchInterval: 30_000,
     enabled: !!token,
   })
+
+  // Mỗi lần mở app (layout mount) đồng bộ lại subscription nếu quyền đã có —
+  // token bị server xoá hay endpoint bị trình duyệt xoay đều được thay ở đây,
+  // không phải đợi tới lần đăng nhập lại. Không bật hộp thoại xin quyền.
+  useEffect(() => {
+    if (token) syncPushSubscription()
+  }, [token])
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
