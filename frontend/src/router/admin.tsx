@@ -12,6 +12,7 @@ import PriceConfigPage from '@/pages/admin/PriceConfigPage'
 import AdminCustomersPage from '@/pages/admin/CustomersPage'
 import StaticPagesPage from '@/pages/admin/StaticPagesPage'
 import AdminsPage from '@/pages/admin/AdminsPage'
+import AdminSettingsPage from '@/pages/admin/SettingsPage'
 import InstallPage from '@/pages/InstallPage'
 
 function GuestOnly() {
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
           { path: '/customers', element: <AdminCustomersPage /> },
           { path: '/pages', element: <StaticPagesPage /> },
           { path: '/admins', element: <AdminsPage /> },
+          { path: '/settings', element: <AdminSettingsPage /> },
         ],
       },
     ],

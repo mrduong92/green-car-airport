@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             CampaignSeeder::class,
             PriceConfigSeeder::class,
             StaticPageSeeder::class,
+            AppSettingSeeder::class,
         ]);
     }
 }

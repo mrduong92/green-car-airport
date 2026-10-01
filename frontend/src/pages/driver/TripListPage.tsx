@@ -8,6 +8,8 @@ import { apiMessage } from '@/utils/apiError'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import VipBadge from '@/components/common/VipBadge'
+import { PushNudgeBanner } from '@/components/driver/PushNotificationSettings'
+import { VEHICLE_TYPE_LABELS } from '@/utils/vehicleType'
 import { useDriverCapacity } from '@/hooks/useDriverCapacity'
 import { MAX_ACTIVE_TRIPS } from '@/rules'
 import clsx from 'clsx'
@@ -152,6 +154,9 @@ export default function TripListPage() {
         </button>
       </div>
 
+      {/* Nhắc bật thông báo — tài xế không có push là mất cuốc khi tắt màn hình */}
+      <PushNudgeBanner />
+
       {/* Active trips section */}
       {myTrips.length > 0 && (
         <div className="mx-4 mt-3">
@@ -256,6 +261,9 @@ export default function TripListPage() {
                   <span>{fmtDateTime(trip.date, trip.time)}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-neutral-gray border border-border-gray rounded-pill px-1.5 py-0.5">
+                    {VEHICLE_TYPE_LABELS[trip.vehicle_type]}
+                  </span>
                   {trip.is_vip && <VipBadge />}
                   {trip.is_new && (
                     <span className="text-[10px] font-bold bg-[#C8A24A] text-white px-2 py-0.5 rounded-pill">MỚI</span>

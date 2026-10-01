@@ -125,7 +125,7 @@ class CollaboratorWalletTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_admin_cannot_deduct_points_for_non_collaborator(): void
+    public function test_admin_cannot_deduct_points_for_non_collaborator_non_driver(): void
     {
         $admin    = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create(['role' => 'customer', 'is_collaborator' => false]);
@@ -135,7 +135,45 @@ class CollaboratorWalletTest extends TestCase
                 'points' => 10,
                 'reason' => 'Test',
             ])
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_deduct_driver_points(): void
+    {
+        $admin  = User::factory()->create(['role' => 'admin']);
+        $driver = User::factory()->create(['role' => 'driver']);
+        Wallet::create(['user_id' => $driver->id, 'points' => 500]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$driver->id}/deduct-points", [
+                'points' => 150,
+                'reason' => 'Vi phạm chính sách',
+            ])
+            ->assertOk()
+            ->assertJsonPath('new_balance', 350);
+
+        $this->assertEquals(350, Wallet::where('user_id', $driver->id)->value('points'));
+        $this->assertDatabaseHas('wallet_transactions', [
+            'type'        => 'debit',
+            'points'      => 150,
+            'description' => 'Admin trừ điểm: Vi phạm chính sách',
+        ]);
+    }
+
+    public function test_admin_cannot_deduct_more_than_balance_for_driver(): void
+    {
+        $admin  = User::factory()->create(['role' => 'admin']);
+        $driver = User::factory()->create(['role' => 'driver']);
+        Wallet::create(['user_id' => $driver->id, 'points' => 100]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/customers/{$driver->id}/deduct-points", [
+                'points' => 200,
+                'reason' => 'Sai sót',
+            ])
             ->assertStatus(422);
+
+        $this->assertEquals(100, Wallet::where('user_id', $driver->id)->value('points'));
     }
 
     public function test_admin_can_reset_collaborator_points_to_zero(): void

@@ -83,6 +83,7 @@ declare namespace App {
     date: string
     time: string
     distance_km: number
+    vehicle_type: VehicleType
     is_vip?: boolean
     duration_min: number
     price: number
@@ -92,6 +93,9 @@ declare namespace App {
     app_fee: number
     net_earning: number
     status: TripStatus
+    cancelled_at?: string | null
+    cancelled_by?: 'customer' | 'driver' | 'system' | null
+    cancel_reason?: string | null
     customer_note?: string | null
     is_new: boolean
     customer_phone: string
@@ -293,6 +297,12 @@ declare namespace App {
     title: string
     content: string
     is_active: boolean
+  }
+
+  interface ContactSettings {
+    hotline: string
+    email: string
+    zalo_phone: string
   }
 
   interface CustomerProfile {

@@ -26,6 +26,12 @@ function filterTrips(trips: App.Trip[], filter: Filter): App.Trip[] {
   })
 }
 
+const CANCELLED_BY_LABEL: Record<string, string> = {
+  customer: 'Khách huỷ',
+  driver: 'Bạn đã huỷ',
+  system: 'Hệ thống huỷ',
+}
+
 function dateLabel(dateStr: string): string {
   const d = dayjs(dateStr)
   const now = dayjs()
@@ -119,7 +125,7 @@ export default function TripHistoryPage() {
           <EmptyState
             icon="receipt_long"
             title="Chưa có chuyến nào"
-            description="Các chuyến hoàn thành sẽ xuất hiện ở đây"
+            description="Các chuyến đã hoàn thành hoặc bị huỷ sẽ xuất hiện ở đây"
           />
         )}
 
@@ -163,14 +169,28 @@ export default function TripHistoryPage() {
                             style={{ fontVariationSettings: "'FILL' 1" }}>flag</span>
                       <p className="text-[13px] font-medium text-navy truncate">{trip.destination}</p>
                     </div>
+                    {trip.status === 'cancelled' && (
+                      <p className="text-[11px] text-danger-red font-medium mt-0.5">
+                        {CANCELLED_BY_LABEL[trip.cancelled_by ?? ''] ?? 'Đã huỷ'}
+                        {trip.cancel_reason ? ` · ${trip.cancel_reason}` : ''}
+                      </p>
+                    )}
                   </div>
 
                   {/* Earning */}
                   <div className="shrink-0 text-right">
-                    <p className="text-[14px] font-bold text-success-green tabular-nums">
-                      +{trip.net_earning.toLocaleString('vi')}
-                    </p>
-                    <p className="text-[10px] text-neutral-gray mt-0.5">đ</p>
+                    {trip.status === 'cancelled' ? (
+                      <span className="text-[11px] font-bold text-danger-red bg-danger-red/10 rounded-pill px-2 py-1">
+                        Đã huỷ
+                      </span>
+                    ) : (
+                      <>
+                        <p className="text-[14px] font-bold text-success-green tabular-nums">
+                          +{trip.net_earning.toLocaleString('vi')}
+                        </p>
+                        <p className="text-[10px] text-neutral-gray mt-0.5">đ</p>
+                      </>
+                    )}
                   </div>
                 </div>
               </button>

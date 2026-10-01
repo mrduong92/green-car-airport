@@ -94,7 +94,7 @@ export default function WalletPage() {
           )}
           {txs.map((tx, i) => {
             const isTopUp   = tx.type === 'topup'
-            const positive  = tx.type === 'credit' || isTopUp
+            const positive  = tx.type === 'credit' || tx.type === 'referral' || isTopUp
             const tintClass = isTopUp ? 'bg-primary/10' : positive ? 'bg-success-green/10' : 'bg-danger-red/10'
             const textClass = isTopUp ? 'text-primary'   : positive ? 'text-success-green' : 'text-danger-red'
             const icon      = isTopUp ? 'account_balance' : positive ? 'add' : 'remove'

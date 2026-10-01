@@ -129,6 +129,18 @@ class DriverTripDetailTest extends TestCase
             ->assertJsonPath('is_vip', true);
     }
 
+    public function test_trip_payload_exposes_vehicle_type(): void
+    {
+        $driver = $this->makeDriver();
+        $booking = $this->makeBooking('in_progress', $driver->id);
+        $booking->update(['vehicle_type' => 'suv_5']);
+
+        $this->actingAs($driver, 'sanctum')
+            ->getJson("/api/driver/trips/{$booking->id}")
+            ->assertOk()
+            ->assertJsonPath('vehicle_type', 'suv_5');
+    }
+
     public function test_route_mine_va_history_khong_bi_nuot_boi_route_moi(): void
     {
         // `/driver/trips/{booking}` đăng ký sau `/mine` và `/history`; nếu đảo thứ
