@@ -105,7 +105,7 @@ export default function RevenuePage() {
             accent: 'text-primary',
           },
           {
-            label: 'Phí app (20%)',
+            label: `Phí app (${data?.app_fee_percent ?? 20}%)`,
             value: data ? `${fmt(data.app_fee)} đ` : '—',
             icon: 'confirmation_number',
             change: data?.revenue_change,

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Events\DriverTripsUpdated;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendNewBookingBroadcastJob;
+use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\Voucher;
 use App\Models\Wallet;
@@ -199,7 +200,7 @@ class BookingController extends Controller
             // Hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc (chỉ hoàn phần giá cuốc, không gộp thu hộ)
             if ($booking->driver_id) {
                 $effectivePrice = $booking->price - $booking->discount;
-                $feePoints = (int) round($effectivePrice * 0.20 / 1000);
+                $feePoints = (int) round($effectivePrice * AppSetting::appFeeRate() / 1000);
                 $driverWallet = Wallet::where('user_id', $booking->driver_id)->first();
                 if ($driverWallet && $feePoints > 0) {
                     $driverWallet->increment('points', $feePoints);

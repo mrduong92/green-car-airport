@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\DriverProfile;
 use App\Models\User;
@@ -73,10 +74,10 @@ class DashboardController extends Controller
             'revenue_today'                => $revenueToday,
             'drivers_online'               => $driversOnline,
             'drivers_total'                => $driversTotal,
-            'app_fee_today'                => (int) round($revenueToday * 0.20),
+            'app_fee_today'                => (int) round($revenueToday * AppSetting::appFeeRate()),
             'recent_trips'                 => $recentTrips,
             'driver_referral_points_total' => (int) WalletTransaction::where('type', 'referral')->sum('points') * 1000,
-            'customer_referral_vouchers_total' => (int) Voucher::where('code', 'like', 'REF-%')->sum('value'),
+            'customer_referral_vouchers_total' => (int) Voucher::where('code', 'like', config('business.referral_voucher_prefix').'-%')->sum('value'),
         ];
     }
 }

@@ -13,6 +13,7 @@ class SettingsController extends Controller
             'hotline' => AppSetting::get(AppSetting::CONTACT_HOTLINE, '1800 6789'),
             'email' => AppSetting::get(AppSetting::CONTACT_EMAIL, 'support@greenca.vn'),
             'zalo_phone' => AppSetting::get(AppSetting::CONTACT_ZALO_PHONE, '0931919786'),
+            'app_fee_percent' => AppSetting::appFeePercent(),
         ]);
     }
 }

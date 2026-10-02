@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Driver;
 use App\Events\CustomerBookingUpdated;
 use App\Events\DriverTripsUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\BookingDriverCancellation;
 use App\Models\Wallet;
@@ -139,11 +140,11 @@ class TripController extends Controller
             ], 422);
         }
 
-        // Trừ 20% phí app ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ).
+        // Trừ phí app (AppSetting::appFeePercent) ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ).
         // Check số dư TRƯỚC khi cập nhật booking — cột points là UNSIGNED, trừ âm sẽ
         // crash SQL và để lại booking đã accepted nhưng chưa trừ phí.
         $totalCollected = $booking->price - $booking->discount;
-        $feePoints = (int) round($totalCollected * 0.20 / 1000);
+        $feePoints = (int) round($totalCollected * AppSetting::appFeeRate() / 1000);
         $wallet = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
 
         if ($wallet->points < $feePoints) {
@@ -163,7 +164,7 @@ class TripController extends Controller
             'wallet_id' => $wallet->id,
             'booking_id' => $booking->id,
             'type' => 'debit',
-            'description' => "Phí app 20% cuốc #{$booking->id}",
+            'description' => "Phí app ".AppSetting::appFeePercent()."% cuốc #{$booking->id}",
             'points' => $feePoints,
         ]);
 
@@ -296,7 +297,7 @@ class TripController extends Controller
         $data = $request->validate(['reason' => 'nullable|string|max:255']);
         $driverId = $request->user()->id;
 
-        // Phí app 20% đã trừ khi nhận — không hoàn, booking trở lại hàng đợi. Ghi lại
+        // Phí app đã trừ khi nhận — không hoàn, booking trở lại hàng đợi. Ghi lại
         // việc BỎ cuốc vào bảng riêng (không phải bookings.cancelled_*) vì booking sẽ
         // được tài xế khác nhận lại — cancelled_by/cancelled_at trên chính booking là
         // để ghi trạng thái CUỐI của nó, không phải lịch sử từng tài xế đã bỏ.
@@ -404,11 +405,20 @@ class TripController extends Controller
         return response()->json($this->formatDriverDrop($drop, $request->user()->driverProfile));
     }
 
+    /** Memo theo request: formatTrip chạy cho từng cuốc trong danh sách, tránh query app_settings N lần. */
+    private ?float $feePercent = null;
+
+    private function feePercent(): float
+    {
+        return $this->feePercent ??= AppSetting::appFeePercent();
+    }
+
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
         // Phí app chỉ tính trên giá cuốc sau voucher, KHÔNG tính trên tiền thu hộ.
         $effectivePrice = $b->price - $b->discount;
-        $appFee = (int) round($effectivePrice * 0.20);
+        $feePercent = $this->feePercent();
+        $appFee = (int) round($effectivePrice * $feePercent / 100);
         $netEarning = $effectivePrice - $appFee;
         $phone = $b->customer?->phone ?? '';
         $durationMin = (int) round((float) $b->distance_km / 30 * 60);
@@ -452,6 +462,7 @@ class TripController extends Controller
             'collection_fee' => (int) ($b->collection_fee ?? 0),
             'final_price' => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
             'app_fee' => $appFee,
+            'app_fee_percent' => $feePercent,
             'net_earning' => $netEarning,
             'status' => $statusMap[$b->status] ?? $b->status,
             'cancelled_at' => $b->cancelled_at?->toISOString(),

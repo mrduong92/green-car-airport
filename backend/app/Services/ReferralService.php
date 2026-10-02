@@ -2,18 +2,17 @@
 // backend/app/Services/ReferralService.php
 namespace App\Services;
 
+use App\Models\AppSetting;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 
 class ReferralService
 {
-    // 1 điểm = 1.000đ, nên 50 điểm = 50.000đ cho MỖI bên (người giới thiệu và
-    // tài xế được giới thiệu). Giảm từ 100 xuống 50 ngày 2026-08-08 theo yêu cầu.
-    private const DRIVER_REWARD_POINTS       = 50;
-    // Người giới thiệu nhận 1 voucher 100k ngay khi khách được giới thiệu đăng ký xong
-    // (khách mới tự nhận voucher chào mừng qua Campaign, không cấp thêm ở đây).
-    private const REFERRER_VOUCHER_VALUE = 100000;
+    // Mức thưởng do admin chỉnh ở trang Cài đặt (AppSetting, mặc định ở config/business.php):
+    // - tài xế: điểm cho MỖI bên (1 điểm = 1.000đ);
+    // - khách: 1 voucher cho người giới thiệu ngay khi khách được giới thiệu đăng ký xong
+    //   (khách mới tự nhận voucher chào mừng qua Campaign, không cấp thêm ở đây).
 
     public function __construct(private VoucherIssuer $voucherIssuer) {}
 
@@ -30,8 +29,9 @@ class ReferralService
 
         DB::transaction(function () use ($driver) {
             $referrer = $driver->referredBy;
-            $this->creditPoints($referrer, self::DRIVER_REWARD_POINTS, "Thưởng giới thiệu tài xế #{$driver->id}");
-            $this->creditPoints($driver,   self::DRIVER_REWARD_POINTS, "Thưởng được giới thiệu bởi tài xế #{$referrer->id}");
+            $points = AppSetting::referralDriverPoints();
+            $this->creditPoints($referrer, $points, "Thưởng giới thiệu tài xế #{$driver->id}");
+            $this->creditPoints($driver,   $points, "Thưởng được giới thiệu bởi tài xế #{$referrer->id}");
             $driver->update(['referral_rewarded_at' => now()]);
         });
     }
@@ -46,7 +46,7 @@ class ReferralService
         if ($referrer === null) return;
 
         DB::transaction(function () use ($customer, $referrer) {
-            $this->voucherIssuer->issue($referrer, 'REF', self::REFERRER_VOUCHER_VALUE, now()->addMonth());
+            $this->voucherIssuer->issue($referrer, config('business.referral_voucher_prefix'), AppSetting::referralVoucherValue(), now()->addMonth());
             $customer->update(['referral_rewarded_at' => now()]);
         });
     }

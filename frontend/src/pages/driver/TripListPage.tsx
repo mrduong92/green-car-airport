@@ -311,7 +311,7 @@ export default function TripListPage() {
                   </div>
                   <span className="material-symbols-outlined text-neutral-dim text-[14px]">arrow_forward</span>
                   <div className="text-right">
-                    <p className="text-[11px] text-neutral-gray">Phí app 20%</p>
+                    <p className="text-[11px] text-neutral-gray">Phí app {trip.app_fee_percent}%</p>
                     <p className="text-[13px] font-semibold text-danger-red tabular-nums">-{trip.app_fee.toLocaleString('vi')}</p>
                   </div>
                 </div>
