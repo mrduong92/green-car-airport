@@ -234,10 +234,10 @@ class TripController extends Controller
                     }
                 }
 
-                // Debit driver full thu hộ, credit 80% to collaborator (company retains 20% gap)
+                // Thu hộ: tài xế thu tiền mặt rồi hoàn lại toàn bộ cho CTV — công ty KHÔNG cắt phí app trên khoản này.
                 if ($booking->collection_fee > 0 && $booking->collaborator_id) {
                     $collectionPoints = (int) round($booking->collection_fee / 1000);
-                    $collabPoints = (int) floor($booking->collection_fee * 0.80 / 1000);
+                    $collabPoints = $collectionPoints;
 
                     // Debit driver: full thu hộ collected in cash from customer
                     $driverWallet = $request->user()->wallet()->first();
@@ -252,7 +252,7 @@ class TripController extends Controller
                         ]);
                     }
 
-                    // Credit collaborator 80%
+                    // Credit collaborator 100% thu hộ
                     $collabWallet = Wallet::firstOrCreate(
                         ['user_id' => $booking->collaborator_id],
                         ['points' => 0]
@@ -278,12 +278,6 @@ class TripController extends Controller
             $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
             // T4 — notify driver of earnings
             $request->user()->notify(new TripCompletedDriverNotification($booking));
-
-            if ($booking->customer) {
-                app(ReferralService::class)->processCustomerReferral(
-                    $booking->customer->fresh(['bookingsAsCustomer', 'referredBy'])
-                );
-            }
         }
 
         return response()->json($this->formatTrip($booking->fresh('customer')));
@@ -412,9 +406,10 @@ class TripController extends Controller
 
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
-        $totalCollected = $b->price - $b->discount + ($b->collection_fee ?? 0);
-        $appFee = (int) round($totalCollected * 0.20);
-        $netEarning = $totalCollected - $appFee - ($b->collection_fee ?? 0);
+        // Phí app chỉ tính trên giá cuốc sau voucher, KHÔNG tính trên tiền thu hộ.
+        $effectivePrice = $b->price - $b->discount;
+        $appFee = (int) round($effectivePrice * 0.20);
+        $netEarning = $effectivePrice - $appFee;
         $phone = $b->customer?->phone ?? '';
         $durationMin = (int) round((float) $b->distance_km / 30 * 60);
 

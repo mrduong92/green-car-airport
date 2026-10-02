@@ -76,7 +76,7 @@ class DashboardController extends Controller
             'app_fee_today'                => (int) round($revenueToday * 0.20),
             'recent_trips'                 => $recentTrips,
             'driver_referral_points_total' => (int) WalletTransaction::where('type', 'referral')->sum('points') * 1000,
-            'customer_referral_vouchers_total' => Voucher::whereNotNull('user_id')->count() * 50000,
+            'customer_referral_vouchers_total' => (int) Voucher::where('code', 'like', 'REF-%')->sum('value'),
         ];
     }
 }

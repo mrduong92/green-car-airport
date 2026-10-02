@@ -295,7 +295,7 @@ export default function TripListPage() {
               <div className="flex flex-col gap-1.5 bg-warm-white rounded-[10px] px-3 py-2.5">
                 <div className="flex justify-between text-[12px]">
                   <span className="text-neutral-gray">Giá cuốc</span>
-                  <span className="text-navy font-medium tabular-nums">{trip.price.toLocaleString('vi')} đ</span>
+                  <span className="text-navy font-medium tabular-nums">{(trip.price - trip.discount).toLocaleString('vi')} đ</span>
                 </div>
                 {(trip.collection_fee ?? 0) > 0 && (
                   <div className="flex justify-between text-[12px]">

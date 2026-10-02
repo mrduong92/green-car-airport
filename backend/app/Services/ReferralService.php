@@ -11,9 +11,9 @@ class ReferralService
     // 1 điểm = 1.000đ, nên 50 điểm = 50.000đ cho MỖI bên (người giới thiệu và
     // tài xế được giới thiệu). Giảm từ 100 xuống 50 ngày 2026-08-08 theo yêu cầu.
     private const DRIVER_REWARD_POINTS       = 50;
-    private const CUSTOMER_VOUCHER_VALUE     = 50000;
-    private const REFERRER_VOUCHER_COUNT     = 2;
-    private const NEW_CUSTOMER_VOUCHER_COUNT = 4;
+    // Người giới thiệu nhận 1 voucher 100k ngay khi khách được giới thiệu đăng ký xong
+    // (khách mới tự nhận voucher chào mừng qua Campaign, không cấp thêm ở đây).
+    private const REFERRER_VOUCHER_VALUE = 100000;
 
     public function __construct(private VoucherIssuer $voucherIssuer) {}
 
@@ -41,15 +41,12 @@ class ReferralService
         if ($customer->referral_rewarded_at !== null) return;
         if ($customer->referred_by_user_id === null) return;
 
-        $completedCount = $customer->bookingsAsCustomer()->where('status', 'completed')->count();
-        if ($completedCount !== 1) return;
-
         $customer->loadMissing('referredBy');
+        $referrer = $customer->referredBy;
+        if ($referrer === null) return;
 
-        DB::transaction(function () use ($customer) {
-            $referrer = $customer->referredBy;
-            $this->issueVouchers($referrer, self::REFERRER_VOUCHER_COUNT);
-            $this->issueVouchers($customer, self::NEW_CUSTOMER_VOUCHER_COUNT);
+        DB::transaction(function () use ($customer, $referrer) {
+            $this->voucherIssuer->issue($referrer, 'REF', self::REFERRER_VOUCHER_VALUE, now()->addMonth());
             $customer->update(['referral_rewarded_at' => now()]);
         });
     }
@@ -65,12 +62,5 @@ class ReferralService
             'description' => $description,
             'points'      => $points,
         ]);
-    }
-
-    private function issueVouchers(User $user, int $count): void
-    {
-        for ($i = 0; $i < $count; $i++) {
-            $this->voucherIssuer->issue($user, 'REF', self::CUSTOMER_VOUCHER_VALUE, now()->addMonth());
-        }
     }
 }
