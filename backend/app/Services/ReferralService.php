@@ -2,18 +2,17 @@
 // backend/app/Services/ReferralService.php
 namespace App\Services;
 
+use App\Models\AppSetting;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 
 class ReferralService
 {
-    // 1 điểm = 1.000đ, nên 50 điểm = 50.000đ cho MỖI bên (người giới thiệu và
-    // tài xế được giới thiệu). Giảm từ 100 xuống 50 ngày 2026-08-08 theo yêu cầu.
-    private const DRIVER_REWARD_POINTS       = 50;
-    private const CUSTOMER_VOUCHER_VALUE     = 50000;
-    private const REFERRER_VOUCHER_COUNT     = 2;
-    private const NEW_CUSTOMER_VOUCHER_COUNT = 4;
+    // Mức thưởng do admin chỉnh ở trang Cài đặt (AppSetting, mặc định ở config/business.php):
+    // - tài xế: điểm cho MỖI bên (1 điểm = 1.000đ);
+    // - khách: 1 voucher cho người giới thiệu ngay khi khách được giới thiệu đăng ký xong
+    //   (khách mới tự nhận voucher chào mừng qua Campaign, không cấp thêm ở đây).
 
     public function __construct(private VoucherIssuer $voucherIssuer) {}
 
@@ -30,8 +29,9 @@ class ReferralService
 
         DB::transaction(function () use ($driver) {
             $referrer = $driver->referredBy;
-            $this->creditPoints($referrer, self::DRIVER_REWARD_POINTS, "Thưởng giới thiệu tài xế #{$driver->id}");
-            $this->creditPoints($driver,   self::DRIVER_REWARD_POINTS, "Thưởng được giới thiệu bởi tài xế #{$referrer->id}");
+            $points = AppSetting::referralDriverPoints();
+            $this->creditPoints($referrer, $points, "Thưởng giới thiệu tài xế #{$driver->id}");
+            $this->creditPoints($driver,   $points, "Thưởng được giới thiệu bởi tài xế #{$referrer->id}");
             $driver->update(['referral_rewarded_at' => now()]);
         });
     }
@@ -41,15 +41,12 @@ class ReferralService
         if ($customer->referral_rewarded_at !== null) return;
         if ($customer->referred_by_user_id === null) return;
 
-        $completedCount = $customer->bookingsAsCustomer()->where('status', 'completed')->count();
-        if ($completedCount !== 1) return;
-
         $customer->loadMissing('referredBy');
+        $referrer = $customer->referredBy;
+        if ($referrer === null) return;
 
-        DB::transaction(function () use ($customer) {
-            $referrer = $customer->referredBy;
-            $this->issueVouchers($referrer, self::REFERRER_VOUCHER_COUNT);
-            $this->issueVouchers($customer, self::NEW_CUSTOMER_VOUCHER_COUNT);
+        DB::transaction(function () use ($customer, $referrer) {
+            $this->voucherIssuer->issue($referrer, config('business.referral_voucher_prefix'), AppSetting::referralVoucherValue(), now()->addMonth());
             $customer->update(['referral_rewarded_at' => now()]);
         });
     }
@@ -65,12 +62,5 @@ class ReferralService
             'description' => $description,
             'points'      => $points,
         ]);
-    }
-
-    private function issueVouchers(User $user, int $count): void
-    {
-        for ($i = 0; $i < $count; $i++) {
-            $this->voucherIssuer->issue($user, 'REF', self::CUSTOMER_VOUCHER_VALUE, now()->addMonth());
-        }
     }
 }

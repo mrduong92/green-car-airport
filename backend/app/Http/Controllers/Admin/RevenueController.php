@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\Booking;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -106,7 +107,8 @@ class RevenueController extends Controller
         return response()->json([
             'period'          => $period,
             'total_revenue'   => $totalRevenue,
-            'app_fee'         => (int) round($totalRevenue * 0.20),
+            'app_fee_percent' => AppSetting::appFeePercent(),
+            'app_fee'         => (int) round($totalRevenue * AppSetting::appFeeRate()),
             'trips_completed' => $totalTrips,
             'avg_per_trip'    => $totalTrips > 0 ? (int) round($totalRevenue / $totalTrips) : 0,
             'revenue_change'  => $revenueChange,
@@ -114,7 +116,7 @@ class RevenueController extends Controller
             'chart'           => $rows->map(fn ($r) => [
                 'label'   => $r->label,
                 'revenue' => (int) $r->revenue,
-                'fee'     => (int) round($r->revenue * 0.20),
+                'fee'     => (int) round($r->revenue * AppSetting::appFeeRate()),
             ])->values()->all(),
             'vehicle_breakdown' => $vehicleRows->map(fn ($r) => [
                 'type'    => $r->vehicle_type,

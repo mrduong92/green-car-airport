@@ -295,7 +295,7 @@ export default function TripListPage() {
               <div className="flex flex-col gap-1.5 bg-warm-white rounded-[10px] px-3 py-2.5">
                 <div className="flex justify-between text-[12px]">
                   <span className="text-neutral-gray">Giá cuốc</span>
-                  <span className="text-navy font-medium tabular-nums">{trip.price.toLocaleString('vi')} đ</span>
+                  <span className="text-navy font-medium tabular-nums">{(trip.price - trip.discount).toLocaleString('vi')} đ</span>
                 </div>
                 {(trip.collection_fee ?? 0) > 0 && (
                   <div className="flex justify-between text-[12px]">
@@ -311,7 +311,7 @@ export default function TripListPage() {
                   </div>
                   <span className="material-symbols-outlined text-neutral-dim text-[14px]">arrow_forward</span>
                   <div className="text-right">
-                    <p className="text-[11px] text-neutral-gray">Phí app 20%</p>
+                    <p className="text-[11px] text-neutral-gray">Phí app {trip.app_fee_percent}%</p>
                     <p className="text-[13px] font-semibold text-danger-red tabular-nums">-{trip.app_fee.toLocaleString('vi')}</p>
                   </div>
                 </div>

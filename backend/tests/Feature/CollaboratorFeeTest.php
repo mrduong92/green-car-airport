@@ -51,7 +51,7 @@ class CollaboratorFeeTest extends TestCase
             ->getJson('/api/driver/trips')
             ->assertOk()
             ->assertJsonPath('0.final_price', 1_200_000)  // 1_000_000 + 200_000
-            ->assertJsonPath('0.app_fee', 240_000);        // 1_200_000 * 20%
+            ->assertJsonPath('0.app_fee', 200_000);        // 1_000_000 * 20% — không tính trên thu hộ
     }
 
     /** Phí app khi accept = 20% của total_collected */
@@ -68,8 +68,8 @@ class CollaboratorFeeTest extends TestCase
         $this->assertEquals(10_000 - 200, $wallet->points);
     }
 
-    /** Collaborator nhận 80% × collection_fee khi trip completed */
-    public function test_collaborator_receives_80_percent_on_completion(): void
+    /** Collaborator nhận 100% collection_fee khi trip completed */
+    public function test_collaborator_receives_full_collection_fee_on_completion(): void
     {
         [$collaborator, $driver, $booking] = $this->makeBookingWithCollectionFee();
 
@@ -86,15 +86,15 @@ class CollaboratorFeeTest extends TestCase
             ->patchJson("/api/driver/trips/{$booking->id}/status", ['status' => 'completed'])
             ->assertOk();
 
-        // collaborator_net = floor(200_000 * 0.80 / 1000) = 160 điểm
+        // CTV nhận đủ 200_000 / 1000 = 200 điểm (không cắt phí app)
         $collabWallet = Wallet::where('user_id', $collaborator->id)->first();
         $this->assertNotNull($collabWallet);
-        $this->assertEquals(160, $collabWallet->points);
+        $this->assertEquals(200, $collabWallet->points);
 
         $tx = WalletTransaction::where('wallet_id', $collabWallet->id)->first();
         $this->assertNotNull($tx);
         $this->assertEquals('credit', $tx->type);
-        $this->assertEquals(160, $tx->points);
+        $this->assertEquals(200, $tx->points);
         $this->assertStringContainsString("Thu hộ cuốc #{$booking->id}", $tx->description);
     }
 

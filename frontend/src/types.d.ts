@@ -91,6 +91,7 @@ declare namespace App {
     collection_fee?: number
     final_price: number
     app_fee: number
+    app_fee_percent: number
     net_earning: number
     status: TripStatus
     cancelled_at?: string | null
@@ -257,6 +258,7 @@ declare namespace App {
   interface RevenueReport {
     period: string
     total_revenue: number
+    app_fee_percent: number
     app_fee: number
     trips_completed: number
     avg_per_trip: number
@@ -303,6 +305,7 @@ declare namespace App {
     hotline: string
     email: string
     zalo_phone: string
+    app_fee_percent: number
   }
 
   interface CustomerProfile {
