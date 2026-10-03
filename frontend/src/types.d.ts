@@ -352,6 +352,15 @@ declare namespace App {
     created_at: string
   }
 
+  interface WalletAdjustment {
+    id: number
+    direction: 'in' | 'out'
+    points: number
+    description: string | null
+    admin_name: string | null
+    created_at: string
+  }
+
   interface Paginated<T> {
     data: T[]
     current_page: number

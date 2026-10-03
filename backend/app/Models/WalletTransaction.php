@@ -4,8 +4,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class WalletTransaction extends Model
 {
-    protected $fillable = ['wallet_id', 'booking_id', 'type', 'description', 'points'];
+    protected $fillable = ['wallet_id', 'booking_id', 'type', 'description', 'points', 'created_by'];
 
     public function wallet() { return $this->belongsTo(Wallet::class); }
     public function booking() { return $this->belongsTo(Booking::class); }
+    public function creator() { return $this->belongsTo(User::class, 'created_by'); }
 }

@@ -4,6 +4,7 @@ import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, to
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import VipBadge from '@/components/common/VipBadge'
+import DriverPointsHistoryModal from '@/components/admin/DriverPointsHistoryModal'
 import Button from '@/components/common/Button'
 import clsx from 'clsx'
 
@@ -49,6 +50,7 @@ export default function DriversPage() {
   const [deductTarget, setDeductTarget] = useState<App.DriverProfile | null>(null)
   const [deductPoints, setDeductPoints] = useState('')
   const [deductReason, setDeductReason] = useState('')
+  const [historyTarget, setHistoryTarget] = useState<App.DriverProfile | null>(null)
 
   const { data: drivers = [] } = useQuery({
     queryKey: ['drivers', filter, search],
@@ -218,6 +220,10 @@ export default function DriversPage() {
                 <button onClick={() => openTopup(d)}
                   className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
                   Nạp điểm
+                </button>
+                <button onClick={() => setHistoryTarget(d)}
+                  className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
+                  Lịch sử điểm
                 </button>
                 {d.points != null && d.points > 0 && (
                   <button onClick={() => openDeduct(d)}
@@ -435,6 +441,10 @@ export default function DriversPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {historyTarget && (
+        <DriverPointsHistoryModal driver={historyTarget} onClose={() => setHistoryTarget(null)} />
       )}
 
       {/* Deduct points modal */}
