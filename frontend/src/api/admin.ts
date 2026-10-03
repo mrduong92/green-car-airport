@@ -62,6 +62,9 @@ export const topupDriver = (id: number, data: { points: number; description?: st
 export const deductDriverPoints = (id: number, data: { points: number; reason: string }) =>
   api.post<{ message: string; new_balance: number }>(`/admin/customers/${id}/deduct-points`, data)
 
+export const getDriverWalletAdjustments = (id: number, page = 1) =>
+  api.get<App.Paginated<App.WalletAdjustment> & { balance: number }>(`/admin/drivers/${id}/wallet-adjustments`, { params: { page } })
+
 export const getCustomerBookings = (id: number) =>
   api.get<App.AdminCustomerBooking[]>(`/admin/customers/${id}/bookings`)
 

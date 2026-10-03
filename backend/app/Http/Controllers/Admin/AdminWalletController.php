@@ -31,7 +31,7 @@ class AdminWalletController extends Controller
         $points = $request->integer('points');
         $desc   = $request->input('description') ?? 'Nạp điểm thủ công bởi Admin';
 
-        DB::transaction(function () use ($user, $points, $desc) {
+        DB::transaction(function () use ($user, $points, $desc, $request) {
             $wallet = Wallet::firstOrCreate(['user_id' => $user->id], ['points' => 0]);
 
             WalletTransaction::create([
@@ -40,6 +40,7 @@ class AdminWalletController extends Controller
                 'type'        => 'topup',
                 'description' => $desc,
                 'points'      => $points,
+                'created_by'  => $request->user()->id,
             ]);
 
             $wallet->increment('points', $points);
@@ -83,6 +84,7 @@ class AdminWalletController extends Controller
                 'type'        => 'debit',
                 'description' => 'Admin trừ điểm: ' . $request->input('reason'),
                 'points'      => $points,
+                'created_by'  => $request->user()->id,
             ]);
             $wallet->decrement('points', $points);
         });
@@ -114,10 +116,54 @@ class AdminWalletController extends Controller
                 'type'        => 'debit',
                 'description' => 'Admin xóa toàn bộ điểm: ' . $request->input('reason'),
                 'points'      => $wallet->points,
+                'created_by'  => $request->user()->id,
             ]);
             $wallet->update(['points' => 0]);
         });
 
         return response()->json(['message' => 'Đã xóa toàn bộ điểm.', 'new_balance' => 0]);
+    }
+
+    /** Lịch sử admin cộng/trừ điểm của một tài xế. */
+    public function adjustments(Request $request, User $user): JsonResponse
+    {
+        if ($user->role !== 'driver') {
+            return response()->json(['message' => 'Người dùng không phải tài xế.'], 422);
+        }
+
+        $wallet = Wallet::where('user_id', $user->id)->first();
+
+        if (! $wallet) {
+            return response()->json(['data' => [], 'balance' => 0, 'current_page' => 1, 'last_page' => 1, 'total' => 0]);
+        }
+
+        $page = WalletTransaction::with('creator:id,name')
+            ->where('wallet_id', $wallet->id)
+            ->where(fn ($q) => $q
+                ->whereNotNull('created_by')
+                // Dữ liệu trước khi có created_by: nhận diện theo quy ước cũ
+                ->orWhere(fn ($q2) => $q2->whereNull('booking_id')->where(fn ($q3) => $q3
+                    ->where('type', 'debit')
+                    ->orWhere(fn ($q4) => $q4->where('type', 'topup')->where('description', 'not like', 'Nạp điểm qua %'))
+                ))
+            )
+            ->latest()
+            ->orderByDesc('id')
+            ->paginate(20);
+
+        return response()->json([
+            'data' => collect($page->items())->map(fn (WalletTransaction $t) => [
+                'id'          => $t->id,
+                'direction'   => $t->type === 'debit' ? 'out' : 'in',
+                'points'      => $t->points,
+                'description' => $t->description,
+                'admin_name'  => $t->creator?->name,
+                'created_at'  => $t->created_at,
+            ]),
+            'balance'      => $wallet->points,
+            'current_page' => $page->currentPage(),
+            'last_page'    => $page->lastPage(),
+            'total'        => $page->total(),
+        ]);
     }
 }
