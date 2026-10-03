@@ -12,6 +12,9 @@ const schema = z.object({
   contact_hotline:    z.string().min(1, 'Bắt buộc').max(50),
   contact_email:      z.string().min(1, 'Bắt buộc').email('Email không hợp lệ'),
   contact_zalo_phone: z.string().min(1, 'Bắt buộc').max(20),
+  app_fee_percent:        z.number({ coerce: true }).min(0, 'Từ 0 đến 100').max(100, 'Từ 0 đến 100'),
+  referral_voucher_value: z.number({ coerce: true }).int('Phải là số nguyên').min(1000, 'Tối thiểu 1.000đ'),
+  referral_driver_points: z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
 })
 type FormData = z.infer<typeof schema>
 
@@ -25,7 +28,7 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '' },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50 },
   })
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="flex flex-col px-4 py-4 gap-4">
-      <h1 className="hidden lg:block text-h2 text-navy font-semibold">Cài đặt liên hệ</h1>
+      <h1 className="hidden lg:block text-h2 text-navy font-semibold">Cài đặt</h1>
 
       <form onSubmit={handleSubmit((d) => updateMutation.mutate(d))}
         className="bg-white rounded-card shadow-card p-4 flex flex-col gap-3 max-w-md">
@@ -68,6 +71,30 @@ export default function AdminSettingsPage() {
           <input {...register('contact_zalo_phone')} placeholder="0931919786"
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
           {errors.contact_zalo_phone && <p className="text-danger-red text-xs mt-1">{errors.contact_zalo_phone.message}</p>}
+        </div>
+
+        <hr className="border-border-gray" />
+        <p className="text-sm font-semibold text-navy">Phí app &amp; thưởng giới thiệu</p>
+
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Phí app (% trên giá cuốc sau voucher)</label>
+          <input type="number" step="0.1" {...register('app_fee_percent')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.app_fee_percent && <p className="text-danger-red text-xs mt-1">{errors.app_fee_percent.message}</p>}
+        </div>
+
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Voucher cho người giới thiệu khách (đ)</label>
+          <input type="number" {...register('referral_voucher_value')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.referral_voucher_value && <p className="text-danger-red text-xs mt-1">{errors.referral_voucher_value.message}</p>}
+        </div>
+
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Điểm thưởng giới thiệu tài xế (mỗi bên, 1 điểm = 1.000đ)</label>
+          <input type="number" {...register('referral_driver_points')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.referral_driver_points && <p className="text-danger-red text-xs mt-1">{errors.referral_driver_points.message}</p>}
         </div>
 
         <Button type="submit" loading={updateMutation.isPending}>Lưu thay đổi</Button>

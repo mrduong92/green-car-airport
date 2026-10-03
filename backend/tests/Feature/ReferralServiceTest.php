@@ -61,14 +61,6 @@ class ReferralServiceTest extends TestCase
             'referred_by_user_id' => $referrer->id,
             'referral_rewarded_at'=> null,
         ]);
-        Booking::create([
-            'customer_id'  => $newCustomer->id,
-            'pickup'       => 'A', 'destination' => 'B',
-            'date'         => now()->format('Y-m-d'), 'time' => '08:00',
-            'vehicle_type' => 'sedan_4', 'distance_km' => 10,
-            'price' => 200000, 'discount' => 0, 'surcharge' => 0,
-            'status' => 'completed',
-        ]);
         return [$referrer, $newCustomer];
     }
 
@@ -169,45 +161,28 @@ class ReferralServiceTest extends TestCase
 
     // ── Customer referral tests ───────────────────────────────────────────────
 
-    public function test_customer_referral_creates_2_vouchers_for_referrer(): void
+    public function test_customer_referral_gives_referrer_one_100k_voucher(): void
     {
         [$referrer, $newCustomer] = $this->makeCustomerPair();
 
         $this->service->processCustomerReferral($newCustomer);
 
-        $this->assertEquals(2, Voucher::where('user_id', $referrer->id)->count());
-    }
-
-    public function test_customer_referral_creates_4_vouchers_for_new_customer(): void
-    {
-        [$referrer, $newCustomer] = $this->makeCustomerPair();
-
-        $this->service->processCustomerReferral($newCustomer);
-
-        $this->assertEquals(4, Voucher::where('user_id', $newCustomer->id)->count());
-    }
-
-    public function test_customer_referral_vouchers_are_50k_fixed_with_usage_limit_1(): void
-    {
-        [$referrer, $newCustomer] = $this->makeCustomerPair();
-
-        $this->service->processCustomerReferral($newCustomer);
-
-        $voucher = Voucher::where('user_id', $newCustomer->id)->first();
+        $this->assertEquals(1, Voucher::where('user_id', $referrer->id)->count());
+        $voucher = Voucher::where('user_id', $referrer->id)->first();
         $this->assertEquals('fixed', $voucher->type);
-        $this->assertEquals(50000, $voucher->value);
+        $this->assertEquals(100000, $voucher->value);
         $this->assertEquals(1, $voucher->usage_limit);
         $this->assertTrue($voucher->is_active);
+        $this->assertEquals(now()->addMonth()->format('Y-m-d'), $voucher->expires_at->format('Y-m-d'));
     }
 
-    public function test_customer_referral_vouchers_expire_in_one_month(): void
+    public function test_customer_referral_gives_nothing_extra_to_new_customer(): void
     {
         [$referrer, $newCustomer] = $this->makeCustomerPair();
 
         $this->service->processCustomerReferral($newCustomer);
 
-        $voucher = Voucher::where('user_id', $newCustomer->id)->first();
-        $this->assertEquals(now()->addMonth()->format('Y-m-d'), $voucher->expires_at->format('Y-m-d'));
+        $this->assertEquals(0, Voucher::where('user_id', $newCustomer->id)->count());
     }
 
     public function test_customer_referral_sets_referral_rewarded_at(): void
@@ -226,40 +201,14 @@ class ReferralServiceTest extends TestCase
         $this->service->processCustomerReferral($newCustomer);
         $this->service->processCustomerReferral($newCustomer->fresh());
 
-        $this->assertEquals(2, Voucher::where('user_id', $referrer->id)->count());
+        $this->assertEquals(1, Voucher::where('user_id', $referrer->id)->count());
     }
 
     public function test_customer_referral_skipped_when_no_referrer(): void
     {
         $customer = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => null]);
-        Booking::create([
-            'customer_id' => $customer->id,
-            'pickup' => 'A', 'destination' => 'B',
-            'date' => now()->format('Y-m-d'), 'time' => '08:00',
-            'vehicle_type' => 'sedan_4', 'distance_km' => 10,
-            'price' => 200000, 'discount' => 0, 'surcharge' => 0,
-            'status' => 'completed',
-        ]);
 
         $this->service->processCustomerReferral($customer);
-
-        $this->assertEquals(0, Voucher::whereNotNull('user_id')->count());
-    }
-
-    public function test_customer_referral_skipped_when_not_first_completed_trip(): void
-    {
-        [$referrer, $newCustomer] = $this->makeCustomerPair();
-        // Add a second completed booking — now count = 2, reward should not trigger
-        Booking::create([
-            'customer_id' => $newCustomer->id,
-            'pickup' => 'C', 'destination' => 'D',
-            'date' => now()->format('Y-m-d'), 'time' => '09:00',
-            'vehicle_type' => 'sedan_4', 'distance_km' => 5,
-            'price' => 100000, 'discount' => 0, 'surcharge' => 0,
-            'status' => 'completed',
-        ]);
-
-        $this->service->processCustomerReferral($newCustomer);
 
         $this->assertEquals(0, Voucher::whereNotNull('user_id')->count());
     }

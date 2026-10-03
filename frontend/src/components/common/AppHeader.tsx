@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getContactSettings } from '@/api/settings'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
 import { useLogout } from '@/hooks/useLogout'
@@ -58,8 +60,8 @@ const CUSTOMER_QUY_DINH = [
   { icon: 'edit_off',      text: 'Không thể thay đổi điểm đón/đến sau khi đã đặt chuyến.' },
 ]
 
-const DRIVER_QUY_DINH = [
-  { icon: 'account_balance_wallet', text: 'Phí ứng dụng 20% được trừ từ ví điểm sau mỗi chuyến hoàn thành.' },
+const driverQuyDinh = (feePercent: number) => [
+  { icon: 'account_balance_wallet', text: `Phí ứng dụng ${feePercent}% được trừ từ ví điểm sau mỗi chuyến hoàn thành.` },
   { icon: 'paid',                   text: 'Cần nạp điểm vào ví trước khi nhận cuốc (1.000đ = 1 điểm).' },
   { icon: 'checklist',              text: `Tối đa ${MAX_ACTIVE_TRIPS} cuốc đang thực hiện cùng lúc.` },
   { icon: 'schedule',               text: 'Cập nhật trạng thái cuốc kịp thời — không để khách chờ.' },
@@ -73,13 +75,18 @@ export default function AppHeader() {
   const { user } = useAuthStore()
   const [showQuyDinh, setShowQuyDinh] = useState(false)
   const { canInstall } = usePwaInstall()
+  const { data: contact } = useQuery({
+    queryKey: ['contact-settings'],
+    queryFn: getContactSettings,
+    enabled: user?.role === 'driver',
+  })
 
   const logoutMutation = useLogout()
 
   const { title } = getRouteInfo(pathname)
   const inRootSet = ROOT_TABS.has(pathname)
 
-  const regulations = user?.role === 'driver' ? DRIVER_QUY_DINH : CUSTOMER_QUY_DINH
+  const regulations = user?.role === 'driver' ? driverQuyDinh(contact?.app_fee_percent ?? 20) : CUSTOMER_QUY_DINH
   const regulationsTitle = user?.role === 'driver' ? 'Quy định tài xế' : 'Quy định đặt xe'
 
   return (

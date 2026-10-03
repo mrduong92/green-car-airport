@@ -11,9 +11,9 @@ class CampaignSeeder extends Seeder
     public function run(): void
     {
         Campaign::create([
-            'name'         => 'Ra mắt — tặng 200k khách mới',
+            'name'         => 'Ra mắt — tặng 1 triệu khách mới',
             'trigger'      => CampaignTrigger::CUSTOMER_REGISTERED,
-            'reward'       => ['voucher_count' => 4, 'voucher_value' => 50000, 'voucher_expires_days' => 90],
+            'reward'       => ['voucher_count' => 20, 'voucher_value' => 50000, 'voucher_expires_days' => 90],
             'starts_at'    => null,
             'ends_at'      => null,
             'max_grants'   => 1000,

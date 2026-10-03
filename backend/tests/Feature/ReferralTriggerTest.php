@@ -57,46 +57,20 @@ class ReferralTriggerTest extends TestCase
         $this->assertNotNull($newDriver->fresh()->referral_rewarded_at);
     }
 
-    public function test_customer_referral_vouchers_trigger_on_first_trip_completion(): void
+    public function test_customer_referral_voucher_issued_on_registration_not_on_trip_completion(): void
     {
-        Notification::fake();
+        $referrer = User::factory()->create(['role' => 'customer']);
 
-        $referrerCustomer = User::factory()->create(['role' => 'customer']);
-        $newCustomer      = User::factory()->create([
-            'role'                => 'customer',
-            'referred_by_user_id' => $referrerCustomer->id,
-        ]);
+        $this->postJson('/api/auth/register', [
+            'phone'         => '0987654321',
+            'otp'           => '000000',
+            'password'      => '123456',
+            'referral_code' => $referrer->referral_code,
+        ])->assertOk();
 
-        $driver = User::factory()->create(['role' => 'driver']);
-        DriverProfile::create([
-            'user_id'       => $driver->id,
-            'status'        => 'active',
-            'trips_count'   => 5,
-            'vehicle_make'  => 'Toyota',
-            'vehicle_model' => 'Camry',
-            'vehicle_plate' => '51G-99999',
-            'vehicle_year'  => 2020,
-            'vehicle_color' => 'Black',
-        ]);
-        Wallet::firstOrCreate(['user_id' => $driver->id], ['points' => 500]);
-
-        $booking = Booking::create([
-            'customer_id'  => $newCustomer->id,
-            'driver_id'    => $driver->id,
-            'pickup'       => 'A', 'destination' => 'B',
-            'date'         => now()->format('Y-m-d'), 'time' => '08:00',
-            'vehicle_type' => 'sedan_4', 'distance_km' => 10,
-            'price'        => 200000, 'discount' => 0, 'surcharge' => 0,
-            'status'       => 'in_progress',
-            'accepted_at'  => now()->subMinutes(30),
-        ]);
-
-        $this->actingAs($driver, 'sanctum')
-            ->patchJson("/api/driver/trips/{$booking->id}/status", ['status' => 'completed'])
-            ->assertOk();
-
-        $this->assertEquals(2, Voucher::where('user_id', $referrerCustomer->id)->count());
-        $this->assertEquals(4, Voucher::where('user_id', $newCustomer->id)->count());
+        $vouchers = Voucher::where('user_id', $referrer->id)->get();
+        $this->assertCount(1, $vouchers);
+        $this->assertEquals(100000, $vouchers->first()->value);
     }
 
     public function test_driver_referral_reward_triggers_on_admin_approve_when_trip_already_done(): void

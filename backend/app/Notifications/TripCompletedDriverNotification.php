@@ -12,7 +12,7 @@ class TripCompletedDriverNotification extends Notification implements ShouldQueu
     public function __construct(private Booking $booking) {}
     public function via($notifiable): array { return ['database', WebPushChannel::class]; }
     public function toWebPush($notifiable, $notification): array {
-        $appFee     = (int) round($this->booking->price * 0.20);
+        $appFee     = (int) round($this->booking->price * \App\Models\AppSetting::appFeeRate());
         $netEarning = number_format($this->booking->price - $appFee, 0, ',', '.');
         return [
             'title' => 'Hoàn thành chuyến!',
@@ -21,7 +21,7 @@ class TripCompletedDriverNotification extends Notification implements ShouldQueu
         ];
     }
     public function toArray($notifiable): array {
-        $appFee     = (int) round($this->booking->price * 0.20);
+        $appFee     = (int) round($this->booking->price * \App\Models\AppSetting::appFeeRate());
         $netEarning = $this->booking->price - $appFee;
         return [
             'title'      => 'Hoàn thành chuyến!',
