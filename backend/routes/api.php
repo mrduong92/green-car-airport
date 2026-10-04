@@ -31,6 +31,7 @@ use App\Http\Controllers\PriceConfigController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StaticPageController;
 use App\Http\Controllers\Webhooks\SepayWebhookController;
+use App\Http\Controllers\Webhooks\ZaloServiceController;
 use App\Http\Controllers\ZnsDlrController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
@@ -56,6 +57,11 @@ Route::get('/price-configs', [PriceConfigController::class, 'index']);
 Route::get('/pages/{slug}', [StaticPageController::class, 'show']);
 Route::get('/settings/contact', [SettingsController::class, 'contact']);
 Route::post('/webhooks/sepay', [SepayWebhookController::class, 'handle']);
+
+// Microservice Zalo (Cuốc Free) — xác thực bằng chữ ký HMAC, không dùng Sanctum.
+Route::middleware(['zalo.bot', 'throttle:120,1'])->prefix('internal/zalo')->group(function () {
+    Route::post('/heartbeat', [ZaloServiceController::class, 'heartbeat']);
+});
 Route::get('/zns/dlr', [ZnsDlrController::class, 'handle']);
 
 // ── Authenticated ─────────────────────────────────────────────────────────────

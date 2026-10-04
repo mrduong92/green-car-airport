@@ -114,6 +114,19 @@ else
     problems+=("KHÔNG THẤY $SCHED_LOG → scheduler có thể chưa từng chạy")
 fi
 
+# 5) Microservice Zalo (Cuốc Free) — chỉ kiểm khi đã bật. Chạy bằng www-data
+#    (artisan chạy bằng root có thể tạo file cache/log thuộc root → web 500).
+if grep -qE '^ZALO_SERVICE_ENABLED=(true|1)$' "$ENV_FILE"; then
+    zalo_out=$(cd "$APP_DIR" && sudo -u www-data php artisan zalo:service-status 2>&1)
+    zalo_code=$?
+    if [ "$zalo_code" -eq 1 ]; then
+        problems+=("SERVICE ZALO CÓ VẤN ĐỀ → tab Cuốc Free ngừng cập nhật: $(echo "$zalo_out" | tr '\n' ' ' | head -c 300)")
+    elif [ "$zalo_code" -ne 0 ]; then
+        problems+=("SERVICE ZALO CHƯA TỪNG GỬI HEARTBEAT (đã bật ZALO_SERVICE_ENABLED nhưng service chưa chạy?)")
+    fi
+fi
+
+
 # ── So với lần trước, chỉ báo khi ĐỔI trạng thái ────────────────────────────
 if [ ${#problems[@]} -eq 0 ]; then
     status="OK"
