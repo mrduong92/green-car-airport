@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type Anthropic from '@anthropic-ai/sdk'
 import { AnthropicExtractor } from '../src/ai/extractor.js'
+import { AiCallError } from '../src/ai/queue.js'
 
 const VN = 7 * 3_600_000
 const SENT = Date.parse('2026-10-04T01:30:00Z') - VN
@@ -30,6 +31,7 @@ test('maps AI rides to drafts, resolving time in Vietnam time', async () => {
 
   assert.equal(params.model, 'claude-haiku-4-5')
   assert.ok(params.output_config)
+  assert.equal(params.max_tokens, 16000) // đủ cho lô 20 tin — 4096 cũ dễ bị cắt cụt JSON
   assert.deepEqual({ inputTokens: out.inputTokens, outputTokens: out.outputTokens }, { inputTokens: 1200, outputTokens: 300 })
   const ride = out.outcomes[0].rides[0]
   assert.equal(out.outcomes[0].isRide, true)
@@ -50,4 +52,13 @@ test('missing ids in the AI answer are treated as not rides', async () => {
 test('an unparseable answer throws so the batch is retried', async () => {
   const extractor = new AnthropicExtractor(fakeClient(null), 'claude-haiku-4-5')
   await assert.rejects(extractor.extract([{ id: 1, content: 'x', sentAt: SENT }]), /không trả kết quả hợp lệ/)
+})
+
+test('an unparseable answer carries the usage of the failed call, so it still gets billed', async () => {
+  const extractor = new AnthropicExtractor(fakeClient(null), 'claude-haiku-4-5')
+  await assert.rejects(extractor.extract([{ id: 1, content: 'x', sentAt: SENT }]), (err: unknown) => {
+    assert.ok(err instanceof AiCallError)
+    assert.deepEqual(err.usage, { input_tokens: 1200, output_tokens: 300 })
+    return true
+  })
 })
