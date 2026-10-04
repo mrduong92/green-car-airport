@@ -2,13 +2,13 @@
 
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVoucherController;
-use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\AdminWalletController;
+use App\Http\Controllers\Admin\AppSettingController as AdminAppSettingController;
+use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
-use App\Http\Controllers\Admin\AppSettingController as AdminAppSettingController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
 use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
@@ -59,8 +59,9 @@ Route::get('/settings/contact', [SettingsController::class, 'contact']);
 Route::post('/webhooks/sepay', [SepayWebhookController::class, 'handle']);
 
 // Microservice Zalo (Cuốc Free) — xác thực bằng chữ ký HMAC, không dùng Sanctum.
-Route::middleware(['zalo.bot', 'throttle:120,1'])->prefix('internal/zalo')->group(function () {
+Route::middleware(['zalo.bot', 'throttle:600,1'])->prefix('internal/zalo')->group(function () {
     Route::post('/heartbeat', [ZaloServiceController::class, 'heartbeat']);
+    Route::post('/rides', [ZaloServiceController::class, 'rides']);
 });
 Route::get('/zns/dlr', [ZnsDlrController::class, 'handle']);
 

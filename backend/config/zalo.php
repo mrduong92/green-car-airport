@@ -13,12 +13,15 @@ return [
 
     // Giám sát (zalo:service-status)
     'heartbeat_stale_seconds' => 180,
-    'silence_alert_minutes'   => 10,
+    'silence_alert_minutes' => 10,
     // Ngoài khung giờ này nhóm vắng là bình thường — không cảnh báo im lặng.
     // Tính theo giờ Việt Nam: app chạy timezone UTC (config/app.php).
     'active_hours' => [5, 23],
-    'timezone'     => 'Asia/Ho_Chi_Minh',
+    'timezone' => 'Asia/Ho_Chi_Minh',
 
     // Service im quá số ngày này thì bỏ khỏi danh sách theo dõi (đổi SERVICE_ID, ngừng service).
     'forget_after_days' => 7,
+
+    // Giai đoạn 2
+    'max_rides_batch' => 100,
 ];
