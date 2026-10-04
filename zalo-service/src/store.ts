@@ -5,6 +5,18 @@ import { contentHash } from './text.js'
 
 export type SaveResult = 'stored' | 'duplicate' | 'ignored'
 
+export type MessageStatus =
+  | 'pending' | 'duplicate' | 'not_ride' | 'ride' | 'raw' | 'ai_pending' | 'blocked' | 'skipped_group' | 'failed'
+
+export interface StoredMessage {
+  id: number
+  zalo_group_id: string
+  sender_uid: string
+  content: string
+  sent_at: number
+  parse_status: MessageStatus
+}
+
 export interface StoreOptions {
   duplicateWindowMs: number
   maxContentLength: number
@@ -27,6 +39,10 @@ export class MessageStore {
   private readonly upsertSender: Database.Statement
   private readonly deleteOld: Database.Statement
   private readonly renameGroup: Database.Statement
+  private readonly findStmt: Database.Statement
+  private readonly getStmt: Database.Statement
+  private readonly statusStmt: Database.Statement
+  private readonly byStatusStmt: Database.Statement
   private readonly saveTx: (item: MessageItem, accountId: string, receivedAt: number) => SaveResult
 
   constructor(db: Db, private readonly opts: StoreOptions) {
@@ -49,6 +65,10 @@ export class MessageStore {
         last_seen_at = MAX(COALESCE(senders.last_seen_at, 0), excluded.last_seen_at)`)
     this.deleteOld = db.prepare('DELETE FROM messages WHERE sent_at < ?')
     this.renameGroup = db.prepare("UPDATE chat_groups SET name = ? WHERE zalo_group_id = ? AND ? <> ''")
+    this.findStmt = db.prepare('SELECT id FROM messages WHERE zalo_group_id = ? AND zalo_msg_id = ?')
+    this.getStmt = db.prepare('SELECT id, zalo_group_id, sender_uid, content, sent_at, parse_status FROM messages WHERE id = ?')
+    this.statusStmt = db.prepare('UPDATE messages SET parse_status = ? WHERE id = ?')
+    this.byStatusStmt = db.prepare('SELECT id FROM messages WHERE parse_status = ? AND sent_at >= ? ORDER BY id')
 
     this.saveTx = db.transaction((item: MessageItem, accountId: string, receivedAt: number): SaveResult => {
       if (this.exists.get(item.group_id, item.msg_id)) return 'ignored'
@@ -82,6 +102,22 @@ export class MessageStore {
   setGroupName(groupId: string, name: string): void {
     const trimmed = name.slice(0, MAX_NAME)
     this.renameGroup.run(trimmed, groupId, trimmed)
+  }
+
+  findId(groupId: string, msgId: string): number | undefined {
+    return (this.findStmt.get(groupId, msgId) as { id: number } | undefined)?.id
+  }
+
+  get(id: number): StoredMessage | undefined {
+    return this.getStmt.get(id) as StoredMessage | undefined
+  }
+
+  setStatus(id: number, status: MessageStatus): void {
+    this.statusStmt.run(status, id)
+  }
+
+  idsByStatus(status: MessageStatus, sinceSentAt: number): number[] {
+    return (this.byStatusStmt.all(status, sinceSentAt) as { id: number }[]).map((r) => r.id)
   }
 
   prune(now: number = Date.now()): number {

@@ -34,3 +34,26 @@ export function createSender(opts: {
     }
   }
 }
+
+export type Getter = (path: string) => Promise<{ status: number; body?: unknown; error?: string }>
+
+// GET có ký (body rỗng) — dùng hỏi cấu hình Laravel. Không ném lỗi; status = 0 là lỗi mạng.
+export function createGetter(opts: { baseUrl: string; secret: string; fetchImpl?: typeof fetch; timeoutMs?: number }): Getter {
+  const fetchImpl = opts.fetchImpl ?? fetch
+  const timeoutMs = opts.timeoutMs ?? 10_000
+
+  return async (path) => {
+    const { timestamp, signature } = sign(opts.secret, '')
+    try {
+      const res = await fetchImpl(opts.baseUrl + path, {
+        method: 'GET',
+        headers: { Accept: 'application/json', 'X-Zalo-Timestamp': timestamp, 'X-Zalo-Signature': signature },
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+      if (res.status !== 200) return { status: res.status }
+      return { status: 200, body: await res.json() }
+    } catch (err) {
+      return { status: 0, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+}
