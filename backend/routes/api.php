@@ -62,6 +62,8 @@ Route::post('/webhooks/sepay', [SepayWebhookController::class, 'handle']);
 Route::middleware(['zalo.bot', 'throttle:600,1'])->prefix('internal/zalo')->group(function () {
     Route::post('/heartbeat', [ZaloServiceController::class, 'heartbeat']);
     Route::post('/rides', [ZaloServiceController::class, 'rides']);
+    Route::post('/groups', [ZaloServiceController::class, 'groups']);
+    Route::get('/config', [ZaloServiceController::class, 'config']);
 });
 Route::get('/zns/dlr', [ZnsDlrController::class, 'handle']);
 

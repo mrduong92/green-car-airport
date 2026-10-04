@@ -48,6 +48,7 @@ class ZaloServiceMonitor
             if ($age === null || $age > (int) config('zalo.heartbeat_stale_seconds')) {
                 $status = 1;
                 $lines[] = "{$id}: mất heartbeat".($age === null ? '' : " ({$age} giây)");
+
                 continue;
             }
 
@@ -60,6 +61,12 @@ class ZaloServiceMonitor
                 $lines[] = "{$id}: tài khoản mất kết nối: ".implode(', ', $down);
             } else {
                 $lines[] = "{$id}: OK (".count($hb['accounts'])." tài khoản, đã lưu {$hb['stored_total']} tin, trùng {$hb['duplicates_total']})";
+            }
+
+            $backlog = (int) ($hb['outbox_backlog'] ?? 0);
+            if ($backlog > (int) config('zalo.rides_backlog_alert')) {
+                $status = 1;
+                $lines[] = "{$id}: hộp thư đi tồn {$backlog} cuốc (Laravel không nhận được cuốc?)";
             }
 
             if ($hb['last_message_at'] !== null) {
