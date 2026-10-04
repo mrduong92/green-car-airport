@@ -37,6 +37,18 @@ const VALID_SEATS = new Set([4, 5, 7, 9, 16, 29, 45])
 const VEHICLE = word('limo(?:usine)?|vf\\s?\\d|x7|xl7', 'iu')
 const SEPARATOR = /\s*(?:-->|->|=>|→|>|–|—)\s*|\s+-\s+|\s+(?:về|đi|tới|đến)\s+/iu
 
+// Từ ngày/giờ tương đối ("mai", "mốt", "chiều"...) đổi nghĩa giờ đón, nhưng quy tắc không suy luận ngữ
+// nghĩa — thấy là nhường cho AI (unsure) thay vì đoán sai. Chỉ khớp chữ thường: viết hoa thường là tên
+// riêng ("Tương Mai", "Mai Dịch"), không phải trạng từ chỉ ngày/giờ — nhờ vậy không đụng tên địa điểm.
+const RELATIVE_DAY = word('mai|mốt|nay|ngày\\s+kia')
+const TIME_OF_DAY = word('sáng|trưa|chiều|tối|đêm')
+const hasExact = (re: RegExp, text: string) => new RegExp(re.source, 'u').test(text)
+
+// Số điện thoại (có hoặc không chấm/gạch nối): bắt đầu bằng 0, đủ 9–11 chữ số sau khi bỏ dấu phân cách.
+// Thay vì cố lọc số điện thoại ra khỏi text (dễ đọc nhầm thành giá hoặc lẫn vào điểm đón/đến), nhường cả
+// đoạn cho AI. Số thường (không chấm) cũng bị loại theo, để hành vi nhất quán.
+const PHONE_LIKE = /(?<![\d.-])0(?:[ .-]?\d){8,10}(?![\d.-])/u
+
 // Giá: lấy theo thứ tự, xoá phần đã đọc để không đếm hai lần. Dưới 10.000đ không phải giá ("1k" = 1 khách).
 const PRICES: { re: RegExp; read: (m: RegExpMatchArray) => number }[] = [
   { re: word('(\\d{1,3}(?:[.,]\\d{3})+)\\s*(?:đ|vnđ|vnd|d)?'), read: (m) => Number(m[1].replace(/[.,]/g, '')) },
@@ -64,6 +76,12 @@ function isAirport(place: string): boolean {
 }
 
 function parseSegment(seg: string, header: string, defaultDirection: Direction | null, sentAt: number): RideDraft | null {
+  if (
+    hasExact(RELATIVE_DAY, seg) || hasExact(RELATIVE_DAY, header) ||
+    hasExact(TIME_OF_DAY, seg) || hasExact(TIME_OF_DAY, header) ||
+    PHONE_LIKE.test(seg) || PHONE_LIKE.test(header)
+  ) return null
+
   const times = findTimes(seg)
   if (times.length !== 1 || times[0].relative) return null
   const time = times[0]

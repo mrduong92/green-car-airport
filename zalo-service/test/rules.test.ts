@@ -73,3 +73,41 @@ test('chatter is not a ride', () => {
     assert.equal(parseRides(content, SENT).kind, 'not_ride', content)
   }
 })
+
+test('relative-day words ("mai", "mốt"...) are ambiguous, not silently resolved to today', () => {
+  for (const content of [
+    'mai tiễn 5h Hà Đông 300k',
+    'tiễn 5h Hà Đông 300k mốt',
+    'tiễn hôm nay 5h Hà Đông 300k',
+    'tiễn 5h Hà Đông 300k ngày kia',
+  ]) {
+    assert.equal(parseRides(content, SENT).kind, 'unsure', content)
+  }
+})
+
+test('a relative-day word that is really part of a place name is not mistaken for one', () => {
+  // "Tương Mai" is a real Hà Nội ward — must stay a ride, not get swept into the "mai" guard.
+  assert.deepEqual(rides('tiễn 6h45 40 Tương Mai 230k'), [
+    { direction: 'to_airport', pickup: '40 Tương Mai', destination: AIRPORT, at: '2026-10-04 06:45', time: '6h45', seats: null, vehicle: null, price: 230000, free: false },
+  ])
+})
+
+test('time-of-day words ("chiều", "sáng"...) are ambiguous, not silently resolved to the wrong day', () => {
+  for (const content of [
+    'tiễn 5h chiều Hà Đông 300k',
+    'tiễn 5h sáng Hà Đông 300k',
+  ]) {
+    assert.equal(parseRides(content, SENT).kind, 'unsure', content)
+  }
+})
+
+test('phone-like digit runs are ambiguous, not read as price or left in the pickup', () => {
+  for (const content of [
+    'tiễn 5h Hà Đông 0912.345.678',
+    'tiễn 5h Hà Đông lh 091.234.5678',
+    // Plain, unseparated 10-digit numbers get the same treatment for consistency.
+    'tiễn 5h Hà Đông 0912345678',
+  ]) {
+    assert.equal(parseRides(content, SENT).kind, 'unsure', content)
+  }
+})
