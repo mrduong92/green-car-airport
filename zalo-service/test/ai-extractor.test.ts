@@ -62,3 +62,25 @@ test('an unparseable answer carries the usage of the failed call, so it still ge
     return true
   })
 })
+
+test('out-of-range AI values are clamped so Laravel does not reject the ride', async () => {
+  const extractor = new AnthropicExtractor(fakeClient({
+    results: [
+      { id: 1, is_ride: true, rides: [
+        { direction: 'to_airport', pickup: 'phố cổ', destination: 'Sân bay Nội Bài', pickup_time: `08:30 ${'x'.repeat(40)}`, pickup_date: null, seats: 0, vehicle_note: 'v'.repeat(50), price_vnd: 100_000_001, is_free: false },
+        { direction: 'to_airport', pickup: 'phố cổ', destination: 'Sân bay Nội Bài', pickup_time: null, pickup_date: null, seats: 61, vehicle_note: 'limo', price_vnd: -5, is_free: false },
+        { direction: 'to_airport', pickup: 'phố cổ', destination: 'Sân bay Nội Bài', pickup_time: null, pickup_date: null, seats: 60, vehicle_note: null, price_vnd: 100_000_000, is_free: false },
+      ] },
+    ],
+  }), 'claude-haiku-4-5')
+  const [a, b, c] = (await extractor.extract([{ id: 1, content: 'x', sentAt: SENT }])).outcomes[0].rides
+  assert.equal(a.pickupTimeText?.length, 32)
+  assert.equal(a.vehicleNote, 'v'.repeat(32))
+  assert.equal(a.seats, null)
+  assert.equal(a.price, null)
+  assert.equal(b.seats, null)
+  assert.equal(b.price, null)
+  assert.equal(b.vehicleNote, 'limo')
+  assert.equal(c.seats, 60)
+  assert.equal(c.price, 100_000_000)
+})

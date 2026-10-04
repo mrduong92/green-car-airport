@@ -97,3 +97,25 @@ test('groups sync sends names and 24h counts', async () => {
   await sync.flush()
   assert.deepEqual(payload, { groups: [{ zalo_group_id: 'g1', name: 'Taxi Nội Bài', last_message_at: T0, messages_24h: 1 }] })
 })
+
+test('rides rejected by Laravel are logged as a warning with the count', async () => {
+  const { rides } = setup(3)
+  const warnings: string[] = []
+  const logger = { ...silentLogger, warn: (...args: unknown[]) => { warnings.push(args.join(' ')) } }
+  const sync = new RideSync({ rides, send: async () => ({ status: 200, body: { stored: 1, rejected: [0, 2] } }), batchSize: 100, logger, now: () => T0 })
+  await sync.flush()
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /2 cuốc/)
+  assert.equal(rides.backlog(), 0) // gửi lại cũng bị từ chối y hệt → không giữ lại
+})
+
+test('groups sync counts only messages of the last 24h per group, 0 for quiet groups', async () => {
+  const { db } = setup(0)
+  const messages = new MessageStore(db, { duplicateWindowMs: 24 * HOUR, maxContentLength: 4000, retentionMs: 7 * 24 * HOUR })
+  messages.save({ group_id: 'g1', group_name: '', msg_id: 'm2', sender_uid: '222', sender_name: '', content: 'y', sent_at: T0 + 2000 }, 'acc1')
+  messages.save({ group_id: 'g2', group_name: 'Nhóm vắng', msg_id: 'o1', sender_uid: '333', sender_name: '', content: 'z', sent_at: T0 - 30 * HOUR }, 'acc1')
+  let payload: { groups: { zalo_group_id: string; messages_24h: number }[] } | undefined
+  const sync = new GroupsSync({ db, send: async (_p, body) => { payload = body as typeof payload; return { status: 200 } }, logger: silentLogger, now: () => T0 + 3000 })
+  await sync.flush()
+  assert.deepEqual(payload?.groups.map((g) => [g.zalo_group_id, g.messages_24h]), [['g1', 2], ['g2', 0]])
+})

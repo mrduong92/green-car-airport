@@ -57,7 +57,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     aiBatchSize: Number(env.AI_BATCH_SIZE || 20),
     aiFlushMs: Number(env.AI_FLUSH_MS || 3000),
     aiDailyBudgetUsd: Number(env.AI_DAILY_BUDGET_USD || 5),
-    ridesBatchSize: Number(env.RIDES_BATCH_SIZE || 100),
+    // Laravel trả 422 cho lô > 100 (zalo.max_rides_batch) → hộp thư đi kẹt mãi; chặn trần ở đây.
+    ridesBatchSize: Math.min(Number(env.RIDES_BATCH_SIZE || 100), 100),
     ridesFlushMs: Number(env.RIDES_FLUSH_MS || 2000),
     configPollMs: Number(env.CONFIG_POLL_MS || 60_000),
     groupsSyncMs: Number(env.GROUPS_SYNC_MS || 600_000),

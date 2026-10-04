@@ -6,7 +6,7 @@ import { contentHash } from './text.js'
 export type SaveResult = 'stored' | 'duplicate' | 'ignored'
 
 export type MessageStatus =
-  | 'pending' | 'duplicate' | 'not_ride' | 'ride' | 'raw' | 'ai_pending' | 'blocked' | 'skipped_group' | 'failed'
+  | 'pending' | 'duplicate' | 'not_ride' | 'ride' | 'raw' | 'ai_pending' | 'blocked' | 'skipped_group' | 'expired'
 
 export interface StoredMessage {
   id: number
@@ -43,6 +43,7 @@ export class MessageStore {
   private readonly getStmt: Database.Statement
   private readonly statusStmt: Database.Statement
   private readonly byStatusStmt: Database.Statement
+  private readonly expireStmt: Database.Statement
   private readonly saveTx: (item: MessageItem, accountId: string, receivedAt: number) => SaveResult
 
   constructor(db: Db, private readonly opts: StoreOptions) {
@@ -69,6 +70,7 @@ export class MessageStore {
     this.getStmt = db.prepare('SELECT id, zalo_group_id, sender_uid, content, sent_at, parse_status FROM messages WHERE id = ?')
     this.statusStmt = db.prepare('UPDATE messages SET parse_status = ? WHERE id = ?')
     this.byStatusStmt = db.prepare('SELECT id FROM messages WHERE parse_status = ? AND sent_at >= ? ORDER BY id')
+    this.expireStmt = db.prepare("UPDATE messages SET parse_status = 'expired' WHERE parse_status IN ('pending', 'ai_pending') AND sent_at < ?")
 
     this.saveTx = db.transaction((item: MessageItem, accountId: string, receivedAt: number): SaveResult => {
       if (this.exists.get(item.group_id, item.msg_id)) return 'ignored'
@@ -118,6 +120,11 @@ export class MessageStore {
 
   idsByStatus(status: MessageStatus, sinceSentAt: number): number[] {
     return (this.byStatusStmt.all(status, sinceSentAt) as { id: number }[]).map((r) => r.id)
+  }
+
+  // Tin dở dang (pending/ai_pending) gửi trước mốc before → 'expired' (quá cũ để còn là cuốc). Trả số tin.
+  expireUnprocessed(before: number): number {
+    return this.expireStmt.run(before).changes
   }
 
   prune(now: number = Date.now()): number {

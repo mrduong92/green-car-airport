@@ -2,7 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import { resolvePickupAt } from '../parser/time.js'
-import type { RideDraft } from '../parser/rules.js'
+import { sanitizeDraft, type RideDraft } from '../parser/rules.js'
 import { AiCallError, type AiItem, type AiOutcome, type Extractor } from './queue.js'
 
 const RideSchema = z.object({
@@ -42,7 +42,8 @@ function toDraft(r: z.infer<typeof RideSchema>, item: AiItem): RideDraft {
     const date = r.pickup_date ? /^(\d{1,2})\/(\d{1,2})$/.exec(r.pickup_date) : null
     pickupAt = resolvePickupAt(item.sentAt, Number(time[1]), Number(time[2]), date ? Number(date[1]) : null, date ? Number(date[2]) : null)
   }
-  return {
+  // AI có thể trả giá trị ngoài khoảng Laravel nhận (ghế 0, giá âm, ghi chú dài...) → cắt/bỏ trường đó, giữ cuốc.
+  return sanitizeDraft({
     direction: r.direction,
     pickup: r.pickup,
     destination: r.destination,
@@ -53,7 +54,7 @@ function toDraft(r: z.infer<typeof RideSchema>, item: AiItem): RideDraft {
     price: r.price_vnd,
     isFree: r.is_free,
     rawText: item.content,
-  }
+  })
 }
 
 export class AnthropicExtractor implements Extractor {

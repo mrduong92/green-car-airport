@@ -31,3 +31,10 @@ test('returns status 0 instead of throwing on network error', async () => {
   assert.equal(res.status, 0)
   assert.match(res.error ?? '', /ECONNREFUSED/)
 })
+
+test('returns the parsed JSON body (rejected indexes from Laravel)', async () => {
+  const fetchImpl = (async () => ({ status: 200, json: async () => ({ stored: 1, rejected: [2] }) }) as unknown as Response) as unknown as typeof fetch
+  const send = createSender({ baseUrl: 'https://x', secret: 's', fetchImpl })
+
+  assert.deepEqual(await send('/p', {}), { status: 200, body: { stored: 1, rejected: [2] } })
+})

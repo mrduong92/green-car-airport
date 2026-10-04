@@ -7,7 +7,7 @@ import { SenderStore } from '../src/senders.js'
 import { QrQueue } from '../src/qr.js'
 import { AiQueue } from '../src/ai/queue.js'
 import { AiUsage } from '../src/ai/usage.js'
-import { Processor } from '../src/processor.js'
+import { Processor, onAiFailed } from '../src/processor.js'
 import type { RemoteConfig } from '../src/remote-config.js'
 import { silentLogger } from '../src/logger.js'
 
@@ -25,16 +25,16 @@ function harness(opts: { ai?: boolean; config?: Partial<RemoteConfig> } = {}) {
     usage: new AiUsage(db), budgetUsd: () => 5, onOutcome: () => {}, onOverBudget: () => {}, onFailed: () => {}, logger: silentLogger,
   })
   const config: RemoteConfig = { disabledGroupIds: new Set(), blockedSenderUids: new Set(), aiDailyBudgetUsd: 5, ...opts.config }
-  const processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger })
+  const processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger, rideExpireWithoutTimeMs: 3 * HOUR })
   let n = 0
-  const save = (content: string, overrides: Record<string, string> = {}) => {
+  const save = (content: string, overrides: Record<string, string | number> = {}) => {
     const item = { group_id: 'g1', group_name: '', msg_id: `m${++n}`, sender_uid: '111', sender_name: '', content, sent_at: SENT, ...overrides }
     messages.save(item, 'acc1')
     return messages.findId(item.group_id, item.msg_id)!
   }
   // Người bắn có mã QR (fetchedAt = 0 → vẫn đến hạn làm mới, ensure() vẫn xếp hàng) — cuốc mới vào hộp thư đi.
   const giveQr = (uid = '111') => senders.saveQr(uid, 'code1', 'ok', 0)
-  return { messages, rides, qr, ai, processor, save, giveQr }
+  return { db, messages, rides, senders, qr, ai, processor, save, giveQr }
 }
 
 test('rule-parsed message becomes rides and the sender is queued for QR', () => {
@@ -106,4 +106,42 @@ test('recover re-queues ai_pending and unprocessed pending messages', () => {
   h.processor.recover(SENT + 60_000)
   assert.equal(h.ai!.size, 1)
   assert.equal(h.messages.get(unprocessed)!.parse_status, 'ride')
+})
+
+test('recover expires pending/ai_pending messages older than the no-time ride lifetime, without AI or getQR', () => {
+  const h = harness()
+  const oldPending = h.save('tiễn 4h15 phố cổ 200k', { msg_id: 'old1' })
+  const oldAi = h.save('T1 - trần khát chân 180k', { msg_id: 'old2' })
+  h.messages.setStatus(oldAi, 'ai_pending')
+  const fresh = h.save('tiễn 5h Tương Mai 250k', { msg_id: 'new1', sent_at: SENT + 3 * HOUR })
+  h.processor.recover(SENT + 3 * HOUR + 60_000) // tin lúc SENT đã quá 3 giờ
+  assert.equal(h.messages.get(oldPending)!.parse_status, 'expired')
+  assert.equal(h.messages.get(oldAi)!.parse_status, 'expired')
+  assert.equal(h.messages.get(fresh)!.parse_status, 'ride')
+  assert.equal(h.ai!.size, 0)
+  assert.equal(h.qr.size, 1) // chỉ người bắn của tin còn mới
+})
+
+test('a message whose AI batch failed 3 times ends as a raw ride, not discarded', async () => {
+  const db = openDb(':memory:')
+  const messages = new MessageStore(db, { duplicateWindowMs: 24 * HOUR, maxContentLength: 4000, retentionMs: 7 * 24 * HOUR })
+  const rides = new RideStore(db, { expireAfterPickupMs: 30 * 60_000, expireWithoutTimeMs: 3 * HOUR, now: () => SENT })
+  const senders = new SenderStore(db)
+  const qr = new QrQueue({ senders, getQr: async () => ({}), decode: async () => null, refreshMs: 7 * 24 * HOUR, logger: silentLogger, now: () => SENT })
+  const config: RemoteConfig = { disabledGroupIds: new Set(), blockedSenderUids: new Set(), aiDailyBudgetUsd: 5 }
+  let processor: Processor | undefined
+  const ai = new AiQueue({
+    extractor: { extract: async () => { throw new Error('mất mạng') } },
+    usage: new AiUsage(db), budgetUsd: () => 5, onOutcome: () => {}, onOverBudget: () => {},
+    onFailed: onAiFailed(() => processor, silentLogger), retryPauseMs: 0, logger: silentLogger,
+  })
+  processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger, rideExpireWithoutTimeMs: 3 * HOUR })
+  messages.save({ group_id: 'g1', group_name: '', msg_id: 'm1', sender_uid: '111', sender_name: '', content: 'T1 - trần khát chân 180k freeeeeeee', sent_at: SENT }, 'acc1')
+  const id = messages.findId('g1', 'm1')!
+  processor.handleStored(id)
+  assert.equal(messages.get(id)!.parse_status, 'ai_pending')
+  for (let i = 0; i < 3; i++) await ai.flush()
+  assert.equal(messages.get(id)!.parse_status, 'raw')
+  senders.saveQr('111', 'code1', 'ok', 0)
+  assert.equal(rides.unsynced(10)[0]?.is_raw, true)
 })

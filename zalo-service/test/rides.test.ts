@@ -111,3 +111,39 @@ test('rides of a sender without a QR code are held back', () => {
   assert.equal(payload?.qr_code, 'abc')
   assert.equal(rides.backlog(), 1)
 })
+
+test('an expired unsynced ride is neither sent nor counted in the backlog', () => {
+  const { rides, source, setNow } = setup()
+  rides.upsertDrafts(source, [draft({ pickupAt: T0 + HOUR })]) // hết hạn lúc T0 + 1h30
+  assert.equal(rides.backlog(), 1)
+  setNow(T0 + 2 * HOUR)
+  assert.deepEqual(rides.unsynced(10), [])
+  assert.equal(rides.backlog(), 0)
+})
+
+test('a temporary getQR error keeps the old code and rides are still sent; no code is held back', () => {
+  const { rides, senders, source } = setup()
+  rides.upsertDrafts(source, [draft()])
+  senders.saveQr('111', null, 'error', T0) // lỗi tạm thời: giữ mã cũ 'code1'
+  assert.equal(rides.unsynced(10)[0]?.qr_code, 'code1')
+  assert.equal(rides.backlog(), 1)
+
+  senders.saveQr('111', null, 'empty', T0) // người bắn tắt mã QR → không còn mã
+  assert.deepEqual(rides.unsynced(10), [])
+  assert.equal(rides.backlog(), 0)
+})
+
+test('heldBack counts unexpired unsynced rides whose sender has no QR code', () => {
+  const { messages, senders, rides, source, setNow } = setup()
+  rides.upsertDrafts(source, [draft()]) // người '111' có mã → không tính
+  messages.save({ group_id: 'g1', group_name: '', msg_id: 'm2', sender_uid: '222', sender_name: 'Lan', content: 'tiễn 6h phố cổ', sent_at: T0 }, 'acc1')
+  const source2 = { messageId: messages.findId('g1', 'm2')!, senderUid: '222', groupId: 'g1', sentAt: T0 }
+  rides.upsertDrafts(source2, [draft({ pickup: 'A', pickupAt: T0 + HOUR }), draft({ pickup: 'B', pickupAt: T0 + 3 * HOUR })])
+  assert.equal(rides.heldBack(), 2)
+  senders.saveQr('222', null, 'empty', T0)
+  assert.equal(rides.heldBack(), 2)
+  setNow(T0 + 2 * HOUR) // cuốc 'A' hết hạn
+  assert.equal(rides.heldBack(), 1)
+  senders.saveQr('222', 'abc', 'ok', T0)
+  assert.equal(rides.heldBack(), 0)
+})

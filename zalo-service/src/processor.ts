@@ -7,8 +7,6 @@ import type { RideSource, RideStore } from './rides.js'
 import type { MessageStore, StoredMessage } from './store.js'
 import { contentHash } from './text.js'
 
-const DAY = 24 * 3_600_000
-
 // Điều phối xử lý MỘT tin đã lưu (sơ đồ 6.2): nhóm tắt / người bắn bị chặn → quy tắc → AI hoặc nguyên văn.
 // Chỉ lấy mã QR (qr.ensure) cho người bắn có tin thành cuốc — ít lời gọi getQR hơn, giảm rủi ro Zalo khoá tài khoản.
 export class Processor {
@@ -20,6 +18,8 @@ export class Processor {
       qr: QrQueue
       config: () => RemoteConfig
       logger: Logger
+      // Tuổi thọ cuốc không ghi giờ (cfg.rideExpireWithoutTimeMs): tin dở dang cũ hơn thế lúc khởi động bị bỏ.
+      rideExpireWithoutTimeMs: number
     },
   ) {}
 
@@ -70,13 +70,13 @@ export class Processor {
     this.deps.qr.ensure(msg.sender_uid)
   }
 
-  markFailed(messageId: number): void {
-    this.deps.messages.setStatus(messageId, 'failed')
-  }
-
   // Khởi động lại: tin đang chờ AI bị mất khỏi hàng đợi trong RAM; tin pending có thể chưa kịp xử lý.
+  // Lần chạy đầu / ngừng lâu có thể tồn hàng nghìn tin: tin cũ hơn rideExpireWithoutTimeMs → 'expired' ngay,
+  // không gọi AI, không getQR (đỡ tốn ngân sách AI và đỡ dồn lời gọi Zalo cho cuốc đã quá giờ).
   recover(now: number): void {
-    const since = now - DAY
+    const since = now - this.deps.rideExpireWithoutTimeMs
+    const expired = this.deps.messages.expireUnprocessed(since)
+    if (expired > 0) this.deps.logger.info(`Bỏ ${expired} tin dở dang quá cũ (trạng thái expired)`)
     for (const id of this.deps.messages.idsByStatus('ai_pending', since)) {
       const msg = this.deps.messages.get(id)
       if (msg && this.deps.ai) this.deps.ai.enqueue({ id, content: msg.content, sentAt: msg.sent_at })
@@ -88,5 +88,13 @@ export class Processor {
 
   private source(msg: StoredMessage): RideSource {
     return { messageId: msg.id, senderUid: msg.sender_uid, groupId: msg.zalo_group_id, sentAt: msg.sent_at }
+  }
+}
+
+// AI lỗi hết số lần thử → vẫn hiển thị nguyên văn (không bỏ cuốc). getProcessor vì Processor tạo sau AiQueue.
+export function onAiFailed(getProcessor: () => Processor | undefined, logger: Logger): (id: number) => void {
+  return (id) => {
+    logger.warn(`AI lỗi quá số lần thử cho tin ${id} — hiển thị nguyên văn`)
+    getProcessor()?.markRaw(id)
   }
 }

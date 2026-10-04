@@ -12,7 +12,7 @@ export interface RideSource {
 }
 
 // Đúng định dạng POST /api/internal/zalo/rides (Laravel ZaloRideIngestService).
-// qr_code không null: unsynced()/backlog() chỉ trả cuốc của người bắn đã có mã QR (quyết định GreenCA —
+// qr_code không null: unsynced()/backlog() chỉ trả cuốc của người bắn đang có mã QR (quyết định GreenCA —
 // người tắt "Mã QR của tôi" bị bỏ qua, xem task-5 overrides).
 export interface RidePayload {
   ride_uid: string
@@ -42,10 +42,12 @@ const DAY = 24 * 3_600_000
 
 /**
  * Hộp thư đi: cuốc sạch chờ gửi Laravel. Cuốc "cần gửi" khi chưa đồng bộ hoặc đổi sau lần đồng bộ cuối
- * (updated_at > synced_at), VÀ người bắn đã có mã QR hợp lệ (qr_status = 'ok' AND qr_code IS NOT NULL) —
- * cuốc của người chưa có/đã tắt mã QR ở lại bảng, chờ markSenderChanged khi mã về, và bị prune() dọn khi
- * hết hạn quá 1 ngày dù chưa từng gửi được. Cùng người bắn + chiều + điểm đón/đến + khung 30 phút = một
- * cuốc (gộp, tăng group_count).
+ * (updated_at > synced_at), CÒN HẠN (expires_at > now — cuốc hết hạn gửi sang cũng vô ích, không làm tồn
+ * hộp thư đi), VÀ người bắn có mã QR (qr_code IS NOT NULL — không đòi qr_status = 'ok': lần getQR lỗi tạm
+ * thời đặt 'error' nhưng giữ mã cũ vẫn dùng được; 'empty' thì mã bị xoá về NULL nên vẫn bị giữ lại).
+ * Cuốc của người chưa có/đã tắt mã QR ở lại bảng (đếm bằng heldBack()), chờ markSenderChanged khi mã về,
+ * và bị prune() dọn khi hết hạn quá 1 ngày dù chưa từng gửi được. Cùng người bắn + chiều + điểm đón/đến +
+ * khung 30 phút = một cuốc (gộp, tăng group_count).
  */
 export class RideStore {
   private readonly now: () => number
@@ -57,6 +59,7 @@ export class RideStore {
   private readonly senderChanged: Database.Statement
   private readonly selectUnsynced: Database.Statement
   private readonly countBacklog: Database.Statement
+  private readonly countHeldBack: Database.Statement
   private readonly deleteOld: Database.Statement
   private readonly upsertTx: (source: RideSource, drafts: RideDraft[]) => { created: number; merged: number }
 
@@ -80,15 +83,20 @@ export class RideStore {
     this.selectUnsynced = db.prepare(`
       SELECT r.*, COALESCE(s.display_name, '') AS sender_name, s.qr_code AS qr_code, COALESCE(g.name, '') AS group_name
       FROM rides r
-      JOIN senders s ON s.uid = r.sender_uid AND s.qr_status = 'ok' AND s.qr_code IS NOT NULL
+      JOIN senders s ON s.uid = r.sender_uid AND s.qr_code IS NOT NULL
       LEFT JOIN chat_groups g ON g.zalo_group_id = r.zalo_group_id
-      WHERE r.synced_at IS NULL OR r.updated_at > r.synced_at
+      WHERE (r.synced_at IS NULL OR r.updated_at > r.synced_at) AND r.expires_at > ?
       ORDER BY r.updated_at
       LIMIT ?`)
     this.countBacklog = db.prepare(`
       SELECT COUNT(*) AS c FROM rides r
-      JOIN senders s ON s.uid = r.sender_uid AND s.qr_status = 'ok' AND s.qr_code IS NOT NULL
-      WHERE r.synced_at IS NULL OR r.updated_at > r.synced_at`)
+      JOIN senders s ON s.uid = r.sender_uid AND s.qr_code IS NOT NULL
+      WHERE (r.synced_at IS NULL OR r.updated_at > r.synced_at) AND r.expires_at > ?`)
+    // Cuốc còn hạn, chưa gửi, bị giữ lại vì người bắn chưa/không có mã QR (kể cả chưa có hàng senders).
+    this.countHeldBack = db.prepare(`
+      SELECT COUNT(*) AS c FROM rides r
+      LEFT JOIN senders s ON s.uid = r.sender_uid
+      WHERE s.qr_code IS NULL AND (r.synced_at IS NULL OR r.updated_at > r.synced_at) AND r.expires_at > ?`)
     this.deleteOld = db.prepare('DELETE FROM rides WHERE expires_at < ?')
 
     this.upsertTx = db.transaction((source: RideSource, drafts: RideDraft[]) => {
@@ -133,7 +141,7 @@ export class RideStore {
   }
 
   unsynced(limit: number): RidePayload[] {
-    return (this.selectUnsynced.all(limit) as Record<string, unknown>[]).map((r) => ({
+    return (this.selectUnsynced.all(this.now(), limit) as Record<string, unknown>[]).map((r) => ({
       ride_uid: r.ride_uid as string,
       sender_uid: r.sender_uid as string,
       sender_name: r.sender_name as string,
@@ -165,7 +173,11 @@ export class RideStore {
   }
 
   backlog(): number {
-    return (this.countBacklog.get() as { c: number }).c
+    return (this.countBacklog.get(this.now()) as { c: number }).c
+  }
+
+  heldBack(): number {
+    return (this.countHeldBack.get(this.now()) as { c: number }).c
   }
 
   prune(now: number = this.now()): number {

@@ -129,3 +129,7 @@ test('phone-like digit runs are ambiguous, not read as price or left in the pick
     assert.equal(parseRides(content, SENT).kind, 'unsure', content)
   }
 })
+
+test('an absurd price from the rules becomes null instead of being rejected by Laravel', () => {
+  assert.equal(rides('tiễn 5h phố cổ 999999k')[0].price, null)
+})

@@ -22,3 +22,8 @@ test('phase 2 defaults', () => {
 test('AI is enabled when an Anthropic key is present', () => {
   assert.equal(loadConfig({ API_BASE_URL: 'https://a', BOT_SECRET: 's', ANTHROPIC_API_KEY: 'sk-x' }).aiEnabled, true)
 })
+
+test('rides batch size is capped at 100 (Laravel rejects larger batches with 422)', () => {
+  assert.equal(loadConfig({ API_BASE_URL: 'https://a', BOT_SECRET: 's', RIDES_BATCH_SIZE: '500' }).ridesBatchSize, 100)
+  assert.equal(loadConfig({ API_BASE_URL: 'https://a', BOT_SECRET: 's', RIDES_BATCH_SIZE: '50' }).ridesBatchSize, 50)
+})

@@ -15,6 +15,23 @@ export interface RideDraft {
   rawText: string
 }
 
+// Giới hạn khớp validate của Laravel (ZaloRideIngestService): giá trị vượt giới hạn làm Laravel loại cả cuốc
+// (cuốc mất âm thầm). Chữ quá dài thì cắt; số ngoài khoảng hợp lý thì bỏ (null) — vẫn giữ được cuốc.
+export const MAX_SHORT_TEXT = 32
+export const MAX_SEATS = 60
+export const MAX_PRICE = 100_000_000
+
+export function sanitizeDraft(draft: RideDraft): RideDraft {
+  const inRange = (v: number | null, min: number, max: number) => (v !== null && Number.isInteger(v) && v >= min && v <= max ? v : null)
+  return {
+    ...draft,
+    pickupTimeText: draft.pickupTimeText?.slice(0, MAX_SHORT_TEXT) ?? null,
+    vehicleNote: draft.vehicleNote?.slice(0, MAX_SHORT_TEXT) ?? null,
+    seats: inRange(draft.seats, 1, MAX_SEATS),
+    price: inRange(draft.price, 0, MAX_PRICE),
+  }
+}
+
 export type ParseOutcome = { kind: 'rides'; rides: RideDraft[] } | { kind: 'not_ride' } | { kind: 'unsure' }
 
 export const AIRPORT = 'Sân bay Nội Bài'
@@ -166,13 +183,13 @@ function parseSegment(seg: string, header: string, defaultDirection: Direction |
 
   if (!pickup || !destination) return null
 
-  return {
+  return sanitizeDraft({
     direction, pickup, destination,
     pickupAt: resolvePickupAt(sentAt, time.hour, time.minute, date?.day, date?.month),
     pickupTimeText: time.text,
     seats, vehicleNote, price, isFree,
     rawText: seg.trim(),
-  }
+  })
 }
 
 export function parseRides(content: string, sentAt: number): ParseOutcome {

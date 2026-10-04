@@ -1,8 +1,9 @@
 import { sign } from './sign.js'
 
-export type Sender = (path: string, payload: unknown) => Promise<{ status: number; error?: string }>
+export type Sender = (path: string, payload: unknown) => Promise<{ status: number; body?: unknown; error?: string }>
 
-// Trả { status } thay vì ném lỗi; status = 0 nghĩa là lỗi mạng / timeout.
+// Trả { status, body? } thay vì ném lỗi; status = 0 nghĩa là lỗi mạng / timeout. body = JSON phản hồi
+// (vd. { stored, rejected } của /rides) — không đọc được JSON thì bỏ trống, không coi là lỗi gửi.
 export function createSender(opts: {
   baseUrl: string
   secret: string
@@ -28,7 +29,13 @@ export function createSender(opts: {
         body,
         signal: AbortSignal.timeout(timeoutMs),
       })
-      return { status: res.status }
+      let parsed: unknown
+      try {
+        parsed = await res.json()
+      } catch {
+        parsed = undefined
+      }
+      return parsed === undefined ? { status: res.status } : { status: res.status, body: parsed }
     } catch (err) {
       return { status: 0, error: err instanceof Error ? err.message : String(err) }
     }
