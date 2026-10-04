@@ -67,16 +67,27 @@ export class QrQueue {
     this.queued.delete(uid)
     const now = (this.deps.now ?? Date.now)()
 
+    let savedOk = false
     try {
       const url = (await this.deps.getQr(uid))[uid]
       const code = url ? extractQrCode(await this.deps.decode(url)) : null
       const status = code ? 'ok' : 'empty'
       this.deps.senders.saveQr(uid, code, status, now)
       this.deps.logger.info(code ? `Đã lấy mã deeplink của ${uid}: ${code}` : `Người gửi ${uid} không chia sẻ mã QR`)
-      if (status === 'ok') this.deps.onUpdated?.(uid)
+      savedOk = status === 'ok'
     } catch (err) {
       this.deps.logger.error(`Lấy mã QR ${uid} lỗi:`, err instanceof Error ? err.message : err)
       this.deps.senders.saveQr(uid, null, 'error', now)
+    }
+
+    // onUpdated() đứng NGOÀI try/catch ở trên: nếu callback ném lỗi thì không được phép làm hỏng
+    // trạng thái 'ok' vừa lưu (callback lỗi không có nghĩa là lấy mã lỗi).
+    if (savedOk) {
+      try {
+        this.deps.onUpdated?.(uid)
+      } catch (err) {
+        this.deps.logger.error(`onUpdated(${uid}) lỗi (không ảnh hưởng mã QR đã lưu):`, err instanceof Error ? err.message : err)
+      }
     }
   }
 
