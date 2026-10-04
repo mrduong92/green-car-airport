@@ -72,12 +72,29 @@ class ZaloServiceStatusTest extends TestCase
         $this->artisan('zalo:service-status')->expectsOutputToContain('Không có tin mới')->assertExitCode(1);
     }
 
+    // App chạy timezone UTC; khung 5h–23h phải tính theo giờ Việt Nam.
     public function test_silence_outside_active_hours_is_not_an_alert(): void
     {
-        $this->travelTo(Carbon::parse('2026-10-05 02:00:00'));
+        $this->travelTo(Carbon::parse('2026-10-05 02:00:00', 'Asia/Ho_Chi_Minh')); // = 19:00 UTC
         $this->heartbeat(['last_message_at' => null]);
 
         $this->artisan('zalo:service-status')->assertExitCode(0);
+    }
+
+    public function test_silence_in_vietnam_morning_alerts_even_though_utc_is_night(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-05 10:00:00', 'Asia/Ho_Chi_Minh')); // = 03:00 UTC
+        $this->heartbeat(['last_message_at' => null]);
+
+        $this->artisan('zalo:service-status')->expectsOutputToContain('Không có tin mới')->assertExitCode(1);
+    }
+
+    public function test_service_silent_for_over_7_days_is_dropped_from_registry(): void
+    {
+        $this->heartbeat();
+        $this->travel(8)->days();
+
+        $this->artisan('zalo:service-status')->expectsOutputToContain('Chưa có service')->assertExitCode(2);
     }
 
     public function test_invalid_heartbeat_is_422(): void

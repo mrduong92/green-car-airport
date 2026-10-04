@@ -16,8 +16,9 @@ class ZaloServiceMonitor
 
     public function recordHeartbeat(array $data): void
     {
+        // Lưu thời điểm thấy lần cuối để dọn service đã ngừng (xem status()).
         $services = Cache::get(self::SERVICES_KEY, []);
-        $services[$data['service_id']] = true;
+        $services[$data['service_id']] = now()->timestamp;
         Cache::forever(self::SERVICES_KEY, $services);
 
         Cache::put(
@@ -31,7 +32,7 @@ class ZaloServiceMonitor
     public function status(): array
     {
         $now = now();
-        $services = array_keys(Cache::get(self::SERVICES_KEY, []));
+        $services = $this->activeServices($now->timestamp);
         if ($services === []) {
             return ['status' => 2, 'lines' => ['Chưa có service Zalo nào từng gửi heartbeat']];
         }
@@ -67,7 +68,8 @@ class ZaloServiceMonitor
         }
 
         [$from, $to] = config('zalo.active_hours');
-        if ($now->hour >= $from && $now->hour < $to) {
+        $localHour = $now->copy()->setTimezone(config('zalo.timezone'))->hour;
+        if ($localHour >= $from && $localHour < $to) {
             $minutes = (int) config('zalo.silence_alert_minutes');
             if ($lastMessageMs === null || $lastMessageMs < $now->copy()->subMinutes($minutes)->getTimestampMs()) {
                 $status = 1;
@@ -76,5 +78,19 @@ class ZaloServiceMonitor
         }
 
         return ['status' => $status, 'lines' => $lines];
+    }
+
+    /** @return list<string> service còn theo dõi; bỏ service im quá zalo.forget_after_days ngày */
+    private function activeServices(int $nowTs): array
+    {
+        $services = Cache::get(self::SERVICES_KEY, []);
+        $cutoff = $nowTs - (int) config('zalo.forget_after_days') * 86400;
+        $kept = array_filter($services, fn ($lastSeen) => (int) $lastSeen >= $cutoff);
+
+        if (count($kept) !== count($services)) {
+            Cache::forever(self::SERVICES_KEY, $kept);
+        }
+
+        return array_map('strval', array_keys($kept));
     }
 }
