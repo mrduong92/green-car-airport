@@ -81,3 +81,10 @@ test('prune deletes only messages older than retention', () => {
   assert.equal(store.prune(T0), 1)
   assert.equal(count('SELECT COUNT(*) AS c FROM messages'), 1)
 })
+
+test('daily repost of the same ride is new each day, not chained off earlier duplicates', () => {
+  const { store } = setup()
+  assert.equal(store.save(item({ content: 'tiễn 5h Tràng An 200k', sent_at: T0 }), 'acc1'), 'stored')
+  assert.equal(store.save(item({ content: 'tiễn 5h Tràng An 200k', sent_at: T0 + 20 * HOUR }), 'acc1'), 'duplicate')
+  assert.equal(store.save(item({ content: 'tiễn 5h Tràng An 200k', sent_at: T0 + 40 * HOUR }), 'acc1'), 'stored')
+})

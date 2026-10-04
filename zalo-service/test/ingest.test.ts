@@ -21,9 +21,10 @@ function msg(msgId: string, content: unknown = 'tiễn 4h15 phố cổ'): Incomi
   return { type: 1, isSelf: false, threadId: 'g1', data: { msgId, uidFrom: '111', dName: 'Đức', ts: '1730000000000', content } }
 }
 
-test('stores a group text with the group name looked up', async () => {
+test('stores a group text, then fills the group name looked up in the background', async () => {
   const { db, ingest, counters } = setup()
   assert.equal(await ingest('acc1', msg('1')), 'stored')
+  await new Promise((r) => setImmediate(r))
   assert.deepEqual(db.prepare('SELECT name FROM chat_groups').get(), { name: 'Taxi Nội Bài' })
   assert.deepEqual(
     { received: counters.received, stored: counters.stored, lastMessageAt: counters.lastMessageAt },
@@ -52,4 +53,19 @@ test('non-text messages are skipped and counted', async () => {
   assert.equal(await ingest('acc1', msg('1', { href: 'a.jpg' })), 'non_text')
   assert.equal(counters.skippedNonText, 1)
   assert.equal(counters.lastMessageAt, null)
+})
+
+test('saves immediately even when the group name lookup never returns', async () => {
+  const db = openDb(':memory:')
+  const store = new MessageStore(db, { duplicateWindowMs: 24 * HOUR, maxContentLength: 4000, retentionMs: 7 * 24 * HOUR })
+  const groups = new GroupNames({ fetchName: () => new Promise<string>(() => {}) }) // Zalo treo
+  const ingest = createIngestor({ store, groups, counters: newCounters() })
+
+  const outcome = await Promise.race([
+    ingest('acc1', msg('1')),
+    new Promise((r) => setTimeout(() => r('timeout'), 200)),
+  ])
+
+  assert.equal(outcome, 'stored')
+  assert.equal((db.prepare('SELECT COUNT(*) AS c FROM messages').get() as { c: number }).c, 1)
 })

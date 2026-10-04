@@ -15,7 +15,8 @@ export function newCounters(): ServiceCounters {
   return { received: 0, stored: 0, duplicates: 0, ignored: 0, skippedNonText: 0, lastMessageAt: null }
 }
 
-// Xử lý MỘT tin ngay khi listener nhận (sơ đồ 6.2): chuẩn hoá → tên nhóm → lưu ngay → bộ đếm.
+// Xử lý MỘT tin ngay khi listener nhận (sơ đồ 6.2): chuẩn hoá → LƯU NGAY (tên nhóm đã biết hoặc rỗng)
+// → bộ đếm; tên nhóm tra trên Zalo ở nền rồi cập nhật sau — không để tin chờ một lời gọi mạng.
 export function createIngestor(deps: {
   store: MessageStore
   groups: GroupNames
@@ -33,8 +34,13 @@ export function createIngestor(deps: {
       return result.skip
     }
 
-    const item = { ...result.item, group_name: await deps.groups.get(result.item.group_id) }
+    const groupId = result.item.group_id
+    const item = { ...result.item, group_name: deps.groups.peek(groupId) ?? '' }
     const saved = deps.store.save(item, accountId, now())
+
+    void deps.groups.get(groupId).then((name) => {
+      if (name !== '' && name !== item.group_name) deps.store.setGroupName(groupId, name)
+    })
 
     if (saved === 'ignored') {
       deps.counters.ignored++

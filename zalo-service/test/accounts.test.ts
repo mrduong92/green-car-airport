@@ -91,3 +91,29 @@ test('stopAll stops every listener', async () => {
   manager.stopAll()
   assert.ok(created.every((a) => a.listener.stopped))
 })
+
+test('repeated login failures back off exponentially up to a cap, and reset after success', async () => {
+  const delays: number[] = []
+  const pending: (() => void)[] = []
+  let fail = true
+  const api = fakeApi()
+  const manager = new AccountManager({
+    accounts: [{ id: 'acc1', credentials: 'c1' }],
+    login: async () => { if (fail) throw new Error('bị khoá'); return api },
+    onMessage: () => {},
+    logger: silentLogger,
+    retryMs: 10,
+    maxRetryMs: 50,
+    schedule: (fn, ms) => { delays.push(ms); pending.push(fn) },
+  })
+  const tick = () => new Promise((r) => setImmediate(r))
+
+  await manager.startAll()
+  for (let i = 0; i < 4; i++) { pending.shift()!(); await tick() }
+  assert.deepEqual(delays, [10, 20, 40, 50, 50])
+
+  fail = false
+  pending.shift()!(); await tick()
+  api.listener.emit('closed', 3000, 'kicked')
+  assert.equal(delays.at(-1), 10)
+})

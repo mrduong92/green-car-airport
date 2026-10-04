@@ -32,6 +32,7 @@ export interface AccountState {
 export class AccountManager {
   private readonly states = new Map<string, AccountState>()
   private readonly apis = new Map<string, ApiLike>()
+  private readonly failures = new Map<string, number>()
 
   constructor(
     private readonly deps: {
@@ -40,6 +41,7 @@ export class AccountManager {
       onMessage: (accountId: string, message: unknown) => void
       logger: Logger
       retryMs?: number
+      maxRetryMs?: number
       schedule?: (fn: () => void, ms: number) => void
     },
   ) {}
@@ -79,6 +81,7 @@ export class AccountManager {
     }
 
     state.loggedIn = true
+    this.failures.set(account.id, 0)
     this.apis.set(account.id, api)
     log.info(`Tài khoản ${account.id}: đăng nhập OK, uid ${api.getOwnId()}`)
 
@@ -101,8 +104,15 @@ export class AccountManager {
     api.listener.start({ retryOnClose: true })
   }
 
+  // Lùi dần 60s → 2 → 4 phút ... tối đa 15 phút: nick bị khoá mà cứ 60s đăng nhập lại (1.440 lần/ngày
+  // từ cùng IP) có thể kéo các nick còn tốt bị Zalo chú ý. Đăng nhập được thì đếm lại từ đầu.
   private retry(account: Account): void {
+    const failures = (this.failures.get(account.id) ?? 0) + 1
+    this.failures.set(account.id, failures)
+    const base = this.deps.retryMs ?? 60_000
+    const delay = Math.min(base * 2 ** (failures - 1), this.deps.maxRetryMs ?? 15 * 60_000)
+
     const schedule = this.deps.schedule ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms) })
-    schedule(() => { void this.start(account) }, this.deps.retryMs ?? 60_000)
+    schedule(() => { void this.start(account) }, delay)
   }
 }

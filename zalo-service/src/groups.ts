@@ -15,6 +15,11 @@ export class GroupNames {
     this.now = opts.now ?? (() => Date.now())
   }
 
+  // Tên đã biết (kể cả đã quá hạn), không gọi Zalo — dùng để lưu tin ngay không phải chờ.
+  peek(groupId: string): string | undefined {
+    return this.cache.get(groupId)?.name
+  }
+
   get(groupId: string): Promise<string> {
     const hit = this.cache.get(groupId)
     if (hit && this.now() - hit.at < this.ttlMs) return Promise.resolve(hit.name)

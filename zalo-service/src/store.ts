@@ -26,11 +26,14 @@ export class MessageStore {
   private readonly upsertGroup: Database.Statement
   private readonly upsertSender: Database.Statement
   private readonly deleteOld: Database.Statement
+  private readonly renameGroup: Database.Statement
   private readonly saveTx: (item: MessageItem, accountId: string, receivedAt: number) => SaveResult
 
   constructor(db: Db, private readonly opts: StoreOptions) {
     this.exists = db.prepare('SELECT 1 FROM messages WHERE zalo_group_id = ? AND zalo_msg_id = ?')
-    this.seenHash = db.prepare('SELECT 1 FROM messages WHERE content_hash = ? AND sent_at >= ? LIMIT 1')
+    // Chỉ so với tin GỐC (không phải duplicate): đăng lại cùng cuốc mỗi sáng thì mỗi ngày là tin mới,
+    // không bị chuỗi duplicate nối dài cửa sổ 24h mãi mãi.
+    this.seenHash = db.prepare("SELECT 1 FROM messages WHERE content_hash = ? AND sent_at >= ? AND parse_status <> 'duplicate' LIMIT 1")
     this.insert = db.prepare(`
       INSERT INTO messages (zalo_group_id, zalo_msg_id, sender_uid, account_id, content, content_hash, sent_at, received_at, parse_status)
       VALUES (@groupId, @msgId, @senderUid, @accountId, @content, @hash, @sentAt, @receivedAt, @status)`)
@@ -45,6 +48,7 @@ export class MessageStore {
         display_name = CASE WHEN excluded.display_name <> '' THEN excluded.display_name ELSE senders.display_name END,
         last_seen_at = MAX(COALESCE(senders.last_seen_at, 0), excluded.last_seen_at)`)
     this.deleteOld = db.prepare('DELETE FROM messages WHERE sent_at < ?')
+    this.renameGroup = db.prepare("UPDATE chat_groups SET name = ? WHERE zalo_group_id = ? AND ? <> ''")
 
     this.saveTx = db.transaction((item: MessageItem, accountId: string, receivedAt: number): SaveResult => {
       if (this.exists.get(item.group_id, item.msg_id)) return 'ignored'
@@ -72,6 +76,12 @@ export class MessageStore {
 
   save(item: MessageItem, accountId: string, receivedAt: number = Date.now()): SaveResult {
     return this.saveTx(item, accountId, receivedAt)
+  }
+
+  // Tên nhóm tra được sau khi tin đã lưu (ingest không chờ Zalo). Tên rỗng không ghi đè.
+  setGroupName(groupId: string, name: string): void {
+    const trimmed = name.slice(0, MAX_NAME)
+    this.renameGroup.run(trimmed, groupId, trimmed)
   }
 
   prune(now: number = Date.now()): number {
