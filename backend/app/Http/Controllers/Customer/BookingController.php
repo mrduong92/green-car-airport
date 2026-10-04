@@ -103,6 +103,11 @@ class BookingController extends Controller
                 ->where('is_active', true)
                 ->where('expires_at', '>=', today())
                 ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('usage_count', '<', 'usage_limit'))
+                // Cùng quy tắc với VoucherController::apply(): voucher cá nhân chỉ chủ sở hữu dùng được
+                ->where(function ($q) use ($request) {
+                    $q->where('target', 'all')
+                        ->orWhere(fn ($q2) => $q2->where('target', 'specific')->where('user_id', $request->user()->id));
+                })
                 ->first();
 
             if ($voucher) {
