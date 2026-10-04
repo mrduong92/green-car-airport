@@ -26,4 +26,6 @@ return [
     'max_rides_batch' => 100,
     'ai_daily_budget_usd' => (float) env('ZALO_AI_DAILY_BUDGET_USD', 5),
     'rides_backlog_alert' => 1000,
+    // Cảnh báo khi số cuốc còn hạn bị giữ lại (người bắn chưa có mã QR) vượt ngưỡng này.
+    'held_back_alert' => 200,
 ];

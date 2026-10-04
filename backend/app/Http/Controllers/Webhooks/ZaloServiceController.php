@@ -32,6 +32,11 @@ class ZaloServiceController extends Controller
             'ai_queue_size' => ['sometimes', 'integer', 'min:0'],
             'ai_spent_today_usd' => ['sometimes', 'numeric', 'min:0'],
             'ai_budget_usd' => ['sometimes', 'numeric', 'min:0'],
+            'qr_queue_size' => ['sometimes', 'integer', 'min:0'],
+            'held_back_rides' => ['sometimes', 'integer', 'min:0'],
+            'qr_ok_24h' => ['sometimes', 'integer', 'min:0'],
+            'qr_empty_24h' => ['sometimes', 'integer', 'min:0'],
+            'qr_error_24h' => ['sometimes', 'integer', 'min:0'],
         ]);
 
         $monitor->recordHeartbeat($data);

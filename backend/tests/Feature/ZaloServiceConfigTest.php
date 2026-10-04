@@ -93,4 +93,51 @@ class ZaloServiceConfigTest extends TestCase
 
         $this->artisan('zalo:service-status')->expectsOutputToContain('hộp thư đi tồn 1500 cuốc')->assertExitCode(1);
     }
+
+    private function phase2Heartbeat(array $extra): void
+    {
+        $this->zaloPost('/api/internal/zalo/heartbeat', array_merge([
+            'service_id' => 'zalo-1', 'uptime_s' => 60, 'accounts' => [['id' => 'acc1', 'connected' => true]],
+            'received_total' => 1, 'stored_total' => 1, 'duplicates_total' => 0, 'skipped_non_text' => 0,
+            'last_message_at' => now()->getTimestampMs(),
+            'outbox_backlog' => 0, 'ai_queue_size' => 0, 'ai_spent_today_usd' => 0, 'ai_budget_usd' => 5,
+        ], $extra))->assertOk();
+    }
+
+    public function test_status_alerts_when_most_senders_have_no_qr_code(): void
+    {
+        $this->phase2Heartbeat(['qr_queue_size' => 2, 'held_back_rides' => 10, 'qr_ok_24h' => 3, 'qr_empty_24h' => 17, 'qr_error_24h' => 1]);
+
+        $this->artisan('zalo:service-status')
+            ->expectsOutputToContain('Tỷ lệ người bắn không lấy được mã QR bất thường — kiểm tra giải mã QR')
+            ->assertExitCode(1);
+    }
+
+    public function test_qr_empty_ratio_is_not_an_alert_with_few_samples_or_a_normal_ratio(): void
+    {
+        $this->phase2Heartbeat(['qr_ok_24h' => 1, 'qr_empty_24h' => 18]); // dưới 20 mẫu
+        $this->artisan('zalo:service-status')->assertExitCode(0);
+
+        $this->phase2Heartbeat(['qr_ok_24h' => 5, 'qr_empty_24h' => 20]); // đúng 0.8 → chưa vượt
+        $this->artisan('zalo:service-status')->assertExitCode(0);
+    }
+
+    public function test_status_alerts_when_many_rides_are_held_back(): void
+    {
+        $this->phase2Heartbeat(['held_back_rides' => 201]);
+
+        $this->artisan('zalo:service-status')->expectsOutputToContain('201 cuốc bị giữ lại')->assertExitCode(1);
+
+        $this->phase2Heartbeat(['held_back_rides' => 200]);
+        $this->artisan('zalo:service-status')->assertExitCode(0);
+    }
+
+    public function test_heartbeat_rejects_negative_qr_fields(): void
+    {
+        $this->zaloPost('/api/internal/zalo/heartbeat', [
+            'service_id' => 'zalo-1', 'uptime_s' => 60, 'accounts' => [],
+            'received_total' => 1, 'stored_total' => 1, 'duplicates_total' => 0, 'skipped_non_text' => 0,
+            'last_message_at' => null, 'held_back_rides' => -1,
+        ])->assertStatus(422);
+    }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\FreeRide;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Tests\Concerns\SignsZaloBotRequests;
 use Tests\TestCase;
 
@@ -93,5 +94,34 @@ class ZaloRideIngestTest extends TestCase
         ])->assertOk()->assertJson(['stored' => 1, 'rejected' => [1, 2]]);
 
         $this->assertSame(1, FreeRide::count());
+    }
+
+    public function test_oversized_price_and_group_count_are_rejected_individually_and_logged(): void
+    {
+        Log::spy();
+
+        $this->send([
+            $this->ride(),
+            $this->ride(['ride_uid' => 'r-big-price', 'price' => 4294967296]),
+            $this->ride(['ride_uid' => 'r-big-count', 'group_count' => 65536]),
+            $this->ride(['ride_uid' => 'r-4']),
+        ])->assertOk()->assertExactJson(['stored' => 2, 'rejected' => [1, 2]]);
+
+        $this->assertEqualsCanonicalizing(['r-1', 'r-4'], FreeRide::pluck('ride_uid')->all());
+        Log::shouldHaveReceived('warning')->once()->withArgs(function (string $message, array $context) {
+            return str_contains($message, 'loại 2 cuốc')
+                && array_keys($context['rejected']) === [1, 2]
+                && isset($context['rejected'][1]['price']);
+        });
+    }
+
+    public function test_long_vehicle_note_and_time_text_are_truncated_and_stored(): void
+    {
+        $this->send([$this->ride(['vehicle_note' => str_repeat('v', 50), 'pickup_time_text' => str_repeat('t', 40)])])
+            ->assertOk()->assertExactJson(['stored' => 1, 'rejected' => []]);
+
+        $ride = FreeRide::first();
+        $this->assertSame(str_repeat('v', 32), $ride->vehicle_note);
+        $this->assertSame(str_repeat('t', 32), $ride->pickup_time_text);
     }
 }

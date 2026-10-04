@@ -69,6 +69,21 @@ class ZaloServiceMonitor
                 $lines[] = "{$id}: hộp thư đi tồn {$backlog} cuốc (Laravel không nhận được cuốc?)";
             }
 
+            // Giải mã QR hỏng thì mọi người bắn thành 'empty' và cuốc bị giữ lại mãi mà không có lỗi nào.
+            // Cần ≥ 20 mẫu trong 24 giờ để tỷ lệ có nghĩa.
+            $qrOk = (int) ($hb['qr_ok_24h'] ?? 0);
+            $qrEmpty = (int) ($hb['qr_empty_24h'] ?? 0);
+            if ($qrOk + $qrEmpty >= 20 && $qrEmpty / ($qrOk + $qrEmpty) > 0.8) {
+                $status = 1;
+                $lines[] = "{$id}: Tỷ lệ người bắn không lấy được mã QR bất thường — kiểm tra giải mã QR ({$qrEmpty}/".($qrOk + $qrEmpty).' trong 24 giờ)';
+            }
+
+            $heldBack = (int) ($hb['held_back_rides'] ?? 0);
+            if ($heldBack > (int) config('zalo.held_back_alert', 200)) {
+                $status = 1;
+                $lines[] = "{$id}: {$heldBack} cuốc bị giữ lại vì người bắn chưa có mã QR (hàng lấy mã QR kẹt?)";
+            }
+
             if ($hb['last_message_at'] !== null) {
                 $lastMessageMs = max($lastMessageMs ?? 0, (int) $hb['last_message_at']);
             }

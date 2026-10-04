@@ -4,11 +4,13 @@ namespace App\Services\Zalo;
 
 use App\Models\FreeRide;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 /**
  * Lưu lô cuốc sạch từ microservice Zalo. Upsert theo ride_uid: service gửi lại (retry, cuốc đổi
- * group_count / qr_code) thì cập nhật, không nhân đôi. Cuốc hỏng bị loại riêng, không hỏng cả lô.
+ * group_count / qr_code) thì cập nhật, không nhân đôi. Cuốc hỏng bị loại riêng, không hỏng cả lô
+ * (ghi Log::warning kèm lỗi validate). Chữ quá dài thì cắt, không loại.
  *
  * Người đăng không có mã QR đã bị service lọc bỏ trước khi gửi sang — mọi cuốc tới đây đều phải
  * có qr_code hợp lệ, nên trường này là required (không nullable).
@@ -27,6 +29,7 @@ class ZaloRideIngestService
         $now = now();
         $rows = [];
         $rejected = [];
+        $errors = [];
 
         foreach ($items as $i => $item) {
             $v = Validator::make(is_array($item) ? $item : [], [
@@ -40,19 +43,22 @@ class ZaloRideIngestService
                 'pickup' => ['nullable', 'string'],
                 'destination' => ['nullable', 'string'],
                 'pickup_at' => ['nullable', 'integer', 'min:0'],
-                'pickup_time_text' => ['nullable', 'string', 'max:32'],
+                'pickup_time_text' => ['nullable', 'string'],
                 'seats' => ['nullable', 'integer', 'min:1', 'max:60'],
-                'vehicle_note' => ['nullable', 'string', 'max:32'],
-                'price' => ['nullable', 'integer', 'min:0'],
+                'vehicle_note' => ['nullable', 'string'],
+                // Giới hạn theo cột: price unsignedInteger, group_count unsignedSmallInteger — vượt thì MySQL
+                // báo lỗi cả câu upsert (mất cả lô), nên loại riêng cuốc đó ở đây.
+                'price' => ['nullable', 'integer', 'min:0', 'max:4294967295'],
                 'is_free' => ['required', 'boolean'],
                 'is_raw' => ['required', 'boolean'],
                 'raw_text' => ['required', 'string'],
-                'group_count' => ['required', 'integer', 'min:1'],
+                'group_count' => ['required', 'integer', 'min:1', 'max:65535'],
                 'posted_at' => ['required', 'integer', 'min:0'],
                 'expires_at' => ['required', 'integer', 'min:0'],
             ]);
             if ($v->fails()) {
                 $rejected[] = $i;
+                $errors[$i] = $v->errors()->toArray();
 
                 continue;
             }
@@ -69,9 +75,9 @@ class ZaloRideIngestService
                 'pickup' => isset($d['pickup']) ? mb_substr($d['pickup'], 0, 255) : null,
                 'destination' => isset($d['destination']) ? mb_substr($d['destination'], 0, 255) : null,
                 'pickup_at' => isset($d['pickup_at']) ? Carbon::createFromTimestampMs($d['pickup_at']) : null,
-                'pickup_time_text' => $d['pickup_time_text'] ?? null,
+                'pickup_time_text' => isset($d['pickup_time_text']) ? mb_substr($d['pickup_time_text'], 0, 32) : null,
                 'seats' => $d['seats'] ?? null,
-                'vehicle_note' => $d['vehicle_note'] ?? null,
+                'vehicle_note' => isset($d['vehicle_note']) ? mb_substr($d['vehicle_note'], 0, 32) : null,
                 'price' => $d['price'] ?? null,
                 'is_free' => (bool) $d['is_free'],
                 'is_raw' => (bool) $d['is_raw'],
@@ -82,6 +88,11 @@ class ZaloRideIngestService
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
+        }
+
+        // Service đánh dấu cuốc bị loại là đã gửi (gửi lại cũng bị loại) → phải để lại dấu vết ở đây.
+        if ($errors !== []) {
+            Log::warning('Zalo: loại '.count($errors).' cuốc không hợp lệ từ service', ['rejected' => $errors]);
         }
 
         if ($rows !== []) {
