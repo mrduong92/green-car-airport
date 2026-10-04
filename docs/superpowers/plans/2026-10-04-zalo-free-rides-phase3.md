@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-04-zalo-free-rides-design.md` — mục 4.4, sơ đồ 6.1, 6.3. **Phụ thuộc:** giai đoạn 2 (bảng `free_rides`, `zalo_sender_blocks`, `zalo_qr_refresh_requests`, endpoint `rides`).
 
+> **Điều chỉnh 05/10 (review giai đoạn 2):** `visibleTo` lọc thêm nhóm bị tắt (`zalo_groups.enabled = false`) — cần `use App\Models\ZaloGroup;` và một test "cuốc của nhóm đã tắt không hiện" trong Task 1.
+>
 > **Điều chỉnh 04/10 (quyết định GreenCA):** người bắn tắt "Mã QR của tôi" → bỏ qua cuốc. Giai đoạn 2 chỉ gửi sang Laravel cuốc có `qr_code` hợp lệ (cột NOT NULL), nên mọi cuốc trên tab Free đều có `contact_url`. Bỏ trạng thái/nút "Chưa liên hệ được" và các test cuốc `qr_code = null` (giữ kiểm tra mã chữ/số như lớp phòng thủ: mã bẩn → không trả cuốc đó).
 
 ## Global Constraints
@@ -465,6 +467,8 @@ class FreeRideController extends Controller
         $query = FreeRide::query()
             ->where('expires_at', '>', now())
             ->whereNotIn('sender_uid', ZaloSenderBlock::select('sender_uid'))
+            // Nhóm admin đã tắt: ẩn cả cuốc đã đồng bộ trước khi tắt / lúc service chưa lấy được cấu hình.
+            ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
             ->whereNotIn('sender_uid', DriverHiddenSender::where('driver_id', $driverId)->select('sender_uid'))
             ->when($data['direction'] ?? null, fn (Builder $q, string $d) => $q->where('direction', $d))
             ->when($data['seats'] ?? null, fn (Builder $q, $s) => $q->where('seats', (int) $s));
