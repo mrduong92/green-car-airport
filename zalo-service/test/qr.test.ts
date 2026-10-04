@@ -1,0 +1,68 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { openDb } from '../src/db.js'
+import { SenderStore } from '../src/senders.js'
+import { QrQueue, extractQrCode } from '../src/qr.js'
+import { silentLogger } from '../src/logger.js'
+
+const DAY = 24 * 3_600_000
+
+function harness(opts: { qrUrl?: string; decoded?: string | null; fail?: boolean } = {}) {
+  const db = openDb(':memory:')
+  db.prepare("INSERT INTO senders (uid, display_name) VALUES ('111', 'Đức')").run()
+  const senders = new SenderStore(db)
+  let t = 10 * DAY
+  const calls: string[] = []
+  const queue = new QrQueue({
+    senders,
+    getQr: async (uid) => { calls.push(uid); if (opts.fail) throw new Error('mạng'); return opts.qrUrl ? { [uid]: opts.qrUrl } : {} },
+    decode: async () => opts.decoded ?? null,
+    refreshMs: 7 * DAY, errorRetryMs: 3_600_000, logger: silentLogger, now: () => t,
+  })
+  return { senders, queue, calls, advance: (ms: number) => { t += ms } }
+}
+
+test('extractQrCode reads the code from a Zalo QR link', () => {
+  assert.equal(extractQrCode('http://zaloapp.com/qr/p/758z6tl22yft'), '758z6tl22yft')
+  assert.equal(extractQrCode('https://example.com'), null)
+  assert.equal(extractQrCode(null), null)
+})
+
+test('fetches, decodes and stores the code once', async () => {
+  const h = harness({ qrUrl: 'https://qr-talk.zdn.vn/x.jpg', decoded: 'http://zaloapp.com/qr/p/758z6tl22yft' })
+  h.queue.ensure('111')
+  h.queue.ensure('111')
+  assert.equal(h.queue.size, 1)
+  await h.queue.step()
+  assert.equal(h.senders.qr('111').code, '758z6tl22yft')
+  h.queue.ensure('111')
+  assert.equal(h.queue.size, 0) // còn mới → không xếp lại
+})
+
+test('empty QR is not retried within the refresh period', async () => {
+  const h = harness({ qrUrl: undefined })
+  h.queue.ensure('111')
+  await h.queue.step()
+  assert.equal(h.senders.qr('111').status, 'empty')
+  h.queue.ensure('111')
+  assert.equal(h.queue.size, 0)
+})
+
+test('errors keep the old code and retry after an hour', async () => {
+  const h = harness({ fail: true })
+  h.senders.saveQr('111', 'oldcode', 'ok', 0)
+  h.queue.ensure('111') // mã cũ đã quá 7 ngày → xếp lại
+  await h.queue.step()
+  assert.deepEqual(h.senders.qr('111'), { code: 'oldcode', fetchedAt: 10 * DAY, status: 'error' })
+  h.queue.ensure('111')
+  assert.equal(h.queue.size, 0)
+  h.advance(3_600_001)
+  h.queue.ensure('111')
+  assert.equal(h.queue.size, 1)
+})
+
+test('step on an empty queue does nothing', async () => {
+  const h = harness()
+  await h.queue.step()
+  assert.deepEqual(h.calls, [])
+})

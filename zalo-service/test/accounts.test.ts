@@ -12,7 +12,7 @@ class FakeListener extends EventEmitter {
 }
 
 function fakeApi(): ApiLike & { listener: FakeListener } {
-  return { listener: new FakeListener(), getOwnId: () => 'own', getGroupInfo: async () => ({}) }
+  return { listener: new FakeListener(), getOwnId: () => 'own', getGroupInfo: async () => ({}), getQR: async () => ({}) }
 }
 
 function harness(loginImpl: (credentials: unknown) => Promise<ApiLike>) {

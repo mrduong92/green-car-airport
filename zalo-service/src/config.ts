@@ -12,6 +12,9 @@ export interface Config {
   retentionDays: number
   duplicateWindowHours: number
   maxContentLength: number
+  allowedGroupIds: Set<string>
+  qrIntervalMs: number
+  qrRefreshDays: number
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
@@ -34,5 +37,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     retentionDays: Number(env.RETENTION_DAYS || 7),
     duplicateWindowHours: Number(env.DUPLICATE_WINDOW_HOURS || 24),
     maxContentLength: Number(env.MAX_CONTENT_LENGTH || 4000),
+    // Rỗng = nhận mọi nhóm. Lấy ID nhóm bằng: npm run groups -- <tài-khoản>
+    allowedGroupIds: new Set((env.ALLOWED_GROUP_IDS ?? '').split(',').map((id) => id.trim()).filter(Boolean)),
+    qrIntervalMs: Number(env.QR_INTERVAL_MS || 2000),
+    qrRefreshDays: Number(env.QR_REFRESH_DAYS || 7),
   }
 }

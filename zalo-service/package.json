@@ -12,7 +12,9 @@
     "start": "node dist/src/index.js",
     "login": "tsx scripts/login.ts",
     "stats": "node dist/src/cli/stats.js",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "node --import tsx --test test/*.test.ts",
+    "latest": "node dist/src/cli/latest.js",
+    "groups": "tsx scripts/list-groups.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
@@ -22,6 +24,8 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",
+    "jimp": "^1.6.1",
+    "jsqr": "^1.4.0",
     "zca-js": "2.2.0"
   }
 }

@@ -54,3 +54,21 @@ sudo -u zalobot env DATA_DIR=/opt/greenca-zalo-service/data npm run stats -- --h
 Log lặp lại `Tài khoản accX: đăng nhập lỗi` mỗi 60 giây, Telegram báo "tài khoản mất kết nối: accX";
 các tài khoản khác vẫn chạy. Chạy lại `npm run login -- accX` trên máy cá nhân (hoặc thay bằng tài
 khoản phụ mới), copy file lên VPS, `sudo systemctl restart greenca-zalo-service`.
+
+## Bộ khung thông luồng: 1 nhóm → SQLite + mã deeplink người gửi
+
+1. Đăng nhập nick phụ: `npm run login -- acc1`
+2. Lấy ID nhóm: `npm run groups -- acc1` (in `ID<TAB>tên nhóm`)
+3. Chạy chỉ với nhóm đó:
+   ```bash
+   ALLOWED_GROUP_IDS=<id-nhóm> API_BASE_URL=http://localhost:8080 BOT_SECRET=dev-secret npm run dev
+   ```
+4. Xem tin đã lưu kèm deeplink: `npm run build && npm run latest -- --limit=20`
+
+Mỗi người gửi mới được lấy mã QR trang cá nhân (`getQR`, cách nhau 2 giây), giải mã và lưu **đoạn mã** vào
+`senders.qr_code`. Deeplink mở trang Zalo người gửi: `zalo://qr/p/<qr_code>`. Người gửi tắt chia sẻ QR →
+`qr_status = 'empty'` (không có deeplink).
+
+```bash
+sqlite3 data/zalo.sqlite "select m.content, s.display_name, 'zalo://qr/p/' || s.qr_code from messages m join senders s on s.uid = m.sender_uid order by m.id desc limit 10"
+```

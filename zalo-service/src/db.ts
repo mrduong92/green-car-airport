@@ -3,7 +3,8 @@ import Database from 'better-sqlite3'
 export type Db = Database.Database
 
 // Bảng nhóm đặt tên chat_groups vì GROUPS là từ khoá của SQLite (window function).
-const SCHEMA = `
+// Migration theo PRAGMA user_version. v1 dùng IF NOT EXISTS để DB giai đoạn 1 (user_version = 0) chạy lại an toàn.
+const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS chat_groups (
   zalo_group_id   TEXT PRIMARY KEY,
   name            TEXT NOT NULL DEFAULT '',
@@ -31,10 +32,26 @@ CREATE INDEX IF NOT EXISTS messages_hash_sent ON messages (content_hash, sent_at
 CREATE INDEX IF NOT EXISTS messages_sent ON messages (sent_at);
 `
 
+// v2: mã deeplink (zalo://qr/p/<mã>) của người gửi.
+const SCHEMA_V2 = `
+ALTER TABLE senders ADD COLUMN qr_code TEXT;
+ALTER TABLE senders ADD COLUMN qr_fetched_at INTEGER;
+ALTER TABLE senders ADD COLUMN qr_status TEXT;
+`
+
+const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2]
+
 export function openDb(path: string): Db {
   const db = new Database(path)
   db.pragma('journal_mode = WAL')
   db.pragma('busy_timeout = 5000')
-  db.exec(SCHEMA)
+
+  const current = db.pragma('user_version', { simple: true }) as number
+  for (let version = current; version < MIGRATIONS.length; version++) {
+    db.transaction(() => {
+      db.exec(MIGRATIONS[version])
+      db.pragma(`user_version = ${version + 1}`)
+    })()
+  }
   return db
 }

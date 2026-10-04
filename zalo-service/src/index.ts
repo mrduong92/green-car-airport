@@ -12,6 +12,8 @@ import { AccountManager, type ApiLike } from './accounts.js'
 import { buildHeartbeat } from './heartbeat.js'
 import { createSender } from './http.js'
 import { logger } from './logger.js'
+import { SenderStore } from './senders.js'
+import { QrQueue, decodeQrFromUrl } from './qr.js'
 import type { IncomingMessage } from './normalize.js'
 
 const HOUR = 3_600_000
@@ -47,7 +49,21 @@ const groups = new GroupNames({
     return (await api.getGroupInfo(groupId)).gridInfoMap?.[groupId]?.name ?? ''
   },
 })
-const ingest = createIngestor({ store, groups, counters })
+// Mã deeplink người gửi: lấy qua tài khoản đang đăng nhập, mỗi người một lần, cách nhau qrIntervalMs.
+const qr = new QrQueue({
+  senders: new SenderStore(db),
+  getQr: async (uid) => {
+    const api = manager?.anyApi()
+    if (!api) throw new Error('Chưa có tài khoản nào đăng nhập')
+    return api.getQR(uid)
+  },
+  decode: decodeQrFromUrl,
+  refreshMs: cfg.qrRefreshDays * 24 * HOUR,
+  logger,
+})
+
+const ingest = createIngestor({ store, groups, counters, allowedGroupIds: cfg.allowedGroupIds, onSender: (uid) => qr.ensure(uid) })
+if (cfg.allowedGroupIds.size > 0) logger.info(`Chỉ nhận tin từ ${cfg.allowedGroupIds.size} nhóm: ${[...cfg.allowedGroupIds].join(', ')}`)
 
 manager = new AccountManager({
   accounts,
@@ -62,6 +78,10 @@ manager = new AccountManager({
   retryMs: cfg.accountRetryMs,
 })
 await manager.startAll()
+
+setInterval(() => {
+  qr.step().catch((err) => logger.error('Lỗi lấy mã QR:', err))
+}, cfg.qrIntervalMs)
 
 const send = createSender({ baseUrl: cfg.apiBaseUrl, secret: cfg.botSecret })
 const startedAt = Date.now()

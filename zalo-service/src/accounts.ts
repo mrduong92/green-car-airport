@@ -10,6 +10,8 @@ export interface ApiLike {
   listener: ListenerLike
   getOwnId(): string
   getGroupInfo(groupId: string): Promise<{ gridInfoMap?: Record<string, { name?: string }> }>
+  // zca-js 2.2.0: uid → URL ảnh QR trang cá nhân (đã kiểm chứng trả cả với người chưa kết bạn).
+  getQR(userId: string | string[]): Promise<Record<string, string>>
 }
 
 export interface Account {
