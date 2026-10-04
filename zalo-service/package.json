@@ -23,9 +23,11 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "better-sqlite3": "^12.11.1",
     "jimp": "^1.6.1",
     "jsqr": "^1.4.0",
-    "zca-js": "2.2.0"
+    "zca-js": "2.2.0",
+    "zod": "^4.6.5"
   }
 }
