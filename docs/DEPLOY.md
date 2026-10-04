@@ -552,6 +552,27 @@ staging — production sẽ phụ thuộc staging, và thành code chết ngay k
 nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
 staging) + 3 unit test cho 3 nhánh exit code.
 
+## Microservice Zalo — Cuốc Free (giai đoạn 1: thu tin thô)
+
+Service Node chạy trên **VPS riêng** (không chạy trên server production), hướng dẫn cài ở
+`zalo-service/README.md`. Tin thô nằm trong SQLite của service — production không nhận tin thô.
+Phía Laravel production chỉ cần:
+
+```bash
+# backend/.env
+ZALO_SERVICE_ENABLED=true
+ZALO_BOT_SECRET=<chuỗi ngẫu nhiên, trùng BOT_SECRET của service>   # tạo bằng: openssl rand -hex 32
+
+php artisan config:cache
+chown -R www-data:www-data storage bootstrap/cache
+```
+
+- Giám sát: `deploy/monitoring/greenca-healthcheck.sh` có kiểm tra #5 (`zalo:service-status`) —
+  copy bản mới lên `/usr/local/bin/greenca-healthcheck.sh`. Chỉ chạy khi `ZALO_SERVICE_ENABLED=true`.
+- Tắt khẩn cấp phía Laravel: `ZALO_SERVICE_ENABLED=false` + `php artisan config:cache` → endpoint trả 503
+  (service vẫn nghe và lưu tin bình thường, chỉ heartbeat bị từ chối).
+- Số liệu chốt chi phí AI: chạy `npm run stats -- --hours=72` **trên VPS service** (xem README).
+
 ## Lịch sử production
 
 - 2026-09-23: **Sự cố push tài xế 6 tuần.** Tài xế báo không nhận noti cuốc mới; nghi
