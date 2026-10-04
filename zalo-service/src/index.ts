@@ -1,5 +1,6 @@
-// Microservice Zalo (Cuốc Free) — giai đoạn 1: nghe tin từ N tài khoản phụ, LƯU NGAY vào SQLite,
-// gửi heartbeat cho Laravel. CHỈ ĐỌC: không gọi bất kỳ API ghi nào của Zalo.
+// Microservice Zalo (Cuốc Free): nghe tin từ N tài khoản phụ, LƯU NGAY vào SQLite, tách cuốc (quy tắc → AI
+// → nguyên văn), gửi cuốc + nhóm + heartbeat cho Laravel. CHỈ ĐỌC: không gọi bất kỳ API ghi nào của Zalo.
+import Anthropic from '@anthropic-ai/sdk'
 import { Zalo, type Credentials } from 'zca-js'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
@@ -10,10 +11,17 @@ import { GroupNames } from './groups.js'
 import { createIngestor, newCounters } from './ingest.js'
 import { AccountManager, type ApiLike } from './accounts.js'
 import { buildHeartbeat } from './heartbeat.js'
-import { createSender } from './http.js'
+import { createGetter, createSender } from './http.js'
 import { logger } from './logger.js'
 import { SenderStore } from './senders.js'
 import { QrQueue, decodeQrFromUrl } from './qr.js'
+import { RideStore } from './rides.js'
+import { AiUsage } from './ai/usage.js'
+import { AiQueue } from './ai/queue.js'
+import { AnthropicExtractor } from './ai/extractor.js'
+import { ConfigPoller } from './remote-config.js'
+import { Processor } from './processor.js'
+import { GroupsSync, RideSync } from './sync.js'
 import type { IncomingMessage } from './normalize.js'
 
 const HOUR = 3_600_000
@@ -49,7 +57,16 @@ const groups = new GroupNames({
     return (await api.getGroupInfo(groupId)).gridInfoMap?.[groupId]?.name ?? ''
   },
 })
-// Mã deeplink người gửi: lấy qua tài khoản đang đăng nhập, mỗi người một lần, cách nhau qrIntervalMs.
+const send = createSender({ baseUrl: cfg.apiBaseUrl, secret: cfg.botSecret })
+const get = createGetter({ baseUrl: cfg.apiBaseUrl, secret: cfg.botSecret })
+const rides = new RideStore(db, { expireAfterPickupMs: cfg.rideExpireAfterPickupMs, expireWithoutTimeMs: cfg.rideExpireWithoutTimeMs })
+const usage = new AiUsage(db)
+
+// processor được gán ngay bên dưới; các callback chỉ chạy khi đã có tin.
+let processor: Processor | undefined
+// Mã deeplink người gửi: lấy qua tài khoản đang đăng nhập, cách nhau qrIntervalMs. Chỉ người có tin thành
+// cuốc (Processor gọi qr.ensure) — ít lời gọi getQR hơn, giảm rủi ro Zalo khoá tài khoản. Có mã mới →
+// đánh dấu cuốc của người đó để gửi (lại) sang Laravel.
 const qr = new QrQueue({
   senders: new SenderStore(db),
   getQr: async (uid) => {
@@ -58,11 +75,28 @@ const qr = new QrQueue({
     return api.getQR(uid)
   },
   decode: decodeQrFromUrl,
+  onUpdated: (uid) => rides.markSenderChanged(uid),
   refreshMs: cfg.qrRefreshDays * 24 * HOUR,
   logger,
 })
 
-const ingest = createIngestor({ store, groups, counters, allowedGroupIds: cfg.allowedGroupIds, onSender: (uid) => qr.ensure(uid) })
+const remote = new ConfigPoller({ get, onQrRefresh: (uids) => uids.forEach((uid) => qr.force(uid)), fallbackBudgetUsd: cfg.aiDailyBudgetUsd, logger })
+const ai = cfg.aiEnabled
+  ? new AiQueue({
+      extractor: new AnthropicExtractor(new Anthropic(), cfg.aiModel),
+      usage,
+      budgetUsd: () => remote.current().aiDailyBudgetUsd,
+      onOutcome: (outcome) => processor?.applyAi(outcome),
+      onOverBudget: (id) => processor?.markRaw(id),
+      onFailed: (id) => processor?.markFailed(id),
+      batchSize: cfg.aiBatchSize,
+      logger,
+    })
+  : null
+if (!ai) logger.info('Chưa có ANTHROPIC_API_KEY — tin khó sẽ hiển thị nguyên văn')
+processor = new Processor({ messages: store, rides, ai, qr, config: () => remote.current(), logger })
+
+const ingest = createIngestor({ store, groups, counters, allowedGroupIds: cfg.allowedGroupIds, processor })
 if (cfg.allowedGroupIds.size > 0) logger.info(`Chỉ nhận tin từ ${cfg.allowedGroupIds.size} nhóm: ${[...cfg.allowedGroupIds].join(', ')}`)
 
 manager = new AccountManager({
@@ -77,17 +111,29 @@ manager = new AccountManager({
   logger,
   retryMs: cfg.accountRetryMs,
 })
+
+await remote.poll()
+processor.recover(Date.now())
 await manager.startAll()
 
-setInterval(() => {
-  qr.step().catch((err) => logger.error('Lỗi lấy mã QR:', err))
-}, cfg.qrIntervalMs)
+const rideSync = new RideSync({ rides, send, batchSize: cfg.ridesBatchSize, logger })
+const groupsSync = new GroupsSync({ db, send, logger })
+const every = (ms: number, fn: () => Promise<void> | void) =>
+  setInterval(() => { Promise.resolve().then(fn).catch((err) => logger.error('Lỗi tác vụ định kỳ:', err)) }, ms)
 
-const send = createSender({ baseUrl: cfg.apiBaseUrl, secret: cfg.botSecret })
+every(cfg.ridesFlushMs, () => rideSync.flush())
+every(cfg.aiFlushMs, () => ai?.flush())
+every(cfg.qrIntervalMs, () => qr.step())
+every(cfg.configPollMs, () => remote.poll())
+every(cfg.groupsSyncMs, () => groupsSync.flush())
+
 const startedAt = Date.now()
 
 setInterval(async () => {
-  const payload = buildHeartbeat({ serviceId: cfg.serviceId, startedAt, now: Date.now(), counters, accounts: manager!.snapshot() })
+  const payload = buildHeartbeat({
+    serviceId: cfg.serviceId, startedAt, now: Date.now(), counters, accounts: manager!.snapshot(),
+    extra: { outbox_backlog: rides.backlog(), ai_queue_size: ai?.size ?? 0, ai_spent_today_usd: usage.spentToday(), ai_budget_usd: remote.current().aiDailyBudgetUsd },
+  })
   const { status } = await send('/api/internal/zalo/heartbeat', payload)
   if (status !== 200) logger.error('Heartbeat lỗi HTTP', status || 'mạng')
 }, cfg.heartbeatMs)
@@ -95,6 +141,7 @@ setInterval(async () => {
 setInterval(() => {
   const deleted = store.prune()
   if (deleted > 0) logger.info(`Đã xoá ${deleted} tin thô quá ${cfg.retentionDays} ngày`)
+  rides.prune()
 }, HOUR)
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {

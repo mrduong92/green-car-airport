@@ -1,6 +1,7 @@
 import type { GroupNames } from './groups.js'
 import { toItem, type IncomingMessage } from './normalize.js'
 import type { MessageStore, SaveResult } from './store.js'
+import type { Processor } from './processor.js'
 
 export interface ServiceCounters {
   received: number
@@ -26,6 +27,8 @@ export function createIngestor(deps: {
   allowedGroupIds?: Set<string>
   // Người gửi của tin đã lưu → lấy mã deeplink (QrQueue.ensure).
   onSender?: (senderUid: string) => void
+  // Giai đoạn 2: tin 'stored' → handleStored (tách cuốc); 'duplicate' → handleDuplicate (tăng số nhóm của cuốc gốc).
+  processor?: Processor
   now?: () => number
 }): (accountId: string, message: IncomingMessage) => Promise<SaveResult | 'not_group' | 'non_text' | 'other_group'> {
   const now = deps.now ?? (() => Date.now())
@@ -47,6 +50,15 @@ export function createIngestor(deps: {
 
     const item = { ...result.item, group_name: deps.groups.peek(groupId) ?? '' }
     const saved = deps.store.save(item, accountId, now())
+
+    if (deps.processor) {
+      if (saved === 'stored') {
+        const id = deps.store.findId(groupId, item.msg_id)
+        if (id !== undefined) deps.processor.handleStored(id)
+      } else if (saved === 'duplicate') {
+        deps.processor.handleDuplicate(item.sender_uid, item.content)
+      }
+    }
 
     void deps.groups.get(groupId).then((name) => {
       if (name !== '' && name !== item.group_name) deps.store.setGroupName(groupId, name)

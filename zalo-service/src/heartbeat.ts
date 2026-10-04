@@ -7,6 +7,8 @@ export function buildHeartbeat(input: {
   now: number
   counters: ServiceCounters
   accounts: { id: string; connected: boolean }[]
+  // Giai đoạn 2: hộp thư đi, hàng chờ AI, chi phí AI hôm nay.
+  extra?: { outbox_backlog: number; ai_queue_size: number; ai_spent_today_usd: number; ai_budget_usd: number }
 }) {
   return {
     service_id: input.serviceId,
@@ -17,5 +19,6 @@ export function buildHeartbeat(input: {
     duplicates_total: input.counters.duplicates,
     skipped_non_text: input.counters.skippedNonText,
     last_message_at: input.counters.lastMessageAt,
+    ...(input.extra ?? {}),
   }
 }
