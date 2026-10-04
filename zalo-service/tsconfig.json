@@ -7,7 +7,16 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "dist",
-    "rootDir": "."
+    "rootDir": ".",
+    "paths": {
+      "zca-js": [
+        "./node_modules/zca-js/dist/index.d.ts"
+      ]
+    }
   },
-  "include": ["src", "scripts", "test"]
+  "include": [
+    "src",
+    "scripts",
+    "test"
+  ]
 }
