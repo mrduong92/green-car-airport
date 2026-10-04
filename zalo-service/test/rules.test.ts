@@ -85,10 +85,28 @@ test('relative-day words ("mai", "mốt"...) are ambiguous, not silently resolve
   }
 })
 
-test('a relative-day word that is really part of a place name is not mistaken for one', () => {
+test('relative-day/time-of-day words are still caught when capitalized (phone keyboards auto-capitalize the first word)', () => {
+  for (const content of [
+    'Mai tiễn 5h Hà Đông 300k',
+    'SÁNG MAI tiễn 5h Hà Đông 300k',
+    'Mai\ntiễn 5h Hà Đông 300k',
+    'tiễn 5h Chiều Hà Đông 300k',
+  ]) {
+    assert.equal(parseRides(content, SENT).kind, 'unsure', content)
+  }
+})
+
+test('a relative-day word that is really part of a known place name is not mistaken for one', () => {
   // "Tương Mai" is a real Hà Nội ward — must stay a ride, not get swept into the "mai" guard.
   assert.deepEqual(rides('tiễn 6h45 40 Tương Mai 230k'), [
     { direction: 'to_airport', pickup: '40 Tương Mai', destination: AIRPORT, at: '2026-10-04 06:45', time: '6h45', seats: null, vehicle: null, price: 230000, free: false },
+  ])
+})
+
+test('a lowercase known place name containing "mai" also stays a ride', () => {
+  // "Mai Dịch" is a real Hà Nội ward — the place-name exception must match case-insensitively too.
+  assert.deepEqual(rides('tiễn 6h45 mai dịch 200k'), [
+    { direction: 'to_airport', pickup: 'mai dịch', destination: AIRPORT, at: '2026-10-04 06:45', time: '6h45', seats: null, vehicle: null, price: 200000, free: false },
   ])
 })
 

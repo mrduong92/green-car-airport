@@ -38,11 +38,17 @@ const VEHICLE = word('limo(?:usine)?|vf\\s?\\d|x7|xl7', 'iu')
 const SEPARATOR = /\s*(?:-->|->|=>|→|>|–|—)\s*|\s+-\s+|\s+(?:về|đi|tới|đến)\s+/iu
 
 // Từ ngày/giờ tương đối ("mai", "mốt", "chiều"...) đổi nghĩa giờ đón, nhưng quy tắc không suy luận ngữ
-// nghĩa — thấy là nhường cho AI (unsure) thay vì đoán sai. Chỉ khớp chữ thường: viết hoa thường là tên
-// riêng ("Tương Mai", "Mai Dịch"), không phải trạng từ chỉ ngày/giờ — nhờ vậy không đụng tên địa điểm.
+// nghĩa — thấy là nhường cho AI (unsure) thay vì đoán sai. Khớp không phân biệt hoa thường: bàn phím
+// điện thoại tự viết hoa chữ đầu câu ("Mai tiễn...", "SÁNG MAI tiễn..."), nên chỉ khớp chữ thường sẽ bỏ
+// sót đúng trường hợp hay gặp nhất. Tên địa danh trùng chữ ("Tương Mai", "Mai Dịch"...) được bảo vệ riêng
+// bằng danh sách loại trừ bên dưới, không phải bằng cách phân biệt hoa thường.
 const RELATIVE_DAY = word('mai|mốt|nay|ngày\\s+kia')
 const TIME_OF_DAY = word('sáng|trưa|chiều|tối|đêm')
-const hasExact = (re: RegExp, text: string) => new RegExp(re.source, 'u').test(text)
+
+// Tên địa danh có thật chứa "mai" — xoá tạm các cụm này (chỉ trên bản sao dùng để kiểm tra, không đụng
+// vào text gốc) trước khi kiểm RELATIVE_DAY/TIME_OF_DAY, để không nhầm tên riêng với trạng từ chỉ ngày.
+const PLACE_NAME_EXCEPTIONS = word('tương\\s+mai|hoàng\\s+mai|mai\\s+dịch|mai\\s+động|mai\\s+lâm')
+const blankExceptions = (text: string): string => text.replace(PLACE_NAME_EXCEPTIONS, ' ')
 
 // Số điện thoại (có hoặc không chấm/gạch nối): bắt đầu bằng 0, đủ 9–11 chữ số sau khi bỏ dấu phân cách.
 // Thay vì cố lọc số điện thoại ra khỏi text (dễ đọc nhầm thành giá hoặc lẫn vào điểm đón/đến), nhường cả
@@ -76,9 +82,11 @@ function isAirport(place: string): boolean {
 }
 
 function parseSegment(seg: string, header: string, defaultDirection: Direction | null, sentAt: number): RideDraft | null {
+  const segChecked = blankExceptions(seg)
+  const headerChecked = blankExceptions(header)
   if (
-    hasExact(RELATIVE_DAY, seg) || hasExact(RELATIVE_DAY, header) ||
-    hasExact(TIME_OF_DAY, seg) || hasExact(TIME_OF_DAY, header) ||
+    has(RELATIVE_DAY, segChecked) || has(RELATIVE_DAY, headerChecked) ||
+    has(TIME_OF_DAY, segChecked) || has(TIME_OF_DAY, headerChecked) ||
     PHONE_LIKE.test(seg) || PHONE_LIKE.test(header)
   ) return null
 
