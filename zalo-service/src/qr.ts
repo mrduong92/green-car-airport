@@ -24,6 +24,8 @@ export async function decodeQrFromUrl(url: string): Promise<string | null> {
  * Hàng đợi lấy mã deeplink người gửi — mỗi step() xử lý MỘT người; index.ts gọi step() mỗi qrIntervalMs
  * (≥ 2 giây) để không dồn lời gọi lên Zalo. Chỉ lưu đoạn mã; ảnh dùng tạm rồi bỏ.
  * Hết hạn: mã 'ok'/'empty' làm mới sau refreshMs (7 ngày); 'error' thử lại sau errorRetryMs (1 giờ).
+ * ensure() chỉ xếp khi đến hạn; force() xếp ngay bất kể hạn (Laravel chủ động yêu cầu lấy lại).
+ * onUpdated() báo khi lưu được mã mới (status 'ok') — không báo khi 'empty'/'error'.
  */
 export class QrQueue {
   private readonly queue: string[] = []
@@ -34,6 +36,7 @@ export class QrQueue {
       senders: SenderStore
       getQr: (uid: string) => Promise<Record<string, string>>
       decode: (imageUrl: string) => Promise<string | null>
+      onUpdated?: (uid: string) => void
       refreshMs: number
       errorRetryMs?: number
       logger: Logger
@@ -50,10 +53,12 @@ export class QrQueue {
     const now = (this.deps.now ?? Date.now)()
     const age = info.fetchedAt === null ? Infinity : now - info.fetchedAt
     const due = info.status === 'error' ? age > (this.deps.errorRetryMs ?? 3_600_000) : age > this.deps.refreshMs
-    if (due && !this.queued.has(uid)) {
-      this.queued.add(uid)
-      this.queue.push(uid)
-    }
+    if (due) this.push(uid)
+  }
+
+  // Laravel yêu cầu lấy lại mã (nút "làm mới" chẳng hạn) → xếp ngay, bỏ qua hạn refreshMs/errorRetryMs.
+  force(uid: string): void {
+    this.push(uid)
   }
 
   async step(): Promise<void> {
@@ -65,11 +70,19 @@ export class QrQueue {
     try {
       const url = (await this.deps.getQr(uid))[uid]
       const code = url ? extractQrCode(await this.deps.decode(url)) : null
-      this.deps.senders.saveQr(uid, code, code ? 'ok' : 'empty', now)
+      const status = code ? 'ok' : 'empty'
+      this.deps.senders.saveQr(uid, code, status, now)
       this.deps.logger.info(code ? `Đã lấy mã deeplink của ${uid}: ${code}` : `Người gửi ${uid} không chia sẻ mã QR`)
+      if (status === 'ok') this.deps.onUpdated?.(uid)
     } catch (err) {
       this.deps.logger.error(`Lấy mã QR ${uid} lỗi:`, err instanceof Error ? err.message : err)
       this.deps.senders.saveQr(uid, null, 'error', now)
     }
+  }
+
+  private push(uid: string): void {
+    if (this.queued.has(uid)) return
+    this.queued.add(uid)
+    this.queue.push(uid)
   }
 }
