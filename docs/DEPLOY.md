@@ -568,7 +568,7 @@ production **cùng một đợt**. Thứ tự BẮT BUỘC — để tài xế k
    chown -R www-data:www-data storage bootstrap/cache
    ```
    Số cuốc còn hạn phải > 0 (nhóm ít tin thì chờ vài phút rồi đếm lại). Bằng 0 → dừng lại, kiểm tra log service
-   (`journalctl -u greenca-zalo-service -n 200`) và log Laravel trước khi đi tiếp.
+   (`tail -n 200 /var/log/greenca-zalo-service.log`) và log Laravel trước khi đi tiếp.
 4. **Chỉ sau bước 3** mới build + rsync `dist-driver/` (bản này thêm tab Free vào thanh điều hướng).
 
 ### Giai đoạn 1 — thu tin thô
@@ -631,7 +631,8 @@ AI_MODEL=claude-haiku-4-5
 AI_DAILY_BUDGET_USD=5                              # trần dự phòng khi chưa hỏi được Laravel
 # Còn lại (AI_BATCH_SIZE, RIDES_FLUSH_MS, QR_INTERVAL_MS, QR_REFRESH_DAYS, …) để mặc định
 
-npm ci && npm run build
+# Cập nhật mã nguồn bằng rsync như mục "Giai đoạn 4" bên dưới (thư mục VPS không phải git checkout), rồi:
+sudo npm ci && sudo npm run build && sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
 sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v3 khi khởi động
 ```
 
@@ -662,14 +663,23 @@ Laravel phải nhận được các trường mới (`member_count`, `accounts`,
    # 2026_10_10_000001_add_scan_fields_to_zalo_groups: thêm member_count, accounts, left_at vào zalo_groups
    ```
 2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn rồi build lại:
+   Thư mục trên VPS **không phải git checkout** (lúc cài là copy mã nguồn) — cập nhật cũng bằng copy.
+   Từ thư mục gốc repo ở máy local (KHÔNG đè `.env`, `data/` chứa phiên đăng nhập + SQLite):
+   ```bash
+   rsync -az --delete --exclude node_modules --exclude dist --exclude data --exclude .env \
+     zalo-service/ <vps>:/opt/greenca-zalo-service/
+   ```
+   Trên VPS:
    ```bash
    cd /opt/greenca-zalo-service
-   git pull                                          # hoặc copy mã nguồn lên như lúc cài (trừ node_modules, dist, data)
-   npm ci && npm run build
+   sudo npm ci && sudo npm run build
+   sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
    sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v4 khi khởi động
    ```
-   Kiểm `journalctl -u greenca-zalo-service -n 200`: có dòng `Quét nhóm: N nick, M nhóm, …` trong vài phút
-   đầu (lượt quét đầu chờ mọi nick đăng nhập xong hoặc báo lỗi, tối đa 2 phút).
+   Log service ghi ra file (unit dùng `StandardOutput=append:`), không vào journald:
+   `tail -n 200 /var/log/greenca-zalo-service.log | grep "Quét nhóm"` — phải có dòng
+   `Quét nhóm: N nick, M nhóm, …` trong vài phút đầu (lượt quét đầu chờ mọi nick đăng nhập xong hoặc
+   báo lỗi, tối đa 2 phút).
 3. **App admin**: build + rsync `dist-admin` (xem gạch đầu dòng "App admin" bên dưới).
 
 > **Ghi chú phát hành:** ngay sau deploy, nhóm của các nick còn đang đăng nhập có thể tạm hiện
