@@ -220,3 +220,38 @@ test('đăng nhập treo quá loginTimeoutMs → tính là lỗi, lên lịch th
   assert.deepEqual(scheduled, [10])
   assert.equal(acc2.loggedIn, true)
 })
+
+test('listener.start ném lỗi sau khi đăng nhập → không sập, lên lịch thử lại, tài khoản khác không ảnh hưởng', async () => {
+  const unhandled: unknown[] = []
+  const onUnhandled = (err: unknown) => { unhandled.push(err) }
+  process.on('unhandledRejection', onUnhandled)
+  try {
+    let broken = true
+    const { manager, scheduled } = harness(async (c) => {
+      const api = fakeApi()
+      if (c === 'c1' && broken) api.listener.start = () => { throw new Error('ws hỏng') }
+      return api
+    })
+
+    await manager.startAll()
+    const [acc1, acc2] = manager.snapshot()
+    assert.equal(acc1.loggedIn, false)
+    assert.match(acc1.lastError ?? '', /ws hỏng/)
+    assert.equal(scheduled.length, 1)
+    assert.equal(acc2.loggedIn, true)
+
+    // Lần thử lại (đường schedule) cũng ném → vẫn không có unhandled rejection, lại lên lịch thử lại.
+    scheduled[0]()
+    await new Promise((r) => setImmediate(r))
+    await new Promise((r) => setImmediate(r))
+    assert.equal(scheduled.length, 2)
+    assert.deepEqual(unhandled, [])
+
+    broken = false
+    scheduled[1]()
+    await new Promise((r) => setImmediate(r))
+    assert.equal(manager.snapshot().find((s) => s.id === 'acc1')?.loggedIn, true)
+  } finally {
+    process.off('unhandledRejection', onUnhandled)
+  }
+})

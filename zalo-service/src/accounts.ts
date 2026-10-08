@@ -87,6 +87,28 @@ export class AccountManager {
 
     // KHÔNG đếm lại lỗi ngay khi đăng nhập được: phiên bị đá/khoá có thể đăng nhập OK rồi listener
     // đóng ngay, nếu reset ở đây thì vòng đăng nhập → đóng → thử lại mãi ở mức 60s, không bao giờ lùi.
+    let retried = false // mỗi lần đăng nhập chỉ lên lịch thử lại tối đa một lần
+    try {
+      this.setUp(account, api, state, () => {
+        if (retried) return false
+        retried = true
+        return true
+      })
+    } catch (err) {
+      // getOwnId()/listener.start() ném lỗi: không để thành unhandled rejection làm sập cả service.
+      state.connected = false
+      state.loggedIn = false
+      state.lastError = err instanceof Error ? err.message : String(err)
+      if (retried) return
+      retried = true
+      log.error(`Tài khoản ${account.id}: lỗi sau đăng nhập (${state.lastError}) — thử lại sau`)
+      this.retry(account)
+    }
+  }
+
+  /** Gắn listener cho một phiên vừa đăng nhập. claimRetry() trả true nếu lần đăng nhập này chưa lên lịch thử lại. */
+  private setUp(account: Account, api: ApiLike, state: AccountState, claimRetry: () => boolean): void {
+    const log = this.deps.logger
     state.loggedIn = true
     this.apis.set(account.id, api)
     log.info(`Tài khoản ${account.id}: đăng nhập OK, uid ${api.getOwnId()}`)
@@ -94,7 +116,6 @@ export class AccountManager {
     const now = this.deps.now ?? Date.now
     const stableMs = this.deps.stableMs ?? 5 * 60_000
     let connectedAt: number | undefined
-    let retried = false // mỗi lần đăng nhập chỉ lên lịch thử lại tối đa một lần
     const markHealthy = () => { this.failures.set(account.id, 0) }
     const checkStable = () => {
       if (connectedAt !== undefined && now() - connectedAt >= stableMs) markHealthy()
@@ -112,8 +133,7 @@ export class AccountManager {
       log.error(`Tài khoản ${account.id}: listener ngắt (${code} ${reason}), zca-js tự kết nối lại`)
     })
     api.listener.on('closed', (code, reason) => {
-      if (retried) return
-      retried = true
+      if (!claimRetry()) return
       state.connected = false
       state.loggedIn = false
       checkStable()
@@ -151,6 +171,8 @@ export class AccountManager {
     const delay = Math.min(base * 2 ** (failures - 1), this.deps.maxRetryMs ?? 15 * 60_000)
 
     const schedule = this.deps.schedule ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms) })
-    schedule(() => { void this.start(account) }, delay)
+    schedule(() => {
+      this.start(account).catch((err) => this.deps.logger.error(`Tài khoản ${account.id}: lỗi khi đăng nhập lại`, err))
+    }, delay)
   }
 }
