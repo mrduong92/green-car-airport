@@ -74,11 +74,14 @@ export default function StatusTab() {
                       <p className="text-[11px] text-danger-red truncate">{acc.last_error}</p>
                     )}
                   </div>
+                  {/* Heartbeat quá hạn: trạng thái nick là số liệu cũ, không biết còn kết nối hay không. */}
                   <span className={clsx(
                     'text-[11px] font-semibold rounded-pill px-2.5 py-1 shrink-0',
-                    acc.connected ? 'bg-success-green/15 text-success-green' : 'bg-danger-red/15 text-danger-red',
+                    svc.stale
+                      ? 'bg-neutral-gray/15 text-neutral-gray'
+                      : acc.connected ? 'bg-success-green/15 text-success-green' : 'bg-danger-red/15 text-danger-red',
                   )}>
-                    {acc.connected ? 'Đang kết nối' : 'Mất kết nối'}
+                    {svc.stale ? 'Không rõ' : acc.connected ? 'Đang kết nối' : 'Mất kết nối'}
                   </span>
                 </div>
               ))}

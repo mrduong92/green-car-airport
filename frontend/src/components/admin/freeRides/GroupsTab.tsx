@@ -5,8 +5,9 @@ import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
 
+// Bộ lọc mặc định (key rỗng) chỉ gồm nhóm nick còn ở — nhóm đã rời xem ở "Nick đã rời".
 const STATUS_FILTERS = [
-  { key: '', label: 'Tất cả' },
+  { key: '', label: 'Đang ở' },
   { key: 'enabled', label: 'Đang theo dõi' },
   { key: 'disabled', label: 'Đã tắt' },
   { key: 'left', label: 'Nick đã rời' },
@@ -72,6 +73,11 @@ export default function GroupsTab() {
     onError: (_err, _vars, context) => {
       context?.previous.forEach(([key, prevData]) => qc.setQueryData(key, prevData))
       showToast('Cập nhật thất bại, đã hoàn tác', 'error')
+    },
+    // Thành công hay lỗi đều tải lại: danh sách theo bộ lọc (nhóm có thể đổi bộ lọc) + số "Nhóm đang bật" ở tab Tình trạng.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: QUERY_ROOT })
+      qc.invalidateQueries({ queryKey: ['admin-free-ride-status'] })
     },
   })
 
