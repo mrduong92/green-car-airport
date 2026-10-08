@@ -552,7 +552,26 @@ staging — production sẽ phụ thuộc staging, và thành code chết ngay k
 nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
 staging) + 3 unit test cho 3 nhánh exit code.
 
-## Microservice Zalo — Cuốc Free (giai đoạn 1: thu tin thô)
+## Microservice Zalo — Cuốc Free (giai đoạn 1 → 3)
+
+### ⚠️ Thứ tự triển khai giai đoạn 2 + 3 (phát hành cùng lúc)
+
+Giai đoạn 2 (service tách cuốc, gửi sang Laravel) và giai đoạn 3 (tab Free trong app tài xế) lên
+production **cùng một đợt**. Thứ tự BẮT BUỘC — để tài xế không bao giờ mở tab Free mà thấy trống:
+
+1. **Backend Laravel** (mục "Giai đoạn 2" + "Giai đoạn 3" dưới đây): migrate, `.env`, `config:cache`.
+2. **Service Zalo trên VPS** (mục "Giai đoạn 2"): `.env`, build, restart.
+3. **Xác nhận cuốc đã về tới Laravel** (chạy bằng root — tinker không chạy dưới `www-data`):
+   ```bash
+   php artisan zalo:service-status                                   # không có cảnh báo
+   php artisan tinker --execute='echo App\Models\FreeRide::where("expires_at", ">", now())->count();'   # > 0
+   chown -R www-data:www-data storage bootstrap/cache
+   ```
+   Số cuốc còn hạn phải > 0 (nhóm ít tin thì chờ vài phút rồi đếm lại). Bằng 0 → dừng lại, kiểm tra log service
+   (`journalctl -u greenca-zalo-service -n 200`) và log Laravel trước khi đi tiếp.
+4. **Chỉ sau bước 3** mới build + rsync `dist-driver/` (bản này thêm tab Free vào thanh điều hướng).
+
+### Giai đoạn 1 — thu tin thô
 
 Service Node chạy trên **VPS riêng** (không chạy trên server production), hướng dẫn cài ở
 `zalo-service/README.md`. Tin thô nằm trong SQLite của service — production không nhận tin thô.
@@ -573,11 +592,59 @@ chown -R www-data:www-data storage bootstrap/cache
   (service vẫn nghe và lưu tin bình thường, chỉ heartbeat bị từ chối).
 - Số liệu chốt chi phí AI: chạy `npm run stats -- --hours=72` **trên VPS service** (xem README).
 
+### Giai đoạn 2 — tách cuốc, AI, mã QR, đồng bộ sang Laravel
+
+**Laravel (server production):**
+
+```bash
+php artisan migrate --force
+# 2026_10_06_000001_create_zalo_rides_tables: free_rides, zalo_groups, zalo_sender_blocks, zalo_qr_refresh_requests
+```
+
+`backend/.env` (đủ bộ biến của microservice — xem `backend/.env.example`):
+
+```bash
+ZALO_SERVICE_ENABLED=true
+ZALO_BOT_SECRET=<trùng BOT_SECRET của service>     # đã có từ giai đoạn 1
+ZALO_AI_DAILY_BUDGET_USD=5                         # trần chi phí AI/ngày theo mức GreenCA duyệt
+
+php artisan config:cache
+chown -R www-data:www-data storage bootstrap/cache
+```
+
+- Dọn cuốc hết hạn: `routes/console.php` có `Schedule::command('zalo:prune-rides')->dailyAt('03:10')` —
+  chạy nhờ cron scheduler `/etc/cron.d/greenca-scheduler` đã có sẵn (mục "Queue worker + scheduler"),
+  **không cần thêm cron**. Kiểm: `php artisan schedule:list | grep zalo:prune-rides`.
+
+**Service (VPS riêng, `/opt/greenca-zalo-service`)** — biến đầy đủ kèm mặc định trong
+`zalo-service/.env.example`, giải thích ở `zalo-service/README.md` mục "Giai đoạn 2":
+
+```bash
+# .env — bắt buộc / nên đặt
+API_BASE_URL=https://greenca.vn
+BOT_SECRET=<trùng ZALO_BOT_SECRET>
+ALLOWED_GROUP_IDS=<id nhóm, cách nhau dấu phẩy>     # lấy ID: npm run groups -- acc1
+ANTHROPIC_API_KEY=<key do AMD quản lý>              # trống = không gọi AI, tin khó hiển thị nguyên văn
+AI_MODEL=claude-haiku-4-5
+AI_DAILY_BUDGET_USD=5                              # trần dự phòng khi chưa hỏi được Laravel
+# Còn lại (AI_BATCH_SIZE, RIDES_FLUSH_MS, QR_INTERVAL_MS, QR_REFRESH_DAYS, …) để mặc định
+
+npm ci && npm run build
+sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v2 khi khởi động
+```
+
+- Thử AI trước khi bật thật: `ANTHROPIC_API_KEY=... npm run try-ai`.
+- `zalo:service-status` cảnh báo thêm: hộp thư đi tồn > 1000 cuốc, tỷ lệ không lấy được mã QR > 80%,
+  cuốc bị giữ vì thiếu mã > 200.
+
 ### Giai đoạn 3 — tab Free
 
-- `php artisan migrate --force` (bảng `free_ride_reports`, `driver_hidden_senders`).
+- `php artisan migrate --force`: `2026_10_07_000001_create_free_ride_driver_tables` (bảng `free_ride_reports`,
+  `driver_hidden_senders`) và `2026_10_09_000001_add_updated_at_index_to_free_rides` (index `free_rides.updated_at`).
 - Cần queue worker + Reverb chạy: tín hiệu `free-rides.updated` phát qua job `BroadcastFreeRidesSignal` (gom ≤ 1 tín hiệu / ~2 giây).
-- Build lại app tài xế (`npm run build:driver -- --mode production`, kiểm VAPID như các lần deploy trước) và rsync `dist-driver/`.
+- Các POST của tài xế (báo cáo, ẩn người bắn, báo link lỗi) giới hạn 20 lần/phút/tài xế (`throttle:20,1`).
+- **Theo thứ tự ở đầu mục này** — sau khi đã xác nhận cuốc về tới Laravel: build lại app tài xế
+  (`npm run build:driver -- --mode production`, kiểm VAPID như các lần deploy trước) và rsync `dist-driver/`.
 
 ## Lịch sử production
 
