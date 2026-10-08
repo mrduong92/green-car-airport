@@ -2,9 +2,8 @@
 // → nguyên văn), gửi cuốc + nhóm + heartbeat cho Laravel. CHỈ ĐỌC: không gọi bất kỳ API ghi nào của Zalo.
 import Anthropic from '@anthropic-ai/sdk'
 import { Zalo, type Credentials } from 'zca-js'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
 import { loadConfig } from './config.js'
+import { loadAccounts } from './account-files.js'
 import { openDb } from './db.js'
 import { MessageStore } from './store.js'
 import { GroupNames } from './groups.js'
@@ -27,14 +26,7 @@ import type { IncomingMessage } from './normalize.js'
 const HOUR = 3_600_000
 const cfg = loadConfig(process.env)
 
-const accounts = existsSync(cfg.accountsDir)
-  ? readdirSync(cfg.accountsDir)
-      .filter((file) => file.endsWith('.json'))
-      .map((file) => ({
-        id: basename(file, '.json'),
-        credentials: JSON.parse(readFileSync(join(cfg.accountsDir, file), 'utf8')) as unknown,
-      }))
-  : []
+const accounts = loadAccounts(cfg.accountsDir, logger)
 if (accounts.length === 0) {
   logger.error(`Chưa có tài khoản nào trong ${cfg.accountsDir} — chạy "npm run login -- <tên>" trên máy cá nhân rồi copy file lên`)
   process.exit(1)
@@ -116,23 +108,13 @@ manager = new AccountManager({
   retryMs: cfg.accountRetryMs,
 })
 
-await remote.poll()
-processor.recover(Date.now())
-await manager.startAll()
-
 const rideSync = new RideSync({ rides, send, batchSize: cfg.ridesBatchSize, logger })
 const groupsSync = new GroupsSync({ db, send, logger })
 const every = (ms: number, fn: () => Promise<void> | void) =>
   setInterval(() => { Promise.resolve().then(fn).catch((err) => logger.error('Lỗi tác vụ định kỳ:', err)) }, ms)
 
-every(cfg.ridesFlushMs, () => rideSync.flush())
-every(cfg.aiFlushMs, () => ai?.flush())
-every(cfg.qrIntervalMs, () => qr.step())
-every(cfg.configPollMs, () => remote.poll())
-every(cfg.groupsSyncMs, () => groupsSync.flush())
-// Gửi danh sách nhóm ngay khi khởi động — không chờ 10 phút đầu.
-groupsSync.flush().catch((err) => logger.error('Đồng bộ danh sách nhóm lỗi:', err))
-
+// Đăng ký heartbeat và mọi tác vụ định kỳ TRƯỚC khi hỏi cấu hình / đăng nhập: một tài khoản đăng nhập treo
+// không được chặn heartbeat (nếu không Laravel chỉ thấy service "chết" mà không biết vì sao).
 const startedAt = Date.now()
 
 every(cfg.heartbeatMs, async () => {
@@ -145,11 +127,28 @@ every(cfg.heartbeatMs, async () => {
   if (status !== 200) logger.error('Heartbeat lỗi HTTP', status || 'mạng')
 })
 
+every(cfg.ridesFlushMs, () => rideSync.flush())
+every(cfg.aiFlushMs, () => ai?.flush())
+every(cfg.qrIntervalMs, () => qr.step())
+every(cfg.configPollMs, () => remote.poll())
+every(cfg.groupsSyncMs, () => groupsSync.flush())
+
 setInterval(() => {
   const deleted = store.prune()
   if (deleted > 0) logger.info(`Đã xoá ${deleted} tin thô quá ${cfg.retentionDays} ngày`)
   rides.prune()
 }, HOUR)
+
+// Hỏi cấu hình (nhóm tắt, người bị ẩn) rồi xếp lại tin dở dang TRƯỚC khi có tin mới — không cần đăng nhập;
+// poll không ném lỗi và có timeout 10 giây.
+await remote.poll()
+processor.recover(Date.now())
+
+// Đăng nhập không chờ: tài khoản treo/lỗi tự thử lại trong AccountManager.
+manager.startAll().catch((err) => logger.error('Lỗi khởi động tài khoản:', err))
+
+// Gửi danh sách nhóm ngay khi khởi động — không chờ 10 phút đầu (đọc từ SQLite, không cần tài khoản).
+groupsSync.flush().catch((err) => logger.error('Đồng bộ danh sách nhóm lỗi:', err))
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
