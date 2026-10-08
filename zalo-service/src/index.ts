@@ -1,9 +1,8 @@
 // Microservice Zalo (Cuốc Free) — giai đoạn 1: nghe tin từ N tài khoản phụ, LƯU NGAY vào SQLite,
 // gửi heartbeat cho Laravel. CHỈ ĐỌC: không gọi bất kỳ API ghi nào của Zalo.
 import { Zalo, type Credentials } from 'zca-js'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
 import { loadConfig } from './config.js'
+import { loadAccounts } from './account-files.js'
 import { openDb } from './db.js'
 import { MessageStore } from './store.js'
 import { GroupNames } from './groups.js'
@@ -19,14 +18,7 @@ import type { IncomingMessage } from './normalize.js'
 const HOUR = 3_600_000
 const cfg = loadConfig(process.env)
 
-const accounts = existsSync(cfg.accountsDir)
-  ? readdirSync(cfg.accountsDir)
-      .filter((file) => file.endsWith('.json'))
-      .map((file) => ({
-        id: basename(file, '.json'),
-        credentials: JSON.parse(readFileSync(join(cfg.accountsDir, file), 'utf8')) as unknown,
-      }))
-  : []
+const accounts = loadAccounts(cfg.accountsDir, logger)
 if (accounts.length === 0) {
   logger.error(`Chưa có tài khoản nào trong ${cfg.accountsDir} — chạy "npm run login -- <tên>" trên máy cá nhân rồi copy file lên`)
   process.exit(1)
@@ -77,7 +69,6 @@ manager = new AccountManager({
   logger,
   retryMs: cfg.accountRetryMs,
 })
-await manager.startAll()
 
 setInterval(() => {
   qr.step().catch((err) => logger.error('Lỗi lấy mã QR:', err))
@@ -96,6 +87,10 @@ setInterval(() => {
   const deleted = store.prune()
   if (deleted > 0) logger.info(`Đã xoá ${deleted} tin thô quá ${cfg.retentionDays} ngày`)
 }, HOUR)
+
+// Đăng ký heartbeat TRƯỚC rồi mới đăng nhập, và không chờ: một tài khoản đăng nhập treo không được
+// chặn heartbeat (nếu không Laravel chỉ thấy service "chết" mà không biết vì sao).
+manager.startAll().catch((err) => logger.error('Lỗi khởi động tài khoản:', err))
 
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
