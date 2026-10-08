@@ -1,3 +1,4 @@
+import type { AccountState } from './accounts.js'
 import type { ServiceCounters } from './ingest.js'
 
 export interface HeartbeatExtra {
@@ -43,14 +44,17 @@ export function buildHeartbeat(input: {
   startedAt: number
   now: number
   counters: ServiceCounters
-  accounts: { id: string; connected: boolean }[]
+  accounts: Pick<AccountState, 'id' | 'connected' | 'loggedIn' | 'lastError'>[]
   // Giai đoạn 2: hộp thư đi, hàng chờ AI, chi phí AI hôm nay, sức khoẻ lấy mã QR.
   extra?: HeartbeatExtra
 }) {
   return {
     service_id: input.serviceId,
     uptime_s: Math.round((input.now - input.startedAt) / 1000),
-    accounts: input.accounts.map((a) => ({ id: a.id, connected: a.connected })),
+    // Giai đoạn 4 (trang admin "Tình trạng"): gửi kèm đã đăng nhập chưa + lỗi gần nhất từng nick.
+    accounts: input.accounts.map((a) => ({
+      id: a.id, connected: a.connected, logged_in: a.loggedIn, last_error: a.lastError ?? null,
+    })),
     received_total: input.counters.received,
     stored_total: input.counters.stored,
     duplicates_total: input.counters.duplicates,
