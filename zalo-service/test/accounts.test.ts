@@ -112,8 +112,111 @@ test('repeated login failures back off exponentially up to a cap, and reset afte
   for (let i = 0; i < 4; i++) { pending.shift()!(); await tick() }
   assert.deepEqual(delays, [10, 20, 40, 50, 50])
 
+  // Đăng nhập được nhưng chưa chứng minh phiên ổn định → chưa đếm lại từ đầu.
   fail = false
   pending.shift()!(); await tick()
+  api.listener.emit('connected')
+  api.listener.emit('message', { hello: 1 })
   api.listener.emit('closed', 3000, 'kicked')
   assert.equal(delays.at(-1), 10)
+})
+
+function cycleHarness(opts: { stableMs?: number } = {}) {
+  const delays: number[] = []
+  const pending: (() => void)[] = []
+  const apis: ReturnType<typeof fakeApi>[] = []
+  let clock = 0
+  const manager = new AccountManager({
+    accounts: [{ id: 'acc1', credentials: 'c1' }],
+    login: async () => { const api = fakeApi(); apis.push(api); return api },
+    onMessage: () => {},
+    logger: silentLogger,
+    retryMs: 10,
+    maxRetryMs: 80,
+    stableMs: opts.stableMs ?? 1000,
+    now: () => clock,
+    schedule: (fn, ms) => { delays.push(ms); pending.push(fn) },
+  })
+  const tick = () => new Promise((r) => setImmediate(r))
+  return { manager, delays, pending, apis, tick, advance: (ms: number) => { clock += ms } }
+}
+
+test('login OK nhưng listener đóng ngay, lặp lại → backoff vẫn tăng dần tới trần', async () => {
+  const { manager, delays, pending, apis, tick } = cycleHarness()
+  await manager.startAll()
+  for (let i = 0; i < 5; i++) {
+    apis.at(-1)!.listener.emit('connected')
+    apis.at(-1)!.listener.emit('closed', 3000, 'kicked')
+    pending.shift()!(); await tick()
+  }
+  assert.deepEqual(delays, [10, 20, 40, 80, 80])
+})
+
+test('phiên giữ kết nối quá stableMs thì đếm lỗi lại từ đầu', async () => {
+  const { manager, delays, pending, apis, tick, advance } = cycleHarness({ stableMs: 1000 })
+  await manager.startAll()
+  for (let i = 0; i < 3; i++) {
+    apis.at(-1)!.listener.emit('connected')
+    apis.at(-1)!.listener.emit('closed', 3000, 'kicked')
+    pending.shift()!(); await tick()
+  }
+  assert.deepEqual(delays, [10, 20, 40])
+
+  apis.at(-1)!.listener.emit('connected')
+  advance(999)
+  apis.at(-1)!.listener.emit('closed', 3000, 'kicked')
+  assert.equal(delays.at(-1), 80) // chưa đủ cửa sổ ổn định
+  pending.shift()!(); await tick()
+
+  apis.at(-1)!.listener.emit('connected')
+  advance(1000)
+  apis.at(-1)!.listener.emit('closed', 3000, 'kicked')
+  assert.equal(delays.at(-1), 10)
+})
+
+test('nhận được tin đầu tiên cũng coi là phiên khoẻ → đếm lỗi lại từ đầu', async () => {
+  const { manager, delays, pending, apis, tick } = cycleHarness()
+  await manager.startAll()
+  for (let i = 0; i < 3; i++) {
+    apis.at(-1)!.listener.emit('closed', 3000, 'kicked')
+    pending.shift()!(); await tick()
+  }
+  apis.at(-1)!.listener.emit('connected')
+  apis.at(-1)!.listener.emit('message', { a: 1 })
+  apis.at(-1)!.listener.emit('closed', 3000, 'kicked')
+  assert.deepEqual(delays, [10, 20, 40, 10])
+})
+
+test('một lần đăng nhập chỉ lên lịch thử lại tối đa một lần, listener cũ không kích thêm', async () => {
+  const { manager, delays, pending, apis, tick } = cycleHarness()
+  await manager.startAll()
+  const first = apis[0]
+  first.listener.emit('closed', 3000, 'kicked')
+  first.listener.emit('closed', 3000, 'kicked again')
+  assert.equal(delays.length, 1)
+
+  pending.shift()!(); await tick()
+  first.listener.emit('closed', 3000, 'stale')
+  assert.equal(delays.length, 1)
+  assert.equal(manager.snapshot()[0].loggedIn, true)
+})
+
+test('đăng nhập treo quá loginTimeoutMs → tính là lỗi, lên lịch thử lại, tài khoản khác không ảnh hưởng', async () => {
+  const scheduled: number[] = []
+  const manager = new AccountManager({
+    accounts: [{ id: 'acc1', credentials: 'c1' }, { id: 'acc2', credentials: 'c2' }],
+    login: (c) => (c === 'c1' ? new Promise<ApiLike>(() => {}) : Promise.resolve(fakeApi())),
+    onMessage: () => {},
+    logger: silentLogger,
+    retryMs: 10,
+    loginTimeoutMs: 20,
+    schedule: (_fn, ms) => { scheduled.push(ms) },
+  })
+
+  await manager.startAll()
+  const [acc1, acc2] = manager.snapshot()
+  assert.equal(acc1.loggedIn, false)
+  assert.match(acc1.lastError ?? '', /quá thời gian/)
+  assert.deepEqual(scheduled, [10])
+  assert.equal(acc2.loggedIn, true)
 })
