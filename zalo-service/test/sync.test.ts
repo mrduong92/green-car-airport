@@ -133,3 +133,16 @@ test('groups sync counts only messages of the last 24h per group, 0 for quiet gr
   await sync.flush()
   assert.deepEqual(payload?.groups.map((g) => [g.zalo_group_id, g.messages_24h]), [['g1', 2], ['g2', 0]])
 })
+
+test('GroupsSync sends groups in chunks of at most 500 and logs each failed chunk', async () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare('INSERT INTO chat_groups (zalo_group_id, name) VALUES (?, ?)')
+  db.transaction(() => { for (let i = 0; i < 1200; i++) insert.run(`g${String(i).padStart(4, '0')}`, `N${i}`) })()
+  const sizes: number[] = []
+  const errors: string[] = []
+  const logger = { ...silentLogger, error: (...args: unknown[]) => { errors.push(args.join(' ')) } }
+  const sync = new GroupsSync({ db, send: async (_p, body) => { sizes.push((body as { groups: unknown[] }).groups.length); return { status: sizes.length === 2 ? 500 : 200 } }, logger, now: () => 10 })
+  await sync.flush()
+  assert.deepEqual(sizes, [500, 500, 200])
+  assert.equal(errors.length, 1)
+})

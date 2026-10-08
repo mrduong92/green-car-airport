@@ -108,9 +108,14 @@ Bên Laravel (`backend/.env`): `ZALO_SERVICE_ENABLED=true`, `ZALO_BOT_SECRET` (t
 
 - Chỉ đọc: `getAllGroups` (toàn bộ nhóm nick đang ở) rồi `getGroupInfo` theo lô tối đa 20 ID, nghỉ 1 giây giữa
   các lô — chỉ tra tên/số thành viên của nhóm chưa biết, không hỏi lại nhóm đã có tên.
-- Quét một lần ngay khi có nick đầu tiên đăng nhập, sau đó mỗi `GROUP_SCAN_MS`.
+- Quét lần đầu khi mọi nick đã đăng nhập xong hoặc đã báo lỗi (chờ tối đa 2 phút sau khi khởi động, cần
+  ít nhất 1 nick đăng nhập), sau đó mỗi `GROUP_SCAN_MS`.
 - Một nhóm được coi là "đã rời" khi không còn nick nào (trong số các nick quét **thành công** ở lượt đó) thấy
-  nó nữa; một nick quét lỗi không làm nhóm của nick đó bị đánh dấu rời.
+  nó nữa; một nick quét lỗi không làm nhóm của nick đó bị đánh dấu rời. Nick đang có nhóm mà bỗng trả về
+  0 nhóm cũng bị coi là quét lỗi.
+- Khi khởi động, service xoá dấu "nick đang ở nhóm" của các nick không còn file tài khoản — nhóm chỉ nick
+  đã gỡ ở sẽ thành "đã rời" ở lượt quét đầu.
+- Danh sách nhóm gửi lên Laravel theo lô ≤ 500 nhóm/lần.
 - `POST /api/internal/zalo/groups` nay kèm `member_count`, `accounts` (danh sách nick đang ở nhóm) và `left`
   cho admin bật/tắt nhóm mà không phải nhập ID bằng tay.
 - **Production: để `ALLOWED_GROUP_IDS` rỗng.** Trước giai đoạn 4 phải liệt kê thủ công từng ID nhóm

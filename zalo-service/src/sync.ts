@@ -53,7 +53,7 @@ export class RideSync {
 
 // Danh sách nhóm + số tin 24 giờ cho trang admin (mỗi 10 phút).
 export class GroupsSync {
-  constructor(private readonly deps: { db: Db; send: Sender; logger: Logger; now?: () => number }) {}
+  constructor(private readonly deps: { db: Db; send: Sender; logger: Logger; now?: () => number; chunkSize?: number }) {}
 
   async flush(): Promise<void> {
     const since = (this.deps.now ?? Date.now)() - 24 * 3_600_000
@@ -74,7 +74,13 @@ export class GroupsSync {
       accounts: accounts ? accounts.split(',').sort() : [],
       left: left_at !== null,
     }))
-    const { status } = await this.deps.send('/api/internal/zalo/groups', { groups })
-    if (status !== 200) this.deps.logger.error('Đồng bộ danh sách nhóm lỗi HTTP', status || 'mạng')
+    // Gửi theo lô ≤ chunkSize (Laravel nhận tối đa 2000 nhóm/lần); lô lỗi chỉ ghi log, lô khác vẫn gửi —
+    // 10 phút sau gửi lại toàn bộ.
+    const chunkSize = this.deps.chunkSize ?? 500
+    for (let i = 0; i < groups.length; i += chunkSize) {
+      const chunk = groups.slice(i, i + chunkSize)
+      const { status } = await this.deps.send('/api/internal/zalo/groups', { groups: chunk })
+      if (status !== 200) this.deps.logger.error(`Đồng bộ danh sách nhóm (lô ${i / chunkSize + 1}, ${chunk.length} nhóm) lỗi HTTP`, status || 'mạng')
+    }
   }
 }

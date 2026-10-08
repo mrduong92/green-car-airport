@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { openDb } from '../src/db.js'
-import { GroupScanner } from '../src/group-scanner.js'
+import { GroupScanner, pruneUnknownAccounts } from '../src/group-scanner.js'
 import { silentLogger } from '../src/logger.js'
 import type { ApiLike } from '../src/accounts.js'
 
@@ -61,7 +61,8 @@ test('known groups are not looked up again', async () => {
 })
 
 test('a group no longer seen by any scanned account is marked left, and un-marked when seen again', async () => {
-  const groups: Record<string, { name: string; totalMember: number }> = { g1: { name: 'Taxi', totalMember: 10 } }
+  // g2 giữ lại: nick bỗng thấy 0 nhóm bị coi là quét lỗi (test riêng bên dưới).
+  const groups: Record<string, { name: string; totalMember: number }> = { g1: { name: 'Taxi', totalMember: 10 }, g2: { name: 'Khác', totalMember: 5 } }
   const a = fakeApi(groups)
   const { db, scanner } = setup([{ id: 'acc1', api: a.api }])
   await scanner.scan()
@@ -91,4 +92,50 @@ test('no logged-in account → nothing scanned, nothing marked left', async () =
   const result = await scanner.scan()
   assert.deepEqual(result.scanned, [])
   assert.equal(groupRow(db, 'g1')?.left_at, null)
+})
+
+test('an account that suddenly sees 0 groups while it had some is treated as a failed scan', async () => {
+  const groups: Record<string, { name: string; totalMember: number }> = { g1: { name: 'Taxi', totalMember: 10 } }
+  const a = fakeApi(groups)
+  const { db, scanner } = setup([{ id: 'acc1', api: a.api }])
+  await scanner.scan()
+  delete groups.g1
+  const result = await scanner.scan()
+  assert.deepEqual(result.failed, ['acc1'])
+  assert.deepEqual(result.scanned, [])
+  assert.equal(groupRow(db, 'g1')?.left_at, null)
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM group_accounts WHERE account_id = 'acc1'").get() as { n: number }).n, 1)
+})
+
+test('a missing gridVerMap is treated as a failed scan when the account had groups', async () => {
+  const a = fakeApi({ g1: { name: 'Taxi', totalMember: 10 } })
+  const { db, scanner } = setup([{ id: 'acc1', api: a.api }])
+  await scanner.scan()
+  ;(a.api as unknown as { getAllGroups: () => Promise<unknown> }).getAllGroups = async () => ({})
+  const result = await scanner.scan()
+  assert.deepEqual(result.failed, ['acc1'])
+  assert.equal(groupRow(db, 'g1')?.left_at, null)
+})
+
+test('an account with no groups before and none now is a normal (successful) scan', async () => {
+  const a = fakeApi({})
+  const { scanner } = setup([{ id: 'acc1', api: a.api }])
+  const result = await scanner.scan()
+  assert.deepEqual(result.scanned, ['acc1'])
+  assert.deepEqual(result.failed, [])
+})
+
+test('pruneUnknownAccounts removes group_accounts rows of accounts no longer configured', async () => {
+  const db = openDb(':memory:')
+  db.prepare("INSERT INTO chat_groups (zalo_group_id, name) VALUES ('g1', 'A'), ('g2', 'B')").run()
+  db.prepare("INSERT INTO group_accounts (zalo_group_id, account_id, seen_at) VALUES ('g1', 'acc1', 1), ('g2', 'old', 1), ('g1', 'old', 1)").run()
+  assert.equal(pruneUnknownAccounts(db, ['acc1']), 2)
+  assert.deepEqual(db.prepare('SELECT zalo_group_id, account_id FROM group_accounts').all(), [{ zalo_group_id: 'g1', account_id: 'acc1' }])
+})
+
+test('pruneUnknownAccounts with no configured account removes nothing', async () => {
+  const db = openDb(':memory:')
+  db.prepare("INSERT INTO chat_groups (zalo_group_id, name) VALUES ('g1', 'A')").run()
+  db.prepare("INSERT INTO group_accounts (zalo_group_id, account_id, seen_at) VALUES ('g1', 'acc1', 1)").run()
+  assert.equal(pruneUnknownAccounts(db, []), 0)
 })

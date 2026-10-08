@@ -39,6 +39,16 @@ export class GroupScanner {
         this.deps.logger.error(`Quét nhóm của ${id} lỗi:`, err instanceof Error ? err.message : err)
         continue
       }
+      // Nick đang có nhóm mà bỗng trả về 0 nhóm (hoặc thiếu gridVerMap) — gần như chắc là Zalo trả lỗi
+      // ngầm, không phải nick rời hết nhóm cùng lúc. Coi là quét lỗi: giữ nguyên nhóm cũ của nick này.
+      if (ids.length === 0) {
+        const had = (db.prepare('SELECT COUNT(*) AS n FROM group_accounts WHERE account_id = ?').get(id) as { n: number }).n
+        if (had > 0) {
+          failed.push(id)
+          this.deps.logger.error(`Quét nhóm của ${id} trả về 0 nhóm (trước đó ${had}) — coi như lỗi, giữ nguyên`)
+          continue
+        }
+      }
       scanned.push(id)
 
       const known = new Set(
@@ -83,4 +93,15 @@ export class GroupScanner {
     this.deps.logger.info(`Quét nhóm: ${scanned.length} nick, ${seen.size} nhóm, tra mới ${lookedUp}${failed.length ? `, lỗi: ${failed.join(', ')}` : ''}`)
     return { scanned, failed, groups: seen.size, looked_up: lookedUp }
   }
+}
+
+/**
+ * Xoá dấu "nick đang ở nhóm" của các nick không còn cấu hình (đã gỡ file tài khoản) — nếu không, nhóm
+ * chỉ có nick cũ ở sẽ không bao giờ thành "rời". Gọi lúc khởi động với danh sách nick đã nạp.
+ * Danh sách rỗng → không xoá gì (phòng trường hợp nạp tài khoản lỗi).
+ */
+export function pruneUnknownAccounts(db: Db, accountIds: string[]): number {
+  if (accountIds.length === 0) return 0
+  const placeholders = accountIds.map(() => '?').join(', ')
+  return db.prepare(`DELETE FROM group_accounts WHERE account_id NOT IN (${placeholders})`).run(...accountIds).changes
 }

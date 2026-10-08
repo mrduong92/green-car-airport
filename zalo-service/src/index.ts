@@ -21,7 +21,7 @@ import { AnthropicExtractor } from './ai/extractor.js'
 import { ConfigPoller } from './remote-config.js'
 import { Processor, onAiFailed } from './processor.js'
 import { GroupsSync, RideSync } from './sync.js'
-import { GroupScanner } from './group-scanner.js'
+import { GroupScanner, pruneUnknownAccounts } from './group-scanner.js'
 import type { IncomingMessage } from './normalize.js'
 
 const HOUR = 3_600_000
@@ -34,6 +34,9 @@ if (accounts.length === 0) {
 }
 
 const db = openDb(cfg.dbPath)
+// Nick đã gỡ khỏi thư mục tài khoản: xoá dấu "đang ở nhóm" của nó để nhóm chỉ nick đó ở có thể thành "rời".
+const prunedAccountRows = pruneUnknownAccounts(db, accounts.map((a) => a.id))
+if (prunedAccountRows > 0) logger.info(`Đã xoá ${prunedAccountRows} dấu nhóm của nick không còn cấu hình`)
 const store = new MessageStore(db, {
   duplicateWindowMs: cfg.duplicateWindowHours * HOUR,
   maxContentLength: cfg.maxContentLength,
@@ -135,10 +138,15 @@ every(cfg.qrIntervalMs, () => qr.step())
 every(cfg.configPollMs, () => remote.poll())
 every(cfg.groupsSyncMs, () => groupsSync.flush())
 
-// Quét toàn bộ nhóm của nick phụ (giai đoạn 4): lần đầu ngay khi có nick đăng nhập (đăng nhập chạy
-// nền, không chặn heartbeat), sau đó mỗi groupScanMs.
+// Quét toàn bộ nhóm của nick phụ (giai đoạn 4): lần đầu khi MỌI nick đã đăng nhập xong hoặc đã báo lỗi
+// (quét sớm khi nick khác còn đang đăng nhập làm nhóm của nick đó tạm hiện "Nick đã rời"), tối đa chờ
+// 2 phút kể từ lúc khởi động; cần ít nhất 1 nick đăng nhập. Sau đó mỗi groupScanMs.
+const FIRST_SCAN_MAX_WAIT_MS = 2 * 60_000
 const firstGroupScan = setInterval(() => {
   if (manager!.loggedIn().length === 0) return
+  const states = manager!.snapshot()
+  const settled = states.length >= accounts.length && states.every((a) => a.loggedIn || a.lastError !== undefined)
+  if (!settled && Date.now() - startedAt < FIRST_SCAN_MAX_WAIT_MS) return
   clearInterval(firstGroupScan)
   groupScanner.scan().then(() => groupsSync.flush()).catch((err) => logger.error('Quét nhóm lỗi:', err))
 }, 5_000)
