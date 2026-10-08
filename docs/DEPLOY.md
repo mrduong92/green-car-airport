@@ -612,7 +612,7 @@ php artisan config:cache
 chown -R www-data:www-data storage bootstrap/cache
 ```
 
-- Dọn cuốc hết hạn: `routes/console.php` có `Schedule::command('zalo:prune-rides')->dailyAt('03:10')` —
+- Dọn cuốc hết hạn (giữ thêm 8 ngày sau khi hết hạn): `routes/console.php` có `Schedule::command('zalo:prune-rides')->dailyAt('03:10')` —
   chạy nhờ cron scheduler `/etc/cron.d/greenca-scheduler` đã có sẵn (mục "Queue worker + scheduler"),
   **không cần thêm cron**. Kiểm: `php artisan schedule:list | grep zalo:prune-rides`.
 
@@ -653,10 +653,31 @@ sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schem
 Trang admin (nhóm Zalo / người bắn / tình trạng service) + service tự quét toàn bộ nhóm nick phụ
 đang ở (không còn phải khai từng ID nhóm thủ công).
 
-```bash
-php artisan migrate --force
-# 2026_10_10_000001_add_scan_fields_to_zalo_groups: thêm member_count, accounts, left_at vào zalo_groups
-```
+**Thứ tự BẮT BUỘC:** (1) Laravel migrate → (2) redeploy service Zalo → (3) build + rsync app admin.
+Laravel phải nhận được các trường mới (`member_count`, `accounts`, `left`) trước khi service bắt đầu gửi.
+
+1. **Laravel (production):**
+   ```bash
+   php artisan migrate --force
+   # 2026_10_10_000001_add_scan_fields_to_zalo_groups: thêm member_count, accounts, left_at vào zalo_groups
+   ```
+2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn rồi build lại:
+   ```bash
+   cd /opt/greenca-zalo-service
+   git pull                                          # hoặc copy mã nguồn lên như lúc cài (trừ node_modules, dist, data)
+   npm ci && npm run build
+   sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v4 khi khởi động
+   ```
+   Kiểm `journalctl -u greenca-zalo-service -n 200`: có dòng `Quét nhóm: N nick, M nhóm, …` trong vài phút
+   đầu (lượt quét đầu chờ mọi nick đăng nhập xong hoặc báo lỗi, tối đa 2 phút).
+3. **App admin**: build + rsync `dist-admin` (xem gạch đầu dòng "App admin" bên dưới).
+
+> **Ghi chú phát hành:** ngay sau deploy, nhóm của các nick còn đang đăng nhập có thể tạm hiện
+> "Nick đã rời" ở trang admin — tự hết sau lượt quét nhóm đầu tiên, không cần làm gì.
+
+- **Dọn cuốc hết hạn**: từ giai đoạn 4, `zalo:prune-rides` giữ cuốc thêm **8 ngày** sau khi hết hạn (trước
+  đây 1 ngày) để số "cuốc/7 ngày" ở tab Người bắn đếm đủ tuần. Tài xế không bị ảnh hưởng — tab Free chỉ
+  lấy cuốc còn hạn.
 
 - **App admin**: không phải build/rsync riêng — bundle `dist-admin` đã nằm trong lệnh build 3-app
   ở mục "Frontend (build local, rsync lên)" bên dưới; chỉ cần đi qua bước đó như mọi lần deploy để
