@@ -28,6 +28,46 @@ class ZaloServiceMonitor
         );
     }
 
+    /**
+     * Dữ liệu cho trang admin "Tình trạng" — một hàng mỗi service còn trong cache (bỏ service
+     * đã bị dọn vì im quá zalo.forget_after_days ngày, hoặc hết TTL heartbeat 1 ngày).
+     *
+     * @return list<array{service_id: string, last_heartbeat_at: int, stale: bool, accounts: list<array{id: string, connected: bool, logged_in: ?bool, last_error: ?string}>, ai_spent_today_usd: float, ai_budget_usd: float, outbox_backlog: int, held_back_rides: int, qr_ok_24h: int, qr_empty_24h: int}>
+     */
+    public function snapshot(): array
+    {
+        $now = now();
+        $staleAfter = (int) config('zalo.heartbeat_stale_seconds');
+
+        $services = [];
+        foreach ($this->activeServices($now->timestamp) as $id) {
+            $hb = Cache::get("zalo:heartbeat:{$id}");
+            if ($hb === null) {
+                continue;
+            }
+
+            $services[] = [
+                'service_id' => $id,
+                'last_heartbeat_at' => $hb['received_at'] * 1000,
+                'stale' => ($now->timestamp - $hb['received_at']) > $staleAfter,
+                'accounts' => collect($hb['accounts'])->map(fn ($a) => [
+                    'id' => $a['id'],
+                    'connected' => (bool) $a['connected'],
+                    'logged_in' => array_key_exists('logged_in', $a) ? (bool) $a['logged_in'] : null,
+                    'last_error' => $a['last_error'] ?? null,
+                ])->values()->all(),
+                'ai_spent_today_usd' => (float) ($hb['ai_spent_today_usd'] ?? 0),
+                'ai_budget_usd' => (float) ($hb['ai_budget_usd'] ?? 0),
+                'outbox_backlog' => (int) ($hb['outbox_backlog'] ?? 0),
+                'held_back_rides' => (int) ($hb['held_back_rides'] ?? 0),
+                'qr_ok_24h' => (int) ($hb['qr_ok_24h'] ?? 0),
+                'qr_empty_24h' => (int) ($hb['qr_empty_24h'] ?? 0),
+            ];
+        }
+
+        return $services;
+    }
+
     /** @return array{status: int, lines: list<string>} 0 ổn, 1 có vấn đề, 2 chưa service nào báo */
     public function status(): array
     {

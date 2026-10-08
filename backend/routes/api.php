@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
+use App\Http\Controllers\Admin\FreeRideAdminController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
@@ -175,5 +176,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/admins/{user}/unblock', [AdminUserController::class, 'unblock']);
         Route::post('/admin/admins/{user}/password', [AdminUserController::class, 'resetPassword']);
         Route::post('/admin/me/password', [AdminUserController::class, 'changeOwnPassword']);
+
+        // Trang admin Cuốc Free (nhóm Zalo, người bắn, tình trạng service).
+        Route::prefix('admin/free-rides')->controller(FreeRideAdminController::class)->group(function () {
+            Route::get('/groups', 'groups');
+            Route::patch('/groups/{zaloGroupId}', 'toggleGroup');
+            Route::get('/senders', 'senders');
+            Route::post('/senders/{senderUid}/block', 'block');
+            Route::delete('/senders/{senderUid}/block', 'unblock');
+            Route::get('/status', 'status');
+        });
     });
 });
