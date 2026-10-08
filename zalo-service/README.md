@@ -113,3 +113,12 @@ Bên Laravel (`backend/.env`): `ZALO_SERVICE_ENABLED=true`, `ZALO_BOT_SECRET` (t
   nó nữa; một nick quét lỗi không làm nhóm của nick đó bị đánh dấu rời.
 - `POST /api/internal/zalo/groups` nay kèm `member_count`, `accounts` (danh sách nick đang ở nhóm) và `left`
   cho admin bật/tắt nhóm mà không phải nhập ID bằng tay.
+- **Production: để `ALLOWED_GROUP_IDS` rỗng.** Trước giai đoạn 4 phải liệt kê thủ công từng ID nhóm
+  (sửa `.env` + restart service mỗi khi thêm/bớt nhóm); từ giai đoạn 4, service quét và gửi lên mọi
+  nhóm nick phụ đang ở, còn việc bật/tắt chuyển hẳn sang trang admin (`admin.greenca.vn/free-rides`,
+  tab "Nhóm Zalo") — không cần đụng `.env` nữa. `ALLOWED_GROUP_IDS` vẫn hữu ích khi test cục bộ chỉ
+  muốn nghe đúng 1 nhóm (xem "Bộ khung thông luồng" ở trên).
+- **Thêm một nhóm mới**: thêm bất kỳ nick phụ nào (tài khoản service đang đăng nhập) vào nhóm Zalo đó
+  như thành viên bình thường — không cần quyền quản trị nhóm. Service tự thấy nhóm ở lượt quét kế
+  tiếp (≤ `GROUP_SCAN_MS`, cộng thêm lượt quét ngay sau khi nick đăng nhập) và nhóm xuất hiện ở tab
+  "Nhóm Zalo" của admin, mặc định **đang bật**.

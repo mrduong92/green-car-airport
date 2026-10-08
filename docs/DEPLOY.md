@@ -552,7 +552,7 @@ staging — production sẽ phụ thuộc staging, và thành code chết ngay k
 nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
 staging) + 3 unit test cho 3 nhánh exit code.
 
-## Microservice Zalo — Cuốc Free (giai đoạn 1 → 3)
+## Microservice Zalo — Cuốc Free (giai đoạn 1 → 4)
 
 ### ⚠️ Thứ tự triển khai giai đoạn 2 + 3 (phát hành cùng lúc)
 
@@ -623,7 +623,9 @@ chown -R www-data:www-data storage bootstrap/cache
 # .env — bắt buộc / nên đặt
 API_BASE_URL=https://greenca.vn
 BOT_SECRET=<trùng ZALO_BOT_SECRET>
-ALLOWED_GROUP_IDS=<id nhóm, cách nhau dấu phẩy>     # lấy ID: npm run groups -- acc1
+ALLOWED_GROUP_IDS=                                  # để TRỐNG trên production — nghe mọi nhóm; từ
+                                                     # giai đoạn 4, bật/tắt từng nhóm ở trang admin
+                                                     # thay vì liệt kê ID ở đây (xem mục "Giai đoạn 4")
 ANTHROPIC_API_KEY=<key do AMD quản lý>              # trống = không gọi AI, tin khó hiển thị nguyên văn
 AI_MODEL=claude-haiku-4-5
 AI_DAILY_BUDGET_USD=5                              # trần dự phòng khi chưa hỏi được Laravel
@@ -645,6 +647,40 @@ sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schem
 - Các POST của tài xế (báo cáo, ẩn người bắn, báo link lỗi) giới hạn 20 lần/phút/tài xế (`throttle:20,1`).
 - **Theo thứ tự ở đầu mục này** — sau khi đã xác nhận cuốc về tới Laravel: build lại app tài xế
   (`npm run build:driver -- --mode production`, kiểm VAPID như các lần deploy trước) và rsync `dist-driver/`.
+
+### Giai đoạn 4 — trang admin "Cuốc Free", quét toàn bộ nhóm
+
+Trang admin (nhóm Zalo / người bắn / tình trạng service) + service tự quét toàn bộ nhóm nick phụ
+đang ở (không còn phải khai từng ID nhóm thủ công).
+
+```bash
+php artisan migrate --force
+# 2026_10_10_000001_add_scan_fields_to_zalo_groups: thêm member_count, accounts, left_at vào zalo_groups
+```
+
+- **App admin**: không phải build/rsync riêng — bundle `dist-admin` đã nằm trong lệnh build 3-app
+  ở mục "Frontend (build local, rsync lên)" bên dưới; chỉ cần đi qua bước đó như mọi lần deploy để
+  trang "Cuốc Free" (`/free-rides`) có mặt trên `admin.greenca.vn`.
+- **Service (VPS riêng)**: để `ALLOWED_GROUP_IDS` **rỗng** — service nghe mọi nhóm nick phụ đang ở,
+  việc bật/tắt từng nhóm chuyển hẳn sang trang admin (tab "Nhóm Zalo"), không còn sửa `.env` + restart
+  mỗi khi cần thêm/bớt nhóm.
+  ```bash
+  # zalo-service/.env — không cần sửa nếu đã để trống từ trước
+  ALLOWED_GROUP_IDS=
+  GROUP_SCAN_MS=1800000   # mặc định 30 phút; chỉnh nếu cần nhóm mới hiện ở admin nhanh hơn
+  ```
+  Đổi `.env` xong thì `sudo systemctl restart greenca-zalo-service`.
+- **Cách thêm một nhóm Zalo mới**: thêm một trong các nick phụ (tài khoản service đang đăng nhập) vào
+  nhóm Zalo đó như người dùng bình thường (ai trong nhóm cũng thêm được, không cần quyền admin nhóm).
+  Service tự thấy nhóm trong vòng ≤ `GROUP_SCAN_MS` (mặc định 30 phút, cộng thêm lượt quét ngay sau khi
+  nick đăng nhập) và gửi lên Laravel qua `POST /internal/zalo/groups` — nhóm xuất hiện ở tab "Nhóm Zalo"
+  của admin, **mặc định đang bật** (tài xế thấy cuốc của nhóm ngay, không cần admin bật tay).
+- **Bật/tắt nhóm ở admin**: `admin.greenca.vn/free-rides` → tab "Nhóm Zalo" → gạt nút ở hàng nhóm cần
+  đổi. Tắt một nhóm ẩn ngay cuốc của nhóm đó khỏi tab Free của mọi tài xế (kể cả cuốc đã đồng bộ từ
+  trước khi tắt); service không bị ảnh hưởng — vẫn quét/lưu tin bình thường, chỉ Laravel lọc bớt lúc
+  trả về cho tài xế.
+- Nhóm nào không còn nick phụ nào ở ("Nick đã rời" trong admin) bị loại khỏi tổng nhóm "chưa rời" ở tab
+  Tình trạng; thêm lại nick vào nhóm đó để service nhận diện lại ở lượt quét kế tiếp.
 
 ## Lịch sử production
 
