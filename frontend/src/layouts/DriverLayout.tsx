@@ -8,6 +8,7 @@ import clsx from 'clsx'
 
 const TABS = [
   { to: '/driver/trips',         icon: 'list_alt',               label: 'Cuốc xe',  end: true },
+  { to: '/driver/free',          icon: 'local_taxi',             label: 'Free',     end: true },
   { to: '/driver/trips/history', icon: 'receipt_long',           label: 'Lịch sử',  end: true },
   { to: '/driver/stats',         icon: 'bar_chart',              label: 'Thống kê', end: true },
   { to: '/driver/wallet',        icon: 'account_balance_wallet',  label: 'Ví điểm', end: true },
