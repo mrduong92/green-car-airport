@@ -1,4 +1,5 @@
 import { findDate, findTimes, resolvePickupAt } from './time.js'
+import { truncate } from '../text.js'
 
 export type Direction = 'to_airport' | 'from_airport' | 'other'
 
@@ -25,8 +26,8 @@ export function sanitizeDraft(draft: RideDraft): RideDraft {
   const inRange = (v: number | null, min: number, max: number) => (v !== null && Number.isInteger(v) && v >= min && v <= max ? v : null)
   return {
     ...draft,
-    pickupTimeText: draft.pickupTimeText?.slice(0, MAX_SHORT_TEXT) ?? null,
-    vehicleNote: draft.vehicleNote?.slice(0, MAX_SHORT_TEXT) ?? null,
+    pickupTimeText: draft.pickupTimeText == null ? null : truncate(draft.pickupTimeText, MAX_SHORT_TEXT),
+    vehicleNote: draft.vehicleNote == null ? null : truncate(draft.vehicleNote, MAX_SHORT_TEXT),
     seats: inRange(draft.seats, 1, MAX_SEATS),
     price: inRange(draft.price, 0, MAX_PRICE),
   }

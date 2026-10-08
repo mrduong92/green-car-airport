@@ -14,3 +14,10 @@ export function contentHash(senderUid: string, text: string): string {
 export function looksTimed(text: string): boolean {
   return /(?<!\d)\d{1,2}\s*(?:h|g|:)\s*\d{0,2}/iu.test(text)
 }
+
+// Cắt theo ký tự (code point), không theo đơn vị UTF-16: slice() thường có thể chẻ đôi emoji, để lại
+// surrogate lẻ → JSON gửi Laravel bị PHP từ chối CẢ LÔ. Khớp với mb_substr phía Laravel.
+export function truncate(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text
+  return Array.from(text).slice(0, maxChars).join('')
+}

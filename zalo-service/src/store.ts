@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import type { Db } from './db.js'
 import type { MessageItem } from './normalize.js'
-import { contentHash } from './text.js'
+import { contentHash, truncate } from './text.js'
 
 export type SaveResult = 'stored' | 'duplicate' | 'ignored'
 
@@ -75,8 +75,8 @@ export class MessageStore {
     this.saveTx = db.transaction((item: MessageItem, accountId: string, receivedAt: number): SaveResult => {
       if (this.exists.get(item.group_id, item.msg_id)) return 'ignored'
 
-      this.upsertGroup.run(item.group_id, item.group_name.slice(0, MAX_NAME), item.sent_at)
-      this.upsertSender.run(item.sender_uid, item.sender_name.slice(0, MAX_NAME), item.sent_at)
+      this.upsertGroup.run(item.group_id, truncate(item.group_name, MAX_NAME), item.sent_at)
+      this.upsertSender.run(item.sender_uid, truncate(item.sender_name, MAX_NAME), item.sent_at)
 
       const hash = contentHash(item.sender_uid, item.content)
       const isDuplicate = Boolean(this.seenHash.get(hash, item.sent_at - this.opts.duplicateWindowMs))
@@ -86,7 +86,7 @@ export class MessageStore {
         msgId: item.msg_id,
         senderUid: item.sender_uid,
         accountId,
-        content: item.content.slice(0, this.opts.maxContentLength),
+        content: truncate(item.content, this.opts.maxContentLength),
         hash,
         sentAt: item.sent_at,
         receivedAt,
@@ -102,7 +102,7 @@ export class MessageStore {
 
   // Tên nhóm tra được sau khi tin đã lưu (ingest không chờ Zalo). Tên rỗng không ghi đè.
   setGroupName(groupId: string, name: string): void {
-    const trimmed = name.slice(0, MAX_NAME)
+    const trimmed = truncate(name, MAX_NAME)
     this.renameGroup.run(trimmed, groupId, trimmed)
   }
 
