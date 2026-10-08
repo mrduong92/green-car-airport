@@ -409,6 +409,60 @@ declare namespace App {
     window?: '2h' | 'today' | 'tomorrow'
     q?: string
   }
+
+  // Trang admin "Cuốc Free" — khớp JSON thực tế của FreeRideAdminController (xem task-3-report.md).
+  interface AdminZaloGroup {
+    zalo_group_id: string
+    name: string
+    enabled: boolean
+    member_count: number | null
+    messages_24h: number
+    last_message_at: number | null
+    accounts: string[]
+    left: boolean
+  }
+
+  interface AdminFreeRideSender {
+    sender_uid: string
+    sender_name: string
+    active_rides: number
+    rides_7d: number
+    reports: number
+    blocked: boolean
+  }
+
+  interface AdminFreeRideServiceAccount {
+    id: string
+    connected: boolean
+    logged_in: boolean | null
+    last_error: string | null
+  }
+
+  interface AdminFreeRideService {
+    service_id: string
+    last_heartbeat_at: number
+    stale: boolean
+    accounts: AdminFreeRideServiceAccount[]
+    ai_spent_today_usd: number
+    ai_budget_usd: number
+    outbox_backlog: number
+    held_back_rides: number
+    qr_ok_24h: number
+    qr_empty_24h: number
+  }
+
+  interface AdminFreeRideStatus {
+    services: AdminFreeRideService[]
+    active_rides: number
+    groups_enabled: number
+    groups_total: number
+  }
+
+  // Dạng phân trang { data, meta } của FreeRideAdminController — khác App.Paginated<T> (phẳng).
+  interface AdminPage<T> {
+    data: T[]
+    meta: { current_page: number; last_page: number; total: number }
+  }
 }
 
 declare module '@goongmaps/goong-js' {
