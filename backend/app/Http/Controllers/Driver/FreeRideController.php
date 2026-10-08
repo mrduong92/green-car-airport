@@ -14,7 +14,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 // Tab Free: cuốc lấy từ nhóm Zalo. GreenCA chỉ là trung gian — "Nhận cuốc" mở Zalo người bắn.
 class FreeRideController extends Controller
@@ -52,6 +51,9 @@ class FreeRideController extends Controller
                 'data' => $this->safe($rides)->map(fn (FreeRide $r) => $this->format($r))->values(),
                 'next_cursor' => null,
                 'latest' => $this->latestOf($rides, (int) $data['since']),
+                // Chạm giới hạn SINCE_LIMIT nghĩa là còn cuốc cũ hơn bị bỏ sót (sắp xếp mới nhất
+                // trước rồi cắt) — báo client nạp lại trang 1 thay vì coi since là đã đủ.
+                'reset' => $rides->count() >= self::SINCE_LIMIT,
             ]);
         }
 
@@ -110,9 +112,9 @@ class FreeRideController extends Controller
             // Nhóm admin đã tắt: ẩn cả cuốc đã đồng bộ trước khi tắt / lúc service chưa lấy được cấu hình.
             ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
             ->whereNotIn('sender_uid', DriverHiddenSender::where('driver_id', $driverId)->select('sender_uid'))
-            // Mã QR bẩn: lọc ở tầng DB khi có REGEXP (MySQL production); SQLite (test) không hỗ trợ
-            // REGEXP nên lọc bổ sung ở PHP trong safe() — xem ghi chú ở đó.
-            ->when(DB::connection()->getDriverName() === 'mysql', fn (Builder $q) => $q->whereRaw("qr_code REGEXP '^[A-Za-z0-9]+$'"))
+            // Mã QR bẩn: không lọc ở DB (REGEXP không có trên mọi driver, vd. SQLite test) — giai
+            // đoạn 2 đã chặn mã bẩn lúc ingest, và safe() lọc lại ở PHP như lớp phòng thủ cuối,
+            // chạy giống nhau trên mọi driver và có test bao phủ đầy đủ.
             ->when($data['direction'] ?? null, fn (Builder $q, string $d) => $q->where('direction', $d))
             ->when($data['seats'] ?? null, fn (Builder $q, $s) => $q->where('seats', (int) $s));
 
@@ -134,10 +136,9 @@ class FreeRideController extends Controller
         return $query;
     }
 
-    // Phòng thủ bổ sung: loại cuốc có qr_code không phải thuần chữ/số. Trên MySQL production,
-    // visibleTo() đã lọc ở DB bằng REGEXP nên đây gần như không khớp gì thêm; trên SQLite (test,
-    // không có REGEXP) đây là nơi lọc thật sự. Có thể làm vỡ cỡ trang cursorPaginate trên SQLite
-    // (hiếm, vì service đã chặn mã bẩn lúc ingest) — chấp nhận được cho lớp phòng thủ.
+    // Phòng thủ: loại cuốc có qr_code không phải thuần chữ/số. Giai đoạn 2 đã chặn mã bẩn lúc
+    // ingest nên đây gần như không khớp gì — lọc ở PHP (không phải DB) để chạy giống nhau trên
+    // mọi driver, kể cả SQLite (test) không có REGEXP.
     private function safe(Collection $rides): Collection
     {
         return $rides->filter(fn (FreeRide $r) => preg_match(self::SAFE_CODE_REGEX, $r->qr_code) === 1);

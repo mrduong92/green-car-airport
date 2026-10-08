@@ -89,6 +89,27 @@ class FreeRideApiTest extends TestCase
 
         $this->assertSame(['sau'], array_column($res->json('data'), 'pickup'));
         $this->assertNull($res->json('next_cursor'));
+        $this->assertFalse($res->json('reset'));
+    }
+
+    public function test_since_reports_reset_when_limit_exceeded(): void
+    {
+        $driver = $this->driver();
+        $mark = now()->getTimestampMs();
+        $this->travel(1)->seconds();
+
+        foreach (range(1, 2) as $i) {
+            $this->ride();
+        }
+        $few = $this->actingAs($driver, 'sanctum')->getJson("/api/driver/free-rides?since=$mark")->assertOk();
+        $this->assertFalse($few->json('reset'));
+
+        // Tổng 201 cuốc (2 + 199) > SINCE_LIMIT (200) để kích hoạt reset.
+        foreach (range(1, 199) as $i) {
+            $this->ride();
+        }
+        $many = $this->actingAs($driver, 'sanctum')->getJson("/api/driver/free-rides?since=$mark")->assertOk();
+        $this->assertTrue($many->json('reset'));
     }
 
     public function test_cursor_pagination(): void
