@@ -21,6 +21,7 @@ use App\Http\Controllers\Customer\StatsController as CustomerStatsController;
 use App\Http\Controllers\Customer\StreamController as CustomerStreamController;
 use App\Http\Controllers\Customer\VoucherController;
 use App\Http\Controllers\DeviceTokenController;
+use App\Http\Controllers\Driver\FreeRideController;
 use App\Http\Controllers\Driver\ProfileController;
 use App\Http\Controllers\Driver\StatusController;
 use App\Http\Controllers\Driver\StreamController;
@@ -121,6 +122,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/profile', [ProfileController::class, 'show']);
         Route::put('/driver/profile', [ProfileController::class, 'update']);
         Route::patch('/driver/status', [StatusController::class, 'update']);
+
+        // Tab Free (cuốc từ nhóm Zalo) — chỉ tài xế đã duyệt.
+        Route::middleware('driver.active')->group(function () {
+            Route::get('/driver/free-rides', [FreeRideController::class, 'index']);
+            Route::post('/driver/free-rides/hidden-senders', [FreeRideController::class, 'hideSender']);
+            Route::post('/driver/free-rides/{rideUid}/report', [FreeRideController::class, 'report']);
+            Route::post('/driver/free-rides/{rideUid}/broken-link', [FreeRideController::class, 'brokenLink']);
+        });
     });
 
     // Admin
