@@ -1,5 +1,10 @@
 import type { AccountState } from './accounts.js'
 import type { ServiceCounters } from './ingest.js'
+import { truncate } from './text.js'
+
+// Lỗi đăng nhập/socket đôi khi là cả stack trace — không cắt thì Laravel 422 từ chối CẢ GÓI
+// heartbeat (service trông như đã chết, im lặng không cảnh báo). 300 ký tự là đủ để chẩn đoán.
+const MAX_LAST_ERROR_CHARS = 300
 
 export interface HeartbeatExtra {
   outbox_backlog: number
@@ -52,8 +57,12 @@ export function buildHeartbeat(input: {
     service_id: input.serviceId,
     uptime_s: Math.round((input.now - input.startedAt) / 1000),
     // Giai đoạn 4 (trang admin "Tình trạng"): gửi kèm đã đăng nhập chưa + lỗi gần nhất từng nick.
+    // truncate() cắt theo code point (không theo đơn vị UTF-16) nên không bao giờ chẻ đôi emoji.
     accounts: input.accounts.map((a) => ({
-      id: a.id, connected: a.connected, logged_in: a.loggedIn, last_error: a.lastError ?? null,
+      id: a.id,
+      connected: a.connected,
+      logged_in: a.loggedIn,
+      last_error: a.lastError != null ? truncate(a.lastError, MAX_LAST_ERROR_CHARS) : null,
     })),
     received_total: input.counters.received,
     stored_total: input.counters.stored,

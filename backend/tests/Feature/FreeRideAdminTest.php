@@ -242,6 +242,34 @@ class FreeRideAdminTest extends TestCase
         );
     }
 
+    // Phòng tuyến thứ hai: service Node đã cắt còn 300 ký tự trước khi gửi, nhưng nếu lỡ gửi dài
+    // hơn, Laravel phải CẮT chứ không được 422 từ chối cả gói heartbeat (service trông như đã chết).
+    public function test_heartbeat_with_long_last_error_is_accepted_and_truncated(): void
+    {
+        config(['zalo.enabled' => true, 'zalo.bot_secret' => 'test-secret']);
+        $admin = $this->admin();
+        $longError = str_repeat('x', 1000);
+
+        $this->zaloPost('/api/internal/zalo/heartbeat', [
+            'service_id' => 'zalo-1',
+            'uptime_s' => 100,
+            'accounts' => [
+                ['id' => 'acc1', 'connected' => false, 'logged_in' => false, 'last_error' => $longError],
+            ],
+            'received_total' => 10,
+            'stored_total' => 9,
+            'duplicates_total' => 1,
+            'skipped_non_text' => 0,
+            'last_message_at' => now()->getTimestampMs(),
+        ])->assertOk();
+
+        $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/status')->assertOk();
+
+        $lastError = $res->json('services.0.accounts.0.last_error');
+        $this->assertLessThanOrEqual(500, mb_strlen($lastError));
+        $this->assertSame(str_repeat('x', 500), $lastError);
+    }
+
     public function test_overlong_route_params_do_not_500(): void
     {
         $admin = $this->admin();

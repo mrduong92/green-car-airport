@@ -26,8 +26,11 @@ class ZaloServiceController extends Controller
             'accounts.*.id' => ['required', 'string', 'max:64'],
             'accounts.*.connected' => ['required', 'boolean'],
             // Giai đoạn 4 (trang admin "Tình trạng"): đã đăng nhập chưa + lỗi gần nhất từng nick.
+            // Không giới hạn độ dài ở đây: service Node đã cắt còn 300 ký tự trước khi gửi, nhưng
+            // nếu lỡ gửi dài hơn thì KHÔNG được từ chối cả gói heartbeat (service trông như đã chết
+            // mà không có cảnh báo nào) — cắt bằng mb_substr bên dưới thay vì validate max.
             'accounts.*.logged_in' => ['sometimes', 'boolean'],
-            'accounts.*.last_error' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'accounts.*.last_error' => ['sometimes', 'nullable', 'string'],
             'received_total' => ['required', 'integer', 'min:0'],
             'stored_total' => ['required', 'integer', 'min:0'],
             'duplicates_total' => ['required', 'integer', 'min:0'],
@@ -43,6 +46,13 @@ class ZaloServiceController extends Controller
             'qr_empty_24h' => ['sometimes', 'integer', 'min:0'],
             'qr_error_24h' => ['sometimes', 'integer', 'min:0'],
         ]);
+
+        foreach ($data['accounts'] as &$account) {
+            if (isset($account['last_error'])) {
+                $account['last_error'] = mb_substr($account['last_error'], 0, 500);
+            }
+        }
+        unset($account);
 
         $monitor->recordHeartbeat($data);
 
