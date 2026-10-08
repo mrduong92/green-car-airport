@@ -7,9 +7,21 @@ import { useFreeRides } from '@/hooks/useFreeRides'
 
 const STORAGE_KEY = 'free-rides-filters'
 
+const DIRECTIONS: readonly App.FreeRideDirection[] = ['to_airport', 'from_airport', 'other']
+const WINDOWS: readonly NonNullable<App.FreeRideFilters['window']>[] = ['2h', 'today', 'tomorrow']
+
+// Bộ lọc lưu từ phiên bản cũ / bị sửa tay có thể sai kiểu — chỉ giữ giá trị hợp lệ, còn lại bỏ.
 function loadFilters(): App.FreeRideFilters {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as App.FreeRideFilters
+    const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
+    const r = raw as Record<string, unknown>
+    const filters: App.FreeRideFilters = {}
+    if (DIRECTIONS.includes(r.direction as App.FreeRideDirection)) filters.direction = r.direction as App.FreeRideDirection
+    if (typeof r.seats === 'number' && Number.isInteger(r.seats) && r.seats >= 1 && r.seats <= 60) filters.seats = r.seats
+    if (WINDOWS.includes(r.window as NonNullable<App.FreeRideFilters['window']>)) filters.window = r.window as App.FreeRideFilters['window']
+    if (typeof r.q === 'string' && r.q.length <= 100) filters.q = r.q
+    return filters
   } catch {
     return {}
   }
@@ -18,7 +30,7 @@ function loadFilters(): App.FreeRideFilters {
 export default function FreeRidesPage() {
   const [filters, setFilters] = useState<App.FreeRideFilters>(loadFilters)
   const [selected, setSelected] = useState<App.FreeRide | null>(null)
-  const { rides, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender } = useFreeRides(filters)
+  const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender } = useFreeRides(filters)
 
   const changeFilters = useCallback((next: App.FreeRideFilters) => {
     setFilters(next)
@@ -36,6 +48,9 @@ export default function FreeRidesPage() {
 
       {isLoading ? (
         <p className="text-center text-sm text-neutral-gray py-10">Đang tải cuốc…</p>
+      ) : isError && rides.length === 0 ? (
+        <EmptyState icon="cloud_off" title="Không tải được cuốc Free" description="Kiểm tra kết nối mạng rồi thử lại."
+          action={{ label: 'Thử lại', onClick: () => { void refetch() } }} />
       ) : rides.length === 0 ? (
         <EmptyState icon="local_taxi" title="Chưa có cuốc Free phù hợp" description="Thử đổi bộ lọc hoặc quay lại sau ít phút." />
       ) : (

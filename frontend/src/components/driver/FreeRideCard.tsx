@@ -6,7 +6,7 @@ const DIRECTION_LABEL: Record<App.FreeRideDirection, string> = {
 
 const timeText = (ride: App.FreeRide) => {
   if (ride.pickup_at === null) return ride.pickup_time_text ?? 'Chưa rõ giờ'
-  return new Date(ride.pickup_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+  return new Date(ride.pickup_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })
 }
 
 const ago = (ms: number) => {

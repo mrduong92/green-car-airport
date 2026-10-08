@@ -85,6 +85,8 @@ export function useFreeRides(filters: App.FreeRideFilters) {
 
     queryClient.setQueryData<Pages>(queryKey, (old) => {
       if (!old) return old
+      // Trong lúc chờ request, cache có thể đã được tải lại trang 1 với mốc mới hơn — không lùi mốc.
+      const firstLatest = Math.max(nextLatest, old.pages[0]?.latest ?? 0)
 
       // Cuốc since trả về sắp theo updated_at, không phải posted_at — nếu chèn thẳng
       // vào đầu trang 1 thì cuốc cũ được "chạm" lại (vd. bị báo cáo) sẽ nhảy lên đầu
@@ -107,7 +109,7 @@ export function useFreeRides(filters: App.FreeRideFilters) {
         if (i === 0) {
           rows = [...rows, ...freshTop].sort((a, b) => b.posted_at - a.posted_at)
         }
-        return { ...page, data: rows, latest: i === 0 ? nextLatest : page.latest }
+        return { ...page, data: rows, latest: i === 0 ? firstLatest : page.latest }
       })
 
       return { ...old, pages }
@@ -120,11 +122,15 @@ export function useFreeRides(filters: App.FreeRideFilters) {
     const channel = echo.private('driver.free-rides')
     const timers: ReturnType<typeof setTimeout>[] = []
 
-    // Kết nối lại sau khi khoá màn hình / mất mạng: tải lại ngay, không rải (người dùng
-    // đang nhìn). `since` không báo được việc XOÁ (admin chặn người bắn / tắt nhóm),
-    // nên đồng bộ lại lúc này phải nạp lại trang 1 từ đầu, không phải gộp since.
+    // Mỗi lần kênh private đăng ký xong — lần đầu VÀ sau mỗi lần kết nối lại (khoá màn hình /
+    // mất mạng, pusher tự đăng ký lại kênh) — nạp lại trang 1 ngay, không rải (người dùng đang
+    // nhìn). Lần đầu: lấp khoảng hở giữa lần tải ban đầu và lúc kênh sẵn sàng (tín hiệu phát
+    // trong khoảng đó bị lỡ); đổi giá một request thừa khi mở tab. Kết nối lại: `since` không
+    // báo được việc XOÁ (admin chặn người bắn / tắt nhóm) nên phải nạp lại trang 1, không gộp
+    // since. Dùng `subscribed` thay cho sự kiện `connected` của socket vì `connected` tới TRƯỚC
+    // khi kênh đăng ký xong — tải lúc đó vẫn còn hở.
     const resync = () => { void trimToFirstPage() }
-    echo.connector.pusher.connection.bind('connected', resync)
+    channel.subscribed(resync)
 
     channel.listen('.free-rides.updated', () => {
       timers.push(setTimeout(() => {
@@ -134,7 +140,6 @@ export function useFreeRides(filters: App.FreeRideFilters) {
 
     return () => {
       timers.forEach(clearTimeout)
-      echo.connector.pusher.connection.unbind('connected', resync)
       echo.leave('driver.free-rides')
     }
   }, [token, queryKey, mergeSince, trimToFirstPage])
@@ -176,6 +181,8 @@ export function useFreeRides(filters: App.FreeRideFilters) {
   return {
     rides,
     isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: trimToFirstPage,
     fetchNextPage: query.fetchNextPage,
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
