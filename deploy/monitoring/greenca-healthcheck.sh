@@ -119,11 +119,14 @@ fi
 if grep -qE '^ZALO_SERVICE_ENABLED=(true|1)$' "$ENV_FILE"; then
     zalo_out=$(cd "$APP_DIR" && sudo -u www-data php artisan zalo:service-status 2>&1)
     zalo_code=$?
-    if [ "$zalo_code" -eq 1 ]; then
-        problems+=("SERVICE ZALO CÓ VẤN ĐỀ → tab Cuốc Free ngừng cập nhật: $(echo "$zalo_out" | tr '\n' ' ' | head -c 300)")
-    elif [ "$zalo_code" -ne 0 ]; then
-        problems+=("SERVICE ZALO CHƯA TỪNG GỬI HEARTBEAT (đã bật ZALO_SERVICE_ENABLED nhưng service chưa chạy?)")
-    fi
+    # Mã thoát của zalo:service-status: 0 ổn, 1 có vấn đề, 2 chưa từng gửi heartbeat.
+    # Mã khác (PHP fatal 255, DB sập, sudo/php lỗi...) là lệnh kiểm tra không chạy được — đừng báo nhầm.
+    case "$zalo_code" in
+        0) ;;
+        1) problems+=("SERVICE ZALO CÓ VẤN ĐỀ → tab Cuốc Free ngừng cập nhật: $(echo "$zalo_out" | tr '\n' ' ' | head -c 300)") ;;
+        2) problems+=("SERVICE ZALO CHƯA TỪNG GỬI HEARTBEAT (đã bật ZALO_SERVICE_ENABLED nhưng service chưa chạy?)") ;;
+        *) problems+=("KHÔNG CHẠY ĐƯỢC LỆNH KIỂM TRA SERVICE ZALO (exit $zalo_code): $(echo "$zalo_out" | tr '\n' ' ' | head -c 300)") ;;
+    esac
 fi
 
 

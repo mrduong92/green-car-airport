@@ -64,3 +64,31 @@ test('có tin đến thì bộ đếm mở lại về 0', async () => {
   api.listener.emit('closed', 1000, 'NORMAL_CLOSURE')
   assert.equal(delays.at(-1), 3_000)
 })
+
+test('mở lại nhanh (1000) không chiếm lượt thử lại, không tính là lỗi: sau đó bị đá vẫn đăng nhập lại với độ trễ gốc', async () => {
+  const { api, manager, delays, pending, logins } = setup()
+  await manager.startAll()
+  api.listener.emit('closed', 1000, 'NORMAL_CLOSURE'); pending.shift()!()
+  api.listener.emit('closed', 1000, 'NORMAL_CLOSURE'); pending.shift()!()
+  api.listener.emit('closed', 3000, 'kicked')
+  assert.deepEqual(delays, [3_000, 3_000, 60_000])
+  assert.equal(manager.snapshot()[0].loggedIn, false)
+  // Đóng trùng sau khi đã lên lịch đăng nhập lại → bỏ qua, kể cả mã 1000.
+  api.listener.emit('closed', 1000, 'NORMAL_CLOSURE')
+  assert.deepEqual(delays, [3_000, 3_000, 60_000])
+  pending.pop()!()
+  await new Promise((r) => setImmediate(r))
+  assert.equal(logins(), 2)
+})
+
+test('mở lại nhanh mà listener.start ném lỗi → không sập, chuyển sang đăng nhập lại', async () => {
+  const { api, manager, delays, pending } = setup()
+  await manager.startAll()
+  api.listener.start = () => { throw new Error('ws hỏng') }
+  api.listener.emit('closed', 1000, 'NORMAL_CLOSURE')
+  assert.doesNotThrow(() => pending.shift()!())
+  const state = manager.snapshot()[0]
+  assert.equal(state.loggedIn, false)
+  assert.match(state.lastError ?? '', /ws hỏng/)
+  assert.deepEqual(delays, [3_000, 60_000])
+})
