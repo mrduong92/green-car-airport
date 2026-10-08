@@ -48,7 +48,7 @@ export default function FreeRideCard({ ride, onMore }: Props) {
 
         <div className="flex items-center gap-2 flex-wrap text-[12px]">
           {ride.price !== null && <span className="font-semibold text-navy">{ride.price.toLocaleString('vi-VN')}đ</span>}
-          {ride.is_free && <span className="font-semibold text-success-green bg-emerald-50 rounded-pill px-2 py-0.5">Không chiết khấu</span>}
+          {ride.is_free && <span className="font-semibold text-success-green bg-light-green rounded-pill px-2 py-0.5">Không chiết khấu</span>}
           {ride.seats !== null && <span className="text-neutral-gray">Xe {ride.seats} chỗ</span>}
           {ride.vehicle_note && <span className="text-neutral-gray uppercase">{ride.vehicle_note}</span>}
         </div>
