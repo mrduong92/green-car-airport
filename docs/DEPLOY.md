@@ -630,10 +630,10 @@ AI_DAILY_BUDGET_USD=5                              # trần dự phòng khi chư
 # Còn lại (AI_BATCH_SIZE, RIDES_FLUSH_MS, QR_INTERVAL_MS, QR_REFRESH_DAYS, …) để mặc định
 
 npm ci && npm run build
-sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v2 khi khởi động
+sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v3 khi khởi động
 ```
 
-- Thử AI trước khi bật thật: `ANTHROPIC_API_KEY=... npm run try-ai`.
+- Chưa có `ANTHROPIC_API_KEY` thì tin khó hiện nguyên văn; thêm key rồi `sudo systemctl restart greenca-zalo-service` để bật AI.
 - `zalo:service-status` cảnh báo thêm: hộp thư đi tồn > 1000 cuốc, tỷ lệ không lấy được mã QR > 80%,
   cuốc bị giữ vì thiếu mã > 200.
 
