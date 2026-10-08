@@ -14,5 +14,5 @@ Schedule::command('bookings:expire')->hourly();
 // giờ cao điểm, và trước job backup DB lúc 3h15 để bản backup nhẹ hơn.
 Schedule::command('notifications:prune')->dailyAt('03:00');
 
-// Cuốc Free (microservice Zalo): xoá cuốc hết hạn quá 1 ngày.
+// Cuốc Free (microservice Zalo): xoá cuốc hết hạn quá 8 ngày (giữ đủ tuần cho thống kê admin).
 Schedule::command('zalo:prune-rides')->dailyAt('03:10');

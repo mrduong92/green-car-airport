@@ -99,14 +99,16 @@ class ZaloServiceConfigTest extends TestCase
         $this->getJson('/api/internal/zalo/config')->assertStatus(401);
     }
 
-    public function test_prune_rides_deletes_rides_expired_over_a_day(): void
+    public function test_prune_rides_deletes_rides_expired_over_eight_days(): void
     {
+        // Giữ 8 ngày để thống kê "cuốc/7 ngày" ở trang admin đếm đủ cả tuần.
         $base = ['sender_uid' => '1', 'zalo_group_id' => 'g', 'qr_code' => 'QR1', 'raw_text' => 'x', 'posted_at' => now()];
-        FreeRide::create($base + ['ride_uid' => 'old', 'expires_at' => now()->subDays(2)]);
+        FreeRide::create($base + ['ride_uid' => 'old', 'expires_at' => now()->subDays(9)]);
+        FreeRide::create($base + ['ride_uid' => 'week', 'expires_at' => now()->subDays(6)]);
         FreeRide::create($base + ['ride_uid' => 'recent', 'expires_at' => now()->subHours(2)]);
 
         $this->artisan('zalo:prune-rides')->expectsOutputToContain('Đã xoá 1 cuốc')->assertSuccessful();
-        $this->assertSame(['recent'], FreeRide::pluck('ride_uid')->all());
+        $this->assertEqualsCanonicalizing(['recent', 'week'], FreeRide::pluck('ride_uid')->all());
     }
 
     public function test_status_alerts_when_outbox_backlog_is_large(): void
