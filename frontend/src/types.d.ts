@@ -367,6 +367,48 @@ declare namespace App {
     last_page: number
     total: number
   }
+
+  type FreeRideDirection = 'to_airport' | 'from_airport' | 'other'
+
+  interface FreeRide {
+    ride_uid: string
+    sender_uid: string
+    sender_name: string
+    group_name: string
+    direction: FreeRideDirection | null
+    pickup: string | null
+    destination: string | null
+    pickup_at: number | null
+    pickup_time_text: string | null
+    seats: number | null
+    vehicle_note: string | null
+    price: number | null
+    is_free: boolean
+    is_raw: boolean
+    raw_text: string
+    group_count: number
+    // Backend luôn trả chuỗi dạng zalo://qr/p/<mã> — cuốc có mã bẩn bị loại ở
+    // server (FreeRideController::safe()), không lọt ra tới đây.
+    contact_url: string
+    posted_at: number
+    expires_at: number
+  }
+
+  interface FreeRidePage {
+    data: FreeRide[]
+    next_cursor: string | null
+    latest: number | null
+    // true khi server chạm trần SINCE_LIMIT (200 dòng): nghĩa là còn cuốc cũ
+    // hơn bị bỏ sót, client phải nạp lại trang 1 thay vì gộp theo since.
+    reset?: boolean
+  }
+
+  interface FreeRideFilters {
+    direction?: FreeRideDirection
+    seats?: number
+    window?: '2h' | 'today' | 'tomorrow'
+    q?: string
+  }
 }
 
 declare module '@goongmaps/goong-js' {
