@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\BroadcastFreeRidesSignal;
 use App\Models\ZaloGroup;
 use App\Models\ZaloQrRefreshRequest;
 use App\Models\ZaloSenderBlock;
@@ -50,7 +51,12 @@ class ZaloServiceController extends Controller
             'rides' => ['required', 'array', 'max:'.config('zalo.max_rides_batch')],
         ]);
 
-        return response()->json($service->ingest($data['rides']));
+        $result = $service->ingest($data['rides']);
+        if ($result['stored'] > 0) {
+            BroadcastFreeRidesSignal::dispatch()->delay(now()->addSeconds(2));
+        }
+
+        return response()->json($result);
     }
 
     public function groups(Request $request): JsonResponse
