@@ -9,7 +9,9 @@ export interface ListenerLike {
 export interface ApiLike {
   listener: ListenerLike
   getOwnId(): string
-  getGroupInfo(groupId: string): Promise<{ gridInfoMap?: Record<string, { name?: string }> }>
+  getGroupInfo(groupId: string | string[]): Promise<{ gridInfoMap?: Record<string, { name?: string; totalMember?: number }> }>
+  // zca-js: toàn bộ nhóm mà nick đang ở, kèm version (dùng để quét nhóm giai đoạn 4).
+  getAllGroups(): Promise<{ gridVerMap: Record<string, string> }>
   // zca-js 2.2.0: uid → URL ảnh QR trang cá nhân (đã kiểm chứng trả cả với người chưa kết bạn).
   getQR(userId: string | string[]): Promise<Record<string, string>>
   // Chỉ để ghi log chẩn đoán nhịp ping của socket (zca-js có, fake trong test thì không).
@@ -82,6 +84,11 @@ export class AccountManager {
       if (this.states.get(id)?.loggedIn) return api
     }
     return undefined
+  }
+
+  // Các nick đang đăng nhập (để quét nhóm từng nick).
+  loggedIn(): { id: string; api: ApiLike }[] {
+    return [...this.apis].filter(([id]) => this.states.get(id)?.loggedIn).map(([id, api]) => ({ id, api }))
   }
 
   stopAll(): void {

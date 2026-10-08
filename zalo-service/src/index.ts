@@ -21,6 +21,7 @@ import { AnthropicExtractor } from './ai/extractor.js'
 import { ConfigPoller } from './remote-config.js'
 import { Processor, onAiFailed } from './processor.js'
 import { GroupsSync, RideSync } from './sync.js'
+import { GroupScanner } from './group-scanner.js'
 import type { IncomingMessage } from './normalize.js'
 
 const HOUR = 3_600_000
@@ -110,6 +111,7 @@ manager = new AccountManager({
 
 const rideSync = new RideSync({ rides, send, batchSize: cfg.ridesBatchSize, logger })
 const groupsSync = new GroupsSync({ db, send, logger })
+const groupScanner = new GroupScanner({ db, accounts: () => manager!.loggedIn(), logger })
 const every = (ms: number, fn: () => Promise<void> | void) =>
   setInterval(() => { Promise.resolve().then(fn).catch((err) => logger.error('Lỗi tác vụ định kỳ:', err)) }, ms)
 
@@ -132,6 +134,15 @@ every(cfg.aiFlushMs, () => ai?.flush())
 every(cfg.qrIntervalMs, () => qr.step())
 every(cfg.configPollMs, () => remote.poll())
 every(cfg.groupsSyncMs, () => groupsSync.flush())
+
+// Quét toàn bộ nhóm của nick phụ (giai đoạn 4): lần đầu ngay khi có nick đăng nhập (đăng nhập chạy
+// nền, không chặn heartbeat), sau đó mỗi groupScanMs.
+const firstGroupScan = setInterval(() => {
+  if (manager!.loggedIn().length === 0) return
+  clearInterval(firstGroupScan)
+  groupScanner.scan().then(() => groupsSync.flush()).catch((err) => logger.error('Quét nhóm lỗi:', err))
+}, 5_000)
+every(cfg.groupScanMs, () => groupScanner.scan().then(() => groupsSync.flush()))
 
 setInterval(() => {
   const deleted = store.prune()

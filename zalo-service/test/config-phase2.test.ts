@@ -13,6 +13,7 @@ test('phase 2 defaults', () => {
   assert.equal(cfg.ridesFlushMs, 2000)
   assert.equal(cfg.configPollMs, 60_000)
   assert.equal(cfg.groupsSyncMs, 600_000)
+  assert.equal(cfg.groupScanMs, 1_800_000)
   assert.equal(cfg.qrIntervalMs, 2000)
   assert.equal(cfg.qrRefreshDays, 7)
   assert.equal(cfg.rideExpireAfterPickupMs, 1_800_000)

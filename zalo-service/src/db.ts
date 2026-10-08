@@ -78,7 +78,19 @@ CREATE TABLE ai_usage (
 );
 `
 
-const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3]
+// v4: quét toàn bộ nhóm của nick phụ (giai đoạn 4) — số thành viên, đã rời, nick nào đang ở nhóm nào.
+const SCHEMA_V4 = `
+ALTER TABLE chat_groups ADD COLUMN member_count INTEGER;
+ALTER TABLE chat_groups ADD COLUMN left_at INTEGER;
+CREATE TABLE group_accounts (
+  zalo_group_id TEXT NOT NULL,
+  account_id    TEXT NOT NULL,
+  seen_at       INTEGER NOT NULL,
+  PRIMARY KEY (zalo_group_id, account_id)
+);
+`
+
+const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4]
 
 export function openDb(path: string): Db {
   const db = new Database(path)

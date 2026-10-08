@@ -24,6 +24,7 @@ export interface Config {
   ridesFlushMs: number
   configPollMs: number
   groupsSyncMs: number
+  groupScanMs: number
   rideExpireAfterPickupMs: number
   rideExpireWithoutTimeMs: number
 }
@@ -62,6 +63,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     ridesFlushMs: Number(env.RIDES_FLUSH_MS || 2000),
     configPollMs: Number(env.CONFIG_POLL_MS || 60_000),
     groupsSyncMs: Number(env.GROUPS_SYNC_MS || 600_000),
+    // Quét toàn bộ nhóm của nick phụ (giai đoạn 4): mặc định 30 phút.
+    groupScanMs: Number(env.GROUP_SCAN_MS || 1_800_000),
     rideExpireAfterPickupMs: Number(env.RIDE_EXPIRE_AFTER_PICKUP_MS || 30 * 60_000),
     rideExpireWithoutTimeMs: Number(env.RIDE_EXPIRE_WITHOUT_TIME_MS || 3 * 3_600_000),
   }

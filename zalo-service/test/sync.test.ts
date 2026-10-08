@@ -95,7 +95,21 @@ test('groups sync sends names and 24h counts', async () => {
   let payload: unknown
   const sync = new GroupsSync({ db, send: async (_p, body) => { payload = body; return { status: 200 } }, logger: silentLogger, now: () => T0 + 1000 })
   await sync.flush()
-  assert.deepEqual(payload, { groups: [{ zalo_group_id: 'g1', name: 'Taxi Nội Bài', last_message_at: T0, messages_24h: 1 }] })
+  assert.deepEqual(payload, {
+    groups: [{ zalo_group_id: 'g1', name: 'Taxi Nội Bài', last_message_at: T0, messages_24h: 1, member_count: null, accounts: [], left: false }],
+  })
+})
+
+test('GroupsSync sends every known group with member count, accounts and left flag', async () => {
+  const db = openDb(':memory:')
+  db.prepare("INSERT INTO chat_groups (zalo_group_id, name, member_count, left_at) VALUES ('g1', 'Taxi', 900, NULL), ('g2', 'Cũ', 10, 5)").run()
+  db.prepare("INSERT INTO group_accounts (zalo_group_id, account_id, seen_at) VALUES ('g1', 'acc1', 1), ('g1', 'acc2', 1)").run()
+  const sent: unknown[] = []
+  const sync = new GroupsSync({ db, send: async (_p, body) => { sent.push(body); return { status: 200 } }, logger: silentLogger, now: () => 10 })
+  await sync.flush()
+  const groups = (sent[0] as { groups: Record<string, unknown>[] }).groups
+  assert.deepEqual(groups.find((g) => g.zalo_group_id === 'g1'), { zalo_group_id: 'g1', name: 'Taxi', last_message_at: null, messages_24h: 0, member_count: 900, accounts: ['acc1', 'acc2'], left: false })
+  assert.equal(groups.find((g) => g.zalo_group_id === 'g2')?.left, true)
 })
 
 test('rides rejected by Laravel are logged as a warning with the count', async () => {

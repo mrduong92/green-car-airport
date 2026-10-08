@@ -99,3 +99,17 @@ Bên Laravel (`backend/.env`): `ZALO_SERVICE_ENABLED=true`, `ZALO_BOT_SECRET` (t
 - Heartbeat báo `held_back_rides` (cuốc bị giữ vì thiếu mã) và `qr_ok_24h` / `qr_empty_24h` / `qr_error_24h`;
   `php artisan zalo:service-status` cảnh báo khi tỷ lệ không lấy được mã > 80% hoặc cuốc bị giữ > 200.
 - Laravel loại cuốc sai dữ liệu → log service có cảnh báo "Laravel loại N cuốc", lý do nằm trong log Laravel.
+
+## Giai đoạn 4: quét toàn bộ nhóm của nick phụ
+
+| Biến | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `GROUP_SCAN_MS` | `1800000` (30 phút) | Nhịp quét `getAllGroups` + `getGroupInfo` của mọi nick đang đăng nhập |
+
+- Chỉ đọc: `getAllGroups` (toàn bộ nhóm nick đang ở) rồi `getGroupInfo` theo lô tối đa 20 ID, nghỉ 1 giây giữa
+  các lô — chỉ tra tên/số thành viên của nhóm chưa biết, không hỏi lại nhóm đã có tên.
+- Quét một lần ngay khi có nick đầu tiên đăng nhập, sau đó mỗi `GROUP_SCAN_MS`.
+- Một nhóm được coi là "đã rời" khi không còn nick nào (trong số các nick quét **thành công** ở lượt đó) thấy
+  nó nữa; một nick quét lỗi không làm nhóm của nick đó bị đánh dấu rời.
+- `POST /api/internal/zalo/groups` nay kèm `member_count`, `accounts` (danh sách nick đang ở nhóm) và `left`
+  cho admin bật/tắt nhóm mà không phải nhập ID bằng tay.

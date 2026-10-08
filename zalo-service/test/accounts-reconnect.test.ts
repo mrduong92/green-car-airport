@@ -11,7 +11,7 @@ class FakeListener extends EventEmitter {
 }
 
 function setup() {
-  const api = { listener: new FakeListener(), getOwnId: () => 'own', getGroupInfo: async () => ({}), getQR: async () => ({}) } satisfies ApiLike
+  const api = { listener: new FakeListener(), getOwnId: () => 'own', getGroupInfo: async () => ({}), getAllGroups: async () => ({ gridVerMap: {} }), getQR: async () => ({}) } satisfies ApiLike
   let logins = 0
   const delays: number[] = []
   const pending: (() => void)[] = []

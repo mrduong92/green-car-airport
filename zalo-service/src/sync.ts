@@ -58,12 +58,22 @@ export class GroupsSync {
   async flush(): Promise<void> {
     const since = (this.deps.now ?? Date.now)() - 24 * 3_600_000
     // Một lần GROUP BY trên khoảng sent_at (index messages_sent) thay vì đếm lại cho từng nhóm (~300 nhóm).
-    const groups = this.deps.db.prepare(`
-      SELECT g.zalo_group_id, g.name, g.last_message_at, COALESCE(c.n, 0) AS messages_24h
+    // group_concat gộp các nick đang thấy nhóm này (từ GroupScanner); gửi cả nhóm chưa có tin nào.
+    const rows = this.deps.db.prepare(`
+      SELECT g.zalo_group_id, g.name, g.last_message_at, COALESCE(c.n, 0) AS messages_24h, g.member_count, g.left_at,
+             (SELECT group_concat(account_id) FROM group_accounts a WHERE a.zalo_group_id = g.zalo_group_id) AS accounts
       FROM chat_groups g
       LEFT JOIN (SELECT zalo_group_id, COUNT(*) AS n FROM messages WHERE sent_at >= ? GROUP BY zalo_group_id) c
         ON c.zalo_group_id = g.zalo_group_id
-      ORDER BY g.zalo_group_id`).all(since)
+      ORDER BY g.zalo_group_id`).all(since) as {
+        zalo_group_id: string; name: string; last_message_at: number | null; messages_24h: number
+        member_count: number | null; left_at: number | null; accounts: string | null
+      }[]
+    const groups = rows.map(({ left_at, accounts, ...g }) => ({
+      ...g,
+      accounts: accounts ? accounts.split(',').sort() : [],
+      left: left_at !== null,
+    }))
     const { status } = await this.deps.send('/api/internal/zalo/groups', { groups })
     if (status !== 200) this.deps.logger.error('Đồng bộ danh sách nhóm lỗi HTTP', status || 'mạng')
   }

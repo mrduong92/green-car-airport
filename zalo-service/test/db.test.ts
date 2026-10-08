@@ -8,7 +8,7 @@ import { openDb } from '../src/db.js'
 
 test('fresh database is at the latest schema version', () => {
   const db = openDb(':memory:')
-  assert.equal(db.pragma('user_version', { simple: true }), 3)
+  assert.equal(db.pragma('user_version', { simple: true }), 4)
   const cols = (db.prepare('PRAGMA table_info(senders)').all() as { name: string }[]).map((c) => c.name)
   assert.ok(cols.includes('qr_code') && cols.includes('qr_fetched_at') && cols.includes('qr_status'))
   assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name = 'rides'").get())
@@ -28,7 +28,7 @@ test('a phase-1 database is upgraded in place without losing messages', () => {
   old.close()
 
   const db = openDb(path)
-  assert.equal(db.pragma('user_version', { simple: true }), 3)
+  assert.equal(db.pragma('user_version', { simple: true }), 4)
   assert.deepEqual(db.prepare('SELECT content FROM messages').get(), { content: 'tiễn 5h' })
   assert.deepEqual(db.prepare('SELECT display_name, qr_code FROM senders').get(), { display_name: 'Đức', qr_code: null })
 })
@@ -36,7 +36,8 @@ test('a phase-1 database is upgraded in place without losing messages', () => {
 test('a phase-2 database (already at the QR-columns skeleton) upgrades to v3 keeping senders.qr_code', () => {
   const path = join(mkdtempSync(join(tmpdir(), 'zalo-')), 'zalo.sqlite')
   const old = new Database(path)
-  old.exec(`CREATE TABLE senders (uid TEXT PRIMARY KEY, display_name TEXT NOT NULL DEFAULT '', last_seen_at INTEGER,
+  old.exec(`CREATE TABLE chat_groups (zalo_group_id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', last_message_at INTEGER);
+            CREATE TABLE senders (uid TEXT PRIMARY KEY, display_name TEXT NOT NULL DEFAULT '', last_seen_at INTEGER,
               qr_code TEXT, qr_fetched_at INTEGER, qr_status TEXT);
             CREATE TABLE messages (id INTEGER PRIMARY KEY, zalo_group_id TEXT NOT NULL, zalo_msg_id TEXT NOT NULL, sender_uid TEXT NOT NULL,
               account_id TEXT NOT NULL, content TEXT NOT NULL, content_hash TEXT NOT NULL, sent_at INTEGER NOT NULL,
@@ -46,8 +47,16 @@ test('a phase-2 database (already at the QR-columns skeleton) upgrades to v3 kee
   old.close()
 
   const db = openDb(path)
-  assert.equal(db.pragma('user_version', { simple: true }), 3)
+  assert.equal(db.pragma('user_version', { simple: true }), 4)
   assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name = 'rides'").get())
   assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name = 'ai_usage'").get())
   assert.deepEqual(db.prepare('SELECT display_name, qr_code FROM senders').get(), { display_name: 'Đức', qr_code: 'zalo://qr/p/abc' })
+})
+
+test('schema v4 adds member_count, left_at and group_accounts; a v3 database upgrades in place', () => {
+  const db = openDb(':memory:')
+  assert.equal(db.pragma('user_version', { simple: true }), 4)
+  const cols = (db.prepare('PRAGMA table_info(chat_groups)').all() as { name: string }[]).map((c) => c.name)
+  assert.ok(cols.includes('member_count') && cols.includes('left_at'))
+  assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name = 'group_accounts'").get())
 })
