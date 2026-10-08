@@ -573,6 +573,12 @@ chown -R www-data:www-data storage bootstrap/cache
   (service vẫn nghe và lưu tin bình thường, chỉ heartbeat bị từ chối).
 - Số liệu chốt chi phí AI: chạy `npm run stats -- --hours=72` **trên VPS service** (xem README).
 
+### Giai đoạn 3 — tab Free
+
+- `php artisan migrate --force` (bảng `free_ride_reports`, `driver_hidden_senders`).
+- Cần queue worker + Reverb chạy: tín hiệu `free-rides.updated` phát qua job `BroadcastFreeRidesSignal` (gom ≤ 1 tín hiệu / ~2 giây).
+- Build lại app tài xế (`npm run build:driver -- --mode production`, kiểm VAPID như các lần deploy trước) và rsync `dist-driver/`.
+
 ## Lịch sử production
 
 - 2026-09-23: **Sự cố push tài xế 6 tuần.** Tài xế báo không nhận noti cuốc mới; nghi
