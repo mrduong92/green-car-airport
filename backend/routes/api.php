@@ -126,9 +126,12 @@ Route::middleware('auth:sanctum')->group(function () {
         // Tab Free (cuốc từ nhóm Zalo) — chỉ tài xế đã duyệt.
         Route::middleware('driver.active')->group(function () {
             Route::get('/driver/free-rides', [FreeRideController::class, 'index']);
-            Route::post('/driver/free-rides/hidden-senders', [FreeRideController::class, 'hideSender']);
-            Route::post('/driver/free-rides/{rideUid}/report', [FreeRideController::class, 'report']);
-            Route::post('/driver/free-rides/{rideUid}/broken-link', [FreeRideController::class, 'brokenLink']);
+            // POST giới hạn 20/phút/tài xế — broken-link kéo theo một lần getQR trên tài khoản Zalo của bot.
+            Route::middleware('throttle:20,1')->group(function () {
+                Route::post('/driver/free-rides/hidden-senders', [FreeRideController::class, 'hideSender']);
+                Route::post('/driver/free-rides/{rideUid}/report', [FreeRideController::class, 'report']);
+                Route::post('/driver/free-rides/{rideUid}/broken-link', [FreeRideController::class, 'brokenLink']);
+            });
         });
     });
 

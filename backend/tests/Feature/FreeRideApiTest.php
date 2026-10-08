@@ -10,6 +10,7 @@ use App\Models\ZaloQrRefreshRequest;
 use App\Models\ZaloSenderBlock;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class FreeRideApiTest extends TestCase
@@ -177,6 +178,29 @@ class FreeRideApiTest extends TestCase
         $this->assertSame(1, ZaloQrRefreshRequest::where('sender_uid', '111')->whereNull('delivered_at')->count());
 
         $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/khong-co/report', ['reason' => 'spam'])->assertNotFound();
+    }
+
+    public function test_driver_posts_are_throttled_at_20_per_minute(): void
+    {
+        $ride = $this->ride();
+        $driver = $this->driver();
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/broken-link")->assertOk();
+        }
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/broken-link")->assertStatus(429);
+
+        // Danh sách (GET) không bị giới hạn chung với các POST.
+        $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->assertOk();
+    }
+
+    public function test_free_rides_updated_at_is_indexed(): void
+    {
+        // Mốc `latest` và tín hiệu realtime dùng max(updated_at) — cần index để không quét cả bảng.
+        $indexed = collect(Schema::getIndexes('free_rides'))
+            ->contains(fn (array $i) => $i['columns'] === ['updated_at']);
+
+        $this->assertTrue($indexed);
     }
 
     public function test_inactive_driver_is_forbidden(): void

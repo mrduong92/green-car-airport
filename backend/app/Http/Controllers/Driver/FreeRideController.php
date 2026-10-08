@@ -38,8 +38,6 @@ class FreeRideController extends Controller
             'cursor' => ['nullable', 'string'],
         ]);
 
-        // Lấy mốc trước khi truy vấn: cuốc chèn trong lúc truy vấn sẽ rơi vào lần since kế tiếp.
-        $latestBefore = FreeRide::max('updated_at');
         $query = $this->visibleTo($request->user()->id, $data);
 
         if (isset($data['since'])) {
@@ -57,6 +55,9 @@ class FreeRideController extends Controller
             ]);
         }
 
+        // Lấy mốc trước khi truy vấn: cuốc chèn trong lúc truy vấn sẽ rơi vào lần since kế tiếp.
+        // Chỉ nhánh trang mới cần (nhánh since tự tính mốc từ kết quả); có index trên updated_at.
+        $latestBefore = FreeRide::max('updated_at');
         $page = $query->orderByDesc('posted_at')->orderByDesc('id')->cursorPaginate(self::PAGE_SIZE);
 
         return response()->json([
