@@ -12,6 +12,7 @@ use App\Services\Zalo\ZaloServiceMonitor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 // Endpoint cho microservice Zalo (Node). Giai đoạn 2 thêm rides, groups, config.
 class ZaloServiceController extends Controller
@@ -67,22 +68,56 @@ class ZaloServiceController extends Controller
             'groups.*.name' => ['nullable', 'string'],
             'groups.*.last_message_at' => ['nullable', 'integer', 'min:0'],
             'groups.*.messages_24h' => ['required', 'integer', 'min:0'],
+            // Giai đoạn 4: 3 trường tuỳ chọn (payload cũ không có) — số thành viên, nick đang ở, đã rời nhóm chưa.
+            'groups.*.member_count' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'groups.*.accounts' => ['sometimes', 'array', 'max:50'],
+            'groups.*.accounts.*' => ['string', 'max:64'],
+            'groups.*.left' => ['sometimes', 'boolean'],
         ]);
 
         $now = now();
-        $rows = array_map(fn (array $g) => [
-            'zalo_group_id' => $g['zalo_group_id'],
-            'name' => mb_substr((string) ($g['name'] ?? ''), 0, 255),
-            'last_message_at' => isset($g['last_message_at']) ? Carbon::createFromTimestampMs($g['last_message_at']) : null,
-            'messages_24h' => $g['messages_24h'],
-            'created_at' => $now,
-            'updated_at' => $now,
-        ], $data['groups']);
+        $legacyRows = [];
 
-        // Không đưa 'enabled' vào cột cập nhật: cờ do admin quản lý.
-        ZaloGroup::upsert($rows, ['zalo_group_id'], ['name', 'last_message_at', 'messages_24h', 'updated_at']);
+        DB::transaction(function () use ($data, $now, &$legacyRows) {
+            foreach ($data['groups'] as $g) {
+                $base = [
+                    'name' => mb_substr((string) ($g['name'] ?? ''), 0, 255),
+                    'last_message_at' => isset($g['last_message_at']) ? Carbon::createFromTimestampMs($g['last_message_at']) : null,
+                    'messages_24h' => $g['messages_24h'],
+                    'updated_at' => $now,
+                ];
 
-        return response()->json(['stored' => count($rows)]);
+                // Payload cũ không có member_count/accounts/left — gom lại, upsert hàng loạt như trước, không đụng cột scan mới.
+                $hasScanFields = array_key_exists('member_count', $g) || array_key_exists('accounts', $g) || array_key_exists('left', $g);
+                if (! $hasScanFields) {
+                    $legacyRows[] = array_merge(['zalo_group_id' => $g['zalo_group_id'], 'created_at' => $now], $base);
+
+                    continue;
+                }
+
+                $existing = ZaloGroup::where('zalo_group_id', $g['zalo_group_id'])->first();
+                $left = (bool) ($g['left'] ?? false);
+                // left=true: giữ nguyên left_at cũ nếu đã rời từ trước, mốc now() nếu mới rời; left=false: về lại null.
+                $leftAt = $left ? ($existing?->left_at ?? $now) : null;
+
+                // Không bao giờ đưa 'enabled' vào dữ liệu ghi: cờ do admin quản lý, service không được ghi đè.
+                ZaloGroup::updateOrCreate(
+                    ['zalo_group_id' => $g['zalo_group_id']],
+                    array_merge($base, [
+                        'member_count' => array_key_exists('member_count', $g) ? $g['member_count'] : $existing?->member_count,
+                        'accounts' => array_key_exists('accounts', $g) ? $g['accounts'] : ($existing?->accounts ?? []),
+                        'left_at' => $leftAt,
+                    ])
+                );
+            }
+
+            if ($legacyRows !== []) {
+                // Không đưa 'enabled' vào cột cập nhật: cờ do admin quản lý.
+                ZaloGroup::upsert($legacyRows, ['zalo_group_id'], ['name', 'last_message_at', 'messages_24h', 'updated_at']);
+            }
+        });
+
+        return response()->json(['stored' => count($data['groups'])]);
     }
 
     public function config(): JsonResponse

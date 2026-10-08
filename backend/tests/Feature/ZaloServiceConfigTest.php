@@ -49,6 +49,33 @@ class ZaloServiceConfigTest extends TestCase
         $this->assertTrue(ZaloGroup::where('zalo_group_id', 'g2')->first()->enabled);
     }
 
+    public function test_groups_endpoint_stores_scan_fields_and_keeps_enabled(): void
+    {
+        ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'Cũ', 'enabled' => false]);
+        $this->zaloPost('/api/internal/zalo/groups', ['groups' => [
+            ['zalo_group_id' => 'g1', 'name' => 'Taxi', 'last_message_at' => null, 'messages_24h' => 3, 'member_count' => 900, 'accounts' => ['acc1', 'acc2'], 'left' => false],
+            ['zalo_group_id' => 'g2', 'name' => 'Rời', 'last_message_at' => null, 'messages_24h' => 0, 'member_count' => 10, 'accounts' => [], 'left' => true],
+        ]])->assertOk();
+
+        $g1 = ZaloGroup::where('zalo_group_id', 'g1')->first();
+        $this->assertFalse($g1->enabled);
+        $this->assertSame(900, $g1->member_count);
+        $this->assertSame(['acc1', 'acc2'], $g1->accounts);
+        $this->assertNull($g1->left_at);
+        $this->assertNotNull(ZaloGroup::where('zalo_group_id', 'g2')->first()->left_at);
+    }
+
+    public function test_groups_endpoint_accepts_old_payload(): void
+    {
+        ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'Taxi', 'member_count' => 900, 'accounts' => ['acc1']]);
+        $this->zaloPost('/api/internal/zalo/groups', ['groups' => [
+            ['zalo_group_id' => 'g1', 'name' => 'Taxi', 'last_message_at' => null, 'messages_24h' => 1],
+        ]])->assertOk();
+        $g1 = ZaloGroup::where('zalo_group_id', 'g1')->first();
+        $this->assertSame(900, $g1->member_count);
+        $this->assertSame(['acc1'], $g1->accounts);
+    }
+
     public function test_config_returns_disabled_groups_blocks_budget_and_delivers_qr_requests_once(): void
     {
         ZaloGroup::create(['zalo_group_id' => 'g1', 'enabled' => false]);
