@@ -180,10 +180,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Trang admin Cuốc Free (nhóm Zalo, người bắn, tình trạng service).
         Route::prefix('admin/free-rides')->controller(FreeRideAdminController::class)->group(function () {
             Route::get('/groups', 'groups');
-            Route::patch('/groups/{zaloGroupId}', 'toggleGroup');
+            Route::patch('/groups/{zaloGroupId}', 'toggleGroup')->where('zaloGroupId', '[A-Za-z0-9_-]{1,32}');
             Route::get('/senders', 'senders');
-            Route::post('/senders/{senderUid}/block', 'block');
-            Route::delete('/senders/{senderUid}/block', 'unblock');
+            Route::post('/senders/{senderUid}/block', 'block')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
+            Route::delete('/senders/{senderUid}/block', 'unblock')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
             Route::get('/status', 'status');
         });
     });

@@ -43,7 +43,8 @@ class FreeRideAdminController extends Controller
             $query->where('name', 'like', $like);
         }
 
-        $page = $query->orderByDesc('messages_24h')->orderBy('name')->paginate(self::PAGE_SIZE);
+        // Tie-breaker cuối để thứ tự ổn định khi nhiều nhóm trùng messages_24h/name.
+        $page = $query->orderByDesc('messages_24h')->orderBy('name')->orderBy('zalo_group_id')->paginate(self::PAGE_SIZE);
 
         return response()->json([
             'data' => collect($page->items())->map(fn (ZaloGroup $g) => $this->formatGroup($g))->values(),
@@ -111,7 +112,8 @@ class FreeRideAdminController extends Controller
             'services' => $monitor->snapshot(),
             'active_rides' => FreeRide::where('expires_at', '>', now())->count(),
             'groups_enabled' => ZaloGroup::whereNull('left_at')->where('enabled', true)->count(),
-            'groups_total' => ZaloGroup::count(),
+            // Chỉ đếm nhóm chưa rời — nhóm đã rời không còn được service theo dõi.
+            'groups_total' => ZaloGroup::whereNull('left_at')->count(),
         ]);
     }
 
@@ -132,11 +134,18 @@ class FreeRideAdminController extends Controller
             ->selectRaw('CASE WHEN MAX(zalo_sender_blocks.sender_uid) IS NOT NULL THEN 1 ELSE 0 END as blocked')
             ->groupBy('free_rides.sender_uid')
             ->orderByDesc('active_rides')
-            ->orderByDesc('rides_7d');
+            ->orderByDesc('rides_7d')
+            ->orderBy('free_rides.sender_uid');
 
         if ($like !== null) {
-            $query->where(fn (Builder $w) => $w->where('free_rides.sender_name', 'like', $like)
-                ->orWhere('free_rides.sender_uid', 'like', $like));
+            // Lọc theo sender_uid (cột gộp) khớp với BẤT KỲ cuốc nào của người đó — không phải lọc
+            // theo dòng — nên một người bắn đổi tên qua nhiều cuốc, khớp tên cũ hay mới đều ra đủ
+            // active_rides/rides_7d/reports (không bị đếm thiếu vì WHERE cắt dòng trước GROUP BY).
+            // whereIn trên chính cột GROUP BY nên an toàn với ONLY_FULL_GROUP_BY của MySQL.
+            $matchingSenderUids = FreeRide::query()
+                ->where(fn (Builder $w) => $w->where('sender_name', 'like', $like)->orWhere('sender_uid', 'like', $like))
+                ->select('sender_uid');
+            $query->whereIn('free_rides.sender_uid', $matchingSenderUids);
         }
 
         return $query;
@@ -158,7 +167,8 @@ class FreeRideAdminController extends Controller
             ->selectRaw('COALESCE(reports.reports, 0) as reports')
             ->selectRaw('1 as blocked')
             ->orderByDesc('active_rides')
-            ->orderByDesc('rides_7d');
+            ->orderByDesc('rides_7d')
+            ->orderBy('zalo_sender_blocks.sender_uid');
 
         if ($like !== null) {
             $query->where(fn (Builder $w) => $w->where('rides.sender_name', 'like', $like)

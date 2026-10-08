@@ -11,11 +11,13 @@ use App\Models\ZaloSenderBlock;
 use App\Services\Zalo\ZaloServiceMonitor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Concerns\SignsZaloBotRequests;
 use Tests\TestCase;
 
 class FreeRideAdminTest extends TestCase
 {
     use RefreshDatabase;
+    use SignsZaloBotRequests;
 
     protected function setUp(): void
     {
@@ -188,6 +190,8 @@ class FreeRideAdminTest extends TestCase
 
         ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'G1', 'enabled' => true]);
         ZaloGroup::create(['zalo_group_id' => 'g2', 'name' => 'G2', 'enabled' => false]);
+        // Nhóm đã rời: không được tính vào groups_total hay groups_enabled dù enabled=true.
+        ZaloGroup::create(['zalo_group_id' => 'g3', 'name' => 'G3 Đã Rời', 'enabled' => true, 'left_at' => now()]);
         $this->ride(['expires_at' => now()->addHour()]);
 
         $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/status')->assertOk();
@@ -202,6 +206,68 @@ class FreeRideAdminTest extends TestCase
         $this->assertEquals(5, $res->json('services.0.ai_budget_usd'));
         $this->assertSame(1, $res->json('active_rides'));
         $this->assertSame(1, $res->json('groups_enabled'));
+        // 2 (g1 + g2), không phải 3 — g3 đã rời nên không được đếm dù vẫn enabled=true.
         $this->assertSame(2, $res->json('groups_total'));
+    }
+
+    // Validation accounts.*.logged_in/last_error + Node gửi đủ 2 trường này qua HTTP thật (HMAC ký
+    // giống service) — không chỉ gọi thẳng ZaloServiceMonitor::recordHeartbeat() như test trên.
+    public function test_heartbeat_http_endpoint_carries_login_state_and_last_error_to_status(): void
+    {
+        config(['zalo.enabled' => true, 'zalo.bot_secret' => 'test-secret']);
+        $admin = $this->admin();
+
+        $this->zaloPost('/api/internal/zalo/heartbeat', [
+            'service_id' => 'zalo-1',
+            'uptime_s' => 100,
+            'accounts' => [
+                ['id' => 'acc1', 'connected' => true, 'logged_in' => true, 'last_error' => null],
+                ['id' => 'acc2', 'connected' => false, 'logged_in' => false, 'last_error' => 'phiên hết hạn'],
+            ],
+            'received_total' => 10,
+            'stored_total' => 9,
+            'duplicates_total' => 1,
+            'skipped_non_text' => 0,
+            'last_message_at' => now()->getTimestampMs(),
+        ])->assertOk();
+
+        $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/status')->assertOk();
+
+        $this->assertSame(
+            [
+                ['id' => 'acc1', 'connected' => true, 'logged_in' => true, 'last_error' => null],
+                ['id' => 'acc2', 'connected' => false, 'logged_in' => false, 'last_error' => 'phiên hết hạn'],
+            ],
+            $res->json('services.0.accounts')
+        );
+    }
+
+    public function test_overlong_route_params_do_not_500(): void
+    {
+        $admin = $this->admin();
+        $tooLong = str_repeat('a', 40);
+
+        $this->actingAs($admin, 'sanctum')->patchJson("/api/admin/free-rides/groups/{$tooLong}", ['enabled' => false])
+            ->assertStatus(404);
+        $this->actingAs($admin, 'sanctum')->postJson("/api/admin/free-rides/senders/{$tooLong}/block")
+            ->assertStatus(404);
+        $this->actingAs($admin, 'sanctum')->deleteJson("/api/admin/free-rides/senders/{$tooLong}/block")
+            ->assertStatus(404);
+    }
+
+    public function test_senders_search_by_either_posted_name_returns_full_counts(): void
+    {
+        $this->ride(['sender_uid' => 'A1', 'sender_name' => 'Tên Cũ', 'posted_at' => now()->subHour(), 'expires_at' => now()->addHour()]);
+        $this->ride(['sender_uid' => 'A1', 'sender_name' => 'Tên Mới', 'posted_at' => now()->subMinutes(30), 'expires_at' => now()->addHours(2)]);
+        $this->ride(['sender_uid' => 'A1', 'sender_name' => 'Tên Mới', 'posted_at' => now()->subMinutes(10), 'expires_at' => now()->addHours(3)]);
+        $admin = $this->admin();
+
+        foreach (['Tên Cũ', 'Tên Mới'] as $name) {
+            $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders?q='.urlencode($name))->assertOk();
+            $rows = collect($res->json('data'))->keyBy('sender_uid');
+            $this->assertArrayHasKey('A1', $rows->all(), "q=$name phải tìm thấy A1");
+            $this->assertSame(3, $rows['A1']['active_rides'], "q=$name không được đếm thiếu active_rides");
+            $this->assertSame(3, $rows['A1']['rides_7d'], "q=$name không được đếm thiếu rides_7d");
+        }
     }
 }

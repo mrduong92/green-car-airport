@@ -25,6 +25,9 @@ class ZaloServiceController extends Controller
             'accounts' => ['present', 'array'],
             'accounts.*.id' => ['required', 'string', 'max:64'],
             'accounts.*.connected' => ['required', 'boolean'],
+            // Giai đoạn 4 (trang admin "Tình trạng"): đã đăng nhập chưa + lỗi gần nhất từng nick.
+            'accounts.*.logged_in' => ['sometimes', 'boolean'],
+            'accounts.*.last_error' => ['sometimes', 'nullable', 'string', 'max:500'],
             'received_total' => ['required', 'integer', 'min:0'],
             'stored_total' => ['required', 'integer', 'min:0'],
             'duplicates_total' => ['required', 'integer', 'min:0'],
