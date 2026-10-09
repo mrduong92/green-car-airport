@@ -5,6 +5,14 @@ import { BRAND } from './brand'
 
 declare const self: ServiceWorkerGlobalScope
 
+declare global {
+  // lib.webworker.d.ts (bản TypeScript đang dùng) thiếu `renotify` dù Notification API chuẩn đã hỗ
+  // trợ từ lâu và mọi trình duyệt đích đều chạy được — bổ sung tại chỗ thay vì ép kiểu `any` cả object.
+  interface NotificationOptions {
+    renotify?: boolean
+  }
+}
+
 // Không có 2 dòng này, SW mới vào "waiting" và chỉ activate khi user đóng HẾT
 // các tab/PWA đang mở — với app cài như PWA gần như không bao giờ xảy ra, nên
 // user luôn kẹt ở bundle JS cũ (đăng ký/OTP gọi API không khớp version mới).
@@ -25,12 +33,18 @@ self.addEventListener('push', (event) => {
         clients.forEach((c) => c.postMessage({ type: 'PUSH_RECEIVED', ...data }))
         // Show OS notification anyway so the user always gets it
       }
+      // Tag riêng cho mỗi "luồng" thông báo để cái mới không âm thầm đè cái cũ (vd. cuốc Free
+      // đè thông báo cuốc trả khách đang chờ) — ưu tiên `tag` server gửi kèm payload, bên nào
+      // chưa gửi thì rơi về tag mặc định dùng chung từ trước. Luôn renotify vì mọi nhánh đều
+      // có tag: không renotify thì trình duyệt coi là "cập nhật im lặng" notification cũ, có
+      // thể không kêu/rung lại dù nội dung (vd. số cuốc Free mới) đã khác.
       return self.registration.showNotification(data.title ?? BRAND.name, {
-        body:  data.body ?? '',
-        icon:  '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        data:  data.data ?? {},
-        tag:   'greenca-notification',
+        body:     data.body ?? '',
+        icon:     '/icons/icon-192.png',
+        badge:    '/icons/icon-192.png',
+        data:     data.data ?? {},
+        tag:      data.tag ?? 'greenca-notification',
+        renotify: true,
       })
     })
 

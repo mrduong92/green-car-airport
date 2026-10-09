@@ -59,10 +59,22 @@ async function updateAccountRequest(id: number, payload: Record<string, unknown>
 // service Node — chữ ký HMAC ở trên tái tạo đúng những gì service thật gửi, nên test này đóng vai
 // "service" thay vì mở Zalo thật (constraints: không gọi Zalo thật trong test tự động).
 //
-// account_id gắn tag theo thời gian chạy để test chạy lại được, và dù service thật (nếu đang chạy
-// cục bộ) có vòng polling account-requests, request của account_id lạ hoắc "e2e-<tag>" này sẽ
-// không khớp account thật nào nó biết — không có rủi ro đăng nhập Zalo thật xảy ra.
+// ⚠️ RỦI RO THẬT nếu có service giai đoạn 5 đang chạy nhắm vào CÙNG API_BASE_URL (vd. staging):
+// AccountRequestsPoller.poll() (zalo-service/src/account-requests.ts) không lọc theo "account_id đã
+// biết" — nó lấy BẤT KỲ yêu cầu 'pending' nào khớp mẫu account_id rồi gọi thẳng `login()` (runQrLogin
+// → Zalo thật) cho yêu cầu đó, kể cả account_id lạ hoắc "e2e-<tag>" của test này. Tag theo thời gian
+// chạy chỉ giúp test chạy lại được (tránh đụng request cũ), KHÔNG cách ly được với service thật đang
+// polling cùng endpoint — service đó vẫn sẽ thử đăng nhập Zalo thật cho request giả này.
+// Vì vậy test chỉ chạy khi người vận hành chủ động xác nhận không có service giai đoạn 5 nào đang
+// polling API_BASE_URL (xem e2e/README.md mục "Rủi ro service Zalo thật").
 test('admin thêm nick Zalo bằng mã QR (giả lập service) rồi gỡ nick', async ({ page }) => {
+  test.skip(
+    !process.env.E2E_ALLOW_ACCOUNT_REQUESTS,
+    'Bỏ qua: cần E2E_ALLOW_ACCOUNT_REQUESTS=1 — test tạo yêu cầu đăng nhập nick thật qua ' +
+      '/internal/zalo/account-requests; nếu có service giai đoạn 5 đang polling cùng API_BASE_URL, nó ' +
+      'sẽ chạy loginQR (Zalo thật) cho yêu cầu giả này. Xem e2e/README.md.',
+  )
+
   const tag = Date.now().toString(36)
   const accountId = `e2e-${tag}`
   const zaloName = `Zalo E2E ${tag}`

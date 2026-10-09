@@ -68,9 +68,14 @@ export default function FreeRideAlertSheet({ filters, onClose }: Props) {
       <div data-testid="free-alert-sheet" className="bg-white w-full rounded-t-2xl px-5 pt-5 pb-8" onClick={(e) => e.stopPropagation()}>
         <div className="w-10 h-1 rounded-full bg-border-gray mx-auto mb-4" />
         <h3 className="text-[17px] font-bold text-navy mb-1">Báo khi có cuốc phù hợp</h3>
-        <p className="text-[12px] text-neutral-gray leading-relaxed mb-4">
+        <p className="text-[12px] text-neutral-gray leading-relaxed mb-1">
           Dùng đúng bộ lọc đang chọn ở tab Free: <span className="font-medium text-navy">{summarizeAlertFilters({ direction: filters.direction, seats: filters.seats, q: filters.q })}</span>.
           {' '}Từ khoá được tìm đúng cụm từ bạn gõ, không tách rời từng chữ.
+        </p>
+        {/* Server chỉ lưu direction/seats/keywords (DriverFreeRideAlert) — khung giờ không có cột lưu,
+            nên nếu không nói rõ, tài xế dễ hiểu nhầm là chọn "2 giờ tới" thì chỉ báo cuốc trong 2 giờ đó. */}
+        <p className="text-[12px] text-neutral-gray leading-relaxed mb-4">
+          Lưu ý: khung giờ đang lọc ở tab Free (nếu có) không áp dụng cho thông báo — cuốc mới khớp chiều/số chỗ/từ khoá sẽ báo bất kể giờ đón.
         </p>
 
         {isLoading ? (
