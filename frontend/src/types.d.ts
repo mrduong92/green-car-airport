@@ -410,6 +410,15 @@ declare namespace App {
     q?: string
   }
 
+  // Bộ lọc đã lưu để nhận thông báo đẩy (giai đoạn 5) — khớp JSON của FreeRideController::alert()/saveAlert()
+  // (xem task-4-report.md). `keywords` được so khớp NGUYÊN CỤM, không tách rời từng từ.
+  interface FreeRideAlert {
+    enabled: boolean
+    direction: FreeRideDirection | null
+    seats: number | null
+    keywords: string | null
+  }
+
   // Trang admin "Cuốc Free" — khớp JSON thực tế của FreeRideAdminController (xem task-3-report.md, task-4-report.md).
   interface AdminZaloGroup {
     zalo_group_id: string

@@ -1,8 +1,11 @@
 import { useCallback, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import EmptyState from '@/components/common/EmptyState'
 import FreeRideCard from '@/components/driver/FreeRideCard'
 import FreeRideFilters from '@/components/driver/FreeRideFilters'
 import FreeRideActionsSheet from '@/components/driver/FreeRideActionsSheet'
+import FreeRideAlertSheet from '@/components/driver/FreeRideAlertSheet'
+import { FREE_ALERT_QUERY_KEY, getFreeRideAlert, summarizeAlertFilters } from '@/api/freeRides'
 import { useFreeRides } from '@/hooks/useFreeRides'
 
 const STORAGE_KEY = 'free-rides-filters'
@@ -30,7 +33,15 @@ function loadFilters(): App.FreeRideFilters {
 export default function FreeRidesPage() {
   const [filters, setFilters] = useState<App.FreeRideFilters>(loadFilters)
   const [selected, setSelected] = useState<App.FreeRide | null>(null)
+  const [alertOpen, setAlertOpen] = useState(false)
   const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender } = useFreeRides(filters)
+
+  // Cùng khoá query với FreeRideAlertSheet — trạng thái hiện ngay trên nút chuông, sheet đọc lại
+  // từ cache thay vì gọi API lần nữa khi mở.
+  const { data: alert } = useQuery({
+    queryKey: FREE_ALERT_QUERY_KEY,
+    queryFn: () => getFreeRideAlert().then((r) => r.data),
+  })
 
   const changeFilters = useCallback((next: App.FreeRideFilters) => {
     setFilters(next)
@@ -40,10 +51,28 @@ export default function FreeRidesPage() {
   return (
     <div className="w-full flex flex-col">
       <FreeRideFilters value={filters} onChange={changeFilters} />
-      <div className="px-4 py-3">
-        <p className="text-[12px] text-neutral-gray">
+      <div className="px-4 py-3 flex items-start justify-between gap-3">
+        <p className="text-[12px] text-neutral-gray flex-1">
           Cuốc tổng hợp từ các nhóm Zalo. GreenCA chỉ kết nối — bạn trao đổi trực tiếp với người bắn cuốc.
         </p>
+        <button
+          type="button"
+          data-testid="free-alert-open"
+          onClick={() => setAlertOpen(true)}
+          className={
+            'shrink-0 flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12px] font-semibold whitespace-nowrap max-w-[55%] '
+            + (alert?.enabled ? 'bg-light-green text-primary' : 'bg-white border border-border-gray text-neutral-gray')
+          }
+        >
+          <span className="material-symbols-outlined text-[16px] shrink-0">
+            {alert?.enabled ? 'notifications_active' : 'notifications'}
+          </span>
+          <span className="truncate">
+            {alert?.enabled
+              ? `Đang báo · ${summarizeAlertFilters({ direction: alert.direction, seats: alert.seats, q: alert.keywords })}`
+              : 'Báo khi có cuốc phù hợp'}
+          </span>
+        </button>
       </div>
 
       {isLoading ? (
@@ -66,6 +95,7 @@ export default function FreeRidesPage() {
       )}
 
       {selected && <FreeRideActionsSheet ride={selected} onClose={() => setSelected(null)} onSenderHidden={removeSender} />}
+      {alertOpen && <FreeRideAlertSheet filters={filters} onClose={() => setAlertOpen(false)} />}
     </div>
   )
 }

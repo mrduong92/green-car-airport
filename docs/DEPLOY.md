@@ -552,7 +552,7 @@ staging — production sẽ phụ thuộc staging, và thành code chết ngay k
 nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
 staging) + 3 unit test cho 3 nhánh exit code.
 
-## Microservice Zalo — Cuốc Free (giai đoạn 1 → 4)
+## Microservice Zalo — Cuốc Free (giai đoạn 1 → 5)
 
 ### ⚠️ Thứ tự triển khai giai đoạn 2 + 3 (phát hành cùng lúc)
 
@@ -712,6 +712,59 @@ Laravel phải nhận được các trường mới (`member_count`, `accounts`,
   trả về cho tài xế.
 - Nhóm nào không còn nick phụ nào ở ("Nick đã rời" trong admin) bị loại khỏi tổng nhóm "chưa rời" ở tab
   Tình trạng; thêm lại nick vào nhóm đó để service nhận diện lại ở lượt quét kế tiếp.
+
+### Giai đoạn 5 — tab admin "Nick Zalo" (thêm/gỡ bằng QR), tài xế báo cuốc phù hợp
+
+Hai tính năng độc lập, lên cùng đợt: (1) admin thêm/gỡ nick Zalo phụ bằng mã QR ngay trên trình duyệt
+(thay cho `npm run login` + `scp` file thủ công lên VPS); (2) tài xế lưu bộ lọc để nhận thông báo đẩy
+(Web Push) khi có cuốc Free mới khớp.
+
+**Thứ tự BẮT BUỘC:** (1) Laravel migrate → (2) redeploy service Zalo (thêm vòng hỏi yêu cầu nick) →
+(3) build + rsync app admin + app tài xế. Admin bấm "Thêm nick" trước khi service đã redeploy sẽ tạo
+được yêu cầu nhưng không ai xử lý — không hỏng gì, chỉ đứng ở trạng thái "pending" tới khi service mới
+chạy lên và lượt hỏi đầu tiên của nó bắt được.
+
+1. **Laravel (production):**
+   ```bash
+   php artisan migrate --force
+   # 2026_10_11_000001_create_zalo_account_requests_table: hàng đợi yêu cầu đăng nhập/gỡ nick (tab admin)
+   # 2026_10_11_000002_create_driver_free_ride_alerts_table: bộ lọc tài xế đã lưu để nhận thông báo đẩy
+   ```
+   Không có biến `.env` mới phía Laravel cho giai đoạn này — dùng lại `ZALO_BOT_SECRET` đã có (endpoint
+   nội bộ mới `/internal/zalo/account-requests*` nằm trong cùng middleware `zalo.bot` như các endpoint
+   khác) và hạ tầng Web Push đã có sẵn từ trước Cuốc Free (VAPID, `ShouldQueue` notification) —
+   `FreeRideMatchNotification` chỉ là một notification WebPush nữa, không cần cấu hình thêm.
+2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn như mục "Giai đoạn 4"
+   ở trên (rsync, không đè `.env`/`data/`), thêm biến mới nếu muốn đổi nhịp mặc định:
+   ```bash
+   # zalo-service/.env — có mặc định, không bắt buộc phải đặt
+   ACCOUNT_REQUESTS_POLL_MS=5000   # nhịp hỏi GET /internal/zalo/account-requests
+   ```
+   ```bash
+   cd /opt/greenca-zalo-service
+   sudo npm ci && sudo npm run build
+   sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
+   sudo systemctl restart greenca-zalo-service
+   ```
+   Kiểm: `tail -n 50 /var/log/greenca-zalo-service.log` không có lỗi khởi động. Service chạy được với
+   `data/accounts/` **rỗng** (0 tài khoản) — không bắt buộc phải có nick nào trước khi lên bản này; thêm
+   nick đầu tiên bằng trang admin sau khi service đã chạy (xem bước 4).
+3. **App admin + app tài xế**: build + rsync `dist-admin` và `dist-driver` như mục "Frontend (build
+   local, rsync lên)" bên dưới — `dist-admin` có tab "Nick Zalo" mới, `dist-driver` có nút chuông "Báo
+   khi có cuốc phù hợp" mới ở tab Free. Nhớ kiểm VAPID key có trong cả 2 bundle như mọi lần deploy
+   (mục "⚠️ BẮT BUỘC trước khi rsync: key VAPID thật phải nằm trong cả 3 bundle").
+4. **Thêm nick Zalo phụ từ giờ trở đi**: `admin.greenca.vn/free-rides` → tab "Nick Zalo" → "Thêm nick"
+   → nhập tên (chữ thường/số/gạch ngang, ≤ 32 ký tự) → quét mã QR hiện ra bằng Zalo của nick phụ trên
+   điện thoại. Không cần SSH vào VPS, không cần restart service. `npm run login -- <id>` (`zalo-service/README.md`)
+   vẫn còn nhưng chỉ dùng khi chưa có service nào chạy để nhận yêu cầu, hoặc gỡ lỗi cục bộ.
+5. **Gỡ nick**: cùng tab, nút "Gỡ" trên thẻ nick → xác nhận. Service đổi tên file phiên thành
+   `<id>.json.removed-<epoch ms>` (không xoá hẳn) và dừng nghe nhóm của nick đó ngay, không restart.
+6. **Tài xế bật báo cuốc phù hợp**: tab Free → nút chuông "Báo khi có cuốc phù hợp" → bật công tắc →
+   "Lưu". Dùng đúng bộ lọc (chiều, số chỗ, từ khoá) đang chọn ở tab Free làm tiêu chí; từ khoá khớp
+   nguyên cụm, không tách rời từng chữ. Thông báo gửi tối đa 1 lần / 2 phút / tài xế, chỉ cho tài xế
+   đang active và áp đúng điều kiện hiển thị như danh sách Free (chặn người bắn, nhóm tắt, mã QR an
+   toàn, còn hạn) — cần queue worker chạy (mục "⚠️ Queue worker + scheduler" ở trên), không chạy thì
+   tài xế không bao giờ nhận được thông báo mà không có lỗi nào hiện ra.
 
 ## Lịch sử production
 

@@ -17,7 +17,16 @@ npm test
 npm run typecheck
 ```
 
-## Đăng nhập tài khoản phụ (trên máy cá nhân)
+## Đăng nhập tài khoản phụ
+
+**Từ giai đoạn 5: thêm nick bằng trang admin, không cần `npm run login` + copy file thủ công nữa**
+(xem mục "Giai đoạn 5" bên dưới) — `admin.greenca.vn/free-rides` → tab "Nick Zalo" → "Thêm nick" →
+quét QR ngay trên màn hình admin. Service đang chạy tự nhận yêu cầu, tự ghi `data/accounts/<id>.json`
+(chmod 600) và tự thêm tài khoản vào vòng lặp đang chạy — **không cần restart service**.
+
+`npm run login -- <id>` (dưới đây) vẫn còn, dùng khi cần tạo file phiên **trước khi service chạy
+lần đầu** (vd. cài đặt ban đầu trên máy cá nhân, chưa có service nào polling để nhận yêu cầu từ
+admin) hoặc khi gỡ lỗi cục bộ không muốn đụng tới Laravel:
 
 ```bash
 npm install
@@ -33,7 +42,8 @@ sudo useradd --system --home /opt/greenca-zalo-service --shell /usr/sbin/nologin
 sudo mkdir -p /opt/greenca-zalo-service/data/accounts
 # copy mã nguồn (trừ node_modules, dist, data) lên /opt/greenca-zalo-service, rồi:
 cd /opt/greenca-zalo-service && sudo npm ci && sudo npm run build
-scp data/accounts/*.json <vps>:/opt/greenca-zalo-service/data/accounts/
+scp data/accounts/*.json <vps>:/opt/greenca-zalo-service/data/accounts/   # chỉ cần nếu đã có phiên đăng nhập sẵn (npm run login cục bộ);
+                                                                           # cài mới có thể bỏ qua — thêm nick đầu tiên bằng trang admin sau khi service đã chạy
 sudo cp .env.example .env && sudo nano .env           # API_BASE_URL, BOT_SECRET, SERVICE_ID, DATA_DIR
 sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
 sudo chmod 600 /opt/greenca-zalo-service/.env /opt/greenca-zalo-service/data/accounts/*.json
@@ -138,3 +148,30 @@ Bên Laravel (`backend/.env`): `ZALO_SERVICE_ENABLED=true`, `ZALO_BOT_SECRET` (t
   như thành viên bình thường — không cần quyền quản trị nhóm. Service tự thấy nhóm ở lượt quét kế
   tiếp (≤ `GROUP_SCAN_MS`, cộng thêm lượt quét ngay sau khi nick đăng nhập) và nhóm xuất hiện ở tab
   "Nhóm Zalo" của admin, mặc định **đang bật**.
+
+## Giai đoạn 5: thêm/gỡ nick từ trang admin (QR), tài xế báo cuốc phù hợp
+
+| Biến | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `ACCOUNT_REQUESTS_POLL_MS` | `5000` | Nhịp hỏi `GET /api/internal/zalo/account-requests` để nhận yêu cầu đăng nhập/gỡ nick mới từ admin |
+
+- **Service chủ động hỏi, Laravel không bao giờ gọi vào service** (giữ đúng nguyên tắc từ giai đoạn
+  1): admin bấm "Thêm nick"/"Gỡ" ở `admin.greenca.vn/free-rides` (tab "Nick Zalo") chỉ tạo một hàng
+  `zalo_account_requests` ở Laravel; service tự thấy nó ở lượt hỏi kế tiếp (≤ `ACCOUNT_REQUESTS_POLL_MS`),
+  xử lý rồi báo tiến độ bằng `POST /api/internal/zalo/account-requests/{id}`
+  (`qr_ready` kèm ảnh QR → `done`/`expired`/`failed`). Mỗi lượt hỏi chỉ xử lý **một** yêu cầu — đang
+  đăng nhập dở (chờ quét QR, tối đa vài phút) thì các lượt hỏi khác tạm bỏ qua, không timeout.
+- **Phiên đăng nhập thật (cookie/imei) không bao giờ rời VPS** — thứ duy nhất gửi sang Laravel là ảnh
+  QR (để admin quét) và UID/tên Zalo (sau khi đăng nhập xong, hiển thị cho dễ nhận diện nick). File
+  phiên vẫn ghi `data/accounts/<id>.json` (chmod 600) đúng như `npm run login` làm, chỉ khác là service
+  tự ghi thay vì chạy tay trên máy cá nhân.
+- **Gỡ nick**: đổi tên file phiên thành `<id>.json.removed-<epoch ms>` (không xoá hẳn, phòng gỡ nhầm)
+  và dừng listener của nick đó ngay — không cần restart service.
+- **Đây là cách chính để thêm nick từ giờ trở đi**, thay cho `npm run login -- <id>` + `scp` thủ công
+  lên VPS (mục "Đăng nhập tài khoản phụ" ở trên) — lệnh đó vẫn còn, chỉ dùng khi chưa có service nào
+  chạy để nhận yêu cầu (cài đặt lần đầu) hoặc gỡ lỗi cục bộ.
+- **Service khởi động được với 0 tài khoản** (`data/accounts/` rỗng) — không có nick nào để nghe tin
+  thì service vẫn chạy bình thường, chỉ chờ yêu cầu đăng nhập đầu tiên từ admin qua cơ chế trên.
+- Tài xế bật "Báo khi có cuốc phù hợp" ở tab Free (app tài xế) không liên quan tới service này — đó
+  là thông báo đẩy Web Push do Laravel tự gửi khi có cuốc mới khớp bộ lọc đã lưu
+  (`App\Jobs\NotifyFreeRideAlerts`), service chỉ cần tiếp tục gửi cuốc sang Laravel như bình thường.
