@@ -127,9 +127,11 @@ class FreeRideController extends Controller
         }
 
         $nowVn = now(self::TZ);
+        // Cuốc không ghi giờ hiển thị là "Đi luôn" → tính vào "2 giờ tới" và "Hôm nay" (đã còn hạn ≤ 3 giờ sau khi đăng).
+        $orLeavingNow = fn (array $range) => fn (Builder $w) => $w->whereBetween('pickup_at', $range)->orWhereNull('pickup_at');
         match ($data['window'] ?? null) {
-            '2h' => $query->whereBetween('pickup_at', [now()->subMinutes(30), now()->addHours(2)]),
-            'today' => $query->whereBetween('pickup_at', [now()->subMinutes(30), $nowVn->copy()->endOfDay()->utc()]),
+            '2h' => $query->where($orLeavingNow([now()->subMinutes(30), now()->addHours(2)])),
+            'today' => $query->where($orLeavingNow([now()->subMinutes(30), $nowVn->copy()->endOfDay()->utc()])),
             'tomorrow' => $query->whereBetween('pickup_at', [$nowVn->copy()->addDay()->startOfDay()->utc(), $nowVn->copy()->addDay()->endOfDay()->utc()]),
             default => null,
         };

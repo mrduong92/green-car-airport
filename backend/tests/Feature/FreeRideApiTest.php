@@ -62,6 +62,19 @@ class FreeRideApiTest extends TestCase
         $this->assertNotNull($res->json('latest'));
     }
 
+    // Cuốc không ghi giờ = "Đi luôn": thuộc "2 giờ tới" và "Hôm nay", không thuộc "Ngày mai".
+    public function test_rides_without_time_count_as_leaving_now(): void
+    {
+        $this->ride(['pickup' => 'đi luôn', 'pickup_at' => null, 'pickup_time_text' => null]);
+        $this->ride(['pickup' => 'ngày mai', 'pickup_at' => now()->addHours(30), 'expires_at' => now()->addHours(31)]);
+        $driver = $this->driver();
+        $pickups = fn (string $qs) => array_column($this->actingAs($driver, 'sanctum')->getJson("/api/driver/free-rides?$qs")->json('data'), 'pickup');
+
+        $this->assertContains('đi luôn', $pickups('window=2h'));
+        $this->assertContains('đi luôn', $pickups('window=today'));
+        $this->assertNotContains('đi luôn', $pickups('window=tomorrow'));
+    }
+
     public function test_filters_by_direction_seats_window_and_search(): void
     {
         $this->ride(['pickup' => 'A', 'direction' => 'to_airport', 'seats' => 5]);
