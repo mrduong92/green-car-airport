@@ -184,7 +184,10 @@ test('a message whose AI batch failed 3 times ends as a raw ride, not discarded'
   const ai = new AiQueue({
     extractor: { extract: async () => { throw new Error('mất mạng') } },
     usage: new AiUsage(db), budgetUsd: () => 5, onOutcome: () => {}, onOverBudget: () => {},
-    onFailed: onAiFailed(() => processor, silentLogger), retryPauseMs: 0, logger: silentLogger,
+    onFailed: onAiFailed(() => processor, silentLogger), retryPauseMs: 0,
+    // circuitBreakerThreshold cao để không vô tình mở mạch ngắt ở lần lỗi thứ 3 (mặc định 3, trùng
+    // với 3 lần thử ở test này) — mạch ngắt có test riêng ở ai-queue-circuit-breaker.test.ts.
+    circuitBreakerThreshold: 100, logger: silentLogger,
   })
   processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger, rideExpireWithoutTimeMs: 3 * HOUR, duplicateWindowMs: 24 * HOUR })
   messages.save({ group_id: 'g1', group_name: '', msg_id: 'm1', sender_uid: '111', sender_name: '', content: 'T1 - trần khát chân 180k freeeeeeee', sent_at: SENT }, 'acc1')

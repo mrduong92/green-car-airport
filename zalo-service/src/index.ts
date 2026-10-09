@@ -4,7 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { Zalo, type Credentials } from 'zca-js'
-import { loadConfig } from './config.js'
+import { loadConfig, detectAiConfigWarnings } from './config.js'
 import { loadAccounts } from './account-files.js'
 import { openDb } from './db.js'
 import { MessageStore } from './store.js'
@@ -32,6 +32,10 @@ import type { IncomingMessage } from './normalize.js'
 
 const HOUR = 3_600_000
 const cfg = loadConfig(process.env)
+// Bẫy nâng cấp từ bản cũ (xem docs/DEPLOY.md "Giai đoạn 5"): rsync giữ nguyên .env, dễ còn
+// AI_MODEL/AI_PROVIDER lệch nhau hoặc thiếu key của provider đang chọn — log loud (error, không
+// phải info) để không trôi mất trong log khởi động, soi được ngay bằng `tail -f` sau khi deploy.
+for (const warning of detectAiConfigWarnings(cfg)) logger.error(warning)
 
 const accounts = loadAccounts(cfg.accountsDir, logger)
 // Giai đoạn 5: chưa có nick vẫn chạy — admin thêm nick bằng QR trên trang "Nick Zalo".
@@ -97,11 +101,14 @@ const ai = cfg.aiEnabled
       onOutcome: (outcome) => processor?.applyAi(outcome),
       onOverBudget: (id) => processor?.fallback(id),
       onFailed: onAiFailed(() => processor, logger),
+      // Mạch ngắt mở (3 lô AI lỗi liên tiếp, xem ai/queue.ts): cũng rơi về quy tắc dự phòng như
+      // onOverBudget/onFailed — khác nhau ở chỗ onBypass không chờ tin thử đủ maxAttempts lần.
+      onBypass: (id) => processor?.fallback(id),
       batchSize: cfg.aiBatchSize,
       logger,
     })
   : null
-if (!ai) logger.info(`Chưa có ${cfg.aiProvider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} — tin khó sẽ hiển thị nguyên văn`)
+// Thiếu key đã log loud (logger.error) ở detectAiConfigWarnings phía trên khi khởi động.
 processor = new Processor({
   messages: store, rides, ai, qr, config: () => remote.current(), logger, rideExpireWithoutTimeMs: cfg.rideExpireWithoutTimeMs,
   duplicateWindowMs: cfg.duplicateWindowHours * HOUR,

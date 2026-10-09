@@ -16,7 +16,9 @@ function harness(extract: Extractor['extract'], budget = 5) {
     extractor: { extract: async (items) => { batches.push(items.map((i) => i.id)); return extract(items) } },
     usage, budgetUsd: () => budget,
     onOutcome: (o) => outcomes.push(o.id), onOverBudget: (id) => over.push(id), onFailed: (id) => failed.push(id),
-    batchSize: 2, maxAttempts: 3, retryPauseMs: 100, logger: silentLogger, now: () => t,
+    // circuitBreakerThreshold cao để test retry/give-up (ở dưới) không vô tình mở mạch ngắt (mặc định
+    // 3, trùng với maxAttempts=3 ở đây) — mạch ngắt có test riêng ở ai-queue-circuit-breaker.test.ts.
+    batchSize: 2, maxAttempts: 3, retryPauseMs: 100, circuitBreakerThreshold: 100, logger: silentLogger, now: () => t,
   })
   return { queue, usage, outcomes, over, failed, batches, advance: (ms: number) => { t += ms } }
 }

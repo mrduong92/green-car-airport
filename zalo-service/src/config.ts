@@ -78,3 +78,35 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     rideExpireWithoutTimeMs: Number(env.RIDE_EXPIRE_WITHOUT_TIME_MS || 3 * 3_600_000),
   }
 }
+
+// Bẫy nâng cấp (giai đoạn 2 → 5): service cũ có .env với AI_MODEL=claude-haiku-4-5, không có
+// AI_PROVIDER. Script deploy rsync giữ nguyên .env/data/ khi cập nhật mã nguồn — nếu chỉ thêm
+// AI_PROVIDER=openai mà quên sửa/xoá dòng AI_MODEL cũ, service gọi OpenAI với tên model Claude
+// và lỗi ngay ở lô AI đầu tiên, không rõ vì sao (xem docs/DEPLOY.md "Giai đoạn 5"). Trả về mảng
+// cảnh báo tiếng Việt (rỗng = ổn) để index.ts log loud (logger.error) lúc khởi động.
+export function detectAiConfigWarnings(cfg: Pick<Config, 'aiProvider' | 'aiModel' | 'aiEnabled'>): string[] {
+  const warnings: string[] = []
+  const model = cfg.aiModel.toLowerCase()
+
+  if (cfg.aiProvider === 'openai' && model.startsWith('claude')) {
+    warnings.push(
+      `Lệch cấu hình AI: AI_PROVIDER=openai nhưng AI_MODEL=${cfg.aiModel} là model Anthropic (Claude) — ` +
+      `sửa AI_MODEL (vd. gpt-4.1-mini) hoặc đặt AI_PROVIDER=anthropic trong zalo-service/.env.`,
+    )
+  }
+  if (cfg.aiProvider === 'anthropic' && (model.startsWith('gpt') || model.startsWith('o'))) {
+    warnings.push(
+      `Lệch cấu hình AI: AI_PROVIDER=anthropic nhưng AI_MODEL=${cfg.aiModel} là model OpenAI — ` +
+      `sửa AI_MODEL (vd. claude-haiku-4-5) hoặc đặt AI_PROVIDER=openai trong zalo-service/.env.`,
+    )
+  }
+  if (!cfg.aiEnabled) {
+    const key = cfg.aiProvider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
+    warnings.push(
+      `AI đang TẮT: thiếu ${key} cho AI_PROVIDER=${cfg.aiProvider} — mọi tin khó sẽ hiển thị nguyên văn ` +
+      `(không mất cuốc nhưng không tách được điểm đón/điểm đến).`,
+    )
+  }
+
+  return warnings
+}

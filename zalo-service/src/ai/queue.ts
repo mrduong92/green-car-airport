@@ -57,19 +57,56 @@ export class AiQueue {
       onOutcome: (outcome: AiOutcome) => void
       onOverBudget: (id: number) => void
       onFailed: (id: number) => void
+      // Mạch ngắt (circuit breaker) mở: tin đi thẳng quy tắc dự phòng, không qua onFailed (xem dưới).
+      // Tuỳ chọn (mặc định no-op) để các test/chỗ gọi cũ chưa quan tâm tới mạch ngắt không phải sửa.
+      onBypass?: (id: number) => void
       batchSize?: number
       maxAttempts?: number
       retryPauseMs?: number
+      // 3 lô gọi AI lỗi liên tiếp → mở mạch trong circuitBreakerCooldownMs (mặc định 10 phút) rồi thử lại.
+      circuitBreakerThreshold?: number
+      circuitBreakerCooldownMs?: number
       logger: Logger
       now?: () => number
     },
   ) {}
 
+  // 0 = mạch đang đóng (gọi AI bình thường); > 0 = mốc thời gian mạch sẽ tự đóng lại.
+  private circuitOpenUntil = 0
+  private consecutiveFailedBatches = 0
+
   get size(): number {
     return this.items.length
   }
 
+  // Mạch đang mở? Tự đóng lại (và log đúng 1 lần) ngay khi phát hiện đã hết thời gian chờ, thay vì
+  // chờ tới lượt flush() kế tiếp mới nhận ra — enqueue() gọi hàm này nên việc tự đóng xảy ra ngay cả
+  // khi không có flush() nào chạy trong lúc chờ.
+  private circuitOpen(now: number): boolean {
+    if (this.circuitOpenUntil === 0) return false
+    if (now < this.circuitOpenUntil) return true
+
+    this.circuitOpenUntil = 0
+    this.consecutiveFailedBatches = 0
+    this.deps.logger.error('Mạch ngắt AI: đóng lại sau thời gian chờ, thử gọi AI bình thường trở lại.')
+    return false
+  }
+
+  private tripCircuit(now: number): void {
+    const cooldownMs = this.deps.circuitBreakerCooldownMs ?? 10 * 60_000
+    this.circuitOpenUntil = now + cooldownMs
+    this.deps.logger.error(
+      `Mạch ngắt AI: mở sau ${this.consecutiveFailedBatches} lô lỗi liên tiếp — tạm chuyển toàn bộ ` +
+      `tin sang quy tắc dự phòng trong ${Math.round(cooldownMs / 60_000)} phút rồi mới thử gọi AI lại.`,
+    )
+  }
+
   enqueue(item: AiItem): void {
+    if (this.circuitOpen((this.deps.now ?? Date.now)())) {
+      this.safeCall(() => this.deps.onBypass?.(item.id), 'onBypass')
+      return
+    }
+
     this.items.push(item)
     // Đủ một lô đầy → gọi AI ngay, không đợi hẹn giờ aiFlushMs (tin đổ về nhanh hơn nhịp 30 giây thì
     // backlog không được phép tăng vô hạn). Không await (enqueue là hàm đồng bộ); flush() tự chặn
@@ -104,6 +141,17 @@ export class AiQueue {
   private async drain(): Promise<void> {
     while (this.items.length > 0) {
       const now = (this.deps.now ?? Date.now)()
+
+      // Mạch đang mở (3 lô lỗi liên tiếp trước đó): không gọi AI nữa, đẩy thẳng mọi tin đang chờ
+      // sang fallback cho tới khi mạch tự đóng lại.
+      if (this.circuitOpen(now)) {
+        for (const item of this.items.splice(0)) {
+          this.attempts.delete(item.id)
+          this.safeCall(() => this.deps.onBypass?.(item.id), 'onBypass')
+        }
+        return
+      }
+
       if (now < this.pausedUntil) return
 
       if (this.deps.usage.spentToday() >= this.deps.budgetUsd()) {
@@ -115,6 +163,7 @@ export class AiQueue {
       try {
         const { outcomes, inputTokens, outputTokens } = await this.deps.extractor.extract(batch)
         this.deps.usage.record(inputTokens, outputTokens)
+        this.consecutiveFailedBatches = 0
         for (const outcome of outcomes) {
           this.attempts.delete(outcome.id)
           this.safeCall(() => this.deps.onOutcome(outcome), 'onOutcome')
@@ -127,6 +176,20 @@ export class AiQueue {
         }
         this.deps.logger.error(`Gọi AI lỗi (${batch.length} tin):`, err instanceof Error ? err.message : err)
         this.pausedUntil = now + (this.deps.retryPauseMs ?? 30_000)
+        this.consecutiveFailedBatches++
+
+        // Đủ số lô lỗi liên tiếp (mặc định 3) và mạch chưa mở → mở mạch ngay, đẩy thẳng CẢ lô vừa lỗi
+        // lẫn phần còn lại trong hàng đợi sang fallback — không đi qua onFailed/retry từng tin nữa,
+        // vì lúc này nghi AI đang sập toàn bộ chứ không phải một tin khó.
+        if (this.circuitOpenUntil === 0 && this.consecutiveFailedBatches >= (this.deps.circuitBreakerThreshold ?? 3)) {
+          this.tripCircuit(now)
+          for (const item of [...batch, ...this.items.splice(0)]) {
+            this.attempts.delete(item.id)
+            this.safeCall(() => this.deps.onBypass?.(item.id), 'onBypass')
+          }
+          return
+        }
+
         for (const item of batch) {
           const tries = (this.attempts.get(item.id) ?? 0) + 1
           if (tries >= (this.deps.maxAttempts ?? 3)) {
