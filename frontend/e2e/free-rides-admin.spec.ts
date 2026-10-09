@@ -45,7 +45,10 @@ test('admin bật/tắt nhóm Zalo và chặn/bỏ chặn người bắn, ảnh 
 
   try {
     // ── Tab Nhóm Zalo: tìm theo tên nhóm e2e, tắt → tài xế hết thấy cuốc của nhóm đó ─────────
+    // Từ b26900f, tab mặc định là "Nick Zalo" (?tab=accounts), không còn là Nhóm Zalo — phải bấm
+    // tab Nhóm tường minh trước khi thao tác với nội dung của nó.
     await expect(page.getByTestId('admin-free-tab-groups')).toBeVisible()
+    await page.getByTestId('admin-free-tab-groups').click()
     await page.getByPlaceholder('Tìm theo tên nhóm').fill(tag)
     const groupRow = page.getByTestId('admin-group-row').filter({ hasText: groupName })
     await expect(groupRow).toBeVisible()
