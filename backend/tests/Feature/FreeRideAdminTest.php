@@ -88,6 +88,37 @@ class FreeRideAdminTest extends TestCase
         $this->assertSame(['g1'], array_column($searched->json('data'), 'zalo_group_id'));
     }
 
+    public function test_groups_list_includes_ride_counts_filters_no_rides_7d_and_sorts(): void
+    {
+        ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'Nhóm Sôi Động', 'enabled' => true, 'messages_24h' => 10]);
+        ZaloGroup::create(['zalo_group_id' => 'g2', 'name' => 'Nhóm Im Lìm', 'enabled' => true, 'messages_24h' => 90]);
+        ZaloGroup::create(['zalo_group_id' => 'g3', 'name' => 'Nhóm Tắt Không Cuốc', 'enabled' => false, 'messages_24h' => 5]);
+
+        // g1: 2 cuốc trong 24h (cũng tính vào 7 ngày) + 1 cuốc cũ hơn 24h nhưng còn trong 7 ngày.
+        $this->ride(['zalo_group_id' => 'g1', 'posted_at' => now()->subHours(2)]);
+        $this->ride(['zalo_group_id' => 'g1', 'posted_at' => now()->subHours(10)]);
+        $this->ride(['zalo_group_id' => 'g1', 'posted_at' => now()->subDays(3)]);
+        // g2: không có cuốc nào trong 7 ngày gần đây (chỉ có 1 cuốc đã quá 7 ngày).
+        $this->ride(['zalo_group_id' => 'g2', 'posted_at' => now()->subDays(10)]);
+        // g3: tắt, không có cuốc nào — không được lọt vào status=no_rides_7d (đã tắt).
+
+        $admin = $this->admin();
+
+        $default = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/groups')->assertOk();
+        $rows = collect($default->json('data'))->keyBy('zalo_group_id');
+        $this->assertSame(2, $rows['g1']['rides_24h']);
+        $this->assertSame(3, $rows['g1']['rides_7d']);
+        $this->assertSame(0, $rows['g2']['rides_24h']);
+        $this->assertSame(0, $rows['g2']['rides_7d']);
+
+        $noRides7d = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/groups?status=no_rides_7d')->assertOk();
+        $this->assertSame(['g2'], array_column($noRides7d->json('data'), 'zalo_group_id'));
+
+        // Mặc định (không lọc status) gồm cả nhóm đã tắt (g3) — vẫn còn hiển thị, chỉ "chưa rời".
+        $sorted = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/groups?sort=rides_7d')->assertOk();
+        $this->assertSame(['g1', 'g2', 'g3'], array_column($sorted->json('data'), 'zalo_group_id'));
+    }
+
     public function test_toggle_group(): void
     {
         ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'Nhóm Một', 'enabled' => true]);

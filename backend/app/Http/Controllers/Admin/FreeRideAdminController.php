@@ -24,27 +24,48 @@ class FreeRideAdminController extends Controller
     {
         $data = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:enabled,disabled,left'],
+            'status' => ['nullable', 'in:enabled,disabled,left,no_rides_7d'],
+            'sort' => ['nullable', 'in:rides_7d'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $query = ZaloGroup::query();
+        // Subquery gộp theo zalo_group_id (ONLY_FULL_GROUP_BY-safe: GROUP BY nằm trong subquery,
+        // truy vấn ngoài chỉ LEFT JOIN, không GROUP BY) — đếm cuốc 24h/7 ngày mỗi nhóm.
+        $rideStats = FreeRide::query()
+            ->selectRaw('zalo_group_id')
+            ->selectRaw('COUNT(CASE WHEN posted_at >= ? THEN 1 END) as rides_24h', [now()->subHours(24)])
+            ->selectRaw('COUNT(CASE WHEN posted_at >= ? THEN 1 END) as rides_7d', [now()->subDays(7)])
+            ->groupBy('zalo_group_id')
+            ->toBase();
+
+        $query = ZaloGroup::query()
+            ->leftJoinSub($rideStats, 'ride_stats', 'ride_stats.zalo_group_id', '=', 'zalo_groups.zalo_group_id')
+            ->select('zalo_groups.*')
+            ->selectRaw('COALESCE(ride_stats.rides_24h, 0) as rides_24h')
+            ->selectRaw('COALESCE(ride_stats.rides_7d, 0) as rides_7d');
 
         match ($data['status'] ?? null) {
-            'enabled' => $query->whereNull('left_at')->where('enabled', true),
-            'disabled' => $query->whereNull('left_at')->where('enabled', false),
-            'left' => $query->whereNotNull('left_at'),
+            'enabled' => $query->whereNull('zalo_groups.left_at')->where('zalo_groups.enabled', true),
+            'disabled' => $query->whereNull('zalo_groups.left_at')->where('zalo_groups.enabled', false),
+            'left' => $query->whereNotNull('zalo_groups.left_at'),
+            // Đang bật, chưa rời, không ra cuốc nào trong 7 ngày — gợi ý admin tắt bớt để đỡ chi phí AI.
+            'no_rides_7d' => $query->whereNull('zalo_groups.left_at')->where('zalo_groups.enabled', true)
+                ->where(fn (Builder $w) => $w->whereNull('ride_stats.rides_7d')->orWhere('ride_stats.rides_7d', 0)),
             // Mặc định: nhóm chưa rời (bật hoặc tắt).
-            default => $query->whereNull('left_at'),
+            default => $query->whereNull('zalo_groups.left_at'),
         };
 
         if (! empty($data['q'])) {
             $like = '%'.addcslashes($data['q'], '%_\\').'%';
-            $query->where('name', 'like', $like);
+            $query->where('zalo_groups.name', 'like', $like);
         }
 
-        // Tie-breaker cuối để thứ tự ổn định khi nhiều nhóm trùng messages_24h/name.
-        $page = $query->orderByDesc('messages_24h')->orderBy('name')->orderBy('zalo_group_id')->paginate(self::PAGE_SIZE);
+        match ($data['sort'] ?? null) {
+            'rides_7d' => $query->orderByDesc('rides_7d'),
+            default => $query->orderByDesc('zalo_groups.messages_24h'),
+        };
+        // Tie-breaker cuối để thứ tự ổn định khi nhiều nhóm trùng messages_24h/rides_7d/name.
+        $page = $query->orderBy('zalo_groups.name')->orderBy('zalo_groups.zalo_group_id')->paginate(self::PAGE_SIZE);
 
         return response()->json([
             'data' => collect($page->items())->map(fn (ZaloGroup $g) => $this->formatGroup($g))->values(),
@@ -216,6 +237,9 @@ class FreeRideAdminController extends Controller
             'last_message_at' => $g->last_message_at?->getTimestampMs(),
             'accounts' => $g->accounts ?? [],
             'left' => $g->left_at !== null,
+            // Chỉ có khi groups() join ride_stats; toggleGroup() trả về ZaloGroup trần → mặc định 0.
+            'rides_24h' => (int) ($g->rides_24h ?? 0),
+            'rides_7d' => (int) ($g->rides_7d ?? 0),
         ];
     }
 

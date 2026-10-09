@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Driver;
 
 use App\Http\Controllers\Controller;
+use App\Models\DriverFreeRideAlert;
 use App\Models\DriverHiddenSender;
 use App\Models\FreeRide;
 use App\Models\FreeRideReport;
-use App\Models\ZaloGroup;
 use App\Models\ZaloQrRefreshRequest;
-use App\Models\ZaloSenderBlock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,11 +20,6 @@ class FreeRideController extends Controller
     private const PAGE_SIZE = 30;
 
     private const SINCE_LIMIT = 200;
-
-    private const TZ = 'Asia/Ho_Chi_Minh';
-
-    // Mã QR chỉ gồm chữ/số — giai đoạn 2 đã lọc lúc ingest, đây là lớp phòng thủ.
-    private const SAFE_CODE_REGEX = '/^[A-Za-z0-9]+$/';
 
     public function index(Request $request): JsonResponse
     {
@@ -105,46 +99,57 @@ class FreeRideController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    private function visibleTo(int $driverId, array $data): Builder
+    // Bộ lọc đã lưu để nhận thông báo đẩy (NotifyFreeRideAlerts) khi có cuốc Free mới khớp.
+    public function alert(Request $request): JsonResponse
     {
-        $query = FreeRide::query()
-            ->where('expires_at', '>', now())
-            ->whereNotIn('sender_uid', ZaloSenderBlock::select('sender_uid'))
-            // Nhóm admin đã tắt: ẩn cả cuốc đã đồng bộ trước khi tắt / lúc service chưa lấy được cấu hình.
-            ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
-            ->whereNotIn('sender_uid', DriverHiddenSender::where('driver_id', $driverId)->select('sender_uid'))
-            // Mã QR bẩn: không lọc ở DB (REGEXP không có trên mọi driver, vd. SQLite test) — giai
-            // đoạn 2 đã chặn mã bẩn lúc ingest, và safe() lọc lại ở PHP như lớp phòng thủ cuối,
-            // chạy giống nhau trên mọi driver và có test bao phủ đầy đủ.
-            ->when($data['direction'] ?? null, fn (Builder $q, string $d) => $q->where('direction', $d))
-            ->when($data['seats'] ?? null, fn (Builder $q, $s) => $q->where('seats', (int) $s));
+        $alert = DriverFreeRideAlert::where('driver_id', $request->user()->id)->first();
 
-        if (! empty($data['q'])) {
-            $like = '%'.addcslashes($data['q'], '%_\\').'%';
-            $query->where(fn (Builder $w) => $w->where('pickup', 'like', $like)
-                ->orWhere('destination', 'like', $like)
-                ->orWhere('raw_text', 'like', $like));
-        }
-
-        $nowVn = now(self::TZ);
-        // Cuốc không ghi giờ hiển thị là "Đi luôn" → tính vào "2 giờ tới" và "Hôm nay" (đã còn hạn ≤ 3 giờ sau khi đăng).
-        $orLeavingNow = fn (array $range) => fn (Builder $w) => $w->whereBetween('pickup_at', $range)->orWhereNull('pickup_at');
-        match ($data['window'] ?? null) {
-            '2h' => $query->where($orLeavingNow([now()->subMinutes(30), now()->addHours(2)])),
-            'today' => $query->where($orLeavingNow([now()->subMinutes(30), $nowVn->copy()->endOfDay()->utc()])),
-            'tomorrow' => $query->whereBetween('pickup_at', [$nowVn->copy()->addDay()->startOfDay()->utc(), $nowVn->copy()->addDay()->endOfDay()->utc()]),
-            default => null,
-        };
-
-        return $query;
+        return response()->json($this->formatAlert($alert));
     }
 
-    // Phòng thủ: loại cuốc có qr_code không phải thuần chữ/số. Giai đoạn 2 đã chặn mã bẩn lúc
-    // ingest nên đây gần như không khớp gì — lọc ở PHP (không phải DB) để chạy giống nhau trên
-    // mọi driver, kể cả SQLite (test) không có REGEXP.
+    public function saveAlert(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'direction' => ['nullable', 'in:to_airport,from_airport,other'],
+            'seats' => ['nullable', 'integer', 'min:1', 'max:60'],
+            'keywords' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $alert = DriverFreeRideAlert::updateOrCreate(
+            ['driver_id' => $request->user()->id],
+            [
+                'enabled' => $data['enabled'],
+                'direction' => $data['direction'] ?? null,
+                'seats' => $data['seats'] ?? null,
+                'keywords' => $data['keywords'] ?? null,
+            ],
+        );
+
+        return response()->json($this->formatAlert($alert));
+    }
+
+    private function formatAlert(?DriverFreeRideAlert $alert): array
+    {
+        return [
+            'enabled' => (bool) ($alert->enabled ?? false),
+            'direction' => $alert->direction ?? null,
+            'seats' => $alert->seats ?? null,
+            'keywords' => $alert->keywords ?? null,
+        ];
+    }
+
+    // Điều kiện hiển thị (còn hạn, chặn/ẩn người bắn, nhóm tắt, bộ lọc) sống ở FreeRide::scopeVisibleTo()
+    // để job NotifyFreeRideAlerts dùng lại y hệt — tránh lệch điều kiện giữa danh sách và cảnh báo đẩy.
+    private function visibleTo(int $driverId, array $data): Builder
+    {
+        return FreeRide::query()->visibleTo($driverId, $data);
+    }
+
+    // Phòng thủ: loại cuốc có qr_code không phải thuần chữ/số — xem FreeRide::filterSafe().
     private function safe(Collection $rides): Collection
     {
-        return $rides->filter(fn (FreeRide $r) => preg_match(self::SAFE_CODE_REGEX, $r->qr_code) === 1);
+        return FreeRide::filterSafe($rides);
     }
 
     private function format(FreeRide $r): array

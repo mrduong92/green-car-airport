@@ -23,7 +23,7 @@ class ZaloRideIngestService
         'group_count', 'posted_at', 'expires_at', 'updated_at',
     ];
 
-    /** @return array{stored: int, rejected: list<int>} */
+    /** @return array{stored: int, rejected: list<int>, new_ride_uids: list<string>} */
     public function ingest(array $items): array
     {
         $now = now();
@@ -95,10 +95,17 @@ class ZaloRideIngestService
             Log::warning('Zalo: loại '.count($errors).' cuốc không hợp lệ từ service', ['rejected' => $errors]);
         }
 
+        // Phải biết ride_uid nào ĐÃ có trước khi upsert — NotifyFreeRideAlerts chỉ cần được xếp khi
+        // có cuốc thật sự MỚI (service gửi lại / cập nhật group_count, qr_code... không tính).
+        $newRideUids = [];
         if ($rows !== []) {
+            $rideUids = array_column($rows, 'ride_uid');
+            $existingRideUids = FreeRide::whereIn('ride_uid', $rideUids)->pluck('ride_uid')->all();
+            $newRideUids = array_values(array_diff($rideUids, $existingRideUids));
+
             FreeRide::upsert($rows, ['ride_uid'], self::COLUMNS);
         }
 
-        return ['stored' => count($rows), 'rejected' => $rejected];
+        return ['stored' => count($rows), 'rejected' => $rejected, 'new_ride_uids' => $newRideUids];
     }
 }

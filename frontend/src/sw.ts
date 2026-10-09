@@ -39,15 +39,18 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const { action, booking_id } = (event.notification.data ?? {}) as {
+  const { action, booking_id, url: dataUrl } = (event.notification.data ?? {}) as {
     action?: string
     booking_id?: number
+    url?: string
   }
 
   let url = '/'
   if (action === 'view_booking' && booking_id) url = `/customer/booking/${booking_id}`
   else if (action === 'view_trip' && booking_id) url = `/driver/trips/${booking_id}`
   else if (action === 'view_wallet') url = '/driver/wallet'
+  // Khoá chung cho mọi thông báo chỉ cần mở 1 URL cố định (vd. FreeRideMatchNotification → /driver/free).
+  else if (action === 'open_url' && dataUrl) url = dataUrl
 
   event.waitUntil(
     self.clients

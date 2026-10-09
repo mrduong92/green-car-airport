@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\BroadcastFreeRidesSignal;
+use App\Jobs\NotifyFreeRideAlerts;
 use App\Models\ZaloAccountRequest;
 use App\Models\ZaloGroup;
 use App\Models\ZaloQrRefreshRequest;
@@ -142,8 +143,13 @@ class ZaloServiceController extends Controller
         if ($result['stored'] > 0) {
             BroadcastFreeRidesSignal::dispatch()->delay(now()->addSeconds(2));
         }
+        // Chỉ xếp cảnh báo đẩy khi có cuốc THẬT SỰ mới — cập nhật cuốc cũ (group_count, qr_code...)
+        // không được bắn lại thông báo cho tài xế đã nhận cuốc đó rồi.
+        if ($result['new_ride_uids'] !== []) {
+            NotifyFreeRideAlerts::dispatch()->delay(now()->addSeconds(10));
+        }
 
-        return response()->json($result);
+        return response()->json(['stored' => $result['stored'], 'rejected' => $result['rejected']]);
     }
 
     public function groups(Request $request): JsonResponse
