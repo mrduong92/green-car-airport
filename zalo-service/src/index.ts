@@ -1,5 +1,6 @@
-// Microservice Zalo (Cuốc Free): nghe tin từ N tài khoản phụ, LƯU NGAY vào SQLite, tách cuốc (quy tắc → AI
-// → nguyên văn), gửi cuốc + nhóm + heartbeat cho Laravel. CHỈ ĐỌC: không gọi bất kỳ API ghi nào của Zalo.
+// Microservice Zalo (Cuốc Free): nghe tin từ N tài khoản phụ, LƯU NGAY vào SQLite, tách cuốc (AI trước,
+// quy tắc chỉ dự phòng khi AI hỏng/hết ngân sách → nguyên văn), gửi cuốc + nhóm + heartbeat cho Laravel.
+// CHỈ ĐỌC: không gọi bất kỳ API ghi nào của Zalo.
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { Zalo, type Credentials } from 'zca-js'
@@ -101,6 +102,7 @@ const ai = cfg.aiEnabled
 if (!ai) logger.info(`Chưa có ${cfg.aiProvider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} — tin khó sẽ hiển thị nguyên văn`)
 processor = new Processor({
   messages: store, rides, ai, qr, config: () => remote.current(), logger, rideExpireWithoutTimeMs: cfg.rideExpireWithoutTimeMs,
+  duplicateWindowMs: cfg.duplicateWindowHours * HOUR,
 })
 
 const ingest = createIngestor({ store, groups, counters, allowedGroupIds: cfg.allowedGroupIds, processor })

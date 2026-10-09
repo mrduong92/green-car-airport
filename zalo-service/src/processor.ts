@@ -21,6 +21,9 @@ export class Processor {
       logger: Logger
       // Tuổi thọ cuốc không ghi giờ (cfg.rideExpireWithoutTimeMs): tin dở dang cũ hơn thế lúc khởi động bị bỏ.
       rideExpireWithoutTimeMs: number
+      // Cửa sổ tính tin trùng (cfg.duplicateWindowHours) — dùng để đếm lại duplicate đã đến trong lúc
+      // tin gốc còn ai_pending, xem groupCountFor().
+      duplicateWindowMs: number
     },
   ) {}
 
@@ -50,7 +53,7 @@ export class Processor {
     const msg = this.deps.messages.get(outcome.id)
     if (!msg) return
     if (!outcome.isRide) return this.deps.messages.setStatus(msg.id, 'not_ride')
-    this.deps.rides.upsertDrafts(this.source(msg), outcome.rides)
+    this.deps.rides.upsertDrafts(this.source(msg), outcome.rides, this.groupCountFor(msg))
     this.deps.messages.setStatus(msg.id, 'ride')
     this.deps.qr.ensure(msg.sender_uid)
   }
@@ -64,12 +67,12 @@ export class Processor {
     const outcome = parseRides(msg.content, msg.sent_at)
     if (outcome.kind === 'not_ride') return this.deps.messages.setStatus(msg.id, 'not_ride')
     if (outcome.kind === 'rides') {
-      this.deps.rides.upsertDrafts(this.source(msg), outcome.rides)
+      this.deps.rides.upsertDrafts(this.source(msg), outcome.rides, this.groupCountFor(msg))
       this.deps.messages.setStatus(msg.id, 'ride')
       this.deps.qr.ensure(msg.sender_uid)
       return
     }
-    this.deps.rides.addRaw(this.source(msg), msg.content)
+    this.deps.rides.addRaw(this.source(msg), msg.content, this.groupCountFor(msg))
     this.deps.messages.setStatus(msg.id, 'raw')
     this.deps.qr.ensure(msg.sender_uid)
   }
@@ -92,6 +95,16 @@ export class Processor {
 
   private source(msg: StoredMessage): RideSource {
     return { messageId: msg.id, senderUid: msg.sender_uid, groupId: msg.zalo_group_id, sentAt: msg.sent_at }
+  }
+
+  // group_count ban đầu của cuốc vừa tạo = 1 (chính tin này) + số tin trùng đã lưu ('duplicate') trong
+  // lúc tin này còn ai_pending — bumpForDuplicate() không cộng được vì lúc đó chưa có hàng rides nào
+  // gắn với tin gốc (chỉ bump được rides của tin đã là 'ride'/'raw'). Duplicate đến SAU khi cuốc đã tạo
+  // vẫn do bumpForDuplicate() xử lý như cũ.
+  private groupCountFor(msg: StoredMessage): number {
+    const hash = contentHash(msg.sender_uid, msg.content)
+    const duplicates = this.deps.messages.countDuplicatesInWindow(msg.sender_uid, hash, msg.sent_at, msg.sent_at + this.deps.duplicateWindowMs)
+    return 1 + duplicates
   }
 }
 

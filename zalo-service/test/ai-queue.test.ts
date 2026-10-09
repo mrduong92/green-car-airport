@@ -90,3 +90,57 @@ test('a callback that throws does not get mistaken for a failed AI call', async 
   assert.deepEqual(failed, [])
   assert.equal(queue.size, 0) // không bị đẩy lại hàng chờ để "thử lại"
 })
+
+test('flush() drains the whole queue across several batches, not just one, when messages pile up', async () => {
+  let t = 1_000_000
+  const usage = new AiUsage(openDb(':memory:'), () => t)
+  const batches: number[][] = []
+  const outcomes: number[] = []
+  const queue = new AiQueue({
+    extractor: { extract: async (items) => { batches.push(items.map((i) => i.id)); return ok(items) } },
+    usage, budgetUsd: () => 100, onOutcome: (o) => outcomes.push(o.id), onOverBudget: () => {}, onFailed: () => {},
+    batchSize: 20, logger: silentLogger, now: () => t,
+  })
+  for (let id = 1; id <= 45; id++) queue.enqueue({ id, content: 'x', sentAt: 0 }) // >= batchSize → đã tự gọi flush()
+  await queue.flush() // nối vào lượt đang chạy (nếu có) hoặc rút nốt phần còn lại
+  assert.deepEqual(batches.map((b) => b.length), [20, 20, 5])
+  assert.equal(outcomes.length, 45)
+  assert.equal(queue.size, 0)
+})
+
+test('enqueue triggers a flush as soon as the batch fills, without waiting for the timer', () => {
+  let t = 1_000_000
+  const usage = new AiUsage(openDb(':memory:'), () => t)
+  const batches: number[][] = []
+  const queue = new AiQueue({
+    extractor: { extract: async (items) => { batches.push(items.map((i) => i.id)); return ok(items) } },
+    usage, budgetUsd: () => 100, onOutcome: () => {}, onOverBudget: () => {}, onFailed: () => {},
+    batchSize: 20, logger: silentLogger, now: () => t,
+  })
+  for (let id = 1; id <= 19; id++) queue.enqueue({ id, content: 'x', sentAt: 0 })
+  assert.equal(batches.length, 0) // chưa đủ lô → chưa gọi AI
+  queue.enqueue({ id: 20, content: 'x', sentAt: 0 }) // đủ batchSize
+  assert.equal(batches.length, 1) // gọi AI ngay (đồng bộ, không cần await/hẹn giờ)
+  assert.deepEqual(batches[0], Array.from({ length: 20 }, (_, i) => i + 1))
+})
+
+test('flush stops draining and sends the rest to onOverBudget once the daily cap is hit mid-drain', async () => {
+  let t = 1_000_000
+  // claude-haiku-4-5 mặc định: $1/$5 mỗi 1M token → một lô (100 input + 10 output token, theo `ok`) tốn $0.00015.
+  const usage = new AiUsage(openDb(':memory:'), () => t)
+  const batches: number[][] = []
+  const outcomes: number[] = []
+  const over: number[] = []
+  const queue = new AiQueue({
+    extractor: { extract: async (items) => { batches.push(items.map((i) => i.id)); return ok(items) } },
+    usage, budgetUsd: () => 0.0001, // thấp hơn chi phí một lô → vượt trần ngay sau lô đầu tiên
+    onOutcome: (o) => outcomes.push(o.id), onOverBudget: (id) => over.push(id), onFailed: () => {},
+    batchSize: 20, logger: silentLogger, now: () => t,
+  })
+  for (let id = 1; id <= 25; id++) queue.enqueue({ id, content: 'x', sentAt: 0 })
+  await queue.flush()
+  assert.deepEqual(batches.map((b) => b.length), [20]) // lô thứ 2 bị chặn bởi ngân sách, không gọi AI nữa
+  assert.equal(outcomes.length, 20)
+  assert.deepEqual(over, Array.from({ length: 5 }, (_, i) => i + 21))
+  assert.equal(queue.size, 0)
+})

@@ -36,3 +36,15 @@ test('priceFor: known models return their table price, unknown models return the
   // Model lạ → giá cao nhất bảng (gpt-4.1: $2/$8) để không vô tình tính thiếu, vượt trần ngân sách.
   assert.deepEqual(priceFor('model-khong-ton-tai'), { inputPerM: 2, outputPerM: 8 })
 })
+
+test('priceFor matches dated snapshots by prefix, longest key wins', () => {
+  // "gpt-4.1-mini" (dài hơn) phải thắng "gpt-4.1" cho bản có ngày của gpt-4.1-mini.
+  assert.deepEqual(priceFor('gpt-4.1-mini-2025-04-14'), { inputPerM: 0.4, outputPerM: 1.6 })
+  assert.deepEqual(priceFor('gpt-4.1-2025-04-14'), { inputPerM: 2, outputPerM: 8 })
+  assert.deepEqual(priceFor('gpt-4.1-nano-2025-04-14'), { inputPerM: 0.1, outputPerM: 0.4 })
+  assert.deepEqual(priceFor('gpt-5-nano-2025-08-07'), { inputPerM: 0.05, outputPerM: 0.4 })
+  assert.deepEqual(priceFor('gpt-4o-mini-2024-07-18'), { inputPerM: 0.15, outputPerM: 0.6 })
+  // Chỉ khớp theo ranh giới dấu "-": "gpt-4.1-mininext" không phải bản có ngày của "gpt-4.1-mini"
+  // (thiếu dấu "-" ngăn cách), nhưng vẫn khớp tiền tố "gpt-4.1-" nên nhận giá gpt-4.1, không nhầm sang "mini".
+  assert.deepEqual(priceFor('gpt-4.1-mininext'), { inputPerM: 2, outputPerM: 8 })
+})

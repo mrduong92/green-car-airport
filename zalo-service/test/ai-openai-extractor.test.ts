@@ -37,6 +37,9 @@ test('maps AI rides to drafts, resolving time in Vietnam time', async () => {
 
   assert.equal(params.model, 'gpt-4.1-mini')
   assert.ok(params.response_format)
+  const responseFormat = params.response_format as { type: string; json_schema: { strict: boolean } }
+  assert.equal(responseFormat.type, 'json_schema')
+  assert.equal(responseFormat.json_schema.strict, true) // structured outputs chặt: AI không được bỏ field
   assert.equal(params.max_completion_tokens, 16000)
   assert.equal(params.temperature, 0) // không phải gpt-5 → ép nhiệt độ 0 cho kết quả ổn định
   assert.equal(params.reasoning_effort, undefined)
@@ -51,12 +54,24 @@ test('maps AI rides to drafts, resolving time in Vietnam time', async () => {
   assert.deepEqual(out.outcomes[1], { id: 8, isRide: false, rides: [] })
 })
 
-test('a gpt-5 model gets reasoning_effort minimal and no temperature', async () => {
+for (const model of ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5-nano-2025-08-07']) {
+  test(`${model} gets reasoning_effort minimal and no temperature`, async () => {
+    let params: Record<string, unknown> = {}
+    const extractor = new OpenAiExtractor(fakeClient(okResponse({ results: [] }), (p) => { params = p }), model)
+    await extractor.extract([{ id: 1, content: 'x', sentAt: SENT }])
+    assert.equal(params.reasoning_effort, 'minimal')
+    assert.equal(params.temperature, undefined)
+  })
+}
+
+// Biến thể gpt-5 KHÔNG nằm trong bảng giá (gpt-5-pro, gpt-5.1...) — chưa rõ có nhận temperature hay
+// không, nên không ép vào nhánh reasoning_effort; xử lý như model thường (ngoài phạm vi 3 model đã chốt).
+test('a gpt-5 variant outside the price table (gpt-5-pro) is treated like a regular model', async () => {
   let params: Record<string, unknown> = {}
-  const extractor = new OpenAiExtractor(fakeClient(okResponse({ results: [] }), (p) => { params = p }), 'gpt-5-nano')
+  const extractor = new OpenAiExtractor(fakeClient(okResponse({ results: [] }), (p) => { params = p }), 'gpt-5-pro')
   await extractor.extract([{ id: 1, content: 'x', sentAt: SENT }])
-  assert.equal(params.reasoning_effort, 'minimal')
-  assert.equal(params.temperature, undefined)
+  assert.equal(params.reasoning_effort, undefined)
+  assert.equal(params.temperature, 0)
 })
 
 test('missing ids in the AI answer are treated as not rides', async () => {

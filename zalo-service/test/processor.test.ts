@@ -25,7 +25,7 @@ function harness(opts: { ai?: boolean; config?: Partial<RemoteConfig> } = {}) {
     usage: new AiUsage(db), budgetUsd: () => 5, onOutcome: () => {}, onOverBudget: () => {}, onFailed: () => {}, logger: silentLogger,
   })
   const config: RemoteConfig = { disabledGroupIds: new Set(), blockedSenderUids: new Set(), aiDailyBudgetUsd: 5, ...opts.config }
-  const processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger, rideExpireWithoutTimeMs: 3 * HOUR })
+  const processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger, rideExpireWithoutTimeMs: 3 * HOUR, duplicateWindowMs: 24 * HOUR })
   let n = 0
   const save = (content: string, overrides: Record<string, string | number> = {}) => {
     const item = { group_id: 'g1', group_name: '', msg_id: `m${++n}`, sender_uid: '111', sender_name: '', content, sent_at: SENT, ...overrides }
@@ -116,6 +116,30 @@ test('AI outcome is applied: rides or not_ride', () => {
   assert.equal(h.rides.backlog(), 1)
 })
 
+test('a duplicate arriving while the original is still ai_pending is still counted once the AI applies', () => {
+  const h = harness()
+  const content = 'tin khó, có thể lặp lại'
+  const original = h.save(content)
+  h.processor.handleStored(original)
+  assert.equal(h.messages.get(original)!.parse_status, 'ai_pending')
+
+  // 2 tin trùng đến trong lúc tin gốc còn ai_pending: chưa có hàng rides nào gắn với tin gốc, nên
+  // bumpForDuplicate (gọi qua handleDuplicate, như ingest.ts làm) không cộng được gì — đây là đúng bug cần sửa.
+  h.save(content, { msg_id: 'dup1' })
+  h.processor.handleDuplicate('111', content)
+  h.save(content, { msg_id: 'dup2' })
+  h.processor.handleDuplicate('111', content)
+
+  h.giveQr()
+  h.processor.applyAi({
+    id: original, isRide: true,
+    rides: [{ direction: 'to_airport', pickup: 'phố cổ', destination: 'Sân bay Nội Bài', pickupAt: SENT + HOUR, pickupTimeText: '5h', seats: null, vehicleNote: null, price: null, isFree: false, rawText: content }],
+  })
+  assert.equal(h.messages.get(original)!.parse_status, 'ride')
+  // group_count phải đếm đủ: tin gốc + 2 tin trùng đã đến trước đó = 3.
+  assert.equal(h.rides.unsynced(10)[0].group_count, 3)
+})
+
 test('recover re-queues ai_pending messages and sends unprocessed pending messages straight to AI', () => {
   const h = harness()
   const pendingAi = h.save('T1 - trần khát chân 180k')
@@ -162,7 +186,7 @@ test('a message whose AI batch failed 3 times ends as a raw ride, not discarded'
     usage: new AiUsage(db), budgetUsd: () => 5, onOutcome: () => {}, onOverBudget: () => {},
     onFailed: onAiFailed(() => processor, silentLogger), retryPauseMs: 0, logger: silentLogger,
   })
-  processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger, rideExpireWithoutTimeMs: 3 * HOUR })
+  processor = new Processor({ messages, rides, ai, qr, config: () => config, logger: silentLogger, rideExpireWithoutTimeMs: 3 * HOUR, duplicateWindowMs: 24 * HOUR })
   messages.save({ group_id: 'g1', group_name: '', msg_id: 'm1', sender_uid: '111', sender_name: '', content: 'T1 - trần khát chân 180k freeeeeeee', sent_at: SENT }, 'acc1')
   const id = messages.findId('g1', 'm1')!
   processor.handleStored(id)

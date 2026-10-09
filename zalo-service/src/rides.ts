@@ -61,7 +61,7 @@ export class RideStore {
   private readonly countBacklog: Database.Statement
   private readonly countHeldBack: Database.Statement
   private readonly deleteOld: Database.Statement
-  private readonly upsertTx: (source: RideSource, drafts: RideDraft[]) => { created: number; merged: number }
+  private readonly upsertTx: (source: RideSource, drafts: RideDraft[], groupCount: number) => { created: number; merged: number }
 
   constructor(private readonly db: Db, private readonly opts: { expireAfterPickupMs: number; expireWithoutTimeMs: number; now?: () => number; uid?: () => string }) {
     this.now = opts.now ?? (() => Date.now())
@@ -70,9 +70,9 @@ export class RideStore {
     this.bump = db.prepare('UPDATE rides SET group_count = group_count + 1, updated_at = ? WHERE id = ?')
     this.insert = db.prepare(`
       INSERT INTO rides (ride_uid, message_id, sender_uid, zalo_group_id, direction, pickup, destination, pickup_at,
-        pickup_time_text, seats, vehicle_note, price, is_free, is_raw, raw_text, fingerprint, posted_at, expires_at, updated_at)
+        pickup_time_text, seats, vehicle_note, price, is_free, is_raw, raw_text, fingerprint, group_count, posted_at, expires_at, updated_at)
       VALUES (@ride_uid, @message_id, @sender_uid, @zalo_group_id, @direction, @pickup, @destination, @pickup_at,
-        @pickup_time_text, @seats, @vehicle_note, @price, @is_free, @is_raw, @raw_text, @fingerprint, @posted_at, @expires_at, @updated_at)`)
+        @pickup_time_text, @seats, @vehicle_note, @price, @is_free, @is_raw, @raw_text, @fingerprint, @group_count, @posted_at, @expires_at, @updated_at)`)
     this.bumpDup = db.prepare(`
       UPDATE rides SET group_count = group_count + 1, updated_at = ?
       WHERE expires_at > ? AND message_id IN (
@@ -99,7 +99,7 @@ export class RideStore {
       WHERE s.qr_code IS NULL AND (r.synced_at IS NULL OR r.updated_at > r.synced_at) AND r.expires_at > ?`)
     this.deleteOld = db.prepare('DELETE FROM rides WHERE expires_at < ?')
 
-    this.upsertTx = db.transaction((source: RideSource, drafts: RideDraft[]) => {
+    this.upsertTx = db.transaction((source: RideSource, drafts: RideDraft[], groupCount: number) => {
       let created = 0
       let merged = 0
       const now = this.now()
@@ -111,23 +111,27 @@ export class RideStore {
           merged++
           continue
         }
-        this.insertRow(source, draft, fingerprint, false, now)
+        this.insertRow(source, draft, fingerprint, false, now, groupCount)
         created++
       }
       return { created, merged }
     })
   }
 
-  upsertDrafts(source: RideSource, drafts: RideDraft[]): { created: number; merged: number } {
-    return this.upsertTx(source, drafts)
+  // groupCount: số tin đã gộp vào cuốc này ngay từ đầu — mặc định 1, nhưng Processor truyền
+  // 1 + số tin trùng đã đến trong lúc tin gốc còn chờ AI (bumpForDuplicate không cộng được vì lúc đó
+  // chưa có hàng rides nào ứng với tin gốc). Chỉ áp dụng cho cuốc MỚI TẠO; cuốc gộp vào fingerprint có
+  // sẵn (của một tin gốc khác) vẫn tăng dần từng 1 như cũ.
+  upsertDrafts(source: RideSource, drafts: RideDraft[], groupCount = 1): { created: number; merged: number } {
+    return this.upsertTx(source, drafts, groupCount)
   }
 
-  addRaw(source: RideSource, rawText: string): void {
+  addRaw(source: RideSource, rawText: string, groupCount = 1): void {
     const draft: RideDraft = {
       direction: null, pickup: null, destination: null, pickupAt: null, pickupTimeText: null,
       seats: null, vehicleNote: null, price: null, isFree: false, rawText,
     }
-    this.insertRow(source, draft, `raw|${contentHash(source.senderUid, rawText)}`, true, this.now())
+    this.insertRow(source, draft, `raw|${contentHash(source.senderUid, rawText)}`, true, this.now(), groupCount)
   }
 
   bumpForDuplicate(senderUid: string, hash: string): number {
@@ -197,7 +201,7 @@ export class RideStore {
     return createHash('sha256').update(key).digest('hex')
   }
 
-  private insertRow(source: RideSource, draft: RideDraft, fingerprint: string, isRaw: boolean, now: number): void {
+  private insertRow(source: RideSource, draft: RideDraft, fingerprint: string, isRaw: boolean, now: number, groupCount = 1): void {
     const expiresAt = draft.pickupAt !== null ? draft.pickupAt + this.opts.expireAfterPickupMs : source.sentAt + this.opts.expireWithoutTimeMs
     this.insert.run({
       ride_uid: this.uid(),
@@ -216,6 +220,7 @@ export class RideStore {
       is_raw: isRaw ? 1 : 0,
       raw_text: draft.rawText,
       fingerprint,
+      group_count: groupCount,
       posted_at: source.sentAt,
       expires_at: expiresAt,
       updated_at: now,

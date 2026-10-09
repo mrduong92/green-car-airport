@@ -3,15 +3,17 @@ import { zodResponseFormat } from 'openai/helpers/zod'
 import { AiCallError, type AiItem, type AiOutcome, type Extractor } from './queue.js'
 import { ResultSchema, SYSTEM_PROMPT, toDraft } from './prompt.js'
 
-// Model dòng gpt-5 (reasoning model): không nhận temperature tuỳ chỉnh (luôn mặc định), nhưng có
-// reasoning_effort — đặt 'minimal' để giảm token/suy luận ẩn cho tác vụ tách cuốc đơn giản này.
-const GPT5_MODEL = /^gpt-5/
+// Chỉ 3 model reasoning có trong bảng giá (prices.ts): gpt-5, gpt-5-mini, gpt-5-nano (và bản có ngày,
+// vd. gpt-5-nano-2025-08-07) — không nhận temperature tuỳ chỉnh (luôn mặc định), nhưng có reasoning_effort,
+// đặt 'minimal' để giảm token/suy luận ẩn cho tác vụ tách cuốc đơn giản này. KHÔNG áp dụng cho các biến
+// thể gpt-5 khác (gpt-5-pro, gpt-5-codex...) — chưa rõ các model đó có nhận temperature hay không.
+const GPT5_REASONING_MODEL = /^gpt-5(?:-mini|-nano)?(?:-\d{4}-\d{2}-\d{2})?$/
 
 export class OpenAiExtractor implements Extractor {
   constructor(private readonly client: OpenAI, private readonly model: string) {}
 
   async extract(items: AiItem[]): Promise<{ outcomes: AiOutcome[]; inputTokens: number; outputTokens: number }> {
-    const isGpt5 = GPT5_MODEL.test(this.model)
+    const isGpt5 = GPT5_REASONING_MODEL.test(this.model)
     const response = await this.client.chat.completions.parse({
       model: this.model,
       // Lô tối đa batchSize (mặc định 20) tin, mỗi tin có thể nhiều cuốc → cần token lớn để JSON

@@ -44,6 +44,7 @@ export class MessageStore {
   private readonly statusStmt: Database.Statement
   private readonly byStatusStmt: Database.Statement
   private readonly expireStmt: Database.Statement
+  private readonly countDuplicatesStmt: Database.Statement
   private readonly saveTx: (item: MessageItem, accountId: string, receivedAt: number) => SaveResult
 
   constructor(db: Db, private readonly opts: StoreOptions) {
@@ -71,6 +72,11 @@ export class MessageStore {
     this.statusStmt = db.prepare('UPDATE messages SET parse_status = ? WHERE id = ?')
     this.byStatusStmt = db.prepare('SELECT id FROM messages WHERE parse_status = ? AND sent_at >= ? ORDER BY id')
     this.expireStmt = db.prepare("UPDATE messages SET parse_status = 'expired' WHERE parse_status IN ('pending', 'ai_pending') AND sent_at < ?")
+    // Tin trùng đã đến trong khi tin gốc còn đang chờ AI (chưa có hàng rides để bumpForDuplicate cộng
+    // vào) — đếm lại lúc tạo cuốc để group_count không bị thiếu (xem Processor.groupCountFor()).
+    this.countDuplicatesStmt = db.prepare(`
+      SELECT COUNT(*) AS c FROM messages
+      WHERE sender_uid = ? AND content_hash = ? AND parse_status = 'duplicate' AND sent_at >= ? AND sent_at <= ?`)
 
     this.saveTx = db.transaction((item: MessageItem, accountId: string, receivedAt: number): SaveResult => {
       if (this.exists.get(item.group_id, item.msg_id)) return 'ignored'
@@ -125,6 +131,12 @@ export class MessageStore {
   // Tin dở dang (pending/ai_pending) gửi trước mốc before → 'expired' (quá cũ để còn là cuốc). Trả số tin.
   expireUnprocessed(before: number): number {
     return this.expireStmt.run(before).changes
+  }
+
+  // Số tin trùng (parse_status='duplicate') cùng người gửi + nội dung, sent_at trong [from, to] — dùng
+  // để tính group_count ban đầu khi tạo cuốc, bù cho duplicate đã đến trước khi tin gốc có hàng rides.
+  countDuplicatesInWindow(senderUid: string, hash: string, from: number, to: number): number {
+    return (this.countDuplicatesStmt.get(senderUid, hash, from, to) as { c: number }).c
   }
 
   prune(now: number = Date.now()): number {

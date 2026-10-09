@@ -20,6 +20,15 @@ const HIGHEST: ModelPrice = {
   outputPerM: Math.max(...Object.values(PRICES).map((p) => p.outputPerM)),
 }
 
+// Khớp theo tiền tố (ranh giới dấu "-") để các bản có ngày (vd. "gpt-4.1-mini-2025-04-14",
+// OpenAI/Anthropic chốt một snapshot cụ thể) vẫn nhận đúng giá của model gốc thay vì rơi vào HIGHEST.
+// Khớp dài nhất thắng: "gpt-4.1-mini" (dài hơn) thắng "gpt-4.1" cho model "gpt-4.1-mini-2025-04-14".
 export function priceFor(model: string): ModelPrice {
-  return PRICES[model] ?? HIGHEST
+  let best: { key: string; price: ModelPrice } | null = null
+  for (const [key, price] of Object.entries(PRICES)) {
+    if ((model === key || model.startsWith(`${key}-`)) && (!best || key.length > best.key.length)) {
+      best = { key, price }
+    }
+  }
+  return best?.price ?? HIGHEST
 }
