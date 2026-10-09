@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ZaloAccountRequest;
 use App\Services\Zalo\ZaloServiceMonitor;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 // Tab admin "Nick Zalo" (giai đoạn 5): đăng nhập/gỡ nick Zalo phụ bằng mã QR, danh sách nick.
 // Laravel KHÔNG gọi vào service — chỉ tạo yêu cầu, service Node tự hỏi và báo tiến độ qua
@@ -79,30 +81,43 @@ class ZaloAccountController extends Controller
 
     // Một yêu cầu tại một thời điểm cho mỗi account_id (login hoặc remove) — 409 nếu đã có
     // yêu cầu đang mở (pending/qr_ready); yêu cầu đã xong/hết hạn/lỗi thì được tạo lại.
+    //
+    // Check "đang mở?" + create phải atomic: 2 click/request gần như đồng thời cho cùng
+    // account_id (admin bấm đúp, hoặc 2 tab) mà không khoá có thể cùng qua được check rồi
+    // cùng tạo request — Cache::lock khoá theo account_id, chờ tối đa 3 giây rồi coi như
+    // "đang bận" và trả 409 giống hệt trường hợp có request mở.
     private function createRequest(string $type, string $accountId, Request $request): JsonResponse
     {
         ZaloAccountRequest::expireStale();
 
-        $hasOpenRequest = ZaloAccountRequest::where('account_id', $accountId)
-            ->whereIn('status', ZaloAccountRequest::OPEN_STATUSES)
-            ->exists();
+        $lock = Cache::lock("zalo-acct-req:{$accountId}", 5);
 
-        if ($hasOpenRequest) {
+        try {
+            return $lock->block(3, function () use ($type, $accountId, $request): JsonResponse {
+                $hasOpenRequest = ZaloAccountRequest::where('account_id', $accountId)
+                    ->whereIn('status', ZaloAccountRequest::OPEN_STATUSES)
+                    ->exists();
+
+                if ($hasOpenRequest) {
+                    return response()->json(['message' => 'Đã có yêu cầu đang xử lý cho nick này'], 409);
+                }
+
+                $req = ZaloAccountRequest::create([
+                    'type' => $type,
+                    'account_id' => $accountId,
+                    'status' => 'pending',
+                    'requested_by' => $request->user()->id,
+                ]);
+
+                return response()->json([
+                    'id' => $req->id,
+                    'type' => $req->type,
+                    'account_id' => $req->account_id,
+                    'status' => $req->status,
+                ], 201);
+            });
+        } catch (LockTimeoutException) {
             return response()->json(['message' => 'Đã có yêu cầu đang xử lý cho nick này'], 409);
         }
-
-        $req = ZaloAccountRequest::create([
-            'type' => $type,
-            'account_id' => $accountId,
-            'status' => 'pending',
-            'requested_by' => $request->user()->id,
-        ]);
-
-        return response()->json([
-            'id' => $req->id,
-            'type' => $req->type,
-            'account_id' => $req->account_id,
-            'status' => $req->status,
-        ], 201);
     }
 }

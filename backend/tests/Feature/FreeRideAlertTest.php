@@ -294,6 +294,27 @@ class FreeRideAlertTest extends TestCase
         });
     }
 
+    // Tag riêng để sw.ts không gộp/đè push Cuốc Free lên push cuốc trả khách đang chờ (cùng tag
+    // mặc định 'greenca-notification' sẽ khiến push sau thay push trước mà không renotify).
+    public function test_push_payload_has_dedicated_tag_so_it_does_not_overwrite_other_pushes(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        $this->travel(1)->second();
+
+        $this->ride(['pickup' => 'Phố cổ', 'destination' => 'Sân bay', 'price' => 150000]);
+        $this->travel(1)->second();
+
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
+            $payload = $n->toWebPush($driver, $n);
+
+            return ($payload['tag'] ?? null) === 'greenca-free-ride';
+        });
+    }
+
     public function test_push_content_for_ride_without_pickup_at_shows_di_luon(): void
     {
         Notification::fake();

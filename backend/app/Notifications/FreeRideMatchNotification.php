@@ -35,6 +35,9 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
                 ? $this->describe($this->rides->first())
                 : "{$this->rides->count()} cuốc Free mới phù hợp",
             'data' => ['action' => 'open_url', 'url' => '/driver/free'],
+            // Tag riêng để push Cuốc Free không âm thầm đè push cuốc trả khách (mặc định
+            // 'greenca-notification' ở sw.ts) khi cả hai tới gần nhau — xem sw.ts.
+            'tag' => 'greenca-free-ride',
         ];
     }
 

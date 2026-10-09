@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\ZaloAccountRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Tests\Concerns\SignsZaloBotRequests;
 use Tests\TestCase;
 
@@ -147,14 +148,19 @@ class ZaloAccountRequestTest extends TestCase
         $this->assertSame('done', $req->refresh()->status);
     }
 
-    public function test_internal_update_rejects_pending_to_expired_directly(): void
+    // Service có thể báo expired thẳng từ pending: nếu cả 3 lần POST qr_ready đều lỗi (mất mạng,
+    // Laravel tạm down...) request vẫn còn 'pending' trong DB dù service đã bỏ cuộc tạo QR mới.
+    public function test_internal_update_allows_pending_straight_to_expired_when_all_qr_attempts_failed(): void
     {
         $req = ZaloAccountRequest::create(['type' => 'login', 'account_id' => 'acc1', 'status' => 'pending']);
 
-        $this->zaloPost("/api/internal/zalo/account-requests/{$req->id}", ['status' => 'expired', 'error' => 'x'])
-            ->assertStatus(409);
+        $this->zaloPost("/api/internal/zalo/account-requests/{$req->id}", [
+            'status' => 'expired', 'error' => 'Hết lượt mã QR',
+        ])->assertOk();
 
-        $this->assertSame('pending', $req->refresh()->status);
+        $req->refresh();
+        $this->assertSame('expired', $req->status);
+        $this->assertSame('Hết lượt mã QR', $req->error);
     }
 
     public function test_internal_update_unknown_id_is_not_found(): void
@@ -299,6 +305,31 @@ class ZaloAccountRequestTest extends TestCase
         // Yêu cầu đã xong (done) không còn "mở" — tạo lại (đăng nhập lại) phải được phép.
         ZaloAccountRequest::query()->update(['status' => 'done']);
         $this->actingAs($admin, 'sanctum')->postJson('/api/admin/free-rides/accounts', ['account_id' => 'acc1'])->assertStatus(201);
+    }
+
+    // Check "có yêu cầu mở chưa" + tạo yêu cầu phải atomic (Cache::lock) — nếu không, 2 request
+    // gần như đồng thời cho cùng account_id có thể cùng thấy "chưa có yêu cầu mở" và cùng tạo được
+    // 2 request pending. Không thể dựng race thật trong 1 test đồng bộ, nên giữ lock sẵn từ test
+    // rồi gọi endpoint: phải thấy lock đang bận và trả 409 thay vì tạo thêm request.
+    public function test_admin_create_returns_409_when_another_request_holds_the_lock(): void
+    {
+        // Cache\Lock::block() đo thời gian trôi qua bằng Carbon::now() — setUp() đóng băng
+        // đồng hồ bằng travelTo(), nên nếu giữ nguyên, vòng chờ trong block(3, ...) không bao
+        // giờ thấy đủ 3 giây trôi qua và lặp vô hạn. Trả đồng hồ về thật cho riêng test này.
+        $this->travelBack();
+
+        $lock = Cache::lock('zalo-acct-req:acc1', 5);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->actingAs($this->admin(), 'sanctum')
+                ->postJson('/api/admin/free-rides/accounts', ['account_id' => 'acc1'])
+                ->assertStatus(409);
+
+            $this->assertSame(0, ZaloAccountRequest::where('account_id', 'acc1')->count());
+        } finally {
+            $lock->release();
+        }
     }
 
     public function test_admin_creates_remove_request_via_delete(): void

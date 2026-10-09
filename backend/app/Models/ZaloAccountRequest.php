@@ -19,11 +19,13 @@ class ZaloAccountRequest extends Model
 
     // Chuyển trạng thái hợp lệ: pending có thể đi thẳng tới done/failed (ví dụ gỡ nick
     // không cần QR); qr_ready có thể lặp lại (QR mới sau khi hết hạn) hoặc kết thúc.
+    // pending → expired: service báo expired thẳng khi cả 3 lần POST qr_ready đều lỗi
+    // (mất mạng, Laravel tạm down...) — request vẫn còn 'pending' trong DB lúc đó.
     private const VALID_TRANSITIONS = [
         'qr_ready' => ['pending', 'qr_ready'],
         'done' => ['pending', 'qr_ready'],
         'failed' => ['pending', 'qr_ready'],
-        'expired' => ['qr_ready'],
+        'expired' => ['pending', 'qr_ready'],
     ];
 
     public function canTransitionTo(string $status): bool
