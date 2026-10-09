@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createZaloAccountLogin, getZaloAccountRequest } from '@/api/adminFreeRides'
+import { createZaloAccountLogin, getZaloAccountRequest, ZALO_ACCOUNTS_QUERY_KEY } from '@/api/adminFreeRides'
 import { useUiStore } from '@/stores/ui'
 import { apiMessage } from '@/utils/apiError'
 import Button from '@/components/common/Button'
@@ -18,6 +18,7 @@ interface Props {
   open: boolean
   mode: 'create' | 'relogin'
   accountId?: string // bắt buộc khi mode==='relogin'
+  accountName?: string | null // tên Zalo đã biết của nick (mode==='relogin'), rỗng → hiện accountId
   suggestedId?: string // gợi ý tên khi mode==='create'
   onClose: () => void
 }
@@ -27,7 +28,7 @@ interface Props {
 // mỗi 2 giây cho tới khi done/expired/failed, dừng poll khi đóng hộp thoại.
 // LƯU Ý: parent phải đổi `key` mỗi lần mở lại (xem AccountsTab) để component remount thay vì
 // reset state bằng effect — tránh setState đồng bộ trong effect (react-hooks/set-state-in-effect).
-export default function AddAccountDialog({ open, mode, accountId, suggestedId, onClose }: Props) {
+export default function AddAccountDialog({ open, mode, accountId, accountName, suggestedId, onClose }: Props) {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
   const [name, setName] = useState(suggestedId ?? '')
@@ -64,7 +65,7 @@ export default function AddAccountDialog({ open, mode, accountId, suggestedId, o
   useEffect(() => {
     if (!reqDetail || !TERMINAL_STATUSES.has(reqDetail.status) || notifiedRef.current === reqDetail.id) return
     notifiedRef.current = reqDetail.id
-    qc.invalidateQueries({ queryKey: ['admin-zalo-accounts'] })
+    qc.invalidateQueries({ queryKey: ZALO_ACCOUNTS_QUERY_KEY })
     if (reqDetail.status === 'done') {
       showToast(`Đã đăng nhập: ${reqDetail.zalo_name || reqDetail.account_id}`, 'success')
     }
@@ -101,7 +102,7 @@ export default function AddAccountDialog({ open, mode, accountId, suggestedId, o
     createMutation.mutate(id)
   }
 
-  const title = mode === 'relogin' ? `Đăng nhập lại ${accountId}` : 'Thêm nick Zalo'
+  const title = mode === 'relogin' ? `Đăng nhập lại ${accountName || accountId}` : 'Thêm nick Zalo'
   const secondsLeft = reqDetail?.qr_expires_at ? Math.max(0, Math.round((reqDetail.qr_expires_at - now) / 1000)) : 0
   const showNameForm = mode === 'create' && requestId == null
   const showReloginError = mode === 'relogin' && requestId == null && !createMutation.isPending && mutationErrorMessage
@@ -202,7 +203,7 @@ export default function AddAccountDialog({ open, mode, accountId, suggestedId, o
             {reqDetail?.status === 'expired' && (
               <>
                 <span className="material-symbols-outlined text-3xl text-alert-orange">schedule</span>
-                <p className="text-sm text-navy text-center">Mã QR hết hạn — thử lại</p>
+                <p className="text-sm text-navy text-center">{reqDetail.error || 'Mã QR hết hạn — thử lại'}</p>
                 <Button fullWidth loading={createMutation.isPending} disabled={createMutation.isPending} onClick={retry}>
                   Thử lại
                 </Button>

@@ -19,6 +19,10 @@ export const unblockFreeRideSender = (uid: string) =>
 export const getFreeRideStatus = () => api.get<App.AdminFreeRideStatus>('/admin/free-rides/status')
 
 // Tab "Nick Zalo" (giai đoạn 5).
+// Khoá React Query dùng chung cho danh sách nick — AccountsTab (query chính) và AddAccountDialog
+// (invalidate sau khi tạo/kết thúc yêu cầu) cùng import từ đây, tránh lặp literal ở 2 nơi.
+export const ZALO_ACCOUNTS_QUERY_KEY = ['admin-zalo-accounts'] as const
+
 export const getZaloAccounts = () => api.get<App.AdminZaloAccountsResponse>('/admin/free-rides/accounts')
 
 export const createZaloAccountLogin = (accountId: string) =>

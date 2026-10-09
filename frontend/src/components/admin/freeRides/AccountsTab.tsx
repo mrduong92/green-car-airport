@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getZaloAccounts, getZaloAccountRequest, removeZaloAccount } from '@/api/adminFreeRides'
+import { getZaloAccounts, getZaloAccountRequest, removeZaloAccount, ZALO_ACCOUNTS_QUERY_KEY } from '@/api/adminFreeRides'
 import { useUiStore } from '@/stores/ui'
 import { apiMessage } from '@/utils/apiError'
 import EmptyState from '@/components/common/EmptyState'
@@ -8,7 +8,6 @@ import ConfirmDialog from '@/components/common/ConfirmDialog'
 import AddAccountDialog from './AddAccountDialog'
 import clsx from 'clsx'
 
-const ACCOUNTS_KEY = ['admin-zalo-accounts'] as const
 const TERMINAL_STATUSES = new Set<App.AdminZaloAccountRequestStatus>(['done', 'expired', 'failed'])
 
 const timeFmt = new Intl.DateTimeFormat('vi-VN', {
@@ -40,13 +39,14 @@ export default function AccountsTab() {
   const [addOpen, setAddOpen] = useState(false)
   const [addKey, setAddKey] = useState(0)
   const [reloginId, setReloginId] = useState<string | null>(null)
+  const [reloginName, setReloginName] = useState<string | null>(null)
   const [reloginKey, setReloginKey] = useState(0)
   const [confirmRemove, setConfirmRemove] = useState<App.AdminZaloAccount | null>(null)
   const [removing, setRemoving] = useState<{ accountId: string; requestId: number } | null>(null)
   const notifiedRemoveRef = useRef<number | null>(null)
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ACCOUNTS_KEY,
+    queryKey: ZALO_ACCOUNTS_QUERY_KEY,
     queryFn: () => getZaloAccounts().then((r) => r.data),
     refetchInterval: 15_000,
   })
@@ -60,7 +60,7 @@ export default function AccountsTab() {
     onSuccess: (res, id) => {
       setConfirmRemove(null)
       setRemoving({ accountId: id, requestId: res.data.id })
-      qc.invalidateQueries({ queryKey: ACCOUNTS_KEY })
+      qc.invalidateQueries({ queryKey: ZALO_ACCOUNTS_QUERY_KEY })
     },
     onError: (err) => showToast(apiMessage(err, 'Gỡ nick thất bại'), 'error'),
   })
@@ -81,7 +81,7 @@ export default function AccountsTab() {
   useEffect(() => {
     if (!removeDetail || !TERMINAL_STATUSES.has(removeDetail.status) || notifiedRemoveRef.current === removeDetail.id) return
     notifiedRemoveRef.current = removeDetail.id
-    qc.invalidateQueries({ queryKey: ACCOUNTS_KEY })
+    qc.invalidateQueries({ queryKey: ZALO_ACCOUNTS_QUERY_KEY })
     if (removeDetail.status === 'done') showToast(`Đã gỡ nick ${removeDetail.account_id}`, 'success')
     else if (removeDetail.status === 'failed') showToast(removeDetail.error || 'Gỡ nick thất bại', 'error')
     else showToast('Yêu cầu gỡ nick hết hạn', 'error')
@@ -163,7 +163,7 @@ export default function AccountsTab() {
               <div className="flex gap-2 mt-3">
                 <button
                   data-testid="admin-account-relogin"
-                  onClick={() => { setReloginKey((k) => k + 1); setReloginId(acc.id) }}
+                  onClick={() => { setReloginKey((k) => k + 1); setReloginId(acc.id); setReloginName(acc.zalo_name) }}
                   disabled={busy}
                   className="flex-1 text-xs bg-light-green text-primary rounded-pill px-3 py-2 font-medium disabled:opacity-50"
                 >
@@ -196,6 +196,7 @@ export default function AccountsTab() {
         open={reloginId != null}
         mode="relogin"
         accountId={reloginId ?? undefined}
+        accountName={reloginName}
         onClose={() => setReloginId(null)}
       />
 
