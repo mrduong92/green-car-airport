@@ -626,8 +626,10 @@ BOT_SECRET=<trùng ZALO_BOT_SECRET>
 ALLOWED_GROUP_IDS=                                  # để TRỐNG trên production — nghe mọi nhóm; từ
                                                      # giai đoạn 4, bật/tắt từng nhóm ở trang admin
                                                      # thay vì liệt kê ID ở đây (xem mục "Giai đoạn 4")
-ANTHROPIC_API_KEY=<key do AMD quản lý>              # trống = không gọi AI, tin khó hiển thị nguyên văn
-AI_MODEL=claude-haiku-4-5
+# AI: từ giai đoạn 5 mặc định OpenAI (xem mục "Giai đoạn 5") — để trống key = không gọi AI, tin khó hiện nguyên văn
+AI_PROVIDER=openai
+OPENAI_API_KEY=<key OpenAI>
+AI_MODEL=gpt-4.1-mini
 AI_DAILY_BUDGET_USD=5                              # trần dự phòng khi chưa hỏi được Laravel
 # Còn lại (AI_BATCH_SIZE, RIDES_FLUSH_MS, QR_INTERVAL_MS, QR_REFRESH_DAYS, …) để mặc định
 
@@ -636,7 +638,7 @@ sudo npm ci && sudo npm run build && sudo chown -R zalobot:zalobot /opt/greenca-
 sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v3 khi khởi động
 ```
 
-- Chưa có `ANTHROPIC_API_KEY` thì tin khó hiện nguyên văn; thêm key rồi `sudo systemctl restart greenca-zalo-service` để bật AI.
+- Chưa có key AI (`OPENAI_API_KEY`, hoặc `ANTHROPIC_API_KEY` khi `AI_PROVIDER=anthropic`) thì tin khó hiện nguyên văn; thêm key rồi `sudo systemctl restart greenca-zalo-service` để bật AI.
 - `zalo:service-status` cảnh báo thêm: hộp thư đi tồn > 1000 cuốc, tỷ lệ không lấy được mã QR > 80%,
   cuốc bị giữ vì thiếu mã > 200.
 
@@ -737,7 +739,14 @@ chạy lên và lượt hỏi đầu tiên của nó bắt được.
 2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn như mục "Giai đoạn 4"
    ở trên (rsync, không đè `.env`/`data/`), thêm biến mới nếu muốn đổi nhịp mặc định:
    ```bash
-   # zalo-service/.env — có mặc định, không bắt buộc phải đặt
+   # zalo-service/.env — AI chuyển sang OpenAI: mọi tin không trùng đều gửi AI tách cuốc,
+   # quy tắc chỉ còn dự phòng khi AI lỗi/hết ngân sách (cuốc vẫn hiện nguyên văn, không mất)
+   AI_PROVIDER=openai              # mặc định; đặt anthropic để quay về Claude (cần ANTHROPIC_API_KEY)
+   OPENAI_API_KEY=<key OpenAI>     # BẮT BUỘC nếu muốn bật AI; trống = tin khó hiện nguyên văn
+   AI_MODEL=gpt-4.1-mini           # mặc định; đổi model chỉ cần sửa dòng này (vd. gpt-4o-mini)
+   # Có mặc định, không bắt buộc phải đặt:
+   AI_FLUSH_MS=30000               # gom tin gửi AI ≤ 20 tin hoặc mỗi 30 giây
+   RIDES_FLUSH_MS=30000            # đẩy cuốc sang Laravel mỗi 30 giây
    ACCOUNT_REQUESTS_POLL_MS=5000   # nhịp hỏi GET /internal/zalo/account-requests
    ```
    ```bash
