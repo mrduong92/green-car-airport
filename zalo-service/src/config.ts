@@ -24,6 +24,7 @@ export interface Config {
   ridesBatchSize: number
   ridesFlushMs: number
   configPollMs: number
+  accountRequestsPollMs: number
   groupsSyncMs: number
   groupScanMs: number
   rideExpireAfterPickupMs: number
@@ -68,6 +69,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     ridesBatchSize: Math.min(Number(env.RIDES_BATCH_SIZE || 100), 100),
     ridesFlushMs: Number(env.RIDES_FLUSH_MS || 30_000),
     configPollMs: Number(env.CONFIG_POLL_MS || 60_000),
+    // Hỏi yêu cầu đăng nhập/gỡ nick từ trang admin (giai đoạn 5): QR Zalo chỉ sống ~100 giây nên hỏi dày.
+    accountRequestsPollMs: Number(env.ACCOUNT_REQUESTS_POLL_MS || 5_000),
     groupsSyncMs: Number(env.GROUPS_SYNC_MS || 600_000),
     // Quét toàn bộ nhóm của nick phụ (giai đoạn 4): mặc định 30 phút.
     groupScanMs: Number(env.GROUP_SCAN_MS || 1_800_000),

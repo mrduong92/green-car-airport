@@ -11,7 +11,7 @@ import { MessageStore } from './store.js'
 import { GroupNames } from './groups.js'
 import { createIngestor, newCounters } from './ingest.js'
 import { AccountManager, type ApiLike } from './accounts.js'
-import { buildHeartbeat, collectHeartbeatExtra } from './heartbeat.js'
+import { buildHeartbeat, collectHeartbeatExtra, heartbeatAccounts } from './heartbeat.js'
 import { createGetter, createSender } from './http.js'
 import { logger } from './logger.js'
 import { SenderStore } from './senders.js'
@@ -25,16 +25,18 @@ import { OpenAiExtractor } from './ai/openai-extractor.js'
 import { ConfigPoller } from './remote-config.js'
 import { Processor, onAiFailed } from './processor.js'
 import { GroupsSync, RideSync } from './sync.js'
-import { GroupScanner, pruneUnknownAccounts } from './group-scanner.js'
+import { GroupScanner, accountGroupCounts, forgetAccount, pruneUnknownAccounts } from './group-scanner.js'
+import { AccountRequestsPoller } from './account-requests.js'
+import { runQrLogin } from './zalo-login.js'
 import type { IncomingMessage } from './normalize.js'
 
 const HOUR = 3_600_000
 const cfg = loadConfig(process.env)
 
 const accounts = loadAccounts(cfg.accountsDir, logger)
+// Giai đoạn 5: chưa có nick vẫn chạy — admin thêm nick bằng QR trên trang "Nick Zalo".
 if (accounts.length === 0) {
-  logger.error(`Chưa có tài khoản nào trong ${cfg.accountsDir} — chạy "npm run login -- <tên>" trên máy cá nhân rồi copy file lên`)
-  process.exit(1)
+  logger.error(`Chưa có tài khoản nào trong ${cfg.accountsDir} — thêm nick ở trang admin (Cuốc Free → Nick Zalo)`)
 }
 
 const db = openDb(cfg.dbPath)
@@ -134,7 +136,8 @@ const startedAt = Date.now()
 every(cfg.heartbeatMs, async () => {
   const now = Date.now()
   const payload = buildHeartbeat({
-    serviceId: cfg.serviceId, startedAt, now, counters, accounts: manager!.snapshot(),
+    serviceId: cfg.serviceId, startedAt, now, counters,
+    accounts: heartbeatAccounts(manager!.snapshot(), (id) => manager!.info(id), accountGroupCounts(db)),
     extra: collectHeartbeatExtra({ now, rides, senders, qr, ai, usage, budgetUsd: remote.current().aiDailyBudgetUsd }),
   })
   const { status } = await send('/api/internal/zalo/heartbeat', payload)
@@ -147,6 +150,27 @@ every(cfg.aiFlushMs, () => ai?.flush())
 every(cfg.qrIntervalMs, () => ((manager?.loggedIn().length ?? 0) > 0 ? qr.step() : undefined))
 every(cfg.configPollMs, () => remote.poll())
 every(cfg.groupsSyncMs, () => groupsSync.flush())
+
+// Đăng nhập / gỡ nick theo yêu cầu từ trang admin (giai đoạn 5). poll() không ném lỗi, tự bỏ lượt khi đang
+// xử lý một yêu cầu (đăng nhập QR có thể kéo dài vài phút).
+const accountRequests = new AccountRequestsPoller({
+  get,
+  post: send,
+  manager,
+  accountsDir: cfg.accountsDir,
+  login: (onQr) => runQrLogin({
+    loginQR: (onEvent) => new Zalo({ selfListen: false, logging: false }).loginQR({}, onEvent as Parameters<Zalo['loginQR']>[1]),
+    onQr,
+  }),
+  logger,
+  // Nick mới/đăng nhập lại → quét nhóm ngay để danh sách nhóm và số nhóm cập nhật, không chờ 30 phút.
+  onAdded: () => { groupScanner.scan().then(() => groupsSync.flush()).catch((err) => logger.error('Quét nhóm lỗi:', err)) },
+  onRemoved: (id) => {
+    const n = forgetAccount(db, id)
+    if (n > 0) logger.info(`Đã xoá ${n} dấu nhóm của nick ${id}`)
+  },
+})
+every(cfg.accountRequestsPollMs, () => accountRequests.poll())
 
 // Quét toàn bộ nhóm của nick phụ (giai đoạn 4): lần đầu khi MỌI nick đã đăng nhập xong hoặc đã báo lỗi
 // (quét sớm khi nick khác còn đang đăng nhập làm nhóm của nick đó tạm hiện "Nick đã rời"), tối đa chờ

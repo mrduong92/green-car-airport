@@ -105,3 +105,14 @@ export function pruneUnknownAccounts(db: Db, accountIds: string[]): number {
   const placeholders = accountIds.map(() => '?').join(', ')
   return db.prepare(`DELETE FROM group_accounts WHERE account_id NOT IN (${placeholders})`).run(...accountIds).changes
 }
+
+/** Số nhóm mỗi nick đang ở (group_accounts) — gửi kèm heartbeat cho tab "Nick Zalo". */
+export function accountGroupCounts(db: Db): Map<string, number> {
+  const rows = db.prepare('SELECT account_id, COUNT(*) AS n FROM group_accounts GROUP BY account_id').all() as { account_id: string; n: number }[]
+  return new Map(rows.map((r) => [r.account_id, r.n]))
+}
+
+/** Gỡ nick từ trang admin: xoá dấu "đang ở nhóm" của nick đó (lượt quét sau đánh "rời" nhóm chỉ nick đó ở). */
+export function forgetAccount(db: Db, accountId: string): number {
+  return db.prepare('DELETE FROM group_accounts WHERE account_id = ?').run(accountId).changes
+}

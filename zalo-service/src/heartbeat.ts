@@ -1,10 +1,28 @@
-import type { AccountState } from './accounts.js'
+import type { AccountInfo, AccountState } from './accounts.js'
 import type { ServiceCounters } from './ingest.js'
 import { truncate } from './text.js'
 
 // Lỗi đăng nhập/socket đôi khi là cả stack trace — không cắt thì Laravel 422 từ chối CẢ GÓI
 // heartbeat (service trông như đã chết, im lặng không cảnh báo). 300 ký tự là đủ để chẩn đoán.
 const MAX_LAST_ERROR_CHARS = 300
+const MAX_ZALO_NAME_CHARS = 100
+
+/** Một nick trong heartbeat: trạng thái + (giai đoạn 5) UID, tên Zalo, lúc đăng nhập, số nhóm. */
+export type HeartbeatAccount = Pick<AccountState, 'id' | 'connected' | 'loggedIn' | 'lastError'> & {
+  zaloUid?: string
+  zaloName?: string
+  loggedInAt?: number | null
+  groups?: number
+}
+
+/** Ghép snapshot của AccountManager với info() từng nick và số nhóm (group_accounts). */
+export function heartbeatAccounts(
+  states: Pick<AccountState, 'id' | 'connected' | 'loggedIn' | 'lastError'>[],
+  info: (id: string) => Partial<AccountInfo> | undefined,
+  groupCounts: Map<string, number>,
+): HeartbeatAccount[] {
+  return states.map((state) => ({ ...state, ...info(state.id), groups: groupCounts.get(state.id) ?? 0 }))
+}
 
 export interface HeartbeatExtra {
   outbox_backlog: number
@@ -49,7 +67,7 @@ export function buildHeartbeat(input: {
   startedAt: number
   now: number
   counters: ServiceCounters
-  accounts: Pick<AccountState, 'id' | 'connected' | 'loggedIn' | 'lastError'>[]
+  accounts: HeartbeatAccount[]
   // Giai đoạn 2: hộp thư đi, hàng chờ AI, chi phí AI hôm nay, sức khoẻ lấy mã QR.
   extra?: HeartbeatExtra
 }) {
@@ -63,6 +81,11 @@ export function buildHeartbeat(input: {
       connected: a.connected,
       logged_in: a.loggedIn,
       last_error: a.lastError != null ? truncate(a.lastError, MAX_LAST_ERROR_CHARS) : null,
+      // Giai đoạn 5 (tab "Nick Zalo"). Chưa biết → null (Laravel validate nullable).
+      zalo_uid: a.zaloUid || null,
+      zalo_name: a.zaloName ? truncate(a.zaloName, MAX_ZALO_NAME_CHARS) : null,
+      logged_in_at: a.loggedInAt ?? null,
+      groups: a.groups ?? 0,
     })),
     received_total: input.counters.received,
     stored_total: input.counters.stored,
