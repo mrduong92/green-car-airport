@@ -13,6 +13,7 @@ import { buildHeartbeat, collectHeartbeatExtra } from './heartbeat.js'
 import { createGetter, createSender } from './http.js'
 import { logger } from './logger.js'
 import { SenderStore } from './senders.js'
+import { accountsForGroup, accountsForSender, tryAccounts } from './account-routing.js'
 import { QrQueue, decodeQrFromUrl } from './qr.js'
 import { RideStore } from './rides.js'
 import { AiUsage } from './ai/usage.js'
@@ -48,9 +49,9 @@ const counters = newCounters()
 let manager: AccountManager | undefined
 const groups = new GroupNames({
   fetchName: async (groupId) => {
-    const api = manager?.anyApi()
-    if (!api) throw new Error('Chưa có tài khoản nào đăng nhập')
-    return (await api.getGroupInfo(groupId)).gridInfoMap?.[groupId]?.name ?? ''
+    const apis = new Map((manager?.loggedIn() ?? []).map((a) => [a.id, a.api]))
+    return tryAccounts(accountsForGroup(db, groupId, [...apis.keys()]), async (id) =>
+      (await apis.get(id)!.getGroupInfo(groupId)).gridInfoMap?.[groupId]?.name ?? '')
   },
 })
 const send = createSender({ baseUrl: cfg.apiBaseUrl, secret: cfg.botSecret })
@@ -66,10 +67,10 @@ let processor: Processor | undefined
 const senders = new SenderStore(db)
 const qr = new QrQueue({
   senders,
+  // Gọi bằng nick đã nhận tin của người này trước (Zalo chỉ trả QR cho nick có chung nhóm), lỗi thì thử nick khác.
   getQr: async (uid) => {
-    const api = manager?.anyApi()
-    if (!api) throw new Error('Chưa có tài khoản nào đăng nhập')
-    return api.getQR(uid)
+    const apis = new Map((manager?.loggedIn() ?? []).map((a) => [a.id, a.api]))
+    return tryAccounts(accountsForSender(db, uid, [...apis.keys()]), (id) => apis.get(id)!.getQR(uid))
   },
   decode: decodeQrFromUrl,
   onUpdated: (uid) => rides.markSenderChanged(uid),
@@ -134,7 +135,8 @@ every(cfg.heartbeatMs, async () => {
 
 every(cfg.ridesFlushMs, () => rideSync.flush())
 every(cfg.aiFlushMs, () => ai?.flush())
-every(cfg.qrIntervalMs, () => qr.step())
+// Chưa nick nào đăng nhập thì chưa lấy mã: gọi lúc này chỉ đánh lỗi người bắn và bắt chờ 1 giờ.
+every(cfg.qrIntervalMs, () => ((manager?.loggedIn().length ?? 0) > 0 ? qr.step() : undefined))
 every(cfg.configPollMs, () => remote.poll())
 every(cfg.groupsSyncMs, () => groupsSync.flush())
 
@@ -162,6 +164,8 @@ setInterval(() => {
 // poll không ném lỗi và có timeout 10 giây.
 await remote.poll()
 processor.recover(Date.now())
+// Người bắn đang có cuốc chờ mã QR (vd. lần trước gọi nhầm nick nên lỗi) → lấy lại ngay khi có nick đăng nhập.
+for (const uid of rides.sendersAwaitingQr()) qr.force(uid)
 
 // Đăng nhập không chờ: tài khoản treo/lỗi tự thử lại trong AccountManager.
 manager.startAll().catch((err) => logger.error('Lỗi khởi động tài khoản:', err))

@@ -176,6 +176,13 @@ export class RideStore {
     return (this.countBacklog.get(this.now()) as { c: number }).c
   }
 
+  // Người bắn có cuốc còn hạn nhưng chưa có mã QR — khởi động lại thì lấy lại mã ngay (không chờ hạn thử lại 1 giờ).
+  sendersAwaitingQr(): string[] {
+    return (this.db.prepare(`SELECT DISTINCT r.sender_uid FROM rides r LEFT JOIN senders s ON s.uid = r.sender_uid
+      WHERE r.expires_at > ? AND s.qr_code IS NULL ORDER BY r.sender_uid`).all(this.now()) as { sender_uid: string }[])
+      .map((r) => r.sender_uid)
+  }
+
   heldBack(): number {
     return (this.countHeldBack.get(this.now()) as { c: number }).c
   }
