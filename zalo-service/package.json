@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx --env-file-if-exists=.env src/index.ts",
     "start": "node dist/src/index.js",
     "login": "tsx scripts/login.ts",
     "stats": "node dist/src/cli/stats.js",

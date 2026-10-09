@@ -60,10 +60,14 @@ khoản phụ mới), copy file lên VPS, `sudo systemctl restart greenca-zalo-s
 
 1. Đăng nhập nick phụ: `npm run login -- acc1`
 2. Lấy ID nhóm: `npm run groups -- acc1` (in `ID<TAB>tên nhóm`)
-3. Chạy chỉ với nhóm đó:
+3. Tạo `zalo-service/.env` cho local (gitignore; `npm run dev` tự nạp file này):
    ```bash
-   ALLOWED_GROUP_IDS=<id-nhóm> API_BASE_URL=http://localhost:8080 BOT_SECRET=dev-secret npm run dev
+   API_BASE_URL=http://localhost:8080
+   BOT_SECRET=dev-secret          # trùng ZALO_BOT_SECRET trong backend/.env
+   DATA_DIR=./data
+   ALLOWED_GROUP_IDS=             # trống = nghe mọi nhóm; điền ID để chỉ nghe vài nhóm khi thử
    ```
+   rồi `npm run dev`.
 4. Xem tin đã lưu kèm deeplink: `npm run build && npm run latest -- --limit=20`
 
 Mỗi người gửi mới được lấy mã QR trang cá nhân (`getQR`, cách nhau 2 giây), giải mã và lưu **đoạn mã** vào
