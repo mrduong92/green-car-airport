@@ -410,7 +410,7 @@ declare namespace App {
     q?: string
   }
 
-  // Trang admin "Cuốc Free" — khớp JSON thực tế của FreeRideAdminController (xem task-3-report.md).
+  // Trang admin "Cuốc Free" — khớp JSON thực tế của FreeRideAdminController (xem task-3-report.md, task-4-report.md).
   interface AdminZaloGroup {
     zalo_group_id: string
     name: string
@@ -420,6 +420,8 @@ declare namespace App {
     last_message_at: number | null
     accounts: string[]
     left: boolean
+    rides_24h: number
+    rides_7d: number
   }
 
   interface AdminFreeRideSender {
@@ -456,6 +458,56 @@ declare namespace App {
     active_rides: number
     groups_enabled: number
     groups_total: number
+  }
+
+  // Tab admin "Nick Zalo" (giai đoạn 5) — khớp JSON của ZaloAccountController (xem task-3-report.md).
+  type AdminZaloAccountRequestType = 'login' | 'remove'
+  type AdminZaloAccountRequestStatus = 'pending' | 'qr_ready' | 'done' | 'expired' | 'failed'
+
+  interface AdminZaloAccount {
+    id: string
+    zalo_uid: string | null
+    zalo_name: string | null
+    connected: boolean
+    logged_in: boolean | null
+    last_error: string | null
+    logged_in_at: number | null
+    groups: number | null
+    service_id: string
+    stale: boolean
+  }
+
+  // Dòng trong `requests` của GET /admin/free-rides/accounts — chỉ yêu cầu đang mở (pending/qr_ready).
+  interface AdminZaloAccountRequestSummary {
+    id: number
+    type: AdminZaloAccountRequestType
+    account_id: string
+    status: AdminZaloAccountRequestStatus
+  }
+
+  interface AdminZaloAccountsResponse {
+    accounts: AdminZaloAccount[]
+    requests: AdminZaloAccountRequestSummary[]
+  }
+
+  // POST/DELETE /admin/free-rides/accounts(/...) — luôn status=pending lúc tạo.
+  interface AdminZaloAccountRequestCreated {
+    id: number
+    type: AdminZaloAccountRequestType
+    account_id: string
+    status: AdminZaloAccountRequestStatus
+  }
+
+  // GET /admin/free-rides/account-requests/{id} — luôn đủ 8 khoá, poll mỗi 2 giây.
+  interface AdminZaloAccountRequestDetail {
+    id: number
+    type: AdminZaloAccountRequestType
+    account_id: string
+    status: AdminZaloAccountRequestStatus
+    qr_image: string | null
+    qr_expires_at: number | null
+    zalo_name: string | null
+    error: string | null
   }
 
   // Dạng phân trang { data, meta } của FreeRideAdminController — khác App.Paginated<T> (phẳng).

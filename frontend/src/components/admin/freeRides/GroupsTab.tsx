@@ -10,6 +10,7 @@ const STATUS_FILTERS = [
   { key: '', label: 'Đang ở' },
   { key: 'enabled', label: 'Đang theo dõi' },
   { key: 'disabled', label: 'Đã tắt' },
+  { key: 'no_rides_7d', label: 'Không ra cuốc 7 ngày' },
   { key: 'left', label: 'Nick đã rời' },
 ] as const
 
@@ -152,8 +153,15 @@ export default function GroupsTab() {
                   <span>{g.member_count ?? '—'} thành viên</span>
                   <span>· {g.messages_24h} tin/24h</span>
                   <span>· {g.accounts.length} nick đang ở</span>
+                  <span>· {g.rides_24h} cuốc/24h · {g.rides_7d} cuốc/7 ngày</span>
                 </div>
                 <p className="text-[11px] text-neutral-gray mt-1">Tin gần nhất: {fmtLastMessage(g.last_message_at)}</p>
+                {g.enabled && !g.left && g.rides_7d === 0 && (
+                  <p className="text-[11px] text-alert-orange mt-1 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">lightbulb</span>
+                    Không ra cuốc nào trong 7 ngày — cân nhắc tắt để giảm chi phí AI
+                  </p>
+                )}
               </div>
               <button
                 data-testid="admin-group-toggle"

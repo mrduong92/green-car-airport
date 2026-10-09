@@ -1,12 +1,14 @@
 import { useSearchParams } from 'react-router-dom'
+import AccountsTab from '@/components/admin/freeRides/AccountsTab'
 import GroupsTab from '@/components/admin/freeRides/GroupsTab'
 import SendersTab from '@/components/admin/freeRides/SendersTab'
 import StatusTab from '@/components/admin/freeRides/StatusTab'
 import clsx from 'clsx'
 
-type TabKey = 'groups' | 'senders' | 'status'
+type TabKey = 'accounts' | 'groups' | 'senders' | 'status'
 
 const TABS: { key: TabKey; label: string; testId: string }[] = [
+  { key: 'accounts', label: 'Nick Zalo', testId: 'admin-free-tab-accounts' },
   { key: 'groups', label: 'Nhóm Zalo', testId: 'admin-free-tab-groups' },
   { key: 'senders', label: 'Người bắn', testId: 'admin-free-tab-senders' },
   { key: 'status', label: 'Tình trạng', testId: 'admin-free-tab-status' },
@@ -15,7 +17,8 @@ const TABS: { key: TabKey; label: string; testId: string }[] = [
 export default function FreeRidesAdminPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const rawTab = searchParams.get('tab')
-  const tab: TabKey = rawTab === 'senders' || rawTab === 'status' ? rawTab : 'groups'
+  const tab: TabKey =
+    rawTab === 'groups' || rawTab === 'senders' || rawTab === 'status' ? rawTab : 'accounts'
 
   const setTab = (next: TabKey) => setSearchParams((prev) => {
     const params = new URLSearchParams(prev)
@@ -44,6 +47,7 @@ export default function FreeRidesAdminPage() {
         </div>
       </div>
 
+      {tab === 'accounts' && <AccountsTab />}
       {tab === 'groups' && <GroupsTab />}
       {tab === 'senders' && <SendersTab />}
       {tab === 'status' && <StatusTab />}
