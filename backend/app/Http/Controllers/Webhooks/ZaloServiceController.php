@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\BroadcastFreeRidesSignal;
+use App\Models\ZaloAccountRequest;
 use App\Models\ZaloGroup;
 use App\Models\ZaloQrRefreshRequest;
 use App\Models\ZaloSenderBlock;
@@ -31,6 +32,13 @@ class ZaloServiceController extends Controller
             // mà không có cảnh báo nào) — cắt bằng mb_substr bên dưới thay vì validate max.
             'accounts.*.logged_in' => ['sometimes', 'boolean'],
             'accounts.*.last_error' => ['sometimes', 'nullable', 'string'],
+            // Giai đoạn 5 (tab "Nick Zalo"): tên/UID lấy 1 lần sau đăng nhập (getUserInfo của
+            // chính mình), lúc đăng nhập, số nhóm hiện có. Cùng lý do không giới hạn max ở đây:
+            // cắt bằng mb_substr bên dưới, không từ chối cả gói vì một trường nick dài bất thường.
+            'accounts.*.zalo_uid' => ['sometimes', 'nullable', 'string'],
+            'accounts.*.zalo_name' => ['sometimes', 'nullable', 'string'],
+            'accounts.*.logged_in_at' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'accounts.*.groups' => ['sometimes', 'integer', 'min:0'],
             'received_total' => ['required', 'integer', 'min:0'],
             'stored_total' => ['required', 'integer', 'min:0'],
             'duplicates_total' => ['required', 'integer', 'min:0'],
@@ -51,10 +59,75 @@ class ZaloServiceController extends Controller
             if (isset($account['last_error'])) {
                 $account['last_error'] = mb_substr($account['last_error'], 0, 500);
             }
+            if (isset($account['zalo_uid'])) {
+                $account['zalo_uid'] = mb_substr($account['zalo_uid'], 0, 64);
+            }
+            if (isset($account['zalo_name'])) {
+                $account['zalo_name'] = mb_substr($account['zalo_name'], 0, 255);
+            }
         }
         unset($account);
 
         $monitor->recordHeartbeat($data);
+
+        return response()->json(['ok' => true]);
+    }
+
+    // Service hỏi mỗi 5 giây (JSON nhỏ, rỗng gần như mọi lúc) — QR Zalo sống ~1-2 phút nên
+    // không đợi /config 60 giây. Chỉ trả yêu cầu 'pending': 'qr_ready' service đang tự xử lý
+    // tới cùng (đã có id trong tay), không cần thấy lại ở danh sách này.
+    public function accountRequests(): JsonResponse
+    {
+        ZaloAccountRequest::expireStale();
+
+        $requests = ZaloAccountRequest::where('status', 'pending')
+            ->oldest('id')
+            ->limit(5)
+            ->get(['id', 'type', 'account_id']);
+
+        return response()->json(['requests' => $requests]);
+    }
+
+    public function updateAccountRequest(Request $request, string $id): JsonResponse
+    {
+        $accountRequest = ZaloAccountRequest::findOrFail($id);
+
+        $data = $request->validate([
+            'status' => ['required', 'in:qr_ready,done,expired,failed'],
+            'qr_image' => ['sometimes', 'nullable', 'string'],
+            'qr_expires_at' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'zalo_uid' => ['sometimes', 'nullable', 'string'],
+            'zalo_name' => ['sometimes', 'nullable', 'string'],
+            'error' => ['sometimes', 'nullable', 'string'],
+        ]);
+
+        if (! $accountRequest->canTransitionTo($data['status'])) {
+            return response()->json(['message' => "Không thể chuyển từ {$accountRequest->status} sang {$data['status']}"], 409);
+        }
+
+        $update = ['status' => $data['status']];
+
+        if ($data['status'] === 'qr_ready') {
+            $update['qr_image'] = $data['qr_image'] ?? null;
+            $update['qr_expires_at'] = isset($data['qr_expires_at']) ? Carbon::createFromTimestampMs($data['qr_expires_at']) : null;
+        } else {
+            // done | expired | failed: ảnh QR là thông tin nhạy cảm (ai quét cũng đăng nhập
+            // nick của người quét) — xoá ngay khi không còn cần hiển thị cho admin nữa.
+            $update['qr_image'] = null;
+            $update['qr_expires_at'] = null;
+        }
+
+        if (array_key_exists('zalo_uid', $data)) {
+            $update['zalo_uid'] = $data['zalo_uid'] !== null ? mb_substr($data['zalo_uid'], 0, 64) : null;
+        }
+        if (array_key_exists('zalo_name', $data)) {
+            $update['zalo_name'] = $data['zalo_name'] !== null ? mb_substr($data['zalo_name'], 0, 255) : null;
+        }
+        if (array_key_exists('error', $data)) {
+            $update['error'] = $data['error'] !== null ? mb_substr($data['error'], 0, 500) : null;
+        }
+
+        $accountRequest->update($update);
 
         return response()->json(['ok' => true]);
     }

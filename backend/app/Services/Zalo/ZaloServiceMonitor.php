@@ -32,7 +32,7 @@ class ZaloServiceMonitor
      * Dữ liệu cho trang admin "Tình trạng" — một hàng mỗi service còn trong cache (bỏ service
      * đã bị dọn vì im quá zalo.forget_after_days ngày, hoặc hết TTL heartbeat 1 ngày).
      *
-     * @return list<array{service_id: string, last_heartbeat_at: int, stale: bool, accounts: list<array{id: string, connected: bool, logged_in: ?bool, last_error: ?string}>, ai_spent_today_usd: float, ai_budget_usd: float, outbox_backlog: int, held_back_rides: int, qr_ok_24h: int, qr_empty_24h: int}>
+     * @return list<array{service_id: string, last_heartbeat_at: int, stale: bool, accounts: list<array{id: string, connected: bool, logged_in: ?bool, last_error: ?string, zalo_uid: ?string, zalo_name: ?string, logged_in_at: ?int, groups: ?int}>, ai_spent_today_usd: float, ai_budget_usd: float, outbox_backlog: int, held_back_rides: int, qr_ok_24h: int, qr_empty_24h: int}>
      */
     public function snapshot(): array
     {
@@ -55,6 +55,12 @@ class ZaloServiceMonitor
                     'connected' => (bool) $a['connected'],
                     'logged_in' => array_key_exists('logged_in', $a) ? (bool) $a['logged_in'] : null,
                     'last_error' => $a['last_error'] ?? null,
+                    // Giai đoạn 5 (tab "Nick Zalo"): tên/UID lấy 1 lần sau đăng nhập, lúc đăng
+                    // nhập (ms), số nhóm hiện có — payload cũ (trước giai đoạn 5) không có nên null.
+                    'zalo_uid' => $a['zalo_uid'] ?? null,
+                    'zalo_name' => $a['zalo_name'] ?? null,
+                    'logged_in_at' => $a['logged_in_at'] ?? null,
+                    'groups' => array_key_exists('groups', $a) ? (int) $a['groups'] : null,
                 ])->values()->all(),
                 'ai_spent_today_usd' => (float) ($hb['ai_spent_today_usd'] ?? 0),
                 'ai_budget_usd' => (float) ($hb['ai_budget_usd'] ?? 0),

@@ -16,3 +16,7 @@ Schedule::command('notifications:prune')->dailyAt('03:00');
 
 // Cuốc Free (microservice Zalo): xoá cuốc hết hạn quá 8 ngày (giữ đủ tuần cho thống kê admin).
 Schedule::command('zalo:prune-rides')->dailyAt('03:10');
+
+// Giai đoạn 5: yêu cầu đăng nhập/gỡ nick Zalo bị bỏ dở (service crash, mất mạng...) quá 10
+// phút → expired. Cũng xảy ra lazily mỗi khi đọc, lệnh này dọn cả khi không ai đang đọc.
+Schedule::command('zalo:expire-account-requests')->everyMinute();

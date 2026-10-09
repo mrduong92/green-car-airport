@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\FreeRideAdminController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
+use App\Http\Controllers\Admin\ZaloAccountController;
 use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\OtpController;
@@ -66,6 +67,9 @@ Route::middleware(['zalo.bot', 'throttle:600,1'])->prefix('internal/zalo')->grou
     Route::post('/rides', [ZaloServiceController::class, 'rides']);
     Route::post('/groups', [ZaloServiceController::class, 'groups']);
     Route::get('/config', [ZaloServiceController::class, 'config']);
+    // Đăng nhập/gỡ nick Zalo phụ (giai đoạn 5) — service hỏi mỗi 5 giây, báo tiến độ bằng POST.
+    Route::get('/account-requests', [ZaloServiceController::class, 'accountRequests']);
+    Route::post('/account-requests/{id}', [ZaloServiceController::class, 'updateAccountRequest'])->whereNumber('id');
 });
 Route::get('/zns/dlr', [ZnsDlrController::class, 'handle']);
 
@@ -178,13 +182,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/me/password', [AdminUserController::class, 'changeOwnPassword']);
 
         // Trang admin Cuốc Free (nhóm Zalo, người bắn, tình trạng service).
-        Route::prefix('admin/free-rides')->controller(FreeRideAdminController::class)->group(function () {
-            Route::get('/groups', 'groups');
-            Route::patch('/groups/{zaloGroupId}', 'toggleGroup')->where('zaloGroupId', '[A-Za-z0-9_-]{1,32}');
-            Route::get('/senders', 'senders');
-            Route::post('/senders/{senderUid}/block', 'block')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
-            Route::delete('/senders/{senderUid}/block', 'unblock')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
-            Route::get('/status', 'status');
+        Route::prefix('admin/free-rides')->group(function () {
+            Route::controller(FreeRideAdminController::class)->group(function () {
+                Route::get('/groups', 'groups');
+                Route::patch('/groups/{zaloGroupId}', 'toggleGroup')->where('zaloGroupId', '[A-Za-z0-9_-]{1,32}');
+                Route::get('/senders', 'senders');
+                Route::post('/senders/{senderUid}/block', 'block')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
+                Route::delete('/senders/{senderUid}/block', 'unblock')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
+                Route::get('/status', 'status');
+            });
+
+            // Tab "Nick Zalo" (giai đoạn 5): đăng nhập/gỡ nick phụ bằng mã QR, danh sách nick.
+            Route::controller(ZaloAccountController::class)->group(function () {
+                Route::get('/accounts', 'accounts');
+                Route::post('/accounts', 'store');
+                Route::delete('/accounts/{accountId}', 'destroy')->where('accountId', '[a-z0-9-]{1,32}');
+                Route::get('/account-requests/{id}', 'show')->whereNumber('id');
+            });
         });
     });
 });

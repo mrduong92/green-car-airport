@@ -199,7 +199,10 @@ class FreeRideAdminTest extends TestCase
         $this->assertSame('zalo-1', $res->json('services.0.service_id'));
         $this->assertFalse($res->json('services.0.stale'));
         $this->assertSame(
-            [['id' => 'acc1', 'connected' => true, 'logged_in' => true, 'last_error' => null]],
+            [[
+                'id' => 'acc1', 'connected' => true, 'logged_in' => true, 'last_error' => null,
+                'zalo_uid' => null, 'zalo_name' => null, 'logged_in_at' => null, 'groups' => null,
+            ]],
             $res->json('services.0.accounts')
         );
         $this->assertSame(1.5, $res->json('services.0.ai_spent_today_usd'));
@@ -235,8 +238,14 @@ class FreeRideAdminTest extends TestCase
 
         $this->assertSame(
             [
-                ['id' => 'acc1', 'connected' => true, 'logged_in' => true, 'last_error' => null],
-                ['id' => 'acc2', 'connected' => false, 'logged_in' => false, 'last_error' => 'phiên hết hạn'],
+                [
+                    'id' => 'acc1', 'connected' => true, 'logged_in' => true, 'last_error' => null,
+                    'zalo_uid' => null, 'zalo_name' => null, 'logged_in_at' => null, 'groups' => null,
+                ],
+                [
+                    'id' => 'acc2', 'connected' => false, 'logged_in' => false, 'last_error' => 'phiên hết hạn',
+                    'zalo_uid' => null, 'zalo_name' => null, 'logged_in_at' => null, 'groups' => null,
+                ],
             ],
             $res->json('services.0.accounts')
         );
