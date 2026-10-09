@@ -1,6 +1,7 @@
 // Microservice Zalo (Cuốc Free): nghe tin từ N tài khoản phụ, LƯU NGAY vào SQLite, tách cuốc (quy tắc → AI
 // → nguyên văn), gửi cuốc + nhóm + heartbeat cho Laravel. CHỈ ĐỌC: không gọi bất kỳ API ghi nào của Zalo.
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { Zalo, type Credentials } from 'zca-js'
 import { loadConfig } from './config.js'
 import { loadAccounts } from './account-files.js'
@@ -19,6 +20,7 @@ import { RideStore } from './rides.js'
 import { AiUsage } from './ai/usage.js'
 import { AiQueue } from './ai/queue.js'
 import { AnthropicExtractor } from './ai/extractor.js'
+import { OpenAiExtractor } from './ai/openai-extractor.js'
 import { ConfigPoller } from './remote-config.js'
 import { Processor, onAiFailed } from './processor.js'
 import { GroupsSync, RideSync } from './sync.js'
@@ -57,7 +59,7 @@ const groups = new GroupNames({
 const send = createSender({ baseUrl: cfg.apiBaseUrl, secret: cfg.botSecret })
 const get = createGetter({ baseUrl: cfg.apiBaseUrl, secret: cfg.botSecret })
 const rides = new RideStore(db, { expireAfterPickupMs: cfg.rideExpireAfterPickupMs, expireWithoutTimeMs: cfg.rideExpireWithoutTimeMs })
-const usage = new AiUsage(db)
+const usage = new AiUsage(db, undefined, cfg.aiModel)
 
 // processor được gán ngay bên dưới; các callback chỉ chạy khi đã có tin.
 let processor: Processor | undefined
@@ -79,20 +81,24 @@ const qr = new QrQueue({
 })
 
 const remote = new ConfigPoller({ get, onQrRefresh: (uids) => uids.forEach((uid) => qr.force(uid)), fallbackBudgetUsd: cfg.aiDailyBudgetUsd, logger })
+// Dựng client/extractor bên trong nhánh aiEnabled: SDK openai (khác @anthropic-ai/sdk) ném lỗi ngay tại
+// constructor khi thiếu OPENAI_API_KEY — dựng sớm sẽ làm service không khởi động nổi khi chưa cấu hình AI.
 const ai = cfg.aiEnabled
   ? new AiQueue({
       // Timeout 60 giây, thử lại 1 lần trong SDK: hàng chờ tự thử lại (tối đa 3 lần/tin) — tránh treo lô quá lâu.
-      extractor: new AnthropicExtractor(new Anthropic({ timeout: 60_000, maxRetries: 1 }), cfg.aiModel),
+      extractor: cfg.aiProvider === 'anthropic'
+        ? new AnthropicExtractor(new Anthropic({ timeout: 60_000, maxRetries: 1 }), cfg.aiModel)
+        : new OpenAiExtractor(new OpenAI({ timeout: 60_000, maxRetries: 1 }), cfg.aiModel),
       usage,
       budgetUsd: () => remote.current().aiDailyBudgetUsd,
       onOutcome: (outcome) => processor?.applyAi(outcome),
-      onOverBudget: (id) => processor?.markRaw(id),
+      onOverBudget: (id) => processor?.fallback(id),
       onFailed: onAiFailed(() => processor, logger),
       batchSize: cfg.aiBatchSize,
       logger,
     })
   : null
-if (!ai) logger.info('Chưa có ANTHROPIC_API_KEY — tin khó sẽ hiển thị nguyên văn')
+if (!ai) logger.info(`Chưa có ${cfg.aiProvider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} — tin khó sẽ hiển thị nguyên văn`)
 processor = new Processor({
   messages: store, rides, ai, qr, config: () => remote.current(), logger, rideExpireWithoutTimeMs: cfg.rideExpireWithoutTimeMs,
 })

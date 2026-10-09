@@ -7,7 +7,8 @@ import type { RideSource, RideStore } from './rides.js'
 import type { MessageStore, StoredMessage } from './store.js'
 import { contentHash } from './text.js'
 
-// Điều phối xử lý MỘT tin đã lưu (sơ đồ 6.2): nhóm tắt / người bắn bị chặn → quy tắc → AI hoặc nguyên văn.
+// Điều phối xử lý MỘT tin đã lưu (giai đoạn 5): nhóm tắt / người bắn bị chặn → có AI thì enqueue thẳng
+// (quy tắc không còn đứng trước AI), không có AI thì quy tắc xử lý ngay (fallback).
 // Chỉ lấy mã QR (qr.ensure) cho người bắn có tin thành cuốc — ít lời gọi getQR hơn, giảm rủi ro Zalo khoá tài khoản.
 export class Processor {
   constructor(
@@ -31,20 +32,13 @@ export class Processor {
     if (config.disabledGroupIds.has(msg.zalo_group_id)) return this.deps.messages.setStatus(msg.id, 'skipped_group')
     if (config.blockedSenderUids.has(msg.sender_uid)) return this.deps.messages.setStatus(msg.id, 'blocked')
 
-    const outcome = parseRides(msg.content, msg.sent_at)
-    if (outcome.kind === 'not_ride') return this.deps.messages.setStatus(msg.id, 'not_ride')
-    if (outcome.kind === 'rides') {
-      this.deps.rides.upsertDrafts(this.source(msg), outcome.rides)
-      this.deps.messages.setStatus(msg.id, 'ride')
-      this.deps.qr.ensure(msg.sender_uid)
-      return
-    }
-
+    // Giai đoạn 5: mọi tin không trùng (kể cả tin quy tắc tách được) đều gửi AI trước — quy tắc chỉ
+    // còn là dự phòng (fallback) khi không có AI, AI hỏng hết lượt hoặc vượt trần ngân sách.
     if (this.deps.ai) {
       this.deps.messages.setStatus(msg.id, 'ai_pending')
       this.deps.ai.enqueue({ id: msg.id, content: msg.content, sentAt: msg.sent_at })
     } else {
-      this.markRaw(msg.id)
+      this.fallback(msg.id)
     }
   }
 
@@ -61,10 +55,20 @@ export class Processor {
     this.deps.qr.ensure(msg.sender_uid)
   }
 
-  // Không có AI / hết ngân sách AI: vẫn hiển thị nguyên văn để tab Free không mất cuốc.
-  markRaw(messageId: number): void {
+  // Quy tắc dự phòng — dùng khi không có AI, AI hỏng hết số lần thử, hoặc vượt trần ngân sách ngày.
+  // Tách được (rides) thì tạo cuốc thật như quy tắc đứng trước AI hồi giai đoạn 2; not_ride thì bỏ;
+  // mơ hồ (unsure) thì vẫn hiển thị nguyên văn (raw) để tab Free không mất cuốc.
+  fallback(messageId: number): void {
     const msg = this.deps.messages.get(messageId)
     if (!msg) return
+    const outcome = parseRides(msg.content, msg.sent_at)
+    if (outcome.kind === 'not_ride') return this.deps.messages.setStatus(msg.id, 'not_ride')
+    if (outcome.kind === 'rides') {
+      this.deps.rides.upsertDrafts(this.source(msg), outcome.rides)
+      this.deps.messages.setStatus(msg.id, 'ride')
+      this.deps.qr.ensure(msg.sender_uid)
+      return
+    }
     this.deps.rides.addRaw(this.source(msg), msg.content)
     this.deps.messages.setStatus(msg.id, 'raw')
     this.deps.qr.ensure(msg.sender_uid)
@@ -80,7 +84,7 @@ export class Processor {
     for (const id of this.deps.messages.idsByStatus('ai_pending', since)) {
       const msg = this.deps.messages.get(id)
       if (msg && this.deps.ai) this.deps.ai.enqueue({ id, content: msg.content, sentAt: msg.sent_at })
-      else if (msg) this.markRaw(id)
+      else if (msg) this.fallback(id)
     }
     for (const id of this.deps.messages.idsByStatus('pending', since)) this.handleStored(id)
     this.deps.logger.info('Đã xếp lại tin dở dang sau khi khởi động')
@@ -91,10 +95,10 @@ export class Processor {
   }
 }
 
-// AI lỗi hết số lần thử → vẫn hiển thị nguyên văn (không bỏ cuốc). getProcessor vì Processor tạo sau AiQueue.
+// AI lỗi hết số lần thử → quy tắc dự phòng xử lý (không bỏ cuốc). getProcessor vì Processor tạo sau AiQueue.
 export function onAiFailed(getProcessor: () => Processor | undefined, logger: Logger): (id: number) => void {
   return (id) => {
-    logger.warn(`AI lỗi quá số lần thử cho tin ${id} — hiển thị nguyên văn`)
-    getProcessor()?.markRaw(id)
+    logger.warn(`AI lỗi quá số lần thử cho tin ${id} — dùng quy tắc dự phòng`)
+    getProcessor()?.fallback(id)
   }
 }

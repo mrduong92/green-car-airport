@@ -37,38 +37,56 @@ function harness(opts: { ai?: boolean; config?: Partial<RemoteConfig> } = {}) {
   return { db, messages, rides, senders, qr, ai, processor, save, giveQr }
 }
 
-test('rule-parsed message becomes rides and the sender is queued for QR', () => {
+test('with AI enabled, every message is sent to AI first — even one the rule parser could read directly', () => {
   const h = harness()
-  const id = h.save('tiễn 4h15 phố cổ 200k')
-  h.processor.handleStored(id)
-  assert.equal(h.messages.get(id)!.parse_status, 'ride')
+  for (const content of ['tiễn 4h15 phố cổ 200k', 'chào cả nhà', 'T1 - trần khát chân 180k freeeeeeee']) {
+    const id = h.save(content)
+    h.processor.handleStored(id)
+    assert.equal(h.messages.get(id)!.parse_status, 'ai_pending')
+  }
+  assert.equal(h.ai!.size, 3)
+})
+
+test('without AI, handleStored falls back to the rule parser directly: rides / not_ride / raw', () => {
+  const h = harness({ ai: false })
+
+  const ride = h.save('tiễn 4h15 phố cổ 200k')
+  h.processor.handleStored(ride)
+  assert.equal(h.messages.get(ride)!.parse_status, 'ride')
   assert.equal(h.qr.size, 1)
   assert.equal(h.rides.backlog(), 0) // chưa có mã QR → chưa gửi
   h.giveQr()
   assert.equal(h.rides.backlog(), 1)
+
+  const chatter = h.save('chào cả nhà')
+  h.processor.handleStored(chatter)
+  assert.equal(h.messages.get(chatter)!.parse_status, 'not_ride')
+
+  const ambiguousText = 'T1 - trần khát chân 180k freeeeeeee'
+  const ambiguous = h.save(ambiguousText)
+  h.processor.handleStored(ambiguous)
+  assert.equal(h.messages.get(ambiguous)!.parse_status, 'raw')
+  assert.equal(h.rides.unsynced(10).find((r) => r.raw_text === ambiguousText)?.is_raw, true)
 })
 
-test('chatter is marked not_ride and does not trigger a QR fetch', () => {
+test('fallback() (AI exhausted retries / over budget / no AI) applies the rule parser: rides, not_ride, or raw', () => {
   const h = harness()
-  const id = h.save('chào cả nhà')
-  h.processor.handleStored(id)
-  assert.equal(h.messages.get(id)!.parse_status, 'not_ride')
-  assert.equal(h.qr.size, 0)
-})
 
-test('ambiguous message waits for AI; without AI it becomes a raw ride', () => {
-  const h = harness()
-  const id = h.save('T1 - trần khát chân 180k freeeeeeee')
-  h.processor.handleStored(id)
-  assert.equal(h.messages.get(id)!.parse_status, 'ai_pending')
-  assert.equal(h.ai!.size, 1)
+  const ride = h.save('tiễn 4h15 phố cổ 200k')
+  h.giveQr()
+  h.processor.fallback(ride)
+  assert.equal(h.messages.get(ride)!.parse_status, 'ride')
+  assert.equal(h.rides.backlog(), 1)
 
-  const noAi = harness({ ai: false })
-  const id2 = noAi.save('T1 - trần khát chân 180k freeeeeeee')
-  noAi.giveQr()
-  noAi.processor.handleStored(id2)
-  assert.equal(noAi.messages.get(id2)!.parse_status, 'raw')
-  assert.equal(noAi.rides.unsynced(10)[0].is_raw, true)
+  const chatter = h.save('chào cả nhà')
+  h.processor.fallback(chatter)
+  assert.equal(h.messages.get(chatter)!.parse_status, 'not_ride')
+
+  const ambiguousText = 'T1 - trần khát chân 180k freeeeeeee'
+  const ambiguous = h.save(ambiguousText)
+  h.processor.fallback(ambiguous)
+  assert.equal(h.messages.get(ambiguous)!.parse_status, 'raw')
+  assert.equal(h.rides.unsynced(10).find((r) => r.raw_text === ambiguousText)?.is_raw, true)
 })
 
 test('disabled group and blocked sender are skipped', () => {
@@ -98,13 +116,21 @@ test('AI outcome is applied: rides or not_ride', () => {
   assert.equal(h.rides.backlog(), 1)
 })
 
-test('recover re-queues ai_pending and unprocessed pending messages', () => {
+test('recover re-queues ai_pending messages and sends unprocessed pending messages straight to AI', () => {
   const h = harness()
   const pendingAi = h.save('T1 - trần khát chân 180k')
   h.messages.setStatus(pendingAi, 'ai_pending')
   const unprocessed = h.save('tiễn 4h15 phố cổ 200k')
   h.processor.recover(SENT + 60_000)
-  assert.equal(h.ai!.size, 1)
+  // Giai đoạn 5: tin pending cũng vào thẳng hàng chờ AI (không còn tự tách bằng quy tắc trước).
+  assert.equal(h.ai!.size, 2)
+  assert.equal(h.messages.get(unprocessed)!.parse_status, 'ai_pending')
+})
+
+test('recover falls back to the rule parser for pending messages when there is no AI', () => {
+  const h = harness({ ai: false })
+  const unprocessed = h.save('tiễn 4h15 phố cổ 200k')
+  h.processor.recover(SENT + 60_000)
   assert.equal(h.messages.get(unprocessed)!.parse_status, 'ride')
 })
 
@@ -117,9 +143,10 @@ test('recover expires pending/ai_pending messages older than the no-time ride li
   h.processor.recover(SENT + 3 * HOUR + 60_000) // tin lúc SENT đã quá 3 giờ
   assert.equal(h.messages.get(oldPending)!.parse_status, 'expired')
   assert.equal(h.messages.get(oldAi)!.parse_status, 'expired')
-  assert.equal(h.messages.get(fresh)!.parse_status, 'ride')
-  assert.equal(h.ai!.size, 0)
-  assert.equal(h.qr.size, 1) // chỉ người bắn của tin còn mới
+  // Tin còn mới (chưa hết hạn) vẫn theo luồng bình thường: có AI → vào hàng chờ, không tự tách bằng quy tắc.
+  assert.equal(h.messages.get(fresh)!.parse_status, 'ai_pending')
+  assert.equal(h.ai!.size, 1) // chỉ tin còn mới — hai tin cũ đã expired trước khi tới vòng lặp enqueue
+  assert.equal(h.qr.size, 0) // ai_pending chưa gọi getQR
 })
 
 test('a message whose AI batch failed 3 times ends as a raw ride, not discarded', async () => {

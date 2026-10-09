@@ -2,9 +2,10 @@
 
 Service **chỉ đọc** (TypeScript, SQLite): dùng N tài khoản Zalo phụ (thư viện không chính thức
 `zca-js`) nghe tin mới trong các nhóm bắn cuốc, **lưu ngay** vào `data/zalo.sqlite` (bỏ tin trùng),
-gửi heartbeat cho Laravel. Không gửi tin, không kết bạn. Giai đoạn 2: tách cuốc (quy tắc → AI Claude Haiku →
-nguyên văn) và gửi cuốc của người bắn có mã QR sang Laravel (tab Free).
-Spec: `docs/superpowers/specs/2026-10-04-zalo-free-rides-design.md`.
+gửi heartbeat cho Laravel. Không gửi tin, không kết bạn. Giai đoạn 5: mọi tin không trùng gửi AI (mặc định
+OpenAI gpt-4.1-mini) tách cuốc trước; quy tắc chỉ còn là dự phòng khi AI hỏng/hết ngân sách → nguyên văn.
+Gửi cuốc của người bắn có mã QR sang Laravel (tab Free).
+Spec: `docs/superpowers/specs/2026-10-04-zalo-free-rides-design.md`, `docs/superpowers/specs/2026-10-10-zalo-free-rides-phase5-design.md`.
 
 ## Phát triển
 
@@ -78,17 +79,18 @@ Mỗi người gửi mới được lấy mã QR trang cá nhân (`getQR`, cách
 sqlite3 data/zalo.sqlite "select m.content, s.display_name, 'zalo://qr/p/' || s.qr_code from messages m join senders s on s.uid = m.sender_uid order by m.id desc limit 10"
 ```
 
-## Giai đoạn 2: tách cuốc, gửi sang Laravel
+## Giai đoạn 2/5: tách cuốc bằng AI, gửi sang Laravel
 
 Biến môi trường (đầy đủ kèm mặc định trong `.env.example`):
 
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | (trống) | Trống = không gọi AI, tin khó hiển thị nguyên văn |
-| `AI_MODEL` | `claude-haiku-4-5` | Model tách cuốc |
+| `AI_PROVIDER` | `openai` | `openai` hoặc `anthropic` |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | (trống) | Khoá của provider đang chọn. Trống (provider đó) = không gọi AI, quy tắc dự phòng tự xử lý |
+| `AI_MODEL` | `gpt-4.1-mini` (`claude-haiku-4-5` nếu `AI_PROVIDER=anthropic`) | Model tách cuốc — đổi model chỉ cần sửa biến này |
 | `AI_DAILY_BUDGET_USD` | `5` | Trần dự phòng khi chưa hỏi được Laravel; giá trị thật là `ZALO_AI_DAILY_BUDGET_USD` bên Laravel |
-| `AI_BATCH_SIZE` / `AI_FLUSH_MS` | `20` / `3000` | Gom tin mỗi lần gọi AI |
-| `RIDES_BATCH_SIZE` / `RIDES_FLUSH_MS` | `100` / `2000` | Lô gửi cuốc (tối đa 100) |
+| `AI_BATCH_SIZE` / `AI_FLUSH_MS` | `20` / `30000` | Gom tin mỗi lần gọi AI (giãn nhịp, chấp nhận trễ 30–60 giây) |
+| `RIDES_BATCH_SIZE` / `RIDES_FLUSH_MS` | `100` / `30000` | Lô gửi cuốc (tối đa 100) |
 | `CONFIG_POLL_MS` / `GROUPS_SYNC_MS` | `60000` / `600000` | Hỏi cấu hình / gửi danh sách nhóm |
 | `RIDE_EXPIRE_AFTER_PICKUP_MS` | `1800000` | Cuốc hết hạn sau giờ đón 30 phút |
 | `RIDE_EXPIRE_WITHOUT_TIME_MS` | `10800000` | Cuốc không ghi giờ hết hạn sau 3 giờ; tin chưa xử lý cũ hơn mức này bị bỏ khi khởi động |
@@ -97,9 +99,14 @@ Biến môi trường (đầy đủ kèm mặc định trong `.env.example`):
 Bên Laravel (`backend/.env`): `ZALO_SERVICE_ENABLED=true`, `ZALO_BOT_SECRET` (trùng `BOT_SECRET`),
 `ZALO_AI_DAILY_BUDGET_USD`.
 
+- **Mọi tin không trùng đều gửi AI tách trước** (quy tắc chỉ còn là dự phòng — xem
+  `docs/superpowers/specs/2026-10-10-zalo-free-rides-phase5-design.md` mục 6). Bảng giá theo model nằm
+  trong `src/ai/prices.ts`; model lạ (gõ sai/không có trong bảng) được tính theo giá cao nhất bảng để
+  không vô tình vượt trần ngân sách.
 - Chỉ cuốc của người bắn **đang có mã QR** (`senders.qr_code` khác null) mới được gửi; lần `getQR` lỗi tạm
   thời giữ mã cũ nên vẫn gửi. Người tắt "Mã QR của tôi" → cuốc bị giữ lại rồi tự xoá khi hết hạn.
-- AI lỗi 3 lần liên tiếp hoặc hết ngân sách → cuốc vẫn hiển thị nguyên văn.
+- AI lỗi 3 lần liên tiếp hoặc hết ngân sách ngày → quy tắc dự phòng xử lý: tách được thì tạo cuốc, không
+  tách được thì vẫn hiển thị nguyên văn — không mất cuốc.
 - Heartbeat báo `held_back_rides` (cuốc bị giữ vì thiếu mã) và `qr_ok_24h` / `qr_empty_24h` / `qr_error_24h`;
   `php artisan zalo:service-status` cảnh báo khi tỷ lệ không lấy được mã > 80% hoặc cuốc bị giữ > 200.
 - Laravel loại cuốc sai dữ liệu → log service có cảnh báo "Laravel loại N cuốc", lý do nằm trong log Laravel.
