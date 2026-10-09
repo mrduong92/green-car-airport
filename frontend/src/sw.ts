@@ -50,7 +50,9 @@ self.addEventListener('notificationclick', (event) => {
   else if (action === 'view_trip' && booking_id) url = `/driver/trips/${booking_id}`
   else if (action === 'view_wallet') url = '/driver/wallet'
   // Khoá chung cho mọi thông báo chỉ cần mở 1 URL cố định (vd. FreeRideMatchNotification → /driver/free).
-  else if (action === 'open_url' && dataUrl) url = dataUrl
+  // Chỉ chấp nhận đường dẫn nội bộ: bắt đầu bằng '/' và KHÔNG bắt đầu bằng '//' (protocol-relative
+  // URL mở sang domain khác — payload push tới từ server nhưng vẫn không nên tin tuyệt đối).
+  else if (action === 'open_url' && dataUrl && dataUrl.startsWith('/') && !dataUrl.startsWith('//')) url = dataUrl
 
   event.waitUntil(
     self.clients

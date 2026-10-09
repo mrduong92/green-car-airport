@@ -119,6 +119,21 @@ class FreeRideAdminTest extends TestCase
         $this->assertSame(['g1', 'g2', 'g3'], array_column($sorted->json('data'), 'zalo_group_id'));
     }
 
+    // Fix round 1 (mục 7): rideStats giới hạn quét posted_at >= 7 ngày để đỡ tải MySQL — không được
+    // đổi kết quả: nhóm chỉ có cuốc rất cũ vẫn phải ra rides_24h=rides_7d=0, không lỗi, không thiếu dòng.
+    public function test_groups_ride_counts_ignore_rides_older_than_seven_days(): void
+    {
+        ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'Nhóm Chỉ Có Cuốc Cũ', 'enabled' => true]);
+        $this->ride(['zalo_group_id' => 'g1', 'posted_at' => now()->subDays(30)]);
+
+        $admin = $this->admin();
+        $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/groups')->assertOk();
+        $row = collect($res->json('data'))->firstWhere('zalo_group_id', 'g1');
+
+        $this->assertSame(0, $row['rides_24h']);
+        $this->assertSame(0, $row['rides_7d']);
+    }
+
     public function test_toggle_group(): void
     {
         ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'Nhóm Một', 'enabled' => true]);

@@ -31,7 +31,10 @@ class FreeRideAdminController extends Controller
 
         // Subquery gộp theo zalo_group_id (ONLY_FULL_GROUP_BY-safe: GROUP BY nằm trong subquery,
         // truy vấn ngoài chỉ LEFT JOIN, không GROUP BY) — đếm cuốc 24h/7 ngày mỗi nhóm.
+        // where() giới hạn quét trong 7 ngày gần nhất: hàng cũ hơn đều cho rides_24h=rides_7d=0 nên
+        // loại trước (không ảnh hưởng kết quả), chỉ để MySQL khỏi gộp (GROUP BY) toàn bộ lịch sử.
         $rideStats = FreeRide::query()
+            ->where('posted_at', '>=', now()->subDays(7))
             ->selectRaw('zalo_group_id')
             ->selectRaw('COUNT(CASE WHEN posted_at >= ? THEN 1 END) as rides_24h', [now()->subHours(24)])
             ->selectRaw('COUNT(CASE WHEN posted_at >= ? THEN 1 END) as rides_7d', [now()->subDays(7)])

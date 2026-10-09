@@ -17,6 +17,8 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
 
     private const TZ = 'Asia/Ho_Chi_Minh';
 
+    private const RAW_SNIPPET_LENGTH = 80;
+
     /** @param Collection<int, FreeRide> $rides Cuốc khớp bộ lọc, đã qua điều kiện hiển thị — ít nhất 1 cuốc. */
     public function __construct(private Collection $rides) {}
 
@@ -38,16 +40,42 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
 
     private function describe(FreeRide $ride): string
     {
-        $time = $ride->pickup_at
-            ? $ride->pickup_at->copy()->setTimezone(self::TZ)->format('H:i')
-            : 'Đi luôn';
+        // is_free = "Không chiết khấu" trong domain này (xem FreeRideCard) — KHÔNG phải cuốc miễn phí,
+        // và giá (nếu có) vẫn phải hiện — không được ẩn đi vì cờ này.
+        $parts = [$this->timeLabel($ride)];
+        if ($ride->price !== null) {
+            $parts[] = number_format($ride->price, 0, ',', '.').'đ';
+        }
+        if ($ride->is_free) {
+            $parts[] = 'Không chiết khấu';
+        }
 
-        $price = $ride->is_free
-            ? 'Miễn phí'
-            : ($ride->price !== null ? number_format($ride->price, 0, ',', '.').'đ' : null);
+        return "Cuốc Free: {$this->routeLabel($ride)} · ".implode(' · ', $parts);
+    }
 
-        $meta = implode(' · ', array_filter([$time, $price]));
+    // Cuốc nguyên văn (AI/quy tắc không tách được pickup/destination): dùng đoạn trích raw_text
+    // thay vì để trống " →  " vô nghĩa.
+    private function routeLabel(FreeRide $ride): string
+    {
+        if (! empty($ride->pickup)) {
+            return "{$ride->pickup} → ".($ride->destination ?: '?');
+        }
 
-        return "Cuốc Free: {$ride->pickup} → {$ride->destination} · {$meta}";
+        $trimmed = trim($ride->raw_text);
+
+        return mb_strlen($trimmed) <= self::RAW_SNIPPET_LENGTH
+            ? $trimmed
+            : mb_substr($trimmed, 0, self::RAW_SNIPPET_LENGTH).'…';
+    }
+
+    private function timeLabel(FreeRide $ride): string
+    {
+        if ($ride->pickup_at) {
+            return $ride->pickup_at->copy()->setTimezone(self::TZ)->format('H:i');
+        }
+
+        // Cuốc "Đi luôn" không có pickup_at nhưng có thể vẫn còn pickup_time_text thô (giờ dạng chữ
+        // AI/quy tắc không quy đổi được thành mốc giờ) — hiện cái đó trước khi rơi về "Đi luôn".
+        return $ride->pickup_time_text ?: 'Đi luôn';
     }
 }
