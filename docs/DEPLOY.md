@@ -737,27 +737,47 @@ chạy lên và lượt hỏi đầu tiên của nó bắt được.
    khác) và hạ tầng Web Push đã có sẵn từ trước Cuốc Free (VAPID, `ShouldQueue` notification) —
    `FreeRideMatchNotification` chỉ là một notification WebPush nữa, không cần cấu hình thêm.
 2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn như mục "Giai đoạn 4"
-   ở trên (rsync, không đè `.env`/`data/`), thêm biến mới nếu muốn đổi nhịp mặc định:
+   ở trên (rsync, không đè `.env`/`data/`).
+
+   **⚠️ Bẫy nâng cấp từ giai đoạn 2/4:** `.env` cũ trên VPS (rsync giữ nguyên) có thể còn
+   `AI_MODEL=claude-haiku-4-5`, `ANTHROPIC_API_KEY=...`, **không có** `AI_PROVIDER` (mặc định cũ là
+   Anthropic), và đôi khi `AI_FLUSH_MS=3000` / `RIDES_FLUSH_MS=2000` (nhịp cũ, nhanh hơn nhiều so với
+   mặc định mới). Lên bản giai đoạn 5 phải sửa `.env` tay — KHÔNG chỉ thêm dòng mới:
    ```bash
    # zalo-service/.env — AI chuyển sang OpenAI: mọi tin không trùng đều gửi AI tách cuốc,
    # quy tắc chỉ còn dự phòng khi AI lỗi/hết ngân sách (cuốc vẫn hiện nguyên văn, không mất)
-   AI_PROVIDER=openai              # mặc định; đặt anthropic để quay về Claude (cần ANTHROPIC_API_KEY)
-   OPENAI_API_KEY=<key OpenAI>     # BẮT BUỘC nếu muốn bật AI; trống = tin khó hiện nguyên văn
-   AI_MODEL=gpt-4.1-mini           # mặc định; đổi model chỉ cần sửa dòng này (vd. gpt-4o-mini)
-   # Có mặc định, không bắt buộc phải đặt:
-   AI_FLUSH_MS=30000               # gom tin gửi AI ≤ 20 tin hoặc mỗi 30 giây
-   RIDES_FLUSH_MS=30000            # đẩy cuốc sang Laravel mỗi 30 giây
-   ACCOUNT_REQUESTS_POLL_MS=5000   # nhịp hỏi GET /internal/zalo/account-requests
+   AI_PROVIDER=openai              # THÊM dòng này — mặc định mới; đặt anthropic để quay về Claude
+   OPENAI_API_KEY=<key OpenAI>     # THÊM — BẮT BUỘC nếu muốn bật AI; trống = tin khó hiện nguyên văn
+   AI_MODEL=gpt-4.1-mini           # SỬA dòng AI_MODEL cũ (vd. claude-haiku-4-5) thành model OpenAI —
+                                    # để sót dòng cũ thì AI_PROVIDER=openai + AI_MODEL=claude-... lệch
+                                    # nhau, service gọi OpenAI với tên model Claude và lỗi ngay
+   # Có mặc định, không bắt buộc phải đặt — nhưng nếu .env cũ có sẵn AI_FLUSH_MS/RIDES_FLUSH_MS (nhịp
+   # giai đoạn 2, vd. 3000/2000) thì XOÁ hẳn 2 dòng đó để dùng mặc định mới (giãn nhịp 30 giây):
+   # AI_FLUSH_MS=30000              (XOÁ nếu .env cũ có AI_FLUSH_MS=3000 hoặc khác 30000)
+   # RIDES_FLUSH_MS=30000           (XOÁ nếu .env cũ có RIDES_FLUSH_MS=2000 hoặc khác 30000)
+   ACCOUNT_REQUESTS_POLL_MS=5000   # nhịp hỏi GET /internal/zalo/account-requests (có mặc định)
    ```
+   Có thể xoá `ANTHROPIC_API_KEY` cũ luôn nếu không định quay lại Claude (`AI_PROVIDER=anthropic`).
    ```bash
    cd /opt/greenca-zalo-service
    sudo npm ci && sudo npm run build
    sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
    sudo systemctl restart greenca-zalo-service
    ```
-   Kiểm: `tail -n 50 /var/log/greenca-zalo-service.log` không có lỗi khởi động. Service chạy được với
-   `data/accounts/` **rỗng** (0 tài khoản) — không bắt buộc phải có nick nào trước khi lên bản này; thêm
-   nick đầu tiên bằng trang admin sau khi service đã chạy (xem bước 4).
+   **Kiểm sau khi deploy (bắt buộc, không chỉ xem log khởi động không lỗi):**
+   - `tail -n 50 /var/log/greenca-zalo-service.log` — nếu `.env` lệch (provider/model không khớp,
+     hoặc thiếu key của provider đang chọn), service log loud ngay lúc khởi động dòng chứa
+     **`Lệch cấu hình AI`** hoặc **`AI đang TẮT`** — thấy 1 trong 2 dòng này là `.env` còn sai, sửa
+     lại theo bẫy nâng cấp ở trên rồi restart; không có dòng nào là cấu hình AI ổn.
+   - Đợi vài tin nhắn mới đổ về nhóm Zalo (hoặc nhắn thử 1 tin vào nhóm test), rồi vào
+     `admin.greenca.vn/free-rides` → tab "Tình trạng": chi phí AI ước tính trong ngày phải **tăng lên**
+     sau khi tin mới được xử lý — đứng yên ở 0 nghĩa là AI không chạy (key sai/thiếu, hoặc model không
+     tồn tại ở OpenAI) dù service không crash.
+   - Nếu thấy log lặp lại dòng **`Mạch ngắt AI: mở`**: AI đang lỗi 3 lô liên tiếp (key sai, hết hạn
+     mức, OpenAI/Anthropic sập...) — service tự chuyển mọi tin sang quy tắc dự phòng (nguyên văn, không
+     mất cuốc) trong 10 phút rồi tự thử lại; log **`Mạch ngắt AI: đóng lại`** là đã thử lại bình thường.
+   Service chạy được với `data/accounts/` **rỗng** (0 tài khoản) — không bắt buộc phải có nick nào
+   trước khi lên bản này; thêm nick đầu tiên bằng trang admin sau khi service đã chạy (xem bước 4).
 3. **App admin + app tài xế**: build + rsync `dist-admin` và `dist-driver` như mục "Frontend (build
    local, rsync lên)" bên dưới — `dist-admin` có tab "Nick Zalo" mới, `dist-driver` có nút chuông "Báo
    khi có cuốc phù hợp" mới ở tab Free. Nhớ kiểm VAPID key có trong cả 2 bundle như mọi lần deploy
