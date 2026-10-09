@@ -40,17 +40,18 @@ Giữ nguyên nguyên tắc **Laravel không gọi vào service**; phiên đăng
 - `GET /api/admin/free-rides/groups` thêm `rides_24h`, `rides_7d` (đếm `free_rides` theo `zalo_group_id`, giữ 8 ngày từ giai đoạn 4), lọc mới `status=no_rides_7d` (đang bật, chưa rời, 0 cuốc 7 ngày) và sắp xếp được theo `rides_7d`. Thêm index `free_rides.zalo_group_id`.
 - UI tab Nhóm: cột "Cuốc 24h / 7 ngày", bộ lọc "Không ra cuốc 7 ngày" kèm gợi ý "Có thể tắt các nhóm này để đỡ chi phí AI".
 
-## 6. AI dùng OpenAI
+## 6. AI dùng OpenAI, tách cuốc bằng AI trước (chốt 10/10)
 
-- `OpenAiExtractor implements Extractor` dùng SDK `openai` chính thức, structured outputs (cùng schema hiện có), `AI_PROVIDER=openai|anthropic` (mặc định `openai`), `AI_MODEL` mặc định `gpt-4.1-mini`, `OPENAI_API_KEY`. Bảng giá theo model trong code để tính ngân sách (`gpt-4.1-mini` $0.40/$1.60, `gpt-4.1` $2/$8, `gpt-4o-mini` $0.15/$0.60, `gpt-4.1-nano` $0.10/$0.40 mỗi 1M token; model lạ → dùng giá cao nhất bảng để không vượt trần).
-- Prompt thêm luật dạng "A → B / A - B / A đi B / A về B": A là điểm đón, B là điểm đến.
-- **Chiều đi suy bằng code** sau khi AI trả: điểm đón là sân bay (T1, T2, NB, sb, Nội Bài, sân bay) → `from_airport`; điểm đến là sân bay → `to_airport`; còn lại giữ của AI.
-- **Quy tắc tách tin dạng "sân bay → X" / "X → sân bay"** (không cần AI) khi tin có đủ: một cặp điểm rõ ràng quanh dấu nối và giờ hoặc giá — mở rộng `parseRides`; tin mơ hồ vẫn để AI.
-- Cơ sở chọn model: so sánh 09/10 trên 60 tin khó thật (tham chiếu `gpt-4.1`): `gpt-4.1-mini` 100% nhận đúng cuốc, 95–98% đúng chiều; các bản nano/`gpt-4o-mini` sai chiều đi hoặc bỏ sót cuốc. Chi phí ước tính ~$0,40/ngày ở 300 nhóm.
+- **Mọi tin không trùng đều gửi AI tách** (bỏ bước quy tắc đứng trước). Luồng: tin mới → lọc trùng (giữ nguyên) → AI → mã QR → Laravel. Lý do: quy tắc chỉ tách được ~23% tin và từng phải sửa nhiều lần vì hiểu sai; `gpt-4.1-mini` tự đoán đúng chiều đi 95–98%.
+- **Quy tắc chỉ còn là dự phòng** khi AI lỗi (hết lượt thử) hoặc chạm trần ngân sách ngày: tách được thì dùng, không thì cuốc nguyên văn — không mất cuốc. Không có bước "suy chiều đi bằng code".
+- `OpenAiExtractor implements Extractor` dùng SDK `openai` chính thức, structured outputs (cùng schema hiện có), `AI_PROVIDER=openai|anthropic` (mặc định `openai`), `AI_MODEL` mặc định **`gpt-4.1-mini`**, `OPENAI_API_KEY`. Bảng giá theo model trong code để tính ngân sách (`gpt-4.1-mini` $0.40/$1.60, `gpt-4.1` $2/$8, `gpt-4o-mini` $0.15/$0.60, `gpt-4.1-nano` $0.10/$0.40, `gpt-5-nano` $0.05/$0.40 mỗi 1M token; model lạ → giá cao nhất bảng để không vượt trần). Đổi model chỉ cần sửa `.env`.
+- Prompt thêm luật dạng "A → B / A - B / A đi B / A về B": A là điểm đón, B là điểm đến; sân bay ở A là đón ở sân bay, ở B là tiễn ra sân bay.
+- **Giãn nhịp (chấp nhận trễ 30–60 giây)**: gom AI ≤ 20 tin hoặc mỗi **30 giây** (`AI_FLUSH_MS=30000`); đẩy cuốc sang Laravel mỗi **30 giây** (`RIDES_FLUSH_MS=30000`). Realtime tab Free (Reverb) **giữ nguyên**.
+- Cơ sở chọn model mặc định: so sánh 09/10 trên 60 tin khó thật (tham chiếu `gpt-4.1`): `gpt-4.1-mini` 100% nhận đúng cuốc, 95–98% đúng chiều; `gpt-4o-mini` sai chiều 80–88%; `gpt-4.1-nano` có lần bỏ sót 44% cuốc; `gpt-5-nano` bỏ sót ~2/3. Chi phí ước tính ~$0,8/ngày ở 300 nhóm (≈ 6.000 tin không trùng/ngày).
 
 ## 7. Kiểm thử
 
-- Service: luồng đăng nhập với `loginQR` giả (QR → hết hạn → QR mới → thành công / hết lượt), `AccountManager.add/remove` không ảnh hưởng nick khác, `OpenAiExtractor` với client giả (đúng schema, usage, lỗi), suy chiều đi, quy tắc "sân bay → X".
+- Service: luồng đăng nhập với `loginQR` giả (QR → hết hạn → QR mới → thành công / hết lượt), `AccountManager.add/remove` không ảnh hưởng nick khác, `OpenAiExtractor` với client giả (đúng schema, usage, lỗi), luồng AI-trước (tin chưa trùng vào thẳng hàng chờ AI; AI hỏng/hết ngân sách → quy tắc dự phòng → nguyên văn).
 - Laravel: endpoint account-requests (ký HMAC, chuyển trạng thái, hết hạn 10 phút, quyền admin), cảnh báo đẩy (khớp bộ lọc, chống làm phiền 2 phút, bỏ tài xế không active / không đăng ký push / bị ẩn), thống kê nhóm (MySQL-safe).
 - Frontend: typecheck/lint/build; e2e: admin thêm nick (giả lập service bằng request có ký: pending → qr_ready → done), tài xế lưu cảnh báo.
 - Không gọi Zalo/OpenAI thật trong test tự động.
