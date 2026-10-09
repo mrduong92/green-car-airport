@@ -31,7 +31,7 @@ try {
     },
   }))
 } catch (err) {
-  console.error(err instanceof QrExpiredError ? '!! Hết 3 lần mã QR mà chưa quét — chạy lại' : `!! Đăng nhập lỗi: ${err instanceof Error ? err.message : String(err)}`)
+  console.error(err instanceof QrExpiredError ? '!! Hết 3 lần mã QR mà chưa đăng nhập xong (chưa quét, hoặc mã hết hạn khi điện thoại đang xác nhận) — chạy lại' : `!! Đăng nhập lỗi: ${err instanceof Error ? err.message : String(err)}`)
   process.exit(1)
 }
 

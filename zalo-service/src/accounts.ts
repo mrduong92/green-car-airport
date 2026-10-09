@@ -249,7 +249,14 @@ export class AccountManager {
     }
 
     api.listener.on('connected', () => {
-      if (stale()) return
+      // zca-js tự hẹn start() lại khi mã đóng nằm trong close_and_retry_codes (lúc đó ws = null nên stop()
+      // trong remove() không có tác dụng) → listener của phiên đã gỡ/thay có thể nối lại sau → dừng ngay,
+      // tránh socket "ma" (đá nhau 3000 với phiên mới, nick đã gỡ vẫn online).
+      if (stale()) {
+        try { api.listener.stop() } catch { /* bỏ qua */ }
+        log.info(`Tài khoản ${account.id}: listener cũ tự nối lại sau khi gỡ/thay — đã dừng`)
+        return
+      }
       state.connected = true
       connectedAt = now()
       log.info(`Tài khoản ${account.id}: listener đã kết nối`)

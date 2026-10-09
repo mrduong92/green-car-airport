@@ -96,8 +96,8 @@ export class AccountRequestsPoller {
       }))
     } catch (err) {
       if (err instanceof QrExpiredError) {
-        log.info(`Nick ${id}: hết lượt mã QR mà chưa quét`)
-        await this.report(request, { status: 'expired' })
+        log.info(`Nick ${id}: hết lượt mã QR mà chưa đăng nhập xong (chưa quét, hoặc mã hết hạn khi điện thoại đang xác nhận) — admin cần thử lại`)
+        await this.report(request, { status: 'expired', error: err.message })
       } else {
         const message = err instanceof Error ? err.message : String(err)
         log.error(`Nick ${id}: đăng nhập QR lỗi (${message})`)

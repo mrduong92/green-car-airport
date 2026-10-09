@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { openDb } from '../src/db.js'
-import { GroupScanner, pruneUnknownAccounts } from '../src/group-scanner.js'
+import { GroupScanner, markOrphanGroupsLeft, pruneUnknownAccounts } from '../src/group-scanner.js'
 import { silentLogger } from '../src/logger.js'
 import type { ApiLike } from '../src/accounts.js'
 
@@ -138,4 +138,20 @@ test('pruneUnknownAccounts with no configured account removes nothing', async ()
   db.prepare("INSERT INTO chat_groups (zalo_group_id, name) VALUES ('g1', 'A')").run()
   db.prepare("INSERT INTO group_accounts (zalo_group_id, account_id, seen_at) VALUES ('g1', 'acc1', 1)").run()
   assert.equal(pruneUnknownAccounts(db, []), 0)
+})
+
+// Gỡ nick CUỐI: không còn nick nào để quét (scan bỏ qua khi 0 nick) → nhóm không còn nick nào ở phải đánh "rời" ngay.
+test('markOrphanGroupsLeft marks groups without any group_accounts row as left, keeps the rest', () => {
+  const db = openDb(':memory:')
+  for (const g of ['g1', 'g2', 'g3']) db.prepare('INSERT INTO chat_groups (zalo_group_id) VALUES (?)').run(g)
+  db.prepare("UPDATE chat_groups SET left_at = 100 WHERE zalo_group_id = 'g3'").run()
+  db.prepare("INSERT INTO group_accounts (zalo_group_id, account_id, seen_at) VALUES ('g2', 'acc2', 0)").run()
+
+  assert.equal(markOrphanGroupsLeft(db, 5_000), 1)
+  const rows = db.prepare('SELECT zalo_group_id, left_at FROM chat_groups ORDER BY zalo_group_id').all()
+  assert.deepEqual(rows, [
+    { zalo_group_id: 'g1', left_at: 5_000 },
+    { zalo_group_id: 'g2', left_at: null },
+    { zalo_group_id: 'g3', left_at: 100 },
+  ])
 })

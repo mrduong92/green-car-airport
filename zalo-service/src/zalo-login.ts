@@ -13,7 +13,7 @@ export const QR_LIFETIME_MS = 100_000
 
 export class QrExpiredError extends Error {
   constructor() {
-    super('Mã QR hết hạn mà chưa được quét')
+    super('Mã QR hết hạn mà chưa đăng nhập xong (chưa quét, hoặc hết hạn khi điện thoại đang xác nhận) — hãy thử lại')
     this.name = 'QrExpiredError'
   }
 }

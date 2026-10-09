@@ -116,3 +116,12 @@ export function accountGroupCounts(db: Db): Map<string, number> {
 export function forgetAccount(db: Db, accountId: string): number {
   return db.prepare('DELETE FROM group_accounts WHERE account_id = ?').run(accountId).changes
 }
+
+/**
+ * Gỡ nick CUỐI: không còn nick đăng nhập nên lượt quét sau bỏ qua → tự đánh "rời" các nhóm không còn
+ * nick nào ở (không còn dòng group_accounts). Nhóm đã "rời" giữ nguyên left_at cũ.
+ */
+export function markOrphanGroupsLeft(db: Db, now: number): number {
+  return db.prepare(`UPDATE chat_groups SET left_at = ? WHERE left_at IS NULL
+    AND zalo_group_id NOT IN (SELECT zalo_group_id FROM group_accounts)`).run(now).changes
+}

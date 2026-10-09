@@ -7,8 +7,9 @@ import { silentLogger } from '../src/logger.js'
 class FakeListener extends EventEmitter {
   started = false
   stopped = false
+  stops = 0
   start() { this.started = true; this.stopped = false }
-  stop() { this.stopped = true }
+  stop() { this.stopped = true; this.stops++ }
 }
 
 type FakeApi = ApiLike & { listener: FakeListener }
@@ -151,4 +152,32 @@ test('info: chưa đăng nhập được → không có', async () => {
   const { manager } = harness(async () => { throw new Error('x') })
   await manager.startAll()
   assert.equal(manager.info('acc1'), undefined)
+})
+
+// zca-js tự hẹn start() lại khi mã đóng nằm trong close_and_retry_codes; lúc đó ws = null nên stop() của ta
+// không có tác dụng → listener cũ nối lại sau khi bị gỡ/thay = socket "ma" (đá nhau 3000 với phiên mới).
+test('add thay nick: listener cũ tự nối lại (connected) → bị dừng ngay, không đổi trạng thái nick mới', async () => {
+  const apis: FakeApi[] = []
+  const { manager } = harness(async () => { const a = fakeApi(); apis.push(a); return a })
+  await manager.startAll()
+  const old = apis[0]
+  await manager.add({ id: 'acc1', credentials: 'c1-new' })
+  const stopsBefore = old.listener.stops
+
+  old.listener.emit('connected')
+  assert.equal(old.listener.stops, stopsBefore + 1)
+  assert.equal(manager.snapshot()[0].connected, false)
+  assert.equal(apis[1].listener.stops, 0)
+})
+
+test('remove: listener đã gỡ tự nối lại (connected) → bị dừng ngay, nick không xuất hiện lại', async () => {
+  const api = fakeApi()
+  const { manager } = harness(async () => api)
+  await manager.startAll()
+  manager.remove('acc1')
+  const stopsBefore = api.listener.stops
+
+  api.listener.emit('connected')
+  assert.equal(api.listener.stops, stopsBefore + 1)
+  assert.deepEqual(manager.snapshot(), [])
 })

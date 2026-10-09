@@ -184,7 +184,8 @@ test('poller login: hết hạn QR → expired, không ghi file, không add', as
     login: async () => { throw new QrExpiredError() },
   })
   await h.poller.poll()
-  assert.deepEqual(h.posts, [['/api/internal/zalo/account-requests/9', { status: 'expired' }]])
+  assert.deepEqual(h.posts, [['/api/internal/zalo/account-requests/9', { status: 'expired', error: new QrExpiredError().message }]])
+  assert.match(new QrExpiredError().message, /đang xác nhận.*thử lại/)
   assert.equal(existsSync(join(h.dir, 'acc4.json')), false)
   assert.deepEqual(h.manager.calls, [])
 })

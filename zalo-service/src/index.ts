@@ -25,7 +25,7 @@ import { OpenAiExtractor } from './ai/openai-extractor.js'
 import { ConfigPoller } from './remote-config.js'
 import { Processor, onAiFailed } from './processor.js'
 import { GroupsSync, RideSync } from './sync.js'
-import { GroupScanner, accountGroupCounts, forgetAccount, pruneUnknownAccounts } from './group-scanner.js'
+import { GroupScanner, accountGroupCounts, forgetAccount, markOrphanGroupsLeft, pruneUnknownAccounts } from './group-scanner.js'
 import { AccountRequestsPoller } from './account-requests.js'
 import { runQrLogin } from './zalo-login.js'
 import type { IncomingMessage } from './normalize.js'
@@ -168,6 +168,13 @@ const accountRequests = new AccountRequestsPoller({
   onRemoved: (id) => {
     const n = forgetAccount(db, id)
     if (n > 0) logger.info(`Đã xoá ${n} dấu nhóm của nick ${id}`)
+    // Gỡ nick cuối: lượt quét sau bỏ qua khi 0 nick → tự đánh "rời" nhóm không còn nick nào ở.
+    if (manager!.loggedIn().length === 0) {
+      const left = markOrphanGroupsLeft(db, Date.now())
+      if (left > 0) logger.info(`Không còn nick nào: đánh dấu ${left} nhóm đã rời`)
+    }
+    // Danh sách nhóm trên admin bỏ nick vừa gỡ ngay, không chờ 10 phút.
+    groupsSync.flush().catch((err) => logger.error('Đồng bộ danh sách nhóm lỗi:', err))
   },
 })
 every(cfg.accountRequestsPollMs, () => accountRequests.poll())
