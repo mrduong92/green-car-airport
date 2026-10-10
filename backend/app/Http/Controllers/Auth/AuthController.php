@@ -103,6 +103,7 @@ class AuthController extends Controller
             'password'      => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
             'name'          => 'nullable|string|max:100',
             'referral_code' => 'nullable|string|max:10',
+            'accept_terms'  => 'sometimes|boolean',
         ]);
 
         $phone = PhoneNumber::normalize($request->phone);
@@ -128,6 +129,10 @@ class AuthController extends Controller
             'role'                => 'customer',
             'referred_by_user_id' => $referredById,
         ]);
+
+        if ($request->boolean('accept_terms')) {
+            $user->acceptTerms($request);
+        }
 
         $token = $user->createToken('api')->plainTextToken;
 
@@ -162,6 +167,7 @@ class AuthController extends Controller
             'insurance_number'          => 'required|string|max:30',
             'insurance_expiry'          => 'required|date|after:today',
             'referral_code'             => 'nullable|string|max:10',
+            'accept_terms'              => 'sometimes|boolean',
         ]);
 
         $phone = PhoneNumber::normalize($request->phone);
@@ -189,6 +195,10 @@ class AuthController extends Controller
             'role'                => 'driver',
             'referred_by_user_id' => $referredById,
         ]);
+
+        if ($request->boolean('accept_terms')) {
+            $user->acceptTerms($request);
+        }
 
         $user->driverProfile()->create([
             'vehicle_make'              => $request->vehicle_make,
@@ -269,6 +279,18 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out.']);
     }
 
+    /** Khách/tài xế bấm "Đồng ý" Điều khoản sử dụng trong popup của app. */
+    public function acceptTerms(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->needsTermsAcceptance()) {
+            $user->acceptTerms($request);
+        }
+
+        return response()->json($this->userPayload($user));
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
@@ -345,6 +367,7 @@ class AuthController extends Controller
             'phone'         => $user->phone,
             'role'          => $user->role,
             'referral_code' => $user->referral_code,
+            'needs_terms_acceptance' => $user->needsTermsAcceptance(),
         ];
 
         if ($user->role === 'customer') {

@@ -11,6 +11,7 @@ declare namespace App {
     is_collaborator?: boolean
     referral_code?: string
     approval_status?: 'pending' | 'active' | 'blocked'
+    needs_terms_acceptance?: boolean
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
