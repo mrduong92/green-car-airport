@@ -45,7 +45,6 @@ class ZaloRideIngestService
      */
     public function ingest(array $items): array
     {
-        $now = now();
         $rows = [];
         $rejected = [];
         $errors = [];
@@ -104,8 +103,7 @@ class ZaloRideIngestService
                 'group_count' => $d['group_count'],
                 'posted_at' => Carbon::createFromTimestampMs($d['posted_at']),
                 'expires_at' => Carbon::createFromTimestampMs($d['expires_at']),
-                'created_at' => $now,
-                'updated_at' => $now,
+                // created_at/updated_at gán SAU khi giữ được khoá — xem bên dưới, lý do ở docblock lớp.
             ];
         }
 
@@ -120,7 +118,20 @@ class ZaloRideIngestService
         if ($rows !== []) {
             $newRideUids = Cache::lock(self::LOCK_KEY, 30)->block(
                 (int) config('zalo.ingest_lock_wait_seconds', 15),
-                fn () => $this->store($rows, $now),
+                function () use ($rows) {
+                    // Mốc giờ lấy SAU khi đã giữ khoá, không phải lúc vào hàm: một lô phải chờ
+                    // khoá có thể commit SAU một lô khác lấy mốc muộn hơn nhưng giành khoá trước —
+                    // nếu dùng mốc lấy trước khi chờ khoá thì hàng vừa ghi có updated_at CŨ hơn
+                    // hàng đã commit trước đó, client dùng since=updated_at>=X sẽ bỏ sót vĩnh viễn.
+                    $now = now();
+                    foreach ($rows as &$row) {
+                        $row['created_at'] = $now;
+                        $row['updated_at'] = $now;
+                    }
+                    unset($row);
+
+                    return $this->store($rows, $now);
+                },
             );
         }
 

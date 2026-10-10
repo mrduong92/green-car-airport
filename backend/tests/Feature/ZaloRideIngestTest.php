@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\FreeRide;
+use App\Services\Zalo\ZaloRideIngestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Mockery;
 use Tests\Concerns\SignsZaloBotRequests;
 use Tests\TestCase;
 
@@ -65,6 +67,45 @@ class ZaloRideIngestTest extends TestCase
 
         $lock->release();
         $this->send([$this->ride()])->assertOk()->assertExactJson(['stored' => 1, 'rejected' => []]);
+    }
+
+    // Một lô phải CHỜ khoá 'zalo:ingest' (đang bị lô khác giữ) có thể commit SAU khi một lô thứ
+    // ba (không phải chờ) đã lấy mốc giờ muộn hơn và commit trước. Nếu mốc giờ của lô chờ được
+    // lấy TRƯỚC khi xin khoá (lúc vào hàm) thay vì SAU khi đã giữ được khoá, hàng nó ghi sẽ mang
+    // updated_at CŨ hơn hàng đã commit trước đó — client poll theo since=updated_at sẽ bỏ sót
+    // vĩnh viễn. Giả lập việc "chờ khoá" bằng cách thay Cache::lock() trả về một khoá giả: lúc
+    // block() gọi callback (tức thời điểm THỰC SỰ giữ được khoá), đồng hồ giả đã nhảy tới mốc
+    // muộn hơn mốc lúc gọi send() — đúng như một lô khác đã trôi qua trong lúc lô này còn chờ.
+    public function test_row_timestamp_uses_time_after_lock_acquired_not_before(): void
+    {
+        config(['zalo.ingest_lock_wait_seconds' => 15]);
+
+        $acquiredAt = Carbon::parse('2026-10-06 03:05:00');
+        $this->assertTrue(now()->lt($acquiredAt), 'mốc giờ lúc gọi send() phải SỚM hơn mốc lúc giữ được khoá');
+
+        $fakeLock = Mockery::mock();
+        $fakeLock->shouldReceive('block')->once()->andReturnUsing(function ($wait, $callback) use ($acquiredAt) {
+            Carbon::setTestNow($acquiredAt);
+
+            return $callback();
+        });
+
+        // Mock bộ phận ("partial") thay vì mock toàn bộ facade Cache: chỉ chặn lock(), các lệnh
+        // gọi cache khác (RateLimiter của middleware throttle, v.v.) vẫn chạy bình thường qua
+        // CacheManager thật — mock toàn bộ facade sẽ vỡ các lệnh gọi cache không liên quan đó.
+        $cacheSpy = Mockery::mock(app('cache'))->makePartial();
+        $cacheSpy->shouldReceive('lock')->once()->with(ZaloRideIngestService::LOCK_KEY, 30)->andReturn($fakeLock);
+        app()->instance('cache', $cacheSpy);
+        Cache::clearResolvedInstance('cache');
+
+        $this->send([$this->ride()])->assertOk()->assertExactJson(['stored' => 1, 'rejected' => []]);
+
+        $ride = FreeRide::where('ride_uid', 'r-1')->first();
+        $this->assertTrue(
+            $ride->updated_at->gte($acquiredAt),
+            'updated_at phải lấy theo mốc giờ lúc GIỮ ĐƯỢC khoá, không phải lúc gọi ingest()',
+        );
+        $this->assertTrue($ride->created_at->gte($acquiredAt));
     }
 
     public function test_resending_updates_instead_of_duplicating(): void
