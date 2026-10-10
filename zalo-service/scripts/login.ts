@@ -3,7 +3,7 @@
 // Quét QR bằng tài khoản Zalo PHỤ → data/accounts/acc1.json → copy lên VPS.
 // Cách khác (giai đoạn 5): thêm nick ngay trên trang admin (Cuốc Free → Nick Zalo), không cần script này.
 import { Zalo } from 'zca-js'
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { join } from 'node:path'
 import { ACCOUNT_ID_PATTERN } from '../src/account-requests.js'
@@ -32,11 +32,16 @@ try {
   }))
 } catch (err) {
   console.error(err instanceof QrExpiredError ? '!! Hết 3 lần mã QR mà chưa đăng nhập xong (chưa quét, hoặc mã hết hạn khi điện thoại đang xác nhận) — chạy lại' : `!! Đăng nhập lỗi: ${err instanceof Error ? err.message : String(err)}`)
-  process.exit(1)
+  process.exitCode = 1
+} finally {
+  // Ảnh QR đăng nhập không còn dùng được sau khi xong/lỗi — không để sót trong data/.
+  rmSync(qrPath, { force: true })
 }
 
-const out = join(accountsDir, `${id}.json`)
-writeFileSync(out, JSON.stringify(credentials), { mode: 0o600 })
-chmodSync(out, 0o600) // file cũ (đăng nhập lại) giữ quyền cũ nếu chỉ dùng mode
-console.log('>> Đã lưu phiên:', out, '— copy lên VPS (xem README)')
-process.exit(0)
+if (process.exitCode !== 1) {
+  const out = join(accountsDir, `${id}.json`)
+  writeFileSync(out, JSON.stringify(credentials), { mode: 0o600 })
+  chmodSync(out, 0o600) // file cũ (đăng nhập lại) giữ quyền cũ nếu chỉ dùng mode
+  console.log('>> Đã lưu phiên:', out, '— copy lên VPS (xem README)')
+}
+process.exit()

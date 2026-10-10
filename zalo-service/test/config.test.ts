@@ -18,4 +18,17 @@ test('applies defaults, derives paths and strips trailing slash', () => {
   assert.equal(cfg.retentionDays, 7)
   assert.equal(cfg.duplicateWindowHours, 24)
   assert.equal(cfg.maxContentLength, 4000)
+  assert.equal(cfg.removedSessionRetentionDays, 7)
+  assert.equal(cfg.leftGroupRetentionDays, 30)
+  assert.equal(cfg.staleSenderDays, 30)
+})
+
+test('retention dọn dữ liệu đọc từ env', () => {
+  const cfg = loadConfig({
+    API_BASE_URL: 'https://x', BOT_SECRET: 's',
+    REMOVED_SESSION_RETENTION_DAYS: '3', LEFT_GROUP_RETENTION_DAYS: '60', STALE_SENDER_DAYS: '45',
+  })
+  assert.equal(cfg.removedSessionRetentionDays, 3)
+  assert.equal(cfg.leftGroupRetentionDays, 60)
+  assert.equal(cfg.staleSenderDays, 45)
 })

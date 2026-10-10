@@ -28,6 +28,7 @@ import { GroupsSync, RideSync } from './sync.js'
 import { GroupScanner, accountGroupCounts, forgetAccount, markOrphanGroupsLeft, pruneUnknownAccounts } from './group-scanner.js'
 import { AccountRequestsPoller } from './account-requests.js'
 import { runQrLogin } from './zalo-login.js'
+import { pruneLeftGroups, pruneRemovedSessions, pruneStaleSenders } from './cleanup.js'
 import type { IncomingMessage } from './normalize.js'
 
 const HOUR = 3_600_000
@@ -200,11 +201,19 @@ const firstGroupScan = setInterval(() => {
 }, 5_000)
 every(cfg.groupScanMs, () => groupScanner.scan().then(() => groupsSync.flush()))
 
-setInterval(() => {
+every(HOUR, () => {
   const deleted = store.prune()
   if (deleted > 0) logger.info(`Đã xoá ${deleted} tin thô quá ${cfg.retentionDays} ngày`)
   rides.prune()
-}, HOUR)
+
+  const now = Date.now()
+  const sessions = pruneRemovedSessions(cfg.accountsDir, now, cfg.removedSessionRetentionDays * 24 * HOUR)
+  if (sessions > 0) logger.info(`Đã xoá ${sessions} file session của nick đã gỡ quá ${cfg.removedSessionRetentionDays} ngày`)
+  const left = pruneLeftGroups(db, now, cfg.leftGroupRetentionDays * 24 * HOUR)
+  if (left.groups > 0) logger.info(`Đã xoá ${left.groups} nhóm đã rời quá ${cfg.leftGroupRetentionDays} ngày`)
+  const staleSenders = pruneStaleSenders(db, now, cfg.staleSenderDays * 24 * HOUR)
+  if (staleSenders > 0) logger.info(`Đã xoá ${staleSenders} người bắn không thấy quá ${cfg.staleSenderDays} ngày`)
+})
 
 // Hỏi cấu hình (nhóm tắt, người bị ẩn) rồi xếp lại tin dở dang TRƯỚC khi có tin mới — không cần đăng nhập;
 // poll không ném lỗi và có timeout 10 giây.

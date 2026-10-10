@@ -29,6 +29,9 @@ export interface Config {
   groupScanMs: number
   rideExpireAfterPickupMs: number
   rideExpireWithoutTimeMs: number
+  removedSessionRetentionDays: number
+  leftGroupRetentionDays: number
+  staleSenderDays: number
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
@@ -76,6 +79,11 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     groupScanMs: Number(env.GROUP_SCAN_MS || 1_800_000),
     rideExpireAfterPickupMs: Number(env.RIDE_EXPIRE_AFTER_PICKUP_MS || 30 * 60_000),
     rideExpireWithoutTimeMs: Number(env.RIDE_EXPIRE_WITHOUT_TIME_MS || 3 * 3_600_000),
+    // Dọn dữ liệu cũ (vòng prune mỗi giờ): file session nick đã gỡ (.json.removed-<ms>, còn cookie
+    // sống), nhóm đã rời, người bắn lâu không thấy (và không còn cuốc còn hạn).
+    removedSessionRetentionDays: Number(env.REMOVED_SESSION_RETENTION_DAYS || 7),
+    leftGroupRetentionDays: Number(env.LEFT_GROUP_RETENTION_DAYS || 30),
+    staleSenderDays: Number(env.STALE_SENDER_DAYS || 30),
   }
 }
 
