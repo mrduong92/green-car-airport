@@ -109,6 +109,12 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
                 'seats' => $alert->seats,
                 'q' => $alert->keywords,
             ])
+            // Không bao giờ push bản trùng (duplicate_of_id) như cuốc mới: scopeExcludingLiveDuplicates()
+            // trong visibleTo() chỉ loại bản trùng khi cuốc gốc còn "sống" — cuốc gốc hết hạn SAU khi đã
+            // push thì bản trùng lại lọt qua, trong khi tài xế đã được báo về cuốc gốc rồi. Tab Free (driver
+            // list, FreeRideController::index) vẫn dùng visibleTo() nguyên vẹn nên giữ nguyên hành vi hiện
+            // lại cuốc khi gốc hết hạn.
+            ->whereNull('duplicate_of_id')
             ->where('id', '>', $floorId)
             ->where('id', '<=', $maxId)
             ->orderBy('posted_at')

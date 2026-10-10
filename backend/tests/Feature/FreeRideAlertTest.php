@@ -877,6 +877,34 @@ class FreeRideAlertTest extends TestCase
         Queue::assertPushed(NotifyFreeRideAlerts::class, 1);
     }
 
+    // ---- Fix round 2: không push bản trùng (duplicate_of_id) khi cuốc gốc hết hạn sau đó ----
+
+    // Cuốc gốc đã được push; sau đó một bản trùng (nick phụ khác nghe được) được lưu. Khi cuốc gốc
+    // hết hạn, scopeExcludingLiveDuplicates() không còn loại bản trùng (để tab Free không mất cuốc),
+    // nhưng job cảnh báo đẩy KHÔNG được coi bản trùng là cuốc mới — tài xế đã được báo về cuốc gốc rồi.
+    public function test_no_push_for_duplicate_whose_canonical_expired_after_being_pushed(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        $this->travel(1)->second();
+
+        $canonical = $this->ride();
+        $this->travel(1)->second();
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+
+        // Qua hẳn 2 phút để tách khỏi logic chống làm phiền.
+        $this->travel(3)->minutes();
+        $duplicate = $this->ride(['duplicate_of_id' => $canonical->id]);
+        $canonical->update(['expires_at' => now()->subMinute()]);
+        $this->travel(1)->second();
+
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+    }
+
     public function test_does_not_requeue_when_nothing_is_gated(): void
     {
         Queue::fake();
