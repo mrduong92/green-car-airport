@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\FreeRide;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Tests\Concerns\SignsZaloBotRequests;
 use Tests\TestCase;
@@ -49,6 +50,21 @@ class ZaloRideIngestTest extends TestCase
         $this->assertSame(200000, $ride->price);
         $this->assertSame('758z6tl22yft', $ride->qr_code);
         $this->assertTrue($ride->expires_at->eq(now()->addHours(2)));
+    }
+
+    // Ingest tuần tự (khoá zalo:ingest) để id cuốc commit đúng thứ tự — NotifyFreeRideAlerts dựa vào
+    // mốc id. Khoá đang bị giữ quá lâu → 503 (service coi là lỗi, thử lại sau) và không lưu gì.
+    public function test_held_ingest_lock_returns_503_and_stores_nothing(): void
+    {
+        config(['zalo.ingest_lock_wait_seconds' => 0]);
+        $lock = Cache::lock('zalo:ingest', 30);
+        $this->assertTrue($lock->get());
+
+        $this->send([$this->ride()])->assertStatus(503);
+        $this->assertSame(0, FreeRide::count());
+
+        $lock->release();
+        $this->send([$this->ride()])->assertOk()->assertExactJson(['stored' => 1, 'rejected' => []]);
     }
 
     public function test_resending_updates_instead_of_duplicating(): void

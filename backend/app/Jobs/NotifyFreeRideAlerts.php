@@ -33,8 +33,10 @@ use Illuminate\Support\Facades\Cache;
  * - Cảnh báo CHƯA từng push: floorId = max(mốc lúc bật, maxId lần chạy trước — lưu cache), để cuốc
  *   đã được xét mà không khớp (vd. người bắn đang bị ẩn) không bị push muộn khi điều kiện đổi.
  *
- * Giới hạn còn lại: hai request ingest chạy SONG SONG có thể commit lệch thứ tự id (id nhỏ commit
- * sau id lớn) — service hiện đẩy lô tuần tự nên không gặp; nếu đổi sang đẩy song song cần xem lại.
+ * Mốc id chỉ đúng khi id hiện ra (commit) theo thứ tự tăng dần: hai lô ingest song song có thể
+ * commit lệch (id nhỏ hiện ra sau khi job đã vượt qua nó). ZaloRideIngestService chặn điều đó bằng
+ * khoá Cache::lock('zalo:ingest') — các lô ghi tuần tự, chờ khoá quá lâu thì trả 503 để service gửi
+ * lại, không bao giờ ghi song song.
  */
 class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {

@@ -28,6 +28,9 @@ return [
     'rides_backlog_alert' => 1000,
     // Cảnh báo khi số cuốc còn hạn bị giữ lại (người bắn chưa có mã QR) vượt ngưỡng này.
     'held_back_alert' => 200,
+    // Các lô cuốc ghi tuần tự (khoá zalo:ingest, để id commit đúng thứ tự cho NotifyFreeRideAlerts);
+    // chờ khoá quá số giây này thì trả 503, service gửi lại sau.
+    'ingest_lock_wait_seconds' => 15,
 
     // Dọn dữ liệu phụ (zalo:prune-data, 03:20 hằng ngày) — số ngày giữ lại.
     // Yêu cầu thêm/gỡ nick đã kết thúc (done/expired/failed), tính từ lúc tạo.

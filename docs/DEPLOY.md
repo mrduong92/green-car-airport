@@ -731,6 +731,12 @@ chạy lên và lượt hỏi đầu tiên của nó bắt được.
    php artisan migrate --force
    # 2026_10_11_000001_create_zalo_account_requests_table: hàng đợi yêu cầu đăng nhập/gỡ nick (tab admin)
    # 2026_10_11_000002_create_driver_free_ride_alerts_table: bộ lọc tài xế đã lưu để nhận thông báo đẩy
+   # 2026_10_12_000001_add_qr_code_to_sender_blocks_and_hidden_senders: chặn/ẩn người bắn theo mã QR (hồ sơ)
+   # 2026_10_13_000001_add_duplicate_of_id_to_free_rides: gộp cuốc trùng cùng người ở nhiều nhóm (trỏ về cuốc gốc)
+   # 2026_10_14_000001_add_qr_code_index_to_free_rides: index (qr_code, expires_at) cho tab Free + cảnh báo đẩy
+   # 2026_10_15_000001_add_last_pushed_max_id_to_driver_free_ride_alerts: mốc push cảnh báo theo id cuốc
+   #   (thay mốc created_at có thể bỏ sót cuốc); cảnh báo có sẵn được đặt mốc = id cuốc lớn nhất lúc
+   #   migrate nên không dội ngược cuốc cũ
    ```
    Không có biến `.env` mới phía Laravel cho giai đoạn này — dùng lại `ZALO_BOT_SECRET` đã có (endpoint
    nội bộ mới `/internal/zalo/account-requests*` nằm trong cùng middleware `zalo.bot` như các endpoint
@@ -797,7 +803,7 @@ chạy lên và lượt hỏi đầu tiên của nó bắt được.
 
 ### Dọn dữ liệu Cuốc Free + xoay vòng log service
 
-**Laravel** — `zalo:prune-data` chạy 03:20 hằng ngày (cần scheduler, mục "⚠️ Queue worker + scheduler"),
+Không có migration mới. **Laravel** — `zalo:prune-data` chạy 03:20 hằng ngày (cần scheduler, mục "⚠️ Queue worker + scheduler"),
 cạnh `zalo:prune-rides` (03:10, giữ cuốc hết hạn 8 ngày như cũ). Mốc giữ ở `config/zalo.php`, đổi bằng
 `.env` nếu cần (để trống = mặc định):
 
@@ -806,7 +812,7 @@ cạnh `zalo:prune-rides` (03:10, giữ cuốc hết hạn 8 ngày như cũ). M�
 | `ZALO_ACCOUNT_REQUESTS_RETENTION_DAYS` | `30` | `zalo_account_requests` đã kết thúc (done/expired/failed), theo `created_at` |
 | `ZALO_REPORTS_RETENTION_DAYS` | `90` | `free_ride_reports`, theo `created_at` |
 | `ZALO_QR_REFRESH_REQUESTS_RETENTION_DAYS` | `90` | `zalo_qr_refresh_requests` ĐÃ giao, theo `delivered_at` |
-| `ZALO_LEFT_GROUPS_RETENTION_DAYS` | `30` | `zalo_groups` đã rời, theo `left_at` |
+| `ZALO_LEFT_GROUPS_RETENTION_DAYS` | `30` | `zalo_groups` đã rời, theo `left_at` — trừ nhóm admin đã TẮT (giữ lại để nick vào lại thì nhóm vẫn tắt) |
 
 Chạy tay để xem số dòng bị xoá: `php artisan zalo:prune-data`.
 

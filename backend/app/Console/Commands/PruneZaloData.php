@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 
 // Dọn dữ liệu phụ của Cuốc Free mà không gì tự co lại: yêu cầu thêm/gỡ nick đã kết thúc, báo cáo cuốc,
-// yêu cầu lấy lại mã QR đã giao, nhóm nick phụ đã rời. Mốc giữ cấu hình ở config/zalo.php.
+// yêu cầu lấy lại mã QR đã giao, nhóm nick phụ đã rời (trừ nhóm admin đã tắt). Mốc giữ cấu hình ở config/zalo.php.
 // Cuốc Free hết hạn do zalo:prune-rides dọn riêng (giữ 8 ngày cho thống kê admin).
 class PruneZaloData extends Command
 {
@@ -38,7 +38,10 @@ class PruneZaloData extends Command
         );
 
         $groups = $this->chunkedDelete(
+            // Nhóm admin đã TẮT thì giữ lại: nick vào lại nhóm đó thì nhóm vẫn đang tắt như admin chọn
+            // (xoá đi thì lượt đồng bộ sau tạo lại với enabled mặc định = bật).
             ZaloGroup::query()
+                ->where('enabled', true)
                 ->whereNotNull('left_at')
                 ->where('left_at', '<', now()->subDays((int) config('zalo.left_groups_retention_days', 30))),
         );

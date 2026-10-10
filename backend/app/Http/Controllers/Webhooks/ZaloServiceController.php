@@ -12,6 +12,7 @@ use App\Models\ZaloQrRefreshRequest;
 use App\Models\ZaloSenderBlock;
 use App\Services\Zalo\ZaloRideIngestService;
 use App\Services\Zalo\ZaloServiceMonitor;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -140,7 +141,12 @@ class ZaloServiceController extends Controller
             'rides' => ['required', 'array', 'max:'.config('zalo.max_rides_batch')],
         ]);
 
-        $result = $service->ingest($data['rides']);
+        try {
+            $result = $service->ingest($data['rides']);
+        } catch (LockTimeoutException) {
+            // Lô khác đang ghi quá lâu — không lưu gì; service coi mọi mã khác 200 là lỗi và gửi lại sau.
+            return response()->json(['message' => 'Đang xử lý lô cuốc khác, thử lại sau'], 503);
+        }
         if ($result['stored'] > 0) {
             BroadcastFreeRidesSignal::dispatch()->delay(now()->addSeconds(2));
         }

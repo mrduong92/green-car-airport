@@ -85,6 +85,17 @@ class ZaloPruneDataTest extends TestCase
         $this->assertEqualsCanonicalizing(['active', 'recent'], ZaloGroup::pluck('zalo_group_id')->all());
     }
 
+    // Admin đã tắt nhóm: giữ lại dù đã rời lâu, để nick vào lại nhóm thì nhóm vẫn đang tắt.
+    public function test_keeps_left_groups_that_admin_disabled(): void
+    {
+        ZaloGroup::create(['zalo_group_id' => 'off', 'name' => 'Đã tắt', 'enabled' => false, 'left_at' => now()->subDays(60)]);
+        ZaloGroup::create(['zalo_group_id' => 'on', 'name' => 'Đang bật', 'enabled' => true, 'left_at' => now()->subDays(60)]);
+
+        $this->artisan('zalo:prune-data')->assertSuccessful();
+
+        $this->assertSame(['off'], ZaloGroup::pluck('zalo_group_id')->all());
+    }
+
     public function test_retention_is_configurable(): void
     {
         config([

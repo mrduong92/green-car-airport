@@ -3,7 +3,9 @@
 namespace App\Services\Zalo;
 
 use App\Models\FreeRide;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -20,6 +22,11 @@ use Illuminate\Support\Facades\Validator;
  * sender_uid nên cùng một cuốc đăng ở hai nhóm (hai nick nghe) tới đây thành hai ride_uid. Cuốc MỚI
  * khớp một cuốc gốc còn hạn theo FreeRide::sameRideAs() (cùng qr_code + cùng nội dung) thì vẫn lưu
  * nhưng đánh dấu duplicate_of_id — xem markDuplicates().
+ *
+ * Các lô ingest chạy TUẦN TỰ dưới khoá Cache::lock('zalo:ingest'): id tự tăng của free_rides được
+ * cấp lúc insert nhưng chỉ hiện ra khi commit — hai lô song song có thể commit lệch thứ tự (id nhỏ
+ * hiện ra sau id lớn) và NotifyFreeRideAlerts (mốc theo id) sẽ bỏ sót cuốc id nhỏ. Chờ khoá quá
+ * zalo.ingest_lock_wait_seconds → ném LockTimeoutException, controller trả 503, service gửi lại sau.
  */
 class ZaloRideIngestService
 {
@@ -29,7 +36,13 @@ class ZaloRideIngestService
         'group_count', 'posted_at', 'expires_at', 'updated_at',
     ];
 
-    /** @return array{stored: int, rejected: list<int>, new_ride_uids: list<string>} */
+    public const LOCK_KEY = 'zalo:ingest';
+
+    /**
+     * @return array{stored: int, rejected: list<int>, new_ride_uids: list<string>}
+     *
+     * @throws LockTimeoutException
+     */
     public function ingest(array $items): array
     {
         $now = now();
@@ -105,21 +118,36 @@ class ZaloRideIngestService
         // có cuốc thật sự MỚI (service gửi lại / cập nhật group_count, qr_code... không tính).
         $newRideUids = [];
         if ($rows !== []) {
-            $rideUids = array_column($rows, 'ride_uid');
-            $existingRideUids = FreeRide::whereIn('ride_uid', $rideUids)->pluck('ride_uid')->all();
-            $newRideUids = array_values(array_diff($rideUids, $existingRideUids));
-
-            // Một giao dịch: lỗi khi đánh dấu trùng thì không để lại cuốc đã lưu mà chưa đánh dấu
-            // (service gửi lại sẽ bị coi là cuốc cũ, không bao giờ được xét gộp nữa).
-            DB::transaction(function () use ($rows, $rideUids, $newRideUids, $now) {
-                FreeRide::upsert($rows, ['ride_uid'], self::COLUMNS);
-
-                $this->markDuplicates($newRideUids, $now);
-                $this->touchCanonicalsOf(array_values(array_diff($rideUids, $newRideUids)), $now);
-            });
+            $newRideUids = Cache::lock(self::LOCK_KEY, 30)->block(
+                (int) config('zalo.ingest_lock_wait_seconds', 15),
+                fn () => $this->store($rows, $now),
+            );
         }
 
         return ['stored' => count($rows), 'rejected' => $rejected, 'new_ride_uids' => $newRideUids];
+    }
+
+    /**
+     * Upsert + đánh dấu trùng trong một giao dịch (gọi khi đang giữ khoá ingest).
+     *
+     * @return list<string> ride_uid thật sự mới
+     */
+    private function store(array $rows, Carbon $now): array
+    {
+        $rideUids = array_column($rows, 'ride_uid');
+        $existingRideUids = FreeRide::whereIn('ride_uid', $rideUids)->pluck('ride_uid')->all();
+        $newRideUids = array_values(array_diff($rideUids, $existingRideUids));
+
+        // Một giao dịch: lỗi khi đánh dấu trùng thì không để lại cuốc đã lưu mà chưa đánh dấu
+        // (service gửi lại sẽ bị coi là cuốc cũ, không bao giờ được xét gộp nữa).
+        DB::transaction(function () use ($rows, $rideUids, $newRideUids, $now) {
+            FreeRide::upsert($rows, ['ride_uid'], self::COLUMNS);
+
+            $this->markDuplicates($newRideUids, $now);
+            $this->touchCanonicalsOf(array_values(array_diff($rideUids, $newRideUids)), $now);
+        });
+
+        return $newRideUids;
     }
 
     /**
