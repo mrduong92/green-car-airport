@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class AppSettingController extends Controller
 {
@@ -18,11 +19,17 @@ class AppSettingController extends Controller
             'app_fee_percent' => AppSetting::appFeePercent(),
             'referral_voucher_value' => AppSetting::referralVoucherValue(),
             'referral_driver_points' => AppSetting::referralDriverPoints(),
+            ...$this->appVersions(),
         ]);
     }
 
     public function update(Request $request): JsonResponse
     {
+        $versionRules = collect($this->appVersions())
+            ->keys()
+            ->mapWithKeys(fn ($key) => [$key => ['sometimes', 'required', 'string', 'regex:/^\d+\.\d+\.\d+$/']])
+            ->all();
+
         $data = $request->validate([
             'contact_hotline' => 'required|string|max:50',
             'contact_email' => 'required|email|max:150',
@@ -30,7 +37,24 @@ class AppSettingController extends Controller
             'app_fee_percent' => 'sometimes|required|numeric|min:0|max:100',
             'referral_voucher_value' => 'sometimes|required|integer|min:1000',
             'referral_driver_points' => 'sometimes|required|integer|min:0',
+            ...$versionRules,
         ]);
+
+        // min > latest = mọi bản app bị chặn ở màn cập nhật trong khi store chưa
+        // có bản nào đủ mới → khoá toàn bộ người dùng ngoài app.
+        foreach (AppSetting::APP_VERSION_PLATFORMS as $platform) {
+            foreach (AppSetting::APP_VERSION_APPS as $app) {
+                $minKey = AppSetting::appVersionKey($platform, $app, 'min');
+                $latestKey = AppSetting::appVersionKey($platform, $app, 'latest');
+                $min = $data[$minKey] ?? AppSetting::appVersion($platform, $app, 'min');
+                $latest = $data[$latestKey] ?? AppSetting::appVersion($platform, $app, 'latest');
+                if (version_compare($min, $latest, '>')) {
+                    throw ValidationException::withMessages([
+                        $minKey => 'Phiên bản tối thiểu không được lớn hơn phiên bản mới nhất.',
+                    ]);
+                }
+            }
+        }
 
         AppSetting::set(AppSetting::CONTACT_HOTLINE, $data['contact_hotline']);
         AppSetting::set(AppSetting::CONTACT_EMAIL, $data['contact_email']);
@@ -45,6 +69,27 @@ class AppSettingController extends Controller
             }
         }
 
+        foreach (array_keys($versionRules) as $key) {
+            if (array_key_exists($key, $data)) {
+                AppSetting::set($key, $data[$key]);
+            }
+        }
+
         return response()->json($this->index()->getData(true));
+    }
+
+    /** @return array<string, string> vd ['app_version_android_driver_min' => '1.0.0', …] */
+    private function appVersions(): array
+    {
+        $out = [];
+        foreach (AppSetting::APP_VERSION_PLATFORMS as $platform) {
+            foreach (AppSetting::APP_VERSION_APPS as $app) {
+                foreach (['min', 'latest'] as $kind) {
+                    $out[AppSetting::appVersionKey($platform, $app, $kind)] = AppSetting::appVersion($platform, $app, $kind);
+                }
+            }
+        }
+
+        return $out;
     }
 }
