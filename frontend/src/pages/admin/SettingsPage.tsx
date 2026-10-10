@@ -8,6 +8,8 @@ import { getAdminSettings, updateAdminSettings } from '@/api/settings'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
 
+const semver = z.string().regex(/^\d+\.\d+\.\d+$/, 'Dạng x.y.z, vd 1.2.0')
+
 const schema = z.object({
   contact_hotline:    z.string().min(1, 'Bắt buộc').max(50),
   contact_email:      z.string().min(1, 'Bắt buộc').email('Email không hợp lệ'),
@@ -15,6 +17,10 @@ const schema = z.object({
   app_fee_percent:        z.number({ coerce: true }).min(0, 'Từ 0 đến 100').max(100, 'Từ 0 đến 100'),
   referral_voucher_value: z.number({ coerce: true }).int('Phải là số nguyên').min(1000, 'Tối thiểu 1.000đ'),
   referral_driver_points: z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
+  app_version_android_customer_min:    semver,
+  app_version_android_customer_latest: semver,
+  app_version_android_driver_min:      semver,
+  app_version_android_driver_latest:   semver,
 })
 type FormData = z.infer<typeof schema>
 
@@ -28,7 +34,9 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50 },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50,
+      app_version_android_customer_min: '1.0.0', app_version_android_customer_latest: '1.0.0',
+      app_version_android_driver_min: '1.0.0', app_version_android_driver_latest: '1.0.0' },
   })
 
   useEffect(() => {
@@ -38,7 +46,10 @@ export default function AdminSettingsPage() {
   const updateMutation = useMutation({
     mutationFn: (d: FormData) => updateAdminSettings(d),
     onSuccess: () => showToast('Đã lưu cài đặt', 'success'),
-    onError: () => showToast('Lưu cài đặt thất bại', 'error'),
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } }).response?.data?.message
+      showToast(msg ?? 'Lưu cài đặt thất bại', 'error')
+    },
   })
 
   return (
@@ -96,6 +107,25 @@ export default function AdminSettingsPage() {
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
           {errors.referral_driver_points && <p className="text-danger-red text-xs mt-1">{errors.referral_driver_points.message}</p>}
         </div>
+
+        <p className="text-sm font-semibold text-navy mt-2">Phiên bản app Android</p>
+        <p className="text-xs text-neutral-gray -mt-1">
+          App cũ hơn "tối thiểu" bị chặn và buộc cập nhật; cũ hơn "mới nhất" chỉ được nhắc.
+          Chỉ nâng "tối thiểu" khi bản mới đã có trên CH Play.
+        </p>
+        {([
+          ['app_version_android_customer_min', 'App khách — tối thiểu'],
+          ['app_version_android_customer_latest', 'App khách — mới nhất'],
+          ['app_version_android_driver_min', 'App tài xế — tối thiểu'],
+          ['app_version_android_driver_latest', 'App tài xế — mới nhất'],
+        ] as const).map(([name, label]) => (
+          <div key={name}>
+            <label className="text-xs text-neutral-gray mb-1 block">{label}</label>
+            <input {...register(name)} placeholder="1.0.0"
+              className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+            {errors[name] && <p className="text-danger-red text-xs mt-1">{errors[name]?.message}</p>}
+          </div>
+        ))}
 
         <Button type="submit" loading={updateMutation.isPending}>Lưu thay đổi</Button>
       </form>
