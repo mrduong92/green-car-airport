@@ -315,6 +315,19 @@ export default function TripListPage() {
                     <p className="text-[13px] font-semibold text-danger-red tabular-nums">-{trip.app_fee.toLocaleString('vi')}</p>
                   </div>
                 </div>
+                {/* Cuốc có thu hộ / phí phạt: ví bị trừ cả khoản tạm giữ ngay lúc nhận,
+                    báo trước để tài xế không bất ngờ (và biết cần nạp bao nhiêu).
+                    Dựa vào số điểm server tính, KHÔNG suy từ collection_fee: cuốc không
+                    có CTV thì có collection_fee mà không bị giữ thu hộ. */}
+                {trip.required_points != null && ((trip.collection_points ?? 0) > 0 || (trip.surcharge_points ?? 0) > 0) && (
+                  <p className="text-[11px] text-neutral-gray leading-snug">
+                    Nhận cuốc sẽ trừ ví <span className="font-semibold text-navy">{trip.required_points.toLocaleString('vi')} điểm</span>
+                    {' '}(phí app + tạm giữ {[
+                      (trip.collection_points ?? 0) > 0 && 'thu hộ',
+                      (trip.surcharge_points ?? 0) > 0 && 'phí phạt huỷ',
+                    ].filter(Boolean).join(' + ')}). Khoản tạm giữ được hoàn nếu cuốc bị huỷ.
+                  </p>
+                )}
               </div>
 
               {trip.customer_note && (

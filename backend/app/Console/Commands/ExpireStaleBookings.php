@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Notifications\BookingExpiredNotification;
 use App\Support\AvailableTripsCache;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class ExpireStaleBookings extends Command
 {
@@ -14,25 +15,40 @@ class ExpireStaleBookings extends Command
 
     public function handle(): void
     {
-        $staleBookings = Booking::with('customer')
-            ->where('status', 'finding_driver')
+        $staleIds = Booking::where('status', 'finding_driver')
             ->where('created_at', '<=', now()->subHours(24))
-            ->get();
+            ->pluck('id');
 
-        foreach ($staleBookings as $booking) {
-            $booking->update([
-                'status'       => 'cancelled',
-                'cancelled_at' => now(),
-                'cancelled_by' => 'system',
-            ]);
-            $booking->customer?->notify(new BookingExpiredNotification($booking));
+        $expired = 0;
+        foreach ($staleIds as $id) {
+            // Khoá + kiểm lại từng cuốc: tài xế có thể vừa nhận (đã bị trừ phí + tạm giữ)
+            // giữa lúc lấy danh sách và lúc huỷ. Huỷ bằng bản cũ sẽ nuốt tiền của họ.
+            $booking = DB::transaction(function () use ($id) {
+                $booking = Booking::lockForUpdate()->find($id);
+                if (! $booking || $booking->status !== 'finding_driver') {
+                    return null;
+                }
+
+                $booking->update([
+                    'status'       => 'cancelled',
+                    'cancelled_at' => now(),
+                    'cancelled_by' => 'system',
+                ]);
+
+                return $booking;
+            });
+
+            if ($booking) {
+                $expired++;
+                $booking->customer?->notify(new BookingExpiredNotification($booking));
+            }
         }
 
-        if ($staleBookings->isNotEmpty()) {
+        if ($expired > 0) {
             // Cuốc rời sàn → cache danh sách chờ của tài xế đã cũ.
             AvailableTripsCache::flush();
         }
 
-        $this->info("Expired {$staleBookings->count()} stale booking(s).");
+        $this->info("Expired {$expired} stale booking(s).");
     }
 }

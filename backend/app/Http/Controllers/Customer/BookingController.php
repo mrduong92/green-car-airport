@@ -9,7 +9,6 @@ use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\Voucher;
 use App\Models\Wallet;
-use App\Models\WalletTransaction;
 use App\Notifications\BookingCreatedNotification;
 use App\Notifications\CustomerCancelledNotification;
 use App\Support\AvailableTripsCache;
@@ -196,27 +195,30 @@ class BookingController extends Controller
             'cancel_reason' => 'nullable|string|max:255',
         ]);
 
-        DB::transaction(function () use ($booking, $request, $data) {
+        // Khoá + kiểm lại trạng thái TRONG transaction. Không khoá thì request này dùng
+        // bản booking đọc trước đó: tài xế vừa nhận (đã bị trừ phí + tạm giữ) mà bản cũ
+        // còn driver_id = null → huỷ không hoàn gì; hoặc tài xế cũng đang huỷ → hoàn 2 lần.
+        $error = DB::transaction(function () use ($booking, $request, $data) {
+            $booking = Booking::lockForUpdate()->find($booking->id);
+            if (! in_array($booking->status, ['finding_driver', 'accepted'])) {
+                return 'Không thể huỷ chuyến ở trạng thái này.';
+            }
+
             // Phạt 50,000đ nếu huỷ sau 60 phút kể từ khi tài xế nhận cuốc
             if ($booking->accepted_at && now()->diffInMinutes($booking->accepted_at, false) < -60) {
                 $request->user()->increment('pending_penalty', 50_000);
             }
 
-            // Hoàn phí app cho tài xế nếu đã có tài xế nhận cuốc (chỉ hoàn phần giá cuốc, không gộp thu hộ)
-            if ($booking->driver_id) {
-                $effectivePrice = $booking->price - $booking->discount;
-                $feePoints = (int) round($effectivePrice * AppSetting::appFeeRate() / 1000);
-                $driverWallet = Wallet::where('user_id', $booking->driver_id)->first();
-                if ($driverWallet && $feePoints > 0) {
-                    $driverWallet->increment('points', $feePoints);
-                    WalletTransaction::create([
-                        'wallet_id' => $driverWallet->id,
-                        'booking_id' => $booking->id,
-                        'type' => 'credit',
-                        'description' => "Hoàn phí app cuốc #{$booking->id} (khách huỷ)",
-                        'points' => $feePoints,
-                    ]);
-                }
+            // Hoàn cho tài xế đã nhận: phí app + khoản tạm giữ, theo ĐÚNG số đã trừ lúc nhận.
+            if ($booking->chargedOnAccept()) {
+                $booking->refundAcceptCharges('khách', refundFee: true);
+            } elseif ($booking->driver_id) {
+                // Cuốc nhận trước bản trừ-lúc-nhận: không có số đã ghi, tính lại phí như cũ.
+                Wallet::lockedFor($booking->driver_id)->credit(
+                    $booking->appFeePoints(AppSetting::appFeeRate()),
+                    "Hoàn phí app cuốc #{$booking->id} (khách huỷ)",
+                    $booking->id,
+                );
             }
 
             $booking->update([
@@ -225,7 +227,15 @@ class BookingController extends Controller
                 'cancelled_by' => 'customer',
                 'cancel_reason' => $data['cancel_reason'] ?? null,
             ]);
+
+            return null;
         });
+
+        if ($error) {
+            return response()->json(['message' => $error], 422);
+        }
+
+        $booking->refresh();
 
         $request->user()->notify(new CustomerCancelledNotification($booking));
 
