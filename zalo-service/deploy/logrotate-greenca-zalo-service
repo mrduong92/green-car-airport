@@ -1,0 +1,12 @@
+# Xoay vòng log service Zalo (systemd ghi thẳng bằng StandardOutput=append:, không qua journald).
+# Cài: sudo cp deploy/logrotate-greenca-zalo-service /etc/logrotate.d/greenca-zalo-service
+# copytruncate: systemd giữ file mở suốt đời tiến trình, không có tín hiệu "mở lại file" — cắt tại chỗ
+# thay vì đổi tên (có thể mất vài dòng ghi đúng lúc cắt, chấp nhận được với log vận hành).
+/var/log/greenca-zalo-service.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+}

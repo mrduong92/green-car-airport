@@ -51,6 +51,8 @@ sudo timedatectl set-ntp true                         # lệch giờ > 5 phút �
 sudo cp deploy/greenca-zalo-service.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now greenca-zalo-service
 tail -f /var/log/greenca-zalo-service.log             # phải thấy "đăng nhập OK" và "listener đã kết nối" cho từng tài khoản
+sudo cp deploy/logrotate-greenca-zalo-service /etc/logrotate.d/greenca-zalo-service   # xoay log hằng ngày, giữ 14 bản nén
+sudo logrotate -d /etc/logrotate.d/greenca-zalo-service                              # chạy thử (không đổi gì)
 ```
 
 VPS **không cần mở cổng nào** — mọi kết nối đi ra (tới Zalo và Laravel).
@@ -175,3 +177,20 @@ Bên Laravel (`backend/.env`): `ZALO_SERVICE_ENABLED=true`, `ZALO_BOT_SECRET` (t
 - Tài xế bật "Báo khi có cuốc phù hợp" ở tab Free (app tài xế) không liên quan tới service này — đó
   là thông báo đẩy Web Push do Laravel tự gửi khi có cuốc mới khớp bộ lọc đã lưu
   (`App\Jobs\NotifyFreeRideAlerts`), service chỉ cần tiếp tục gửi cuốc sang Laravel như bình thường.
+
+## Dọn dữ liệu cũ
+
+Chạy trong vòng prune mỗi giờ của service (cùng lúc xoá tin thô quá `RETENTION_DAYS` và cuốc hết hạn
+quá 1 ngày), log tiếng Việt chỉ khi có xoá:
+
+| Biến | Mặc định | Xoá gì |
+| --- | --- | --- |
+| `REMOVED_SESSION_RETENTION_DAYS` | `7` | File `data/accounts/<id>.json.removed-<ms>` của nick đã gỡ (còn cookie đăng nhập sống), tính theo `<ms>` trong tên file |
+| `LEFT_GROUP_RETENTION_DAYS` | `30` | Nhóm đã rời (`chat_groups.left_at`) cùng dòng `group_accounts` còn sót |
+| `STALE_SENDER_DAYS` | `30` | Người bắn không thấy tin nào (`senders.last_seen_at`) quá N ngày **và** không còn cuốc còn hạn trong `rides` |
+
+`npm run login` xoá ảnh `data/login-qr-<id>.png` khi đăng nhập xong hoặc lỗi.
+
+Laravel dọn phần của nó bằng `zalo:prune-data` (03:20 hằng ngày, xem `docs/DEPLOY.md`). Log service
+(`/var/log/greenca-zalo-service.log`) xoay vòng bằng `deploy/logrotate-greenca-zalo-service` (xem mục
+"Cài lên VPS").

@@ -795,6 +795,38 @@ chạy lên và lượt hỏi đầu tiên của nó bắt được.
    toàn, còn hạn) — cần queue worker chạy (mục "⚠️ Queue worker + scheduler" ở trên), không chạy thì
    tài xế không bao giờ nhận được thông báo mà không có lỗi nào hiện ra.
 
+### Dọn dữ liệu Cuốc Free + xoay vòng log service
+
+**Laravel** — `zalo:prune-data` chạy 03:20 hằng ngày (cần scheduler, mục "⚠️ Queue worker + scheduler"),
+cạnh `zalo:prune-rides` (03:10, giữ cuốc hết hạn 8 ngày như cũ). Mốc giữ ở `config/zalo.php`, đổi bằng
+`.env` nếu cần (để trống = mặc định):
+
+| Biến `.env` (backend) | Mặc định | Xoá gì |
+| --- | --- | --- |
+| `ZALO_ACCOUNT_REQUESTS_RETENTION_DAYS` | `30` | `zalo_account_requests` đã kết thúc (done/expired/failed), theo `created_at` |
+| `ZALO_REPORTS_RETENTION_DAYS` | `90` | `free_ride_reports`, theo `created_at` |
+| `ZALO_QR_REFRESH_REQUESTS_RETENTION_DAYS` | `90` | `zalo_qr_refresh_requests` ĐÃ giao, theo `delivered_at` |
+| `ZALO_LEFT_GROUPS_RETENTION_DAYS` | `30` | `zalo_groups` đã rời, theo `left_at` |
+
+Chạy tay để xem số dòng bị xoá: `php artisan zalo:prune-data`.
+
+**Service Zalo** — tự dọn trong vòng prune mỗi giờ: file session nick đã gỡ
+(`REMOVED_SESSION_RETENTION_DAYS`, mặc định 7 ngày — file này còn cookie đăng nhập sống), nhóm đã rời
+(`LEFT_GROUP_RETENTION_DAYS`, 30) và người bắn lâu không thấy (`STALE_SENDER_DAYS`, 30). Chi tiết ở
+`zalo-service/README.md` mục "Dọn dữ liệu cũ". Nên để `LEFT_GROUP_RETENTION_DAYS` (service) bằng
+`ZALO_LEFT_GROUPS_RETENTION_DAYS` (Laravel): nếu Laravel xoá nhóm trước, lượt đồng bộ nhóm kế tiếp của
+service (10 phút) sẽ tạo lại nhóm đó ở Laravel với `left_at` mới và nó nằm thêm một chu kỳ nữa.
+
+**Xoay vòng log** — systemd ghi thẳng vào `/var/log/greenca-zalo-service.log` (`StandardOutput=append:`),
+không có gì tự cắt. Cài một lần trên VPS service:
+```bash
+cd /opt/greenca-zalo-service
+sudo cp deploy/logrotate-greenca-zalo-service /etc/logrotate.d/greenca-zalo-service
+sudo logrotate -d /etc/logrotate.d/greenca-zalo-service   # chạy thử, không đổi gì
+```
+Hằng ngày, giữ 14 bản nén, `copytruncate` (systemd giữ file mở nên không đổi tên được) — không cần
+restart service.
+
 ## Lịch sử production
 
 - 2026-09-23: **Sự cố push tài xế 6 tuần.** Tài xế báo không nhận noti cuốc mới; nghi
