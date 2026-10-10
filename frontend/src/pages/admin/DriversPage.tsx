@@ -26,13 +26,15 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 interface EditForm {
   name: string; vehicle_make: string; vehicle_model: string
   vehicle_plate: string; vehicle_year: string; vehicle_color: string
+  // '' = tài xế cũ chưa khai loại xe; giữ nguyên nếu admin không chọn
+  vehicle_type: App.VehicleType | ''
   is_vip: boolean
 }
 
 const emptyForm = (): EditForm => ({
   name: '', vehicle_make: '', vehicle_model: '',
   vehicle_plate: '', vehicle_year: '', vehicle_color: '',
-  is_vip: false,
+  vehicle_type: '', is_vip: false,
 })
 
 export default function DriversPage() {
@@ -66,6 +68,7 @@ export default function DriversPage() {
       vehicle_plate: d.vehicle_plate ?? '',
       vehicle_year:  d.vehicle_year?.toString() ?? '',
       vehicle_color: d.vehicle_color ?? '',
+      vehicle_type:  d.vehicle_type ?? '',
       is_vip:        d.is_vip ?? false,
     })
   }
@@ -78,6 +81,7 @@ export default function DriversPage() {
       vehicle_plate: form.vehicle_plate || undefined,
       vehicle_year:  form.vehicle_year ? Number(form.vehicle_year) : undefined,
       vehicle_color: form.vehicle_color || undefined,
+      vehicle_type:  form.vehicle_type || undefined,
       is_vip:        form.is_vip,
     }),
     onSuccess: () => {
@@ -338,15 +342,29 @@ export default function DriversPage() {
                   </div>
                 ))}
               </div>
-              <label className="flex items-center gap-2 text-sm text-navy">
-                <input
-                  type="checkbox"
-                  checked={form.is_vip}
-                  onChange={(e) => setForm((f) => ({ ...f, is_vip: e.target.checked }))}
-                  className="w-4 h-4 accent-gold"
-                />
-                Xe cá nhân (biển trắng) — nhận cuốc VIP
-              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[12px] text-neutral-gray font-medium">Loại xe</label>
+                  <select className={inputCls} value={form.vehicle_type}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicle_type: e.target.value as EditForm['vehicle_type'] }))}>
+                    {form.vehicle_type === '' && <option value="">Chưa khai</option>}
+                    {Object.entries(VEHICLE_TYPE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[12px] text-neutral-gray font-medium">Loại biển</label>
+                  <select className={inputCls} value={form.is_vip ? 'white' : 'yellow'}
+                    onChange={(e) => setForm((f) => ({ ...f, is_vip: e.target.value === 'white' }))}>
+                    <option value="yellow">Biển vàng (xe dịch vụ)</option>
+                    <option value="white">Biển trắng (xe cá nhân, VIP)</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-[12px] text-neutral-gray -mt-1">
+                Biển trắng nhận được cả cuốc VIP lẫn cuốc thường. Đổi xong có hiệu lực ngay với danh sách cuốc của tài xế.
+              </p>
             </div>
             <div className="px-4 pb-6 pt-3 flex gap-3 shrink-0 border-t border-border-soft">
               <Button fullWidth variant="outline" onClick={() => setEditTarget(null)}>Huỷ</Button>

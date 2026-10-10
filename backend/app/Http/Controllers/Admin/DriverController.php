@@ -75,6 +75,7 @@ class DriverController extends Controller
             'vehicle_plate' => 'sometimes|string|max:20',
             'vehicle_year'  => 'sometimes|integer|min:1990|max:2030',
             'vehicle_color' => 'sometimes|string|max:30',
+            'vehicle_type'  => 'sometimes|in:sedan_4,suv_5,mpv_7',
             'is_vip'        => 'sometimes|boolean',
         ]);
 
