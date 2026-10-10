@@ -28,16 +28,22 @@ class FreeRide extends Model
 
     /**
      * Điều kiện hiển thị dùng chung cho tab Free (FreeRideController::index) VÀ job cảnh báo đẩy
-     * (NotifyFreeRideAlerts): còn hạn, không bị chặn/ẩn người bắn, nhóm chưa bị admin tắt, cùng các
+     * (NotifyFreeRideAlerts): còn hạn, không bị chặn/ẩn người bắn (theo qr_code hoặc sender_uid), nhóm chưa bị admin tắt, cùng các
      * bộ lọc tuỳ chọn direction/seats/q (q khớp LIKE trên pickup/destination/raw_text) và window.
      */
     public function scopeVisibleTo(Builder $query, int $driverId, array $data = []): Builder
     {
+        // Chặn/ẩn khoá theo qr_code (hồ sơ — áp lên mọi uid của cùng người, vì Zalo cấp uid khác
+        // nhau tuỳ nick phụ) HOẶC theo sender_uid (hàng cũ). whereNotNull bắt buộc: NOT IN gặp NULL
+        // trong subquery sẽ cho UNKNOWN và loại sạch mọi cuốc.
+        $hidden = DriverHiddenSender::where('driver_id', $driverId);
         $query->where('expires_at', '>', now())
-            ->whereNotIn('sender_uid', ZaloSenderBlock::select('sender_uid'))
+            ->whereNotIn('qr_code', ZaloSenderBlock::whereNotNull('qr_code')->select('qr_code'))
+            ->whereNotIn('sender_uid', ZaloSenderBlock::whereNotNull('sender_uid')->select('sender_uid'))
             // Nhóm admin đã tắt: ẩn cả cuốc đã đồng bộ trước khi tắt / lúc service chưa lấy được cấu hình.
             ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
-            ->whereNotIn('sender_uid', DriverHiddenSender::where('driver_id', $driverId)->select('sender_uid'))
+            ->whereNotIn('qr_code', (clone $hidden)->whereNotNull('qr_code')->select('qr_code'))
+            ->whereNotIn('sender_uid', (clone $hidden)->whereNotNull('sender_uid')->select('sender_uid'))
             ->when($data['direction'] ?? null, fn (Builder $q, string $d) => $q->where('direction', $d))
             ->when($data['seats'] ?? null, fn (Builder $q, $s) => $q->where('seats', (int) $s));
 

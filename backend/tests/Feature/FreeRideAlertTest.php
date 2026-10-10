@@ -241,6 +241,56 @@ class FreeRideAlertTest extends TestCase
         Notification::assertNotSentTo($driver, FreeRideMatchNotification::class);
     }
 
+    public function test_no_push_when_profile_qr_code_is_blocked_even_for_another_uid(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        // Chặn theo hồ sơ (qr_code); cuốc tới từ một uid khác của cùng người đó.
+        ZaloSenderBlock::create(['qr_code' => 'QRX']);
+
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX']);
+
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertNotSentTo($driver, FreeRideMatchNotification::class);
+    }
+
+    public function test_no_push_when_profile_qr_code_is_hidden_by_driver(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        DriverHiddenSender::create(['driver_id' => $driver->id, 'qr_code' => 'QRX']);
+
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX']);
+
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertNotSentTo($driver, FreeRideMatchNotification::class);
+    }
+
+    public function test_push_still_sent_when_unrelated_profiles_are_blocked(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        // Hàng chặn theo qr (sender_uid NULL) và hàng chặn kiểu cũ (qr_code NULL) không được làm
+        // NOT IN (… NULL …) loại sạch mọi cuốc.
+        ZaloSenderBlock::create(['qr_code' => 'QROTHER']);
+        ZaloSenderBlock::create(['sender_uid' => 'OTHER']);
+        DriverHiddenSender::create(['driver_id' => $driver->id, 'qr_code' => 'QROTHER2']);
+        DriverHiddenSender::create(['driver_id' => $driver->id, 'sender_uid' => 'OTHER2']);
+        $this->travel(1)->second();
+
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX']);
+        $this->travel(1)->second();
+
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertSentTo($driver, FreeRideMatchNotification::class);
+    }
+
     public function test_no_push_when_group_is_disabled(): void
     {
         Notification::fake();

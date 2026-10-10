@@ -141,9 +141,10 @@ class FreeRideApiTest extends TestCase
 
     public function test_hidden_and_blocked_senders_are_excluded(): void
     {
-        $this->ride(['sender_uid' => 'hidden', 'pickup' => 'ẩn']);
-        $this->ride(['sender_uid' => 'spam', 'pickup' => 'chặn']);
-        $this->ride(['sender_uid' => 'ok', 'pickup' => 'hiện']);
+        // Mỗi người một mã QR riêng — ẩn/chặn giờ khoá theo hồ sơ (qr_code).
+        $this->ride(['sender_uid' => 'hidden', 'qr_code' => 'QRhidden', 'pickup' => 'ẩn']);
+        $this->ride(['sender_uid' => 'spam', 'qr_code' => 'QRspam', 'pickup' => 'chặn']);
+        $this->ride(['sender_uid' => 'ok', 'qr_code' => 'QRok', 'pickup' => 'hiện']);
         ZaloSenderBlock::create(['sender_uid' => 'spam']);
         $driver = $this->driver();
 
@@ -152,6 +153,43 @@ class FreeRideApiTest extends TestCase
         $this->assertSame(['hiện'], array_column($this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'pickup'));
         // Tài xế khác vẫn thấy cuốc của người bắn mà tài xế này ẩn
         $this->assertCount(2, $this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->json('data'));
+    }
+
+    public function test_hide_sender_hides_every_uid_sharing_the_qr_code(): void
+    {
+        // Cùng một người (mã QR 'QRX') nhưng hai nick phụ thấy hai uid khác nhau.
+        $this->ride(['sender_uid' => 'U1', 'qr_code' => 'QRX', 'pickup' => 'uid 1']);
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX', 'pickup' => 'uid 2']);
+        $this->ride(['sender_uid' => 'Z9', 'qr_code' => 'QRZ', 'pickup' => 'người khác']);
+        $driver = $this->driver();
+
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['sender_uid' => 'U1'])->assertOk();
+
+        $this->assertDatabaseHas('driver_hidden_senders', ['driver_id' => $driver->id, 'qr_code' => 'QRX']);
+        $this->assertSame(['người khác'], array_column($this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'pickup'));
+    }
+
+    public function test_hide_sender_accepts_qr_code_directly_and_is_idempotent(): void
+    {
+        $this->ride(['sender_uid' => 'U1', 'qr_code' => 'QRX', 'pickup' => 'uid 1']);
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX', 'pickup' => 'uid 2']);
+        $driver = $this->driver();
+
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['sender_uid' => 'U2', 'qr_code' => 'QRX'])->assertOk();
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['qr_code' => 'QRX'])->assertOk();
+
+        $this->assertDatabaseCount('driver_hidden_senders', 1);
+        $this->assertCount(0, $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'));
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['qr_code' => 'ab/c'])->assertUnprocessable();
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', [])->assertUnprocessable();
+    }
+
+    public function test_ride_payload_exposes_qr_code(): void
+    {
+        $this->ride(['qr_code' => 'QRX']);
+
+        $res = $this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->assertOk();
+        $this->assertSame('QRX', $res->json('data.0.qr_code'));
     }
 
     public function test_rides_with_unsafe_codes_are_not_listed(): void

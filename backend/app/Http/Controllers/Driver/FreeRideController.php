@@ -79,9 +79,23 @@ class FreeRideController extends Controller
 
     public function hideSender(Request $request): JsonResponse
     {
-        $data = $request->validate(['sender_uid' => ['required', 'string', 'max:32']]);
+        $data = $request->validate([
+            'sender_uid' => ['required_without:qr_code', 'nullable', 'string', 'max:32'],
+            'qr_code' => ['required_without:sender_uid', 'nullable', 'string', 'max:32', 'regex:/^[A-Za-z0-9]+$/'],
+        ]);
+        $driverId = $request->user()->id;
 
-        DriverHiddenSender::firstOrCreate(['driver_id' => $request->user()->id, 'sender_uid' => $data['sender_uid']]);
+        // Ẩn theo hồ sơ (qr_code) để mọi uid của cùng người đều biến mất — Zalo cấp uid khác nhau
+        // tuỳ nick phụ. Không gửi qr_code thì suy từ cuốc mới nhất của uid; không còn cuốc nào thì
+        // đành ẩn theo uid như cũ.
+        $qrCode = $data['qr_code'] ?? FreeRide::where('sender_uid', $data['sender_uid'])
+            ->orderByDesc('posted_at')->orderByDesc('id')->value('qr_code');
+
+        if ($qrCode !== null) {
+            DriverHiddenSender::firstOrCreate(['driver_id' => $driverId, 'qr_code' => $qrCode]);
+        } else {
+            DriverHiddenSender::firstOrCreate(['driver_id' => $driverId, 'sender_uid' => $data['sender_uid']]);
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -171,6 +185,8 @@ class FreeRideController extends Controller
             'is_raw' => $r->is_raw,
             'raw_text' => $r->raw_text,
             'group_count' => $r->group_count,
+            // Mã hồ sơ (danh tính thật của người bắn) — tab Free gửi lại khi "Ẩn người bắn".
+            'qr_code' => $r->qr_code,
             'contact_url' => "zalo://qr/p/{$r->qr_code}",
             'posted_at' => $r->posted_at->getTimestampMs(),
             'expires_at' => $r->expires_at->getTimestampMs(),

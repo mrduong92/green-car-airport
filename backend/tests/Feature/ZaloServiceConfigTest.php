@@ -94,6 +94,22 @@ class ZaloServiceConfigTest extends TestCase
         $this->signedGet('/api/internal/zalo/config')->assertOk()->assertJson(['qr_refresh_uids' => []]);
     }
 
+    public function test_config_blocked_uids_include_every_uid_of_blocked_profiles(): void
+    {
+        $base = ['zalo_group_id' => 'g', 'raw_text' => 'x', 'posted_at' => now(), 'expires_at' => now()->addHour()];
+        FreeRide::create($base + ['ride_uid' => 'r1', 'sender_uid' => 'U1', 'qr_code' => 'QRX']);
+        FreeRide::create($base + ['ride_uid' => 'r2', 'sender_uid' => 'U2', 'qr_code' => 'QRX']);
+        FreeRide::create($base + ['ride_uid' => 'r3', 'sender_uid' => 'U2', 'qr_code' => 'QRX']);
+        FreeRide::create($base + ['ride_uid' => 'r4', 'sender_uid' => 'Z9', 'qr_code' => 'QRZ']);
+        ZaloSenderBlock::create(['qr_code' => 'QRX']);
+        ZaloSenderBlock::create(['sender_uid' => 'legacy1']);
+
+        $uids = $this->signedGet('/api/internal/zalo/config')->assertOk()->json('blocked_sender_uids');
+        sort($uids);
+
+        $this->assertSame(['U1', 'U2', 'legacy1'], $uids);
+    }
+
     public function test_config_requires_signature(): void
     {
         $this->getJson('/api/internal/zalo/config')->assertStatus(401);

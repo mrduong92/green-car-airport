@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Webhooks;
 use App\Http\Controllers\Controller;
 use App\Jobs\BroadcastFreeRidesSignal;
 use App\Jobs\NotifyFreeRideAlerts;
+use App\Models\FreeRide;
 use App\Models\ZaloAccountRequest;
 use App\Models\ZaloGroup;
 use App\Models\ZaloQrRefreshRequest;
@@ -221,9 +222,23 @@ class ZaloServiceController extends Controller
 
         return response()->json([
             'disabled_group_ids' => ZaloGroup::where('enabled', false)->pluck('zalo_group_id')->values()->all(),
-            'blocked_sender_uids' => ZaloSenderBlock::pluck('sender_uid')->values()->all(),
+            'blocked_sender_uids' => $this->blockedSenderUids(),
             'qr_refresh_uids' => $requests->pluck('sender_uid')->unique()->values()->all(),
             'ai_daily_budget_usd' => (float) config('zalo.ai_daily_budget_usd'),
         ]);
+    }
+
+    /**
+     * Chặn theo hồ sơ (qr_code) → mọi sender_uid từng thấy trong free_rides với mã đó, cộng hàng
+     * chặn kiểu cũ theo uid, để service bỏ qua sớm (đỡ chi phí AI). uid mới của người bị chặn mà
+     * chưa từng có cuốc thì service chưa biết — scopeVisibleTo vẫn ẩn theo qr_code ở phía Laravel.
+     */
+    private function blockedSenderUids(): array
+    {
+        $legacy = ZaloSenderBlock::whereNotNull('sender_uid')->pluck('sender_uid');
+        $byProfile = FreeRide::whereIn('qr_code', ZaloSenderBlock::whereNotNull('qr_code')->select('qr_code'))
+            ->distinct()->pluck('sender_uid');
+
+        return $legacy->merge($byProfile)->unique()->values()->all();
     }
 }
