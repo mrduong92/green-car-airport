@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Validator;
  *
  * Người đăng không có mã QR đã bị service lọc bỏ trước khi gửi sang — mọi cuốc tới đây đều phải
  * có qr_code hợp lệ, nên trường này là required (không nullable).
+ *
+ * Gộp cuốc trùng: Zalo cấp uid khác nhau cho cùng một người tuỳ nick phụ, service khử trùng theo
+ * sender_uid nên cùng một cuốc đăng ở hai nhóm (hai nick nghe) tới đây thành hai ride_uid. Cuốc MỚI
+ * khớp một cuốc gốc còn hạn theo FreeRide::sameRideAs() (cùng qr_code + cùng nội dung) thì vẫn lưu
+ * nhưng đánh dấu duplicate_of_id — xem markDuplicates().
  */
 class ZaloRideIngestService
 {
@@ -104,8 +109,75 @@ class ZaloRideIngestService
             $newRideUids = array_values(array_diff($rideUids, $existingRideUids));
 
             FreeRide::upsert($rows, ['ride_uid'], self::COLUMNS);
+
+            $this->markDuplicates($newRideUids, $now);
+            $this->touchCanonicalsOf(array_values(array_diff($rideUids, $newRideUids)), $now);
         }
 
         return ['stored' => count($rows), 'rejected' => $rejected, 'new_ride_uids' => $newRideUids];
+    }
+
+    /**
+     * Cuốc mới (xét theo posted_at tăng dần — cuốc gốc luôn là bản đăng sớm nhất trong số cuốc mới)
+     * so với cuốc gốc còn hạn cùng qr_code (đã có từ trước hoặc vừa tới trong cùng lô). Khớp thì
+     * trỏ duplicate_of_id về cuốc gốc và "chạm" updated_at cuốc gốc để client đang nghe since nhận
+     * group_count cộng dồn mới.
+     *
+     * @param  list<string>  $newRideUids
+     */
+    private function markDuplicates(array $newRideUids, Carbon $now): void
+    {
+        if ($newRideUids === []) {
+            return;
+        }
+
+        $newRides = FreeRide::whereIn('ride_uid', $newRideUids)->orderBy('posted_at')->orderBy('id')->get();
+        $canonicals = FreeRide::whereIn('qr_code', $newRides->pluck('qr_code')->unique()->all())
+            ->whereNotIn('ride_uid', $newRideUids)
+            ->whereNull('duplicate_of_id')
+            ->where('expires_at', '>', $now)
+            ->orderBy('posted_at')->orderBy('id')
+            ->get()
+            ->groupBy('qr_code')
+            ->map(fn ($rides) => $rides->all())
+            ->all();
+
+        $touched = [];
+        foreach ($newRides as $ride) {
+            $canonical = collect($canonicals[$ride->qr_code] ?? [])->first(fn (FreeRide $c) => $c->sameRideAs($ride));
+            if ($canonical === null) {
+                // Cuốc mới không trùng (và còn hạn) thành ứng viên cuốc gốc cho cuốc mới sau nó trong lô.
+                if ($ride->expires_at->gt($now)) {
+                    $canonicals[$ride->qr_code][] = $ride;
+                }
+
+                continue;
+            }
+            $ride->update(['duplicate_of_id' => $canonical->id]);
+            $touched[$canonical->id] = true;
+        }
+
+        if ($touched !== []) {
+            FreeRide::whereIn('id', array_keys($touched))->update(['updated_at' => $now]);
+        }
+    }
+
+    /**
+     * Service gửi lại bản trùng (ví dụ group_count tăng) → group_count hiển thị của cuốc gốc đổi theo
+     * (tính lúc đọc) nhưng hàng cuốc gốc không đổi; chạm updated_at để nhánh since thấy cập nhật.
+     *
+     * @param  list<string>  $existingRideUids
+     */
+    private function touchCanonicalsOf(array $existingRideUids, Carbon $now): void
+    {
+        if ($existingRideUids === []) {
+            return;
+        }
+
+        $canonicalIds = FreeRide::whereIn('ride_uid', $existingRideUids)->whereNotNull('duplicate_of_id')
+            ->pluck('duplicate_of_id')->unique()->values()->all();
+        if ($canonicalIds !== []) {
+            FreeRide::whereIn('id', $canonicalIds)->update(['updated_at' => $now]);
+        }
     }
 }

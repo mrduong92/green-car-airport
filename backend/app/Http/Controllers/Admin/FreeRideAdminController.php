@@ -198,11 +198,15 @@ class FreeRideAdminController extends Controller
      */
     private function sendersQuery(Carbon $now, Carbon $weekAgo, ?string $like, bool $blockedOnly): QueryBuilder
     {
+        // Cuốc gộp (cùng người, cùng nội dung — duplicate_of_id) chỉ đếm một lần, khớp tab Free:
+        // bản trùng chỉ được đếm khi cuốc gốc đã mất (c.id NULL) hoặc, với active_rides, đã hết hạn.
+        // LEFT JOIN 1-1 theo khoá chính nên không nhân dòng; GROUP BY chỉ theo free_rides.qr_code.
         $rideStats = FreeRide::query()->toBase()
-            ->select('qr_code')
-            ->selectRaw('COUNT(CASE WHEN expires_at > ? THEN 1 END) as active_rides', [$now])
-            ->selectRaw('COUNT(CASE WHEN posted_at >= ? THEN 1 END) as rides_7d', [$weekAgo])
-            ->groupBy('qr_code');
+            ->leftJoin('free_rides as c', 'c.id', '=', 'free_rides.duplicate_of_id')
+            ->select('free_rides.qr_code')
+            ->selectRaw('COUNT(CASE WHEN free_rides.expires_at > ? AND (c.id IS NULL OR c.expires_at <= ?) THEN 1 END) as active_rides', [$now, $now])
+            ->selectRaw('COUNT(CASE WHEN free_rides.posted_at >= ? AND c.id IS NULL THEN 1 END) as rides_7d', [$weekAgo])
+            ->groupBy('free_rides.qr_code');
 
         $uidProfiles = FreeRide::query()->toBase()->select('sender_uid', 'qr_code')->distinct();
         $reportsByQr = FreeRideReport::query()->toBase()

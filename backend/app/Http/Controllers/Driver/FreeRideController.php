@@ -32,7 +32,8 @@ class FreeRideController extends Controller
             'cursor' => ['nullable', 'string'],
         ]);
 
-        $query = $this->visibleTo($request->user()->id, $data);
+        // group_count hiển thị cộng dồn các bản trùng (cùng người, nick phụ khác) — xem FreeRide::scopeWithMergedGroupCount().
+        $query = $this->visibleTo($request->user()->id, $data)->withMergedGroupCount();
 
         if (isset($data['since'])) {
             // >= vì updated_at chỉ chính xác tới giây; client gộp theo ride_uid nên trả trùng không sao.
@@ -184,7 +185,7 @@ class FreeRideController extends Controller
             'is_free' => $r->is_free,
             'is_raw' => $r->is_raw,
             'raw_text' => $r->raw_text,
-            'group_count' => $r->group_count,
+            'group_count' => $r->displayedGroupCount(),
             // Mã hồ sơ (danh tính thật của người bắn) — tab Free gửi lại khi "Ẩn người bắn".
             'qr_code' => $r->qr_code,
             'contact_url' => "zalo://qr/p/{$r->qr_code}",
