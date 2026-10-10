@@ -65,7 +65,11 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // Giờ Việt Nam: khách nhập ngày/giờ đón theo giờ VN, và mọi mốc "hôm nay",
+    // "tháng này" (dashboard, doanh thu, hạn voucher) phải đổi ngày lúc 0h VN.
+    // Đổi từ UTC ngày 11/10/2026 — dữ liệu ghi TRƯỚC mốc đó là giờ UTC (chậm 7
+    // tiếng), không được chuyển đổi.
+    'timezone' => 'Asia/Ho_Chi_Minh',
 
     /*
     |--------------------------------------------------------------------------
