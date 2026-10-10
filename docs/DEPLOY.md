@@ -571,9 +571,42 @@ production **cùng một đợt**. Thứ tự BẮT BUỘC — để tài xế k
    (`tail -n 200 /var/log/greenca-zalo-service.log`) và log Laravel trước khi đi tiếp.
 4. **Chỉ sau bước 3** mới build + rsync `dist-driver/` (bản này thêm tab Free vào thanh điều hướng).
 
+### Hiện trạng: service chạy chung greenca-prod (2026-10-11)
+
+Quyết định: chạy chung máy production cho nhanh (máy 7.8 GB RAM, còn trống ~6.4 GB, IP Việt Nam,
+chỉ chạy GreenCA), **tách sang VPS riêng sau**. Staging amd-bizfly (1.9 GB, chung 13 site) không đủ.
+
+| Mục | Giá trị |
+| --- | --- |
+| Node | **22** cài từ tarball chính thức vào `/opt/node22` (Ubuntu 26.04 không có gói Node 22; đã kiểm SHA256 theo `SHASUMS256.txt`). **Không** nằm trong PATH — gọi `/opt/node22/bin/node`, hoặc `export PATH=/opt/node22/bin:$PATH` trước `npm` |
+| User / thư mục | `zalobot` (system, nologin) · `/opt/greenca-zalo-service` · `data/` mode 700 · `.env` mode 600 |
+| `.env` service | `API_BASE_URL=https://greenca.vn`, `SERVICE_ID=zalo-prod`, `DATA_DIR=/opt/greenca-zalo-service/data`, `ALLOWED_GROUP_IDS=` (rỗng), OpenAI `gpt-4.1-mini`, `AI_DAILY_BUDGET_USD=5` |
+| systemd | `greenca-zalo-service.service` — `ExecStart=/opt/node22/bin/node …`, `MemoryMax=300M`, `CPUQuota=50%` (để không lấn MySQL/PHP) |
+| Log | `/var/log/greenca-zalo-service.log`, logrotate có `su root syslog` (thiếu dòng này logrotate bỏ qua vì `/var/log` ghi được bởi nhóm syslog) |
+| Swap | 2 GB `/swapfile`, `vm.swappiness=10` (`/etc/sysctl.d/99-greenca-swap.conf`) — lưới an toàn, bình thường không dùng |
+
+Cài Node 22 (một lần):
+```bash
+V=v22.x.y   # bản LTS mới nhất ở https://nodejs.org/dist/latest-v22.x/
+cd /tmp && curl -fsSLO https://nodejs.org/dist/$V/node-$V-linux-x64.tar.xz \
+  && curl -fsSLO https://nodejs.org/dist/$V/SHASUMS256.txt \
+  && grep " node-$V-linux-x64.tar.xz\$" SHASUMS256.txt | sha256sum -c - \
+  && mkdir -p /opt/node22 && tar -xJf node-$V-linux-x64.tar.xz -C /opt/node22 --strip-components=1
+/opt/node22/bin/node -v
+```
+
+⚠️ **Bẫy rsync:** exclude PHẢI neo gốc (`/src`, `/dist`, `/data`, …). Lần cài đầu dùng `--exclude src`
+→ khớp luôn `dist/src` → service không có file chạy. Các lệnh rsync trong tài liệu này đã neo `/`.
+
+**Khi tách sang VPS riêng:** cài theo `zalo-service/README.md`, copy `.env` + `data/` (phiên đăng nhập +
+SQLite) từ greenca-prod sang, dừng service cũ **trước** khi bật service mới (2 phiên cùng một nick →
+Zalo đá nhau, socket đóng liên tục), rồi gỡ unit + user `zalobot` + `/opt/node22` trên greenca-prod.
+Laravel không phải đổi gì (service gọi ra `https://greenca.vn`).
+
 ### Giai đoạn 1 — thu tin thô
 
-Service Node chạy trên **VPS riêng** (không chạy trên server production), hướng dẫn cài ở
+Service Node hiện **chạy chung máy greenca-prod** (45.124.95.47, từ 2026-10-11 — sẽ tách sang VPS
+riêng sau, xem mục "Hiện trạng: service chạy chung greenca-prod" ở trên). Hướng dẫn cài chung ở
 `zalo-service/README.md`. Tin thô nằm trong SQLite của service — production không nhận tin thô.
 Phía Laravel production chỉ cần:
 
@@ -590,7 +623,7 @@ chown -R www-data:www-data storage bootstrap/cache
   copy bản mới lên `/usr/local/bin/greenca-healthcheck.sh`. Chỉ chạy khi `ZALO_SERVICE_ENABLED=true`.
 - Tắt khẩn cấp phía Laravel: `ZALO_SERVICE_ENABLED=false` + `php artisan config:cache` → endpoint trả 503
   (service vẫn nghe và lưu tin bình thường, chỉ heartbeat bị từ chối).
-- Số liệu chốt chi phí AI: chạy `npm run stats -- --hours=72` **trên VPS service** (xem README).
+- Số liệu chốt chi phí AI: chạy `npm run stats -- --hours=72` **trên máy chạy service** (xem README).
 
 ### Giai đoạn 2 — tách cuốc, AI, mã QR, đồng bộ sang Laravel
 
@@ -616,7 +649,7 @@ chown -R www-data:www-data storage bootstrap/cache
   chạy nhờ cron scheduler `/etc/cron.d/greenca-scheduler` đã có sẵn (mục "Queue worker + scheduler"),
   **không cần thêm cron**. Kiểm: `php artisan schedule:list | grep zalo:prune-rides`.
 
-**Service (VPS riêng, `/opt/greenca-zalo-service`)** — biến đầy đủ kèm mặc định trong
+**Service (`/opt/greenca-zalo-service` trên greenca-prod)** — biến đầy đủ kèm mặc định trong
 `zalo-service/.env.example`, giải thích ở `zalo-service/README.md` mục "Giai đoạn 2":
 
 ```bash
@@ -634,7 +667,8 @@ AI_DAILY_BUDGET_USD=5                              # trần dự phòng khi chư
 # Còn lại (AI_BATCH_SIZE, RIDES_FLUSH_MS, QR_INTERVAL_MS, QR_REFRESH_DAYS, …) để mặc định
 
 # Cập nhật mã nguồn bằng rsync như mục "Giai đoạn 4" bên dưới (thư mục VPS không phải git checkout), rồi:
-sudo npm ci && sudo npm run build && sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
+export PATH=/opt/node22/bin:$PATH
+sudo env PATH=$PATH npm ci && sudo env PATH=$PATH npm run build && sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
 sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v3 khi khởi động
 ```
 
@@ -664,17 +698,18 @@ Laravel phải nhận được các trường mới (`member_count`, `accounts`,
    php artisan migrate --force
    # 2026_10_10_000001_add_scan_fields_to_zalo_groups: thêm member_count, accounts, left_at vào zalo_groups
    ```
-2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn rồi build lại:
+2. **Service Zalo (`/opt/greenca-zalo-service` trên greenca-prod)** — cập nhật mã nguồn rồi build lại:
    Thư mục trên VPS **không phải git checkout** (lúc cài là copy mã nguồn) — cập nhật cũng bằng copy.
    Từ thư mục gốc repo ở máy local (KHÔNG đè `.env`, `data/` chứa phiên đăng nhập + SQLite):
    ```bash
-   rsync -az --delete --exclude node_modules --exclude dist --exclude data --exclude .env \
+   rsync -az --delete --exclude /node_modules --exclude /dist --exclude /data --exclude /.env \
      zalo-service/ <vps>:/opt/greenca-zalo-service/
    ```
    Trên VPS:
    ```bash
    cd /opt/greenca-zalo-service
-   sudo npm ci && sudo npm run build
+   export PATH=/opt/node22/bin:$PATH                 # Node không nằm trong PATH mặc định
+   sudo env PATH=$PATH npm ci && sudo env PATH=$PATH npm run build
    sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
    sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v4 khi khởi động
    ```
@@ -694,7 +729,7 @@ Laravel phải nhận được các trường mới (`member_count`, `accounts`,
 - **App admin**: không phải build/rsync riêng — bundle `dist-admin` đã nằm trong lệnh build 3-app
   ở mục "Frontend (build local, rsync lên)" bên dưới; chỉ cần đi qua bước đó như mọi lần deploy để
   trang "Cuốc Free" (`/free-rides`) có mặt trên `admin.greenca.vn`.
-- **Service (VPS riêng)**: để `ALLOWED_GROUP_IDS` **rỗng** — service nghe mọi nhóm nick phụ đang ở,
+- **Service**: để `ALLOWED_GROUP_IDS` **rỗng** — service nghe mọi nhóm nick phụ đang ở,
   việc bật/tắt từng nhóm chuyển hẳn sang trang admin (tab "Nhóm Zalo"), không còn sửa `.env` + restart
   mỗi khi cần thêm/bớt nhóm.
   ```bash
@@ -742,7 +777,7 @@ chạy lên và lượt hỏi đầu tiên của nó bắt được.
    nội bộ mới `/internal/zalo/account-requests*` nằm trong cùng middleware `zalo.bot` như các endpoint
    khác) và hạ tầng Web Push đã có sẵn từ trước Cuốc Free (VAPID, `ShouldQueue` notification) —
    `FreeRideMatchNotification` chỉ là một notification WebPush nữa, không cần cấu hình thêm.
-2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn như mục "Giai đoạn 4"
+2. **Service Zalo (`/opt/greenca-zalo-service` trên greenca-prod)** — cập nhật mã nguồn như mục "Giai đoạn 4"
    ở trên (rsync, không đè `.env`/`data/`).
 
    **⚠️ Bẫy nâng cấp từ giai đoạn 2/4:** `.env` cũ trên VPS (rsync giữ nguyên) có thể còn
@@ -766,7 +801,8 @@ chạy lên và lượt hỏi đầu tiên của nó bắt được.
    Có thể xoá `ANTHROPIC_API_KEY` cũ luôn nếu không định quay lại Claude (`AI_PROVIDER=anthropic`).
    ```bash
    cd /opt/greenca-zalo-service
-   sudo npm ci && sudo npm run build
+   export PATH=/opt/node22/bin:$PATH                 # Node không nằm trong PATH mặc định
+   sudo env PATH=$PATH npm ci && sudo env PATH=$PATH npm run build
    sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
    sudo systemctl restart greenca-zalo-service
    ```
@@ -824,7 +860,7 @@ Chạy tay để xem số dòng bị xoá: `php artisan zalo:prune-data`.
 service (10 phút) sẽ tạo lại nhóm đó ở Laravel với `left_at` mới và nó nằm thêm một chu kỳ nữa.
 
 **Xoay vòng log** — systemd ghi thẳng vào `/var/log/greenca-zalo-service.log` (`StandardOutput=append:`),
-không có gì tự cắt. Cài một lần trên VPS service:
+không có gì tự cắt. Cài một lần trên máy chạy service:
 ```bash
 cd /opt/greenca-zalo-service
 sudo cp deploy/logrotate-greenca-zalo-service /etc/logrotate.d/greenca-zalo-service
@@ -835,6 +871,13 @@ restart service.
 
 ## Lịch sử production
 
+- 2026-10-11: **Cuốc Free lên production.** Deploy PR #13 (`eb6dfda`, 10 migration Cuốc Free) + cài
+  zalo-service chung máy (mục "Hiện trạng: service chạy chung greenca-prod"). Lúc kiểm tra phát hiện
+  lỗi do PR #18 (đổi `app.timezone` sang `Asia/Ho_Chi_Minh`): `Carbon::createFromTimestampMs()` mặc
+  định trả UTC, Eloquent ghi chuỗi giờ không đổi múi → mọi mốc ms từ service lưu lùi 7 tiếng, cuốc vừa
+  vào đã hết hạn. Sửa ở PR #20 (`781aa93`) trước khi có cuốc nào trên prod (0 dòng phải sửa data).
+  Cùng đợt: PR #19 gom bottom nav tài xế (Cuốc xe · Free · Ví điểm · Thông báo · Thêm), rsync `dist-driver`.
+  **Bài học:** sau khi app chạy giờ VN, mọi `createFromTimestamp*()` phải truyền `config('app.timezone')`.
 - 2026-09-23: **Sự cố push tài xế 6 tuần.** Tài xế báo không nhận noti cuốc mới; nghi
   subscription hết hạn nhưng số liệu bác bỏ: 21 token cũ vẫn nhận push tới sáng 23/09,
   còn 220 tài xế active tạo sau 11/08 có **0 token**. Nguyên nhân: bundle deploy 13/08 và

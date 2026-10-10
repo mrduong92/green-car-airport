@@ -37,6 +37,10 @@ npm run login -- acc2        # tài khoản phụ số 2 ...
 
 ## Cài lên VPS (Ubuntu, Node 22 LTS)
 
+> Production hiện chạy chung máy greenca-prod với Node ở `/opt/node22` (không qua apt) — xem
+> `docs/DEPLOY.md` mục "Hiện trạng: service chạy chung greenca-prod". Khi đó sửa `ExecStart` trong unit
+> thành `/opt/node22/bin/node` và chạy `npm` với `PATH=/opt/node22/bin:$PATH`.
+
 ```bash
 sudo useradd --system --home /opt/greenca-zalo-service --shell /usr/sbin/nologin zalobot
 sudo mkdir -p /opt/greenca-zalo-service/data/accounts

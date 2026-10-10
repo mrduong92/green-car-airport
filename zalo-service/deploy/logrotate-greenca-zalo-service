@@ -9,4 +9,6 @@
     missingok
     notifempty
     copytruncate
+    # Ubuntu: /var/log thuộc nhóm syslog (ghi được) → logrotate bỏ qua nếu thiếu dòng su.
+    su root syslog
 }
