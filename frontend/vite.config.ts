@@ -12,6 +12,7 @@ const APPS = {
     entry: '/src/main.tsx',
     port: 5173,
     outDir: 'dist',
+    nativeOutDir: 'dist-native',
     title: BRAND.name,
     name: BRAND.name,
     shortName: BRAND.name,
@@ -23,6 +24,7 @@ const APPS = {
     entry: '/src/main.driver.tsx',
     port: 5174,
     outDir: 'dist-driver',
+    nativeOutDir: 'dist-driver-native',
     title: `${BRAND.name} Tài Xế`,
     name: `${BRAND.name} Tài Xế`,
     shortName: `${BRAND.name} Tài Xế`,
@@ -34,6 +36,7 @@ const APPS = {
     entry: '/src/main.admin.tsx',
     port: 5175,
     outDir: 'dist-admin',
+    nativeOutDir: null,
     title: `${BRAND.name} Admin`,
     name: `${BRAND.name} Admin`,
     shortName: `${BRAND.name} Admin`,
@@ -79,9 +82,14 @@ function appEntryPlugin(target: AppTarget): Plugin {
 // - VITE_REVERB_APP_KEY trống → Reverb từ chối kết nối, mất realtime.
 const REQUIRED_DEPLOY_ENV = ['VITE_VAPID_PUBLIC_KEY', 'VITE_REVERB_APP_KEY'] as const
 
-function assertDeployEnv(mode: string) {
+// App native không dùng Web Push (FCM thay thế) nên KHÔNG bắt VAPID. Bù lại bắt
+// API_BASE: thiếu là mọi request trỏ vào chính vỏ app và chết; và
+// VITE_DRIVER_APP_URL: link giới thiệu của tài xế lấy từ đây (xem webOrigin.ts).
+const REQUIRED_NATIVE_ENV = ['VITE_API_BASE_URL', 'VITE_REVERB_APP_KEY', 'VITE_DRIVER_APP_URL'] as const
+
+function assertEnv(mode: string, required: readonly string[]) {
   const env = loadEnv(mode, __dirname)
-  const missing = REQUIRED_DEPLOY_ENV.filter((key) => !env[key])
+  const missing = required.filter((key) => !env[key])
   if (missing.length === 0) return
   throw new Error(
     `[build --mode ${mode}] thiếu biến env bắt buộc: ${missing.join(', ')}. ` +
@@ -91,18 +99,24 @@ function assertDeployEnv(mode: string) {
 
 export function createAppConfig(target: AppTarget) {
   return ({ command, mode }: ConfigEnv): UserConfig => {
-    if (command === 'build' && (mode === 'production' || mode === 'staging')) assertDeployEnv(mode)
-    return buildAppConfig(target)
+    const isNative = mode === 'native'
+    if (command === 'build' && (mode === 'production' || mode === 'staging')) assertEnv(mode, REQUIRED_DEPLOY_ENV)
+    if (command === 'build' && isNative) assertEnv(mode, REQUIRED_NATIVE_ENV)
+    return buildAppConfig(target, isNative)
   }
 }
 
-function buildAppConfig(target: AppTarget): UserConfig {
+function buildAppConfig(target: AppTarget, isNative = false): UserConfig {
   const app = APPS[target]
+  if (isNative && !app.nativeOutDir) throw new Error(`[native] app ${target} không có bản native`)
   return {
     plugins: [
       appEntryPlugin(target),
       react(),
       VitePWA({
+        // App native: không service worker. SW trong WebView vẫn nhận Web Push song
+        // song với FCM → thông báo hiện HAI lần; và precache làm bundle cũ bám dai.
+        disable: isNative,
         registerType: 'autoUpdate',
         strategies: 'injectManifest',
         srcDir: 'src',
@@ -137,7 +151,7 @@ function buildAppConfig(target: AppTarget): UserConfig {
     resolve: {
       alias: { '@': path.resolve(__dirname, 'src') },
     },
-    build: { outDir: app.outDir },
+    build: { outDir: isNative ? app.nativeOutDir! : app.outDir },
     server: {
       host: true,
       port: app.port,

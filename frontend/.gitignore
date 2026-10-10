@@ -24,3 +24,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+dist-native
+dist-driver-native
+.env.native
