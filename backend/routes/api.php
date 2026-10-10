@@ -192,6 +192,9 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/senders', 'senders');
                 Route::post('/senders/{senderUid}/block', 'block')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
                 Route::delete('/senders/{senderUid}/block', 'unblock')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
+                // Chặn/bỏ chặn theo hồ sơ (mã QR) — áp lên mọi uid của cùng người.
+                Route::post('/senders/qr/{qrCode}/block', 'blockProfile')->where('qrCode', '[A-Za-z0-9]{1,32}');
+                Route::delete('/senders/qr/{qrCode}/block', 'unblockProfile')->where('qrCode', '[A-Za-z0-9]{1,32}');
                 Route::get('/status', 'status');
             });
 

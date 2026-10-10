@@ -46,8 +46,10 @@ class FreeRideAdminTest extends TestCase
         static $n = 0;
         $n++;
 
+        // Mã QR mặc định theo sender_uid: mỗi uid là một hồ sơ riêng, trừ khi test truyền qr_code
+        // dùng chung để mô phỏng một người có nhiều uid (mỗi nick phụ thấy một uid khác).
         return FreeRide::create(array_merge([
-            'ride_uid' => "s-$n", 'sender_uid' => 'A1', 'sender_name' => 'Người A', 'qr_code' => 'code'.$n,
+            'ride_uid' => "s-$n", 'sender_uid' => 'A1', 'sender_name' => 'Người A', 'qr_code' => 'QR'.($overrides['sender_uid'] ?? 'A1'),
             'zalo_group_id' => 'g1', 'group_name' => 'Nhóm Một', 'direction' => 'to_airport',
             'pickup' => "điểm $n", 'destination' => 'Sân bay', 'pickup_at' => now()->addHour(),
             'pickup_time_text' => '9h', 'seats' => 4, 'price' => 100000, 'is_free' => false, 'is_raw' => false,
@@ -168,6 +170,10 @@ class FreeRideAdminTest extends TestCase
         $blockedOnly = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders?blocked=1')->assertOk();
         $this->assertSame(['B1'], array_column($blockedOnly->json('data'), 'sender_uid'));
         $this->assertTrue($blockedOnly->json('data.0.blocked'));
+        // Chặn kiểu cũ theo uid, không còn cuốc nào → không suy ra được hồ sơ (qr_code null).
+        $this->assertNull($blockedOnly->json('data.0.qr_code'));
+        $this->assertNull($blockedOnly->json('data.0.contact_url'));
+        $this->assertSame(['B1'], $blockedOnly->json('data.0.sender_uids'));
     }
 
     public function test_block_and_unblock_sender(): void
@@ -352,5 +358,139 @@ class FreeRideAdminTest extends TestCase
             $this->assertSame(3, $rows['A1']['active_rides'], "q=$name không được đếm thiếu active_rides");
             $this->assertSame(3, $rows['A1']['rides_7d'], "q=$name không được đếm thiếu rides_7d");
         }
+    }
+
+    // ---- Gộp người bắn theo hồ sơ (qr_code) ----
+
+    // Hai uid khác nhau (do hai nick phụ thấy) cùng một mã QR → một hàng duy nhất, cộng dồn số liệu.
+    private function seedTwoUidProfile(): void
+    {
+        $r1 = $this->ride(['sender_uid' => 'U1', 'qr_code' => 'QRX', 'sender_name' => 'Tên Cũ', 'group_name' => 'Nhóm A',
+            'zalo_group_id' => 'ga', 'posted_at' => now()->subHours(2), 'expires_at' => now()->addHour()]);
+        $r2 = $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX', 'sender_name' => 'Tên Mới', 'group_name' => 'Nhóm B',
+            'zalo_group_id' => 'gb', 'posted_at' => now()->subHour(), 'expires_at' => now()->addHours(2)]);
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX', 'sender_name' => 'Tên Mới', 'group_name' => 'Nhóm A',
+            'zalo_group_id' => 'ga', 'posted_at' => now()->subDays(3), 'expires_at' => now()->subDays(2)]);
+        $this->ride(['sender_uid' => 'Z9', 'qr_code' => 'QRZ', 'sender_name' => 'Người Khác', 'group_name' => 'Nhóm C']);
+
+        $driver = $this->driver();
+        FreeRideReport::create(['free_ride_uid' => $r1->ride_uid, 'sender_uid' => 'U1', 'driver_id' => $driver->id, 'reason' => 'spam']);
+        FreeRideReport::create(['free_ride_uid' => $r2->ride_uid, 'sender_uid' => 'U2', 'driver_id' => $driver->id, 'reason' => 'spam']);
+    }
+
+    public function test_senders_are_grouped_by_qr_code_across_uids(): void
+    {
+        $this->seedTwoUidProfile();
+
+        $res = $this->actingAs($this->admin(), 'sanctum')->getJson('/api/admin/free-rides/senders')->assertOk();
+
+        $this->assertSame(2, $res->json('meta.total'));
+        $rows = collect($res->json('data'))->keyBy('qr_code');
+        $x = $rows['QRX'];
+        $this->assertSame('Tên Mới', $x['sender_name']);
+        $this->assertSame('zalo://qr/p/QRX', $x['contact_url']);
+        $this->assertSame(['U1', 'U2'], $x['sender_uids']);
+        $this->assertSame(['Nhóm B', 'Nhóm A'], $x['groups']);
+        $this->assertSame(2, $x['groups_count']);
+        $this->assertSame(2, $x['active_rides']);
+        $this->assertSame(3, $x['rides_7d']);
+        $this->assertSame(2, $x['reports']);
+        $this->assertFalse($x['blocked']);
+        $this->assertSame(['Nhóm C'], $rows['QRZ']['groups']);
+    }
+
+    public function test_senders_search_matches_name_group_uid_and_qr(): void
+    {
+        $this->seedTwoUidProfile();
+        $admin = $this->admin();
+
+        foreach (['Tên Cũ', 'Nhóm B', 'U1', 'QRX'] as $q) {
+            $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders?q='.urlencode($q))->assertOk();
+            $this->assertSame(['QRX'], array_column($res->json('data'), 'qr_code'), "q=$q");
+            $this->assertSame(3, $res->json('data.0.rides_7d'), "q=$q không được đếm thiếu");
+        }
+    }
+
+    public function test_block_by_qr_code_hides_every_uid_of_the_profile(): void
+    {
+        $this->seedTwoUidProfile();
+        $admin = $this->admin();
+        $driver = $this->driver();
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/admin/free-rides/senders/qr/QRX/block', ['reason' => 'spam'])
+            ->assertOk()->assertJson(['blocked' => true]);
+        $this->assertDatabaseHas('zalo_sender_blocks', ['qr_code' => 'QRX', 'reason' => 'spam', 'blocked_by' => $admin->id]);
+        // Idempotent.
+        $this->actingAs($admin, 'sanctum')->postJson('/api/admin/free-rides/senders/qr/QRX/block')->assertOk();
+        $this->assertDatabaseCount('zalo_sender_blocks', 1);
+
+        $visible = array_column($this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'sender_uid');
+        $this->assertSame(['Z9'], $visible);
+
+        $rows = collect($this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders')->json('data'))->keyBy('qr_code');
+        $this->assertTrue($rows['QRX']['blocked']);
+        $this->assertFalse($rows['QRZ']['blocked']);
+
+        $blocked = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders?blocked=1')->assertOk();
+        $this->assertSame(['QRX'], array_column($blocked->json('data'), 'qr_code'));
+        $this->assertSame(['U1', 'U2'], $blocked->json('data.0.sender_uids'));
+        $this->assertSame(2, $blocked->json('data.0.reports'));
+
+        $this->actingAs($admin, 'sanctum')->deleteJson('/api/admin/free-rides/senders/qr/QRX/block')
+            ->assertOk()->assertJson(['blocked' => false]);
+        $this->assertDatabaseCount('zalo_sender_blocks', 0);
+        $this->assertCount(3, $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'));
+    }
+
+    public function test_unblock_by_qr_code_also_clears_legacy_uid_blocks_of_the_profile(): void
+    {
+        $this->seedTwoUidProfile();
+        ZaloSenderBlock::create(['sender_uid' => 'U1']);
+        $admin = $this->admin();
+
+        $rows = collect($this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders')->json('data'))->keyBy('qr_code');
+        $this->assertTrue($rows['QRX']['blocked'], 'chặn kiểu cũ theo uid vẫn tính là hồ sơ bị chặn');
+
+        $this->actingAs($admin, 'sanctum')->deleteJson('/api/admin/free-rides/senders/qr/QRX/block')->assertOk();
+        $this->assertDatabaseCount('zalo_sender_blocks', 0);
+    }
+
+    public function test_legacy_uid_endpoint_blocks_the_whole_profile_when_rides_exist(): void
+    {
+        $this->seedTwoUidProfile();
+        $admin = $this->admin();
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/admin/free-rides/senders/U1/block')->assertOk();
+        $this->assertDatabaseHas('zalo_sender_blocks', ['qr_code' => 'QRX']);
+        $visible = array_column($this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'sender_uid');
+        $this->assertSame(['Z9'], $visible);
+
+        $this->actingAs($admin, 'sanctum')->deleteJson('/api/admin/free-rides/senders/U2/block')->assertOk();
+        $this->assertDatabaseCount('zalo_sender_blocks', 0);
+    }
+
+    public function test_qr_block_route_rejects_bad_codes(): void
+    {
+        $admin = $this->admin();
+        $this->actingAs($admin, 'sanctum')->postJson('/api/admin/free-rides/senders/qr/'.str_repeat('a', 33).'/block')->assertNotFound();
+        $this->actingAs($admin, 'sanctum')->postJson('/api/admin/free-rides/senders/qr/ab-c/block')->assertNotFound();
+    }
+
+    public function test_senders_pagination_counts_profiles_not_uids(): void
+    {
+        for ($i = 1; $i <= 51; $i++) {
+            // Mỗi hồ sơ có 2 uid — phân trang phải đếm 51 hồ sơ, không phải 102 uid.
+            $this->ride(['sender_uid' => "a$i", 'qr_code' => sprintf('Q%03d', $i)]);
+            $this->ride(['sender_uid' => "b$i", 'qr_code' => sprintf('Q%03d', $i)]);
+        }
+        $admin = $this->admin();
+
+        $p1 = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders')->assertOk();
+        $this->assertSame(51, $p1->json('meta.total'));
+        $this->assertSame(2, $p1->json('meta.last_page'));
+        $p2 = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders?page=2')->assertOk();
+        $codes = array_merge(array_column($p1->json('data'), 'qr_code'), array_column($p2->json('data'), 'qr_code'));
+        $this->assertCount(51, array_unique($codes));
+        $this->assertSame('Q001', $codes[0], 'cùng số liệu thì xếp theo qr_code để thứ tự ổn định');
     }
 }
