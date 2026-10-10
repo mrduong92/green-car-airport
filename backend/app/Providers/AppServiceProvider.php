@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Listeners\RestrictNotificationsToTestPhone;
 use App\Services\AbenlaZnsService;
+use App\Services\Fcm\FcmSender;
+use App\Services\Fcm\KreaitFcmSender;
+use App\Services\Fcm\NullFcmSender;
 use App\Services\SouthTelecomZnsService;
 use App\Services\ZaloZnsService;
 use App\Services\Zns\ZnsSender;
@@ -24,6 +27,18 @@ class AppServiceProvider extends ServiceProvider
                 'abenla' => $app->make(AbenlaZnsService::class),
                 default => $app->make(SouthTelecomZnsService::class),
             };
+        });
+
+        $this->app->singleton(FcmSender::class, function () {
+            $credentials = config('services.firebase.credentials');
+
+            if (blank($credentials)) {
+                return new NullFcmSender();
+            }
+
+            return new KreaitFcmSender(
+                (new \Kreait\Firebase\Factory())->withServiceAccount($credentials)->createMessaging()
+            );
         });
     }
 

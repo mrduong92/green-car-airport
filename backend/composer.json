@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.3",
         "ezyang/htmlpurifier": "^4.19",
+        "kreait/firebase-php": "^8.6",
         "laravel/framework": "^13.8",
         "laravel/reverb": "^1.11",
         "laravel/sanctum": "^4.3",
