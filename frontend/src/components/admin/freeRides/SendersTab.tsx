@@ -32,7 +32,7 @@ export default function SendersTab() {
   } = useInfiniteQuery({
     queryKey: [...QUERY_ROOT, q, blockedOnly],
     queryFn: ({ pageParam }) =>
-      getFreeRideSenders({ q: q || undefined, blocked: blockedOnly || undefined, page: pageParam }).then((r) => r.data),
+      getFreeRideSenders({ q: q || undefined, blocked: blockedOnly ? 1 : undefined, page: pageParam }).then((r) => r.data),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.meta.current_page < last.meta.last_page ? last.meta.current_page + 1 : undefined),
   })
@@ -76,6 +76,7 @@ export default function SendersTab() {
         <label className="flex items-center justify-between gap-3">
           <span className="text-sm text-navy font-medium">Chỉ người đang bị chặn</span>
           <button
+            data-testid="admin-senders-blocked-only"
             onClick={() => setBlockedOnly((v) => !v)}
             role="switch"
             aria-checked={blockedOnly}

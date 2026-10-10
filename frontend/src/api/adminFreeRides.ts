@@ -7,7 +7,10 @@ export const getZaloGroups = (
 export const setZaloGroupEnabled = (id: string, enabled: boolean) =>
   api.patch<App.AdminZaloGroup>(`/admin/free-rides/groups/${id}`, { enabled })
 
-export const getFreeRideSenders = (params?: { q?: string; blocked?: boolean; page?: number }) =>
+// `blocked` đi query string nên phải là 1/0, không phải true/false — axios serialize boolean
+// query param thành chữ "true"/"false", và Laravel rule `boolean` chỉ nhận true, false, 0, 1,
+// "0", "1" (không nhận chuỗi "true"/"false"), nên gửi thẳng boolean sẽ luôn bị 422.
+export const getFreeRideSenders = (params?: { q?: string; blocked?: 0 | 1; page?: number }) =>
   api.get<App.AdminPage<App.AdminFreeRideSender>>('/admin/free-rides/senders', { params })
 
 // Chặn theo hồ sơ (mã QR) — áp lên mọi uid của cùng người. Hàng chặn kiểu cũ theo uid (không còn
