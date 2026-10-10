@@ -49,9 +49,11 @@ export class MessageStore {
 
   constructor(db: Db, private readonly opts: StoreOptions) {
     this.exists = db.prepare('SELECT 1 FROM messages WHERE zalo_group_id = ? AND zalo_msg_id = ?')
-    // Chỉ so với tin GỐC (không phải duplicate): đăng lại cùng cuốc mỗi sáng thì mỗi ngày là tin mới,
-    // không bị chuỗi duplicate nối dài cửa sổ 24h mãi mãi.
-    this.seenHash = db.prepare("SELECT 1 FROM messages WHERE content_hash = ? AND sent_at >= ? AND parse_status <> 'duplicate' LIMIT 1")
+    // Chỉ so với tin GỐC còn sống/đang xử lý (pending/ai_pending/ride/raw): đăng lại cùng cuốc mỗi sáng
+    // thì mỗi ngày là tin mới, không bị chuỗi duplicate nối dài cửa sổ 24h mãi mãi. Loại cả skipped_group/
+    // blocked/not_ride/expired/failed — tin gốc rơi vào các trạng thái đó không được xử lý/hiển thị, nên
+    // một bản đăng lại ở nhóm/người khác phải được coi là cuốc mới, không bị nuốt làm duplicate và mất luôn.
+    this.seenHash = db.prepare("SELECT 1 FROM messages WHERE content_hash = ? AND sent_at >= ? AND parse_status IN ('pending', 'ai_pending', 'ride', 'raw') LIMIT 1")
     this.insert = db.prepare(`
       INSERT INTO messages (zalo_group_id, zalo_msg_id, sender_uid, account_id, content, content_hash, sent_at, received_at, parse_status)
       VALUES (@groupId, @msgId, @senderUid, @accountId, @content, @hash, @sentAt, @receivedAt, @status)`)

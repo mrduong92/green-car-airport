@@ -88,3 +88,39 @@ test('daily repost of the same ride is new each day, not chained off earlier dup
   assert.equal(store.save(item({ content: 'tiễn 5h Tràng An 200k', sent_at: T0 + 20 * HOUR }), 'acc1'), 'duplicate')
   assert.equal(store.save(item({ content: 'tiễn 5h Tràng An 200k', sent_at: T0 + 40 * HOUR }), 'acc1'), 'stored')
 })
+
+test('posted first in a disabled group then in an enabled group: second is a fresh ride, not duplicate', () => {
+  const { store } = setup()
+  const first = item({ content: 'tiễn 5h Tràng An 200k', group_id: 'disabled-group' })
+  store.save(first, 'acc1')
+  const firstId = store.findId(first.group_id, first.msg_id)!
+  store.setStatus(firstId, 'skipped_group')
+  assert.equal(
+    store.save(item({ content: 'tiễn 5h Tràng An 200k', group_id: 'enabled-group', sent_at: T0 + HOUR }), 'acc1'),
+    'stored',
+  )
+})
+
+test('posted first to a blocked sender then normally: second is a fresh ride, not duplicate', () => {
+  const { store } = setup()
+  const first = item({ content: 'tiễn 5h Tràng An 200k' })
+  store.save(first, 'acc1')
+  const firstId = store.findId(first.group_id, first.msg_id)!
+  store.setStatus(firstId, 'blocked')
+  assert.equal(
+    store.save(item({ content: 'tiễn 5h Tràng An 200k', sent_at: T0 + HOUR }), 'acc1'),
+    'stored',
+  )
+})
+
+test('repost while the original is a live ride is still a duplicate', () => {
+  const { store } = setup()
+  const first = item({ content: 'tiễn 5h Tràng An 200k' })
+  store.save(first, 'acc1')
+  const firstId = store.findId(first.group_id, first.msg_id)!
+  store.setStatus(firstId, 'ride')
+  assert.equal(
+    store.save(item({ content: 'tiễn 5h Tràng An 200k', sent_at: T0 + HOUR }), 'acc1'),
+    'duplicate',
+  )
+})
