@@ -85,12 +85,23 @@ class FreeRide extends Model
     }
 
     /**
+     * Loại bản trùng (duplicate_of_id) khi cuốc gốc còn "sống" (còn hạn, nhóm chưa bị admin tắt) —
+     * cuốc gốc hết hạn / bị xoá / nhóm bị tắt thì bản trùng hiện lại, không để cuốc biến mất. Dùng
+     * chung bởi scopeVisibleTo (tab Free theo driver) VÀ FreeRideAdminController::status (active_rides
+     * toàn hệ thống, không theo driver nào) để hai con số nhất quán với nhau.
+     */
+    public function scopeExcludingLiveDuplicates(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $w) => $w->whereNull('duplicate_of_id')
+            ->orWhereNotIn('duplicate_of_id', self::query()->where('expires_at', '>', now())
+                ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
+                ->select('id')));
+    }
+
+    /**
      * Điều kiện hiển thị dùng chung cho tab Free (FreeRideController::index) VÀ job cảnh báo đẩy
      * (NotifyFreeRideAlerts): còn hạn, không bị chặn/ẩn người bắn (theo qr_code hoặc sender_uid), nhóm chưa bị admin tắt, cùng các
      * bộ lọc tuỳ chọn direction/seats/q (q khớp LIKE trên pickup/destination/raw_text) và window.
-     *
-     * Bản trùng (duplicate_of_id) bị ẩn khi cuốc gốc còn hiển thị được (còn hạn, nhóm chưa tắt);
-     * cuốc gốc hết hạn / bị xoá / nhóm bị tắt thì bản trùng hiện lại — không để cuốc biến mất.
      */
     public function scopeVisibleTo(Builder $query, int $driverId, array $data = []): Builder
     {
@@ -105,10 +116,7 @@ class FreeRide extends Model
             ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
             ->whereNotIn('qr_code', (clone $hidden)->whereNotNull('qr_code')->select('qr_code'))
             ->whereNotIn('sender_uid', (clone $hidden)->whereNotNull('sender_uid')->select('sender_uid'))
-            ->where(fn (Builder $w) => $w->whereNull('duplicate_of_id')
-                ->orWhereNotIn('duplicate_of_id', self::query()->where('expires_at', '>', now())
-                    ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
-                    ->select('id')))
+            ->excludingLiveDuplicates()
             ->when($data['direction'] ?? null, fn (Builder $q, string $d) => $q->where('direction', $d))
             ->when($data['seats'] ?? null, fn (Builder $q, $s) => $q->where('seats', (int) $s));
 

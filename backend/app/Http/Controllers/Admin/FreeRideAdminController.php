@@ -166,7 +166,9 @@ class FreeRideAdminController extends Controller
     {
         return response()->json([
             'services' => $monitor->snapshot(),
-            'active_rides' => FreeRide::where('expires_at', '>', now())->count(),
+            // excludingLiveDuplicates(): bản trùng (duplicate_of_id) của một cuốc gốc còn sống không
+            // được đếm thêm — khớp ngữ nghĩa "hiển thị" của scopeVisibleTo (xem FreeRide::scopeExcludingLiveDuplicates).
+            'active_rides' => FreeRide::where('expires_at', '>', now())->excludingLiveDuplicates()->count(),
             'groups_enabled' => ZaloGroup::whereNull('left_at')->where('enabled', true)->count(),
             // Chỉ đếm nhóm chưa rời — nhóm đã rời không còn được service theo dõi.
             'groups_total' => ZaloGroup::whereNull('left_at')->count(),

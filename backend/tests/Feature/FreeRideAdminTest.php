@@ -265,6 +265,22 @@ class FreeRideAdminTest extends TestCase
         $this->assertSame(2, $res->json('groups_total'));
     }
 
+    // active_rides phải khớp ngữ nghĩa "hiển thị" của scopeVisibleTo: bản trùng (duplicate_of_id) của
+    // một cuốc gốc còn sống (còn hạn, nhóm chưa tắt) không được đếm thêm — nếu không, con số này phóng
+    // đại số cuốc thật sự đang có trên tab Free.
+    public function test_status_active_rides_excludes_merged_duplicates_of_a_still_live_canonical(): void
+    {
+        $admin = $this->admin();
+        ZaloGroup::create(['zalo_group_id' => 'g1', 'name' => 'G1', 'enabled' => true]);
+
+        $canonical = $this->ride(['ride_uid' => 'r-canon', 'expires_at' => now()->addHour()]);
+        $this->ride(['ride_uid' => 'r-dup', 'duplicate_of_id' => $canonical->id, 'expires_at' => now()->addHour()]);
+
+        $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/status')->assertOk();
+
+        $this->assertSame(1, $res->json('active_rides'));
+    }
+
     // Validation accounts.*.logged_in/last_error + Node gửi đủ 2 trường này qua HTTP thật (HMAC ký
     // giống service) — không chỉ gọi thẳng ZaloServiceMonitor::recordHeartbeat() như test trên.
     public function test_heartbeat_http_endpoint_carries_login_state_and_last_error_to_status(): void
