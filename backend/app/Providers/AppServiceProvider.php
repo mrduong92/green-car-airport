@@ -36,9 +36,7 @@ class AppServiceProvider extends ServiceProvider
                 return new NullFcmSender();
             }
 
-            return new KreaitFcmSender(
-                (new \Kreait\Firebase\Factory())->withServiceAccount($credentials)->createMessaging()
-            );
+            return new KreaitFcmSender($credentials);
         });
     }
 
