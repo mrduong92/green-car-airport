@@ -20,7 +20,9 @@ test('tài xế lưu cảnh báo cuốc phù hợp theo bộ lọc đang chọn,
   await expect(page).toHaveURL(/\/driver\/free/)
 
   // Chọn bộ lọc trên tab Free trước — sheet phải dùng đúng các giá trị này làm tiêu chí lưu.
+  // Số chỗ nằm sau toggle "Lọc thêm" (giai đoạn 4 gộp bớt chip hiện mặc định).
   await page.getByRole('button', { name: 'Tiễn sân bay' }).click()
+  await page.getByTestId('free-filters-more-toggle').click()
   await page.getByRole('button', { name: '4 chỗ' }).click()
   const search = page.getByPlaceholder('Tìm địa điểm (vd: Hà Đông, T2...)')
   await search.fill(keyword)

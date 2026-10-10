@@ -26,6 +26,11 @@ const chip = (active: boolean) =>
 
 export default function FreeRideFilters({ value, onChange }: Props) {
   const [q, setQ] = useState(value.q ?? '')
+  // "Lọc thêm" (hiện tại chỉ có Số chỗ) ẩn mặc định để hàng chip chính (chiều/khung giờ) không bị
+  // chật — nhưng tự mở sẵn nếu đã có bộ lọc số chỗ từ trước (khôi phục từ localStorage) để tài xế
+  // thấy ngay vì sao danh sách đang bị lọc, thay vì phải đoán ra có bộ lọc ẩn.
+  const [showMore, setShowMore] = useState(() => value.seats != null)
+  const extraFilterCount = value.seats != null ? 1 : 0
 
   // Gõ tìm kiếm: chờ 400ms mới lọc để không gọi API mỗi phím.
   useEffect(() => {
@@ -50,10 +55,35 @@ export default function FreeRideFilters({ value, onChange }: Props) {
         {WINDOWS.map((w) => (
           <button key={w.label} type="button" className={chip(value.window === w.value)} onClick={() => onChange({ ...value, window: w.value })}>{w.label}</button>
         ))}
-        {SEATS.map((s) => (
-          <button key={s} type="button" className={chip(value.seats === s)} onClick={() => onChange({ ...value, seats: value.seats === s ? undefined : s })}>{s} chỗ</button>
-        ))}
+        <button
+          type="button"
+          data-testid="free-filters-more-toggle"
+          aria-expanded={showMore}
+          onClick={() => setShowMore((s) => !s)}
+          className={clsx(chip(extraFilterCount > 0), 'shrink-0 flex items-center gap-1')}
+        >
+          Lọc thêm
+          {extraFilterCount > 0 && (
+            <span
+              className={clsx(
+                'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-pill text-[11px] font-semibold leading-none',
+                value.seats != null ? 'bg-white text-primary' : 'bg-primary text-white',
+              )}
+            >
+              {extraFilterCount}
+            </span>
+          )}
+          <span className="material-symbols-outlined text-[16px] leading-none">{showMore ? 'expand_less' : 'expand_more'}</span>
+        </button>
       </div>
+      {showMore && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1" data-testid="free-filters-more">
+          <span className="text-[12px] text-neutral-gray shrink-0">Số chỗ</span>
+          {SEATS.map((s) => (
+            <button key={s} type="button" className={chip(value.seats === s)} onClick={() => onChange({ ...value, seats: value.seats === s ? undefined : s })}>{s} chỗ</button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
