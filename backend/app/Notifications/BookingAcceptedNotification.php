@@ -1,6 +1,6 @@
 <?php
 namespace App\Notifications;
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use App\Models\Booking;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
@@ -11,8 +11,8 @@ class BookingAcceptedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
     public function __construct(private Booking $booking, private User $driver) {}
-    public function via($notifiable): array { return ['database', WebPushChannel::class]; }
-    public function toWebPush($notifiable, $notification): array {
+    public function via($notifiable): array { return ['database', PushChannel::class]; }
+    public function toPush($notifiable, $notification): array {
         return [
             'title' => 'Tìm được tài xế!',
             'body'  => "{$this->driver->name} đang trên đường đến đón bạn",

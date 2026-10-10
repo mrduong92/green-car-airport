@@ -1,6 +1,6 @@
 <?php
 namespace App\Notifications;
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use App\Models\Booking;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -10,8 +10,8 @@ class TripCompletedDriverNotification extends Notification implements ShouldQueu
 {
     use Queueable;
     public function __construct(private Booking $booking) {}
-    public function via($notifiable): array { return ['database', WebPushChannel::class]; }
-    public function toWebPush($notifiable, $notification): array {
+    public function via($notifiable): array { return ['database', PushChannel::class]; }
+    public function toPush($notifiable, $notification): array {
         $appFee     = (int) round($this->booking->price * \App\Models\AppSetting::appFeeRate());
         $netEarning = number_format($this->booking->price - $appFee, 0, ',', '.');
         return [

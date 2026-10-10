@@ -2,7 +2,7 @@
 
 namespace App\Notifications;
 
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use App\Models\Booking;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,7 +15,7 @@ class NewBookingAvailableNotification extends Notification implements ShouldQueu
     public function __construct(private Booking $booking) {}
 
     /**
-     * CHỈ web push, KHÔNG lưu vào bảng notifications.
+     * CHỈ push, KHÔNG lưu vào bảng notifications.
      *
      * Đây là loại thông báo duy nhất bắn cho MỌI tài xế online, nên số dòng nó
      * sinh ra tăng theo (số cuốc × số tài xế online), trong khi mọi loại khác
@@ -28,10 +28,10 @@ class NewBookingAvailableNotification extends Notification implements ShouldQueu
      */
     public function via($notifiable): array
     {
-        return [WebPushChannel::class];
+        return [PushChannel::class];
     }
 
-    public function toWebPush($notifiable, $notification): array
+    public function toPush($notifiable, $notification): array
     {
         $price = number_format($this->booking->price, 0, ',', '.');
 
@@ -39,6 +39,10 @@ class NewBookingAvailableNotification extends Notification implements ShouldQueu
             'title' => 'Có cuốc mới!',
             'body' => "{$this->booking->pickup} → {$this->booking->destination} · {$price}đ · {$this->booking->distance_km}km",
             'data' => ['action' => 'view_trip', 'booking_id' => $this->booking->id],
+            // Âm báo "Green CA" ưu tiên cao. TTL 5 phút: quá hạn mà máy chưa nhận
+            // thì FCM bỏ luôn — cuốc đã cũ, báo trễ chỉ làm tài xế bấm vào cuốc mất.
+            'channel' => 'new_ride',
+            'ttl' => 300,
         ];
     }
 

@@ -4,7 +4,7 @@
 
 namespace Tests\Feature;
 
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use App\Jobs\SendNewBookingBroadcastJob;
 use App\Models\Booking;
 use App\Models\User;
@@ -64,7 +64,7 @@ class NewBookingNotificationChannelsTest extends TestCase
         $kenh = (new NewBookingAvailableNotification($this->makeBooking()))
             ->via($this->makeDriver());
 
-        $this->assertEquals([WebPushChannel::class], $kenh);
+        $this->assertEquals([PushChannel::class], $kenh);
         $this->assertNotContains('database', $kenh, 'ghi vào DB là bảng notifications phình theo số tài xế online');
     }
 
@@ -88,5 +88,22 @@ class NewBookingNotificationChannelsTest extends TestCase
         $customer->notify(new BookingCreatedNotification($this->makeBooking()));
 
         $this->assertDatabaseCount('notifications', 1);
+    }
+
+    public function test_cuoc_moi_dung_kenh_new_ride_ttl_5_phut(): void
+    {
+        $payload = (new NewBookingAvailableNotification($this->makeBooking()))
+            ->toPush($this->makeDriver(), null);
+
+        $this->assertSame('new_ride', $payload['channel']);
+        $this->assertSame(300, $payload['ttl']);
+    }
+
+    public function test_notification_khac_khong_dat_kenh(): void
+    {
+        $payload = (new BookingCreatedNotification($this->makeBooking()))
+            ->toPush(User::factory()->create(['role' => 'customer']), null);
+
+        $this->assertArrayNotHasKey('channel', $payload);
     }
 }

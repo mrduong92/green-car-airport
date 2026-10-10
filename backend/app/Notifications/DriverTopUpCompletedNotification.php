@@ -2,7 +2,7 @@
 
 namespace App\Notifications;
 
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -19,10 +19,10 @@ class DriverTopUpCompletedNotification extends Notification implements ShouldQue
 
     public function via($notifiable): array
     {
-        return ['database', WebPushChannel::class];
+        return ['database', PushChannel::class];
     }
 
-    public function toWebPush($notifiable, $notification): array
+    public function toPush($notifiable, $notification): array
     {
         $amountFmt = number_format($this->amountVnd, 0, ',', '.');
         $via       = $this->gateway ? " qua {$this->gateway}" : '';
