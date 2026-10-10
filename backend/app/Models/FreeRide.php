@@ -52,13 +52,15 @@ class FreeRide extends Model
     }
 
     /**
-     * Cùng người (qr_code) VÀ cùng nội dung: cùng chiều, cùng điểm đón/điểm đến (đã chuẩn hoá),
+     * Cùng người (qr_code) VÀ cùng nội dung: cùng số chỗ, cùng chiều, cùng điểm đón/điểm đến (đã chuẩn hoá),
      * giờ đón lệch ≤ MERGE_WINDOW_MINUTES (cả hai không ghi giờ cũng tính là bằng). Cuốc nguyên văn
      * (is_raw) thì so raw_text đã chuẩn hoá. Người khác nhau thì KHÔNG bao giờ gộp.
      */
     public function sameRideAs(self $other): bool
     {
-        if ($this->qr_code !== $other->qr_code || $this->is_raw !== $other->is_raw) {
+        // Số chỗ phải bằng nhau (cả hai null cũng tính là bằng) — nếu không, bản gốc bị lọc theo
+        // số chỗ sẽ kéo theo mất luôn bản trùng khớp bộ lọc ở tab Free / cảnh báo đẩy.
+        if ($this->qr_code !== $other->qr_code || $this->is_raw !== $other->is_raw || $this->seats !== $other->seats) {
             return false;
         }
         if ($this->is_raw) {

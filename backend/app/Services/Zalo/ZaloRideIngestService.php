@@ -4,6 +4,7 @@ namespace App\Services\Zalo;
 
 use App\Models\FreeRide;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
@@ -108,10 +109,14 @@ class ZaloRideIngestService
             $existingRideUids = FreeRide::whereIn('ride_uid', $rideUids)->pluck('ride_uid')->all();
             $newRideUids = array_values(array_diff($rideUids, $existingRideUids));
 
-            FreeRide::upsert($rows, ['ride_uid'], self::COLUMNS);
+            // Một giao dịch: lỗi khi đánh dấu trùng thì không để lại cuốc đã lưu mà chưa đánh dấu
+            // (service gửi lại sẽ bị coi là cuốc cũ, không bao giờ được xét gộp nữa).
+            DB::transaction(function () use ($rows, $rideUids, $newRideUids, $now) {
+                FreeRide::upsert($rows, ['ride_uid'], self::COLUMNS);
 
-            $this->markDuplicates($newRideUids, $now);
-            $this->touchCanonicalsOf(array_values(array_diff($rideUids, $newRideUids)), $now);
+                $this->markDuplicates($newRideUids, $now);
+                $this->touchCanonicalsOf(array_values(array_diff($rideUids, $newRideUids)), $now);
+            });
         }
 
         return ['stored' => count($rows), 'rejected' => $rejected, 'new_ride_uids' => $newRideUids];
@@ -137,6 +142,10 @@ class ZaloRideIngestService
             ->whereNull('duplicate_of_id')
             ->where('expires_at', '>', $now)
             ->orderBy('posted_at')->orderBy('id')
+            // Đọc có khoá (trong giao dịch của ingest): hai lô chạy song song không thể cùng lấy cuốc
+            // của nhau làm gốc — lô sau chờ lô trước commit rồi mới thấy trạng thái duplicate_of_id
+            // mới nhất, cuốc đã thành bản trùng bị whereNull loại → không có hai hàng trỏ nhau.
+            ->lockForUpdate()
             ->get()
             ->groupBy('qr_code')
             ->map(fn ($rides) => $rides->all())

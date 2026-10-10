@@ -181,6 +181,48 @@ class FreeRideMergeTest extends TestCase
         $this->assertSame(0, FreeRide::whereNotNull('duplicate_of_id')->count());
     }
 
+    public function test_same_profile_different_seats_is_not_merged(): void
+    {
+        Queue::fake();
+        $this->send([$this->ride(['seats' => 4])]);
+        $this->send([$this->twin(['ride_uid' => 'r-2', 'seats' => 7])]);
+        // Một bản có số chỗ, một bản không → cũng không gộp (lọc theo số chỗ không được làm mất cuốc).
+        $this->send([$this->twin(['ride_uid' => 'r-3', 'seats' => null])]);
+
+        $this->assertCount(3, $this->visible());
+        $this->assertCount(1, $this->visible(null, 'seats=7'));
+    }
+
+    public function test_both_without_seats_are_merged(): void
+    {
+        Queue::fake();
+        $this->send([$this->ride(['seats' => null])]);
+        $this->send([$this->twin(['seats' => null])]);
+
+        $this->assertCount(1, $this->visible());
+    }
+
+    // Lưu cuốc và đánh dấu trùng nằm trong một giao dịch: đánh dấu lỗi thì cả lô không được lưu dở.
+    public function test_storing_and_marking_duplicates_is_atomic(): void
+    {
+        Queue::fake();
+        $this->send([$this->ride()]);
+        FreeRide::updating(function (FreeRide $r) {
+            if ($r->isDirty('duplicate_of_id')) {
+                throw new \RuntimeException('lỗi giả lập');
+            }
+        });
+
+        $this->withoutExceptionHandling();
+        try {
+            $this->zaloPost('/api/internal/zalo/rides', ['rides' => [$this->twin()]]);
+            $this->fail('Phải ném lỗi');
+        } catch (\RuntimeException) {
+        }
+
+        $this->assertNull(FreeRide::where('ride_uid', 'r-2')->first());
+    }
+
     public function test_both_without_pickup_time_are_merged(): void
     {
         Queue::fake();
