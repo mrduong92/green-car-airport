@@ -63,7 +63,10 @@ export class AiQueue {
       batchSize?: number
       maxAttempts?: number
       retryPauseMs?: number
-      // 3 lô gọi AI lỗi liên tiếp → mở mạch trong circuitBreakerCooldownMs (mặc định 10 phút) rồi thử lại.
+      // 4 lô gọi AI lỗi liên tiếp → mở mạch trong circuitBreakerCooldownMs (mặc định 10 phút) rồi thử lại.
+      // PHẢI > maxAttempts (mặc định 3): nếu bằng nhau, một tin "độc" (luôn làm lô của chính nó lỗi) tự
+      // retry đủ số lần = maxAttempts sẽ tạo ra đúng từng ấy lô lỗi liên tiếp và vô tình mở mạch — tắt
+      // AI 10 phút cho MỌI tin khác dù OpenAI/Anthropic vẫn bình thường, chỉ một tin đó là có vấn đề.
       circuitBreakerThreshold?: number
       circuitBreakerCooldownMs?: number
       logger: Logger
@@ -142,7 +145,7 @@ export class AiQueue {
     while (this.items.length > 0) {
       const now = (this.deps.now ?? Date.now)()
 
-      // Mạch đang mở (3 lô lỗi liên tiếp trước đó): không gọi AI nữa, đẩy thẳng mọi tin đang chờ
+      // Mạch đang mở (4 lô lỗi liên tiếp trước đó): không gọi AI nữa, đẩy thẳng mọi tin đang chờ
       // sang fallback cho tới khi mạch tự đóng lại.
       if (this.circuitOpen(now)) {
         for (const item of this.items.splice(0)) {
@@ -178,10 +181,11 @@ export class AiQueue {
         this.pausedUntil = now + (this.deps.retryPauseMs ?? 30_000)
         this.consecutiveFailedBatches++
 
-        // Đủ số lô lỗi liên tiếp (mặc định 3) và mạch chưa mở → mở mạch ngay, đẩy thẳng CẢ lô vừa lỗi
-        // lẫn phần còn lại trong hàng đợi sang fallback — không đi qua onFailed/retry từng tin nữa,
-        // vì lúc này nghi AI đang sập toàn bộ chứ không phải một tin khó.
-        if (this.circuitOpenUntil === 0 && this.consecutiveFailedBatches >= (this.deps.circuitBreakerThreshold ?? 3)) {
+        // Đủ số lô lỗi liên tiếp (mặc định 4, > maxAttempts mặc định 3 — xem giải thích ở constructor) và
+        // mạch chưa mở → mở mạch ngay, đẩy thẳng CẢ lô vừa lỗi lẫn phần còn lại trong hàng đợi sang
+        // fallback — không đi qua onFailed/retry từng tin nữa, vì lúc này nghi AI đang sập toàn bộ chứ
+        // không phải một tin khó.
+        if (this.circuitOpenUntil === 0 && this.consecutiveFailedBatches >= (this.deps.circuitBreakerThreshold ?? 4)) {
           this.tripCircuit(now)
           for (const item of [...batch, ...this.items.splice(0)]) {
             this.attempts.delete(item.id)
