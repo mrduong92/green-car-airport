@@ -96,21 +96,41 @@ export function useFreeRides(filters: App.FreeRideFilters) {
       // tự xuất hiện đúng vị trí khi tài xế tải tới trang chứa nó.
       const lastPage = old.pages[old.pages.length - 1]
       const oldestLoaded = lastPage?.data[lastPage.data.length - 1] ?? null
+      // Không còn trang sau (đã tải hết): không có "trang chứa nó" nào để cuốc mới
+      // cũ hơn oldestLoaded tự xuất hiện khi tải thêm — lọc theo oldestLoaded ở trường
+      // hợp này làm cuốc bị rụng vĩnh viễn cho tới khi tài xế tải lại trang. Phải chèn
+      // MỌI cuốc mới khi đã tải hết.
+      const hasMorePages = (lastPage?.next_cursor ?? null) !== null
 
       const existingUids = new Set<string>()
       old.pages.forEach((p) => p.data.forEach((r) => existingUids.add(r.ride_uid)))
       const updates = new Map(data.data.map((r) => [r.ride_uid, r]))
 
       const freshTop = data.data.filter((r) => !existingUids.has(r.ride_uid)
-        && (!oldestLoaded || r.posted_at > oldestLoaded.posted_at))
+        && (!hasMorePages || !oldestLoaded || r.posted_at > oldestLoaded.posted_at))
 
-      const pages = old.pages.map((page, i) => {
-        let rows = page.data.map((r) => updates.get(r.ride_uid) ?? r)
-        if (i === 0) {
-          rows = [...rows, ...freshTop].sort((a, b) => b.posted_at - a.posted_at)
-        }
+      let pages = old.pages.map((page, i) => {
+        const rows = page.data.map((r) => updates.get(r.ride_uid) ?? r)
         return { ...page, data: rows, latest: i === 0 ? firstLatest : page.latest }
       })
+
+      if (hasMorePages) {
+        pages[0] = { ...pages[0], data: [...pages[0].data, ...freshTop].sort((a, b) => b.posted_at - a.posted_at) }
+      } else {
+        // Đã tải hết: không còn ranh giới trang nào còn ý nghĩa (sẽ không bao giờ
+        // fetchNextPage nữa vì hasNextPage đã false) — dồn toàn bộ (đã cập nhật + cuốc
+        // mới) vào trang đầu, sắp lại theo posted_at desc, dedupe theo ride_uid; các
+        // trang sau để rỗng.
+        const seen = new Set<string>()
+        const merged: App.FreeRide[] = []
+        const all = [...pages.flatMap((p) => p.data), ...freshTop].sort((a, b) => b.posted_at - a.posted_at)
+        for (const r of all) {
+          if (seen.has(r.ride_uid)) continue
+          seen.add(r.ride_uid)
+          merged.push(r)
+        }
+        pages = pages.map((p, i) => ({ ...p, data: i === 0 ? merged : [] }))
+      }
 
       return { ...old, pages }
     })
