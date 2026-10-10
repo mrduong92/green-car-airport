@@ -68,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/terms/accept', [AuthController::class, 'acceptTerms']);
 
     // Shared (any authenticated role)
     Route::post('/device-token', [DeviceTokenController::class, 'store']);

@@ -28,6 +28,8 @@ export const registerApi = (
   api.post<{ token: string; user: App.User }>('/auth/register', {
     phone,
     password,
+    // Nút đăng ký chỉ bấm được khi đã tích 2 ô đồng ý → server ghi bằng chứng đồng ý.
+    accept_terms: true,
     ...(name ? { name } : {}),
     ...(referralCode ? { referral_code: referralCode } : {}),
   })
@@ -52,7 +54,7 @@ export const driverRegisterApi = (data: {
   referral_code?: string
   is_vip?: boolean
 }) =>
-  api.post<{ token: string; user: App.User }>('/auth/register/driver', data)
+  api.post<{ token: string; user: App.User }>('/auth/register/driver', { ...data, accept_terms: true })
 
 export const resetPasswordApi = (phone: string, otp: string, password: string, role?: App.Role) =>
   api.post<{ token: string; user: App.User }>('/auth/reset-password', { phone, otp, password, ...(role ? { role } : {}) })
@@ -60,3 +62,5 @@ export const resetPasswordApi = (phone: string, otp: string, password: string, r
 export const getMe = () => api.get<App.User>('/auth/me')
 
 export const logout = () => api.post('/auth/logout')
+
+export const acceptTermsApi = () => api.post<App.User>('/auth/terms/accept')
