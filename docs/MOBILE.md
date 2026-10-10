@@ -1,7 +1,60 @@
 # Thiết bị & công cụ để phát triển / kiểm thử app di động
 
-Tài liệu này liệt kê những gì cần có để build và kiểm thử app native (Capacitor) cho Save Go.
-Thiết kế kỹ thuật: `docs/superpowers/specs/2026-08-02-mobile-native-apps-design.md`.
+Tài liệu này liệt kê những gì cần có để build và kiểm thử app native (Capacitor) cho GreenCA.
+Thiết kế kỹ thuật: `docs/superpowers/specs/2026-08-02-mobile-native-apps-design.md` (toàn dự án) và `docs/superpowers/specs/2026-10-10-android-native-design.md` (bản Android đầu tiên).
+
+---
+
+## 0. Build nhanh
+
+```bash
+make android-customer   # → dist-mobile/greenca-customer-<version>.apk + .aab
+make android-driver     # → dist-mobile/greenca-driver-<version>.apk + .aab
+```
+
+Lần đầu trên máy mới cần:
+
+| Thứ | Ở đâu | Ghi chú |
+|---|---|---|
+| JDK 21 | `brew install --cask temurin@21` (cần sudo) — hoặc giải nén tarball Temurin 21 vào `~/Library/Java/JavaVirtualMachines/` (không cần sudo) | Chỉ Gradle dùng; Makefile tìm bằng `java_home -F -v 21` |
+| Android SDK | `~/Library/Android/sdk` (mặc định của Android Studio) | Khác chỗ thì đặt `ANDROID_HOME` |
+| `frontend/.env.native` | Tự tạo (gitignore) | Xem nội dung dưới |
+| `mobile/keystore.properties` + `~/.greenca/greenca-release.jks` | Lấy từ kho bí mật công ty | **Mất = không bao giờ cập nhật được app trên Play** |
+| `google-services.json` | Đã commit trong `mobile/<app>/android/app/` | Tải lại ở Firebase console nếu đổi project |
+| `npm ci` | trong `frontend/`, `mobile/customer/`, `mobile/driver/` | |
+
+`frontend/.env.native` (trỏ staging):
+```
+VITE_API_BASE_URL=https://webco.io.vn
+VITE_REVERB_APP_KEY=<giống .env.staging>
+VITE_REVERB_HOST=
+VITE_REVERB_PORT=
+VITE_REVERB_SCHEME=
+VITE_DRIVER_APP_URL=https://driver.webco.io.vn
+```
+Bản production: đổi `VITE_API_BASE_URL=https://greenca.vn`, `VITE_DRIVER_APP_URL=https://driver.greenca.vn`, `VITE_REVERB_APP_KEY` theo `.env.production`. Hai app dùng chung một `VITE_API_BASE_URL` (cùng backend); host Reverb tự suy từ URL này.
+
+**Tăng phiên bản:** sửa `version` trong `mobile/<app>/package.json` (x.y.z). `versionCode` tự tính `major*10000 + minor*100 + patch` (`mobile/shared/release.gradle`).
+
+**Cài APK lên máy:** `adb install -r dist-mobile/greenca-driver-1.0.0.apk`, hoặc gửi file qua Zalo/Drive (người nhận bật "Cho phép cài từ nguồn không xác định").
+
+### Khoá ký
+
+Một keystore cho cả 2 app (`~/.greenca/greenca-release.jks`, alias `greenca`). `mobile/keystore.properties` (gitignore) chứa đường dẫn + mật khẩu. Khi tạo app trên Play Console: **Play App Signing → "Use my own key"** → tải khoá lên bằng công cụ PEPK Google cung cấp. Nhờ vậy bản từ Play và APK gửi Zalo **cùng chữ ký** — cài đè được, không phải gỡ app.
+
+Kiểm chữ ký: `~/Library/Android/sdk/build-tools/<bản>/apksigner verify --print-certs dist-mobile/*.apk` — SHA-256 của hai app phải giống nhau.
+
+### Âm báo cuốc mới
+
+Nguồn: `frontend/public/sounds/new_ride.mp3`, tạo bằng `mobile/scripts/tts-new-ride.mjs` (Google Cloud TTS). Makefile chép sang `res/raw/` mỗi lần build. ⚠️ Android **khoá âm báo của kênh** khi kênh đã tạo trên máy — đổi file sau khi đã phát hành thì phải đổi id kênh (`new_ride_v2`) ở cả `frontend/src/push/native.ts` lẫn `backend/app/Channels/Push/FcmTransport.php`.
+
+### Firebase
+
+Project `GreenCA` chứa 2 app Android (`vn.greenca.customer`, `vn.greenca.driver`). Service account JSON chỉ nằm trên server (`FIREBASE_CREDENTIALS`, xem DEPLOY.md) — không commit.
+
+### Icon / splash
+
+Nguồn ở `mobile/assets/*.png`, sinh từ logo bằng `node mobile/scripts/render-asset-sources.mjs`. Sinh lại tài nguyên Android: trong `mobile/<app>` chạy `npx capacitor-assets generate --android --assetPath ../assets --iconBackgroundColor '#006a36' --splashBackgroundColor '#F8FAF9' --splashBackgroundColorDark '#F8FAF9'`.
 
 ---
 

@@ -322,6 +322,15 @@ systemctl reload php8.5-fpm
 php artisan queue:restart
 ```
 
+### 1b. Push FCM cho app native (từ nhánh feat/android-native)
+
+Làm một lần, rồi giữ qua các lần deploy:
+
+1. Đặt service account JSON của Firebase lên server, ngoài thư mục web: `/var/www/secrets/firebase-service-account.json`, `chown root:www-data`, `chmod 640`.
+2. `backend/.env`: `FIREBASE_CREDENTIALS=/var/www/secrets/firebase-service-account.json`
+3. Deploy backend như mục 1 (migrate thêm cột `device_tokens.fcm_token`; `config:cache`; **`queue:restart`** — push đi qua queue).
+4. Kiểm: sau khi có thông báo, `grep "\[FCM\] Chưa cấu hình\|FcmTransport error" storage/logs/laravel.log` — có dòng thì biến chưa ăn hoặc file sai. File sai **không** làm hỏng Web Push hay request khác, chỉ app native mất push.
+
 ### 2. Frontend (build local, rsync lên)
 
 ⚠️ **Build từ checkout CÓ `frontend/.env`** (file không tracked — worktree mới
