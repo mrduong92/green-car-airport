@@ -1,0 +1,148 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { openDb } from '../src/db.js'
+import { MessageStore } from '../src/store.js'
+import { RideStore } from '../src/rides.js'
+import { SenderStore } from '../src/senders.js'
+import { GroupsSync, RideSync } from '../src/sync.js'
+import { AIRPORT } from '../src/parser/rules.js'
+import { silentLogger } from '../src/logger.js'
+
+const HOUR = 3_600_000
+const T0 = 1_759_500_000_000
+
+function setup(rideCount: number, opts: { qr?: boolean } = {}) {
+  const db = openDb(':memory:')
+  const messages = new MessageStore(db, { duplicateWindowMs: 24 * HOUR, maxContentLength: 4000, retentionMs: 7 * 24 * HOUR })
+  let t = T0
+  const rides = new RideStore(db, { expireAfterPickupMs: 30 * 60_000, expireWithoutTimeMs: 3 * HOUR, now: () => t })
+  messages.save({ group_id: 'g1', group_name: 'Taxi Nội Bài', msg_id: 'm1', sender_uid: '111', sender_name: 'Đức', content: 'x', sent_at: T0 }, 'acc1')
+  const senders = new SenderStore(db)
+  // Chỉ cuốc của người bắn đã có mã QR mới được gửi (quyết định GreenCA A5).
+  if (opts.qr !== false) senders.saveQr('111', 'code1', 'ok', 0)
+  const source = { messageId: messages.findId('g1', 'm1')!, senderUid: '111', groupId: 'g1', sentAt: T0 }
+  for (let i = 0; i < rideCount; i++) {
+    rides.upsertDrafts(source, [{ direction: 'to_airport', pickup: `điểm ${i}`, destination: AIRPORT, pickupAt: T0 + HOUR, pickupTimeText: '5h', seats: null, vehicleNote: null, price: null, isFree: false, rawText: 'x' }])
+  }
+  return { db, rides, senders, now: () => t, tick: (ms: number) => { t += ms } }
+}
+
+test('sends batches of at most 100 until the outbox is empty', async () => {
+  const { rides } = setup(150)
+  const sizes: number[] = []
+  const sync = new RideSync({ rides, send: async (_p, payload) => { sizes.push((payload as { rides: unknown[] }).rides.length); return { status: 200 } }, batchSize: 100, logger: silentLogger, now: () => T0 })
+  await sync.flush()
+  assert.deepEqual(sizes, [100, 50])
+  assert.equal(rides.backlog(), 0)
+})
+
+test('keeps rides when Laravel fails and resends them later', async () => {
+  const { rides } = setup(3)
+  let status = 503
+  let t = T0
+  const sync = new RideSync({ rides, send: async () => ({ status }), batchSize: 100, logger: silentLogger, now: () => t })
+  await sync.flush()
+  assert.equal(rides.backlog(), 3)
+  status = 200
+  await sync.flush() // vẫn trong thời gian chờ
+  assert.equal(rides.backlog(), 3)
+  t += 1000
+  await sync.flush()
+  assert.equal(rides.backlog(), 0)
+})
+
+test('a ride updated after sync is sent again', async () => {
+  const { rides, now, tick } = setup(1)
+  const sent: { ride_uid: string; qr_code: string }[] = []
+  const sync = new RideSync({ rides, send: async (_p, payload) => { sent.push(...(payload as { rides: { ride_uid: string; qr_code: string }[] }).rides); return { status: 200 } }, batchSize: 100, logger: silentLogger, now })
+  await sync.flush()
+  tick(1000)
+  rides.markSenderChanged('111')
+  await sync.flush()
+  assert.equal(sent.length, 2)
+  assert.equal(sent[0].ride_uid, sent[1].ride_uid)
+  assert.equal(sent[0].qr_code, 'code1')
+})
+
+test('rides of a sender without a QR code are not sent', async () => {
+  const { rides, senders, now, tick } = setup(1, { qr: false })
+  const sent: { ride_uid: string; qr_code: string }[] = []
+  const sync = new RideSync({ rides, send: async (_p, payload) => { sent.push(...(payload as { rides: { ride_uid: string; qr_code: string }[] }).rides); return { status: 200 } }, batchSize: 100, logger: silentLogger, now })
+  await sync.flush()
+  assert.equal(sent.length, 0)
+
+  tick(1000)
+  senders.saveQr('111', 'code1', 'ok', T0 + 1000)
+  rides.markSenderChanged('111')
+  await sync.flush()
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].qr_code, 'code1')
+})
+
+test('flush terminates when rides keep looking changed (sync clock behind the store clock)', async () => {
+  const { rides, tick } = setup(1)
+  let calls = 0
+  const sync = new RideSync({ rides, send: async () => { calls++; return { status: 200 } }, batchSize: 100, logger: silentLogger, now: () => T0 })
+  await sync.flush()
+  tick(1000)
+  rides.markSenderChanged('111') // updated_at = T0 + 1000 > synced_at = T0 mãi mãi
+  await sync.flush()
+  assert.equal(calls, 2)
+})
+
+test('groups sync sends names and 24h counts', async () => {
+  const { db } = setup(0)
+  let payload: unknown
+  const sync = new GroupsSync({ db, send: async (_p, body) => { payload = body; return { status: 200 } }, logger: silentLogger, now: () => T0 + 1000 })
+  await sync.flush()
+  assert.deepEqual(payload, {
+    groups: [{ zalo_group_id: 'g1', name: 'Taxi Nội Bài', last_message_at: T0, messages_24h: 1, member_count: null, accounts: [], left: false }],
+  })
+})
+
+test('GroupsSync sends every known group with member count, accounts and left flag', async () => {
+  const db = openDb(':memory:')
+  db.prepare("INSERT INTO chat_groups (zalo_group_id, name, member_count, left_at) VALUES ('g1', 'Taxi', 900, NULL), ('g2', 'Cũ', 10, 5)").run()
+  db.prepare("INSERT INTO group_accounts (zalo_group_id, account_id, seen_at) VALUES ('g1', 'acc1', 1), ('g1', 'acc2', 1)").run()
+  const sent: unknown[] = []
+  const sync = new GroupsSync({ db, send: async (_p, body) => { sent.push(body); return { status: 200 } }, logger: silentLogger, now: () => 10 })
+  await sync.flush()
+  const groups = (sent[0] as { groups: Record<string, unknown>[] }).groups
+  assert.deepEqual(groups.find((g) => g.zalo_group_id === 'g1'), { zalo_group_id: 'g1', name: 'Taxi', last_message_at: null, messages_24h: 0, member_count: 900, accounts: ['acc1', 'acc2'], left: false })
+  assert.equal(groups.find((g) => g.zalo_group_id === 'g2')?.left, true)
+})
+
+test('rides rejected by Laravel are logged as a warning with the count', async () => {
+  const { rides } = setup(3)
+  const warnings: string[] = []
+  const logger = { ...silentLogger, warn: (...args: unknown[]) => { warnings.push(args.join(' ')) } }
+  const sync = new RideSync({ rides, send: async () => ({ status: 200, body: { stored: 1, rejected: [0, 2] } }), batchSize: 100, logger, now: () => T0 })
+  await sync.flush()
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /2 cuốc/)
+  assert.equal(rides.backlog(), 0) // gửi lại cũng bị từ chối y hệt → không giữ lại
+})
+
+test('groups sync counts only messages of the last 24h per group, 0 for quiet groups', async () => {
+  const { db } = setup(0)
+  const messages = new MessageStore(db, { duplicateWindowMs: 24 * HOUR, maxContentLength: 4000, retentionMs: 7 * 24 * HOUR })
+  messages.save({ group_id: 'g1', group_name: '', msg_id: 'm2', sender_uid: '222', sender_name: '', content: 'y', sent_at: T0 + 2000 }, 'acc1')
+  messages.save({ group_id: 'g2', group_name: 'Nhóm vắng', msg_id: 'o1', sender_uid: '333', sender_name: '', content: 'z', sent_at: T0 - 30 * HOUR }, 'acc1')
+  let payload: { groups: { zalo_group_id: string; messages_24h: number }[] } | undefined
+  const sync = new GroupsSync({ db, send: async (_p, body) => { payload = body as typeof payload; return { status: 200 } }, logger: silentLogger, now: () => T0 + 3000 })
+  await sync.flush()
+  assert.deepEqual(payload?.groups.map((g) => [g.zalo_group_id, g.messages_24h]), [['g1', 2], ['g2', 0]])
+})
+
+test('GroupsSync sends groups in chunks of at most 500 and logs each failed chunk', async () => {
+  const db = openDb(':memory:')
+  const insert = db.prepare('INSERT INTO chat_groups (zalo_group_id, name) VALUES (?, ?)')
+  db.transaction(() => { for (let i = 0; i < 1200; i++) insert.run(`g${String(i).padStart(4, '0')}`, `N${i}`) })()
+  const sizes: number[] = []
+  const errors: string[] = []
+  const logger = { ...silentLogger, error: (...args: unknown[]) => { errors.push(args.join(' ')) } }
+  const sync = new GroupsSync({ db, send: async (_p, body) => { sizes.push((body as { groups: unknown[] }).groups.length); return { status: sizes.length === 2 ? 500 : 200 } }, logger, now: () => 10 })
+  await sync.flush()
+  assert.deepEqual(sizes, [500, 500, 200])
+  assert.equal(errors.length, 1)
+})

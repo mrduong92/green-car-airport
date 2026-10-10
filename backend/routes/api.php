@@ -2,15 +2,17 @@
 
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVoucherController;
-use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\AdminWalletController;
+use App\Http\Controllers\Admin\AppSettingController as AdminAppSettingController;
+use App\Http\Controllers\Admin\CampaignController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
+use App\Http\Controllers\Admin\FreeRideAdminController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
-use App\Http\Controllers\Admin\AppSettingController as AdminAppSettingController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
+use App\Http\Controllers\Admin\ZaloAccountController;
 use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\OtpController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Customer\StatsController as CustomerStatsController;
 use App\Http\Controllers\Customer\StreamController as CustomerStreamController;
 use App\Http\Controllers\Customer\VoucherController;
 use App\Http\Controllers\DeviceTokenController;
+use App\Http\Controllers\Driver\FreeRideController;
 use App\Http\Controllers\Driver\ProfileController;
 use App\Http\Controllers\Driver\StatusController;
 use App\Http\Controllers\Driver\StreamController;
@@ -31,6 +34,7 @@ use App\Http\Controllers\PriceConfigController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StaticPageController;
 use App\Http\Controllers\Webhooks\SepayWebhookController;
+use App\Http\Controllers\Webhooks\ZaloServiceController;
 use App\Http\Controllers\ZnsDlrController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
@@ -56,6 +60,17 @@ Route::get('/price-configs', [PriceConfigController::class, 'index']);
 Route::get('/pages/{slug}', [StaticPageController::class, 'show']);
 Route::get('/settings/contact', [SettingsController::class, 'contact']);
 Route::post('/webhooks/sepay', [SepayWebhookController::class, 'handle']);
+
+// Microservice Zalo (Cuốc Free) — xác thực bằng chữ ký HMAC, không dùng Sanctum.
+Route::middleware(['zalo.bot', 'throttle:600,1'])->prefix('internal/zalo')->group(function () {
+    Route::post('/heartbeat', [ZaloServiceController::class, 'heartbeat']);
+    Route::post('/rides', [ZaloServiceController::class, 'rides']);
+    Route::post('/groups', [ZaloServiceController::class, 'groups']);
+    Route::get('/config', [ZaloServiceController::class, 'config']);
+    // Đăng nhập/gỡ nick Zalo phụ (giai đoạn 5) — service hỏi mỗi 5 giây, báo tiến độ bằng POST.
+    Route::get('/account-requests', [ZaloServiceController::class, 'accountRequests']);
+    Route::post('/account-requests/{id}', [ZaloServiceController::class, 'updateAccountRequest'])->whereNumber('id');
+});
 Route::get('/zns/dlr', [ZnsDlrController::class, 'handle']);
 
 // ── Authenticated ─────────────────────────────────────────────────────────────
@@ -113,6 +128,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/profile', [ProfileController::class, 'show']);
         Route::put('/driver/profile', [ProfileController::class, 'update']);
         Route::patch('/driver/status', [StatusController::class, 'update']);
+
+        // Tab Free (cuốc từ nhóm Zalo) — chỉ tài xế đã duyệt.
+        Route::middleware('driver.active')->group(function () {
+            Route::get('/driver/free-rides', [FreeRideController::class, 'index']);
+            // Bộ lọc lưu lại để nhận thông báo đẩy khi có cuốc Free mới khớp (giai đoạn 5).
+            Route::get('/driver/free-rides/alert', [FreeRideController::class, 'alert']);
+            Route::put('/driver/free-rides/alert', [FreeRideController::class, 'saveAlert']);
+            // POST giới hạn 20/phút/tài xế — broken-link kéo theo một lần getQR trên tài khoản Zalo của bot.
+            Route::middleware('throttle:20,1')->group(function () {
+                Route::post('/driver/free-rides/hidden-senders', [FreeRideController::class, 'hideSender']);
+                Route::post('/driver/free-rides/{rideUid}/report', [FreeRideController::class, 'report']);
+                Route::post('/driver/free-rides/{rideUid}/broken-link', [FreeRideController::class, 'brokenLink']);
+            });
+        });
     });
 
     // Admin
@@ -155,5 +184,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/admins/{user}/unblock', [AdminUserController::class, 'unblock']);
         Route::post('/admin/admins/{user}/password', [AdminUserController::class, 'resetPassword']);
         Route::post('/admin/me/password', [AdminUserController::class, 'changeOwnPassword']);
+
+        // Trang admin Cuốc Free (nhóm Zalo, người bắn, tình trạng service).
+        Route::prefix('admin/free-rides')->group(function () {
+            Route::controller(FreeRideAdminController::class)->group(function () {
+                Route::get('/groups', 'groups');
+                Route::patch('/groups/{zaloGroupId}', 'toggleGroup')->where('zaloGroupId', '[A-Za-z0-9_-]{1,32}');
+                Route::get('/senders', 'senders');
+                Route::post('/senders/{senderUid}/block', 'block')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
+                Route::delete('/senders/{senderUid}/block', 'unblock')->where('senderUid', '[A-Za-z0-9_-]{1,32}');
+                // Chặn/bỏ chặn theo hồ sơ (mã QR) — áp lên mọi uid của cùng người.
+                Route::post('/senders/qr/{qrCode}/block', 'blockProfile')->where('qrCode', '[A-Za-z0-9]{1,32}');
+                Route::delete('/senders/qr/{qrCode}/block', 'unblockProfile')->where('qrCode', '[A-Za-z0-9]{1,32}');
+                Route::get('/status', 'status');
+            });
+
+            // Tab "Nick Zalo" (giai đoạn 5): đăng nhập/gỡ nick phụ bằng mã QR, danh sách nick.
+            Route::controller(ZaloAccountController::class)->group(function () {
+                Route::get('/accounts', 'accounts');
+                Route::post('/accounts', 'store');
+                Route::delete('/accounts/{accountId}', 'destroy')->where('accountId', '[a-z0-9-]{1,32}');
+                Route::get('/account-requests/{id}', 'show')->whereNumber('id');
+            });
+        });
     });
 });

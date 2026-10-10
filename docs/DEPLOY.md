@@ -552,6 +552,287 @@ staging — production sẽ phụ thuộc staging, và thành code chết ngay k
 nổi số dư. Đã verify: parse đúng phản hồi thật (`{"Balance":24890.0000,"Code":106}` gọi từ
 staging) + 3 unit test cho 3 nhánh exit code.
 
+## Microservice Zalo — Cuốc Free (giai đoạn 1 → 5)
+
+### ⚠️ Thứ tự triển khai giai đoạn 2 + 3 (phát hành cùng lúc)
+
+Giai đoạn 2 (service tách cuốc, gửi sang Laravel) và giai đoạn 3 (tab Free trong app tài xế) lên
+production **cùng một đợt**. Thứ tự BẮT BUỘC — để tài xế không bao giờ mở tab Free mà thấy trống:
+
+1. **Backend Laravel** (mục "Giai đoạn 2" + "Giai đoạn 3" dưới đây): migrate, `.env`, `config:cache`.
+2. **Service Zalo trên VPS** (mục "Giai đoạn 2"): `.env`, build, restart.
+3. **Xác nhận cuốc đã về tới Laravel** (chạy bằng root — tinker không chạy dưới `www-data`):
+   ```bash
+   php artisan zalo:service-status                                   # không có cảnh báo
+   php artisan tinker --execute='echo App\Models\FreeRide::where("expires_at", ">", now())->count();'   # > 0
+   chown -R www-data:www-data storage bootstrap/cache
+   ```
+   Số cuốc còn hạn phải > 0 (nhóm ít tin thì chờ vài phút rồi đếm lại). Bằng 0 → dừng lại, kiểm tra log service
+   (`tail -n 200 /var/log/greenca-zalo-service.log`) và log Laravel trước khi đi tiếp.
+4. **Chỉ sau bước 3** mới build + rsync `dist-driver/` (bản này thêm tab Free vào thanh điều hướng).
+
+### Giai đoạn 1 — thu tin thô
+
+Service Node chạy trên **VPS riêng** (không chạy trên server production), hướng dẫn cài ở
+`zalo-service/README.md`. Tin thô nằm trong SQLite của service — production không nhận tin thô.
+Phía Laravel production chỉ cần:
+
+```bash
+# backend/.env
+ZALO_SERVICE_ENABLED=true
+ZALO_BOT_SECRET=<chuỗi ngẫu nhiên, trùng BOT_SECRET của service>   # tạo bằng: openssl rand -hex 32
+
+php artisan config:cache
+chown -R www-data:www-data storage bootstrap/cache
+```
+
+- Giám sát: `deploy/monitoring/greenca-healthcheck.sh` có kiểm tra #5 (`zalo:service-status`) —
+  copy bản mới lên `/usr/local/bin/greenca-healthcheck.sh`. Chỉ chạy khi `ZALO_SERVICE_ENABLED=true`.
+- Tắt khẩn cấp phía Laravel: `ZALO_SERVICE_ENABLED=false` + `php artisan config:cache` → endpoint trả 503
+  (service vẫn nghe và lưu tin bình thường, chỉ heartbeat bị từ chối).
+- Số liệu chốt chi phí AI: chạy `npm run stats -- --hours=72` **trên VPS service** (xem README).
+
+### Giai đoạn 2 — tách cuốc, AI, mã QR, đồng bộ sang Laravel
+
+**Laravel (server production):**
+
+```bash
+php artisan migrate --force
+# 2026_10_06_000001_create_zalo_rides_tables: free_rides, zalo_groups, zalo_sender_blocks, zalo_qr_refresh_requests
+```
+
+`backend/.env` (đủ bộ biến của microservice — xem `backend/.env.example`):
+
+```bash
+ZALO_SERVICE_ENABLED=true
+ZALO_BOT_SECRET=<trùng BOT_SECRET của service>     # đã có từ giai đoạn 1
+ZALO_AI_DAILY_BUDGET_USD=5                         # trần chi phí AI/ngày theo mức GreenCA duyệt
+
+php artisan config:cache
+chown -R www-data:www-data storage bootstrap/cache
+```
+
+- Dọn cuốc hết hạn (giữ thêm 8 ngày sau khi hết hạn): `routes/console.php` có `Schedule::command('zalo:prune-rides')->dailyAt('03:10')` —
+  chạy nhờ cron scheduler `/etc/cron.d/greenca-scheduler` đã có sẵn (mục "Queue worker + scheduler"),
+  **không cần thêm cron**. Kiểm: `php artisan schedule:list | grep zalo:prune-rides`.
+
+**Service (VPS riêng, `/opt/greenca-zalo-service`)** — biến đầy đủ kèm mặc định trong
+`zalo-service/.env.example`, giải thích ở `zalo-service/README.md` mục "Giai đoạn 2":
+
+```bash
+# .env — bắt buộc / nên đặt
+API_BASE_URL=https://greenca.vn
+BOT_SECRET=<trùng ZALO_BOT_SECRET>
+ALLOWED_GROUP_IDS=                                  # để TRỐNG trên production — nghe mọi nhóm; từ
+                                                     # giai đoạn 4, bật/tắt từng nhóm ở trang admin
+                                                     # thay vì liệt kê ID ở đây (xem mục "Giai đoạn 4")
+# AI: từ giai đoạn 5 mặc định OpenAI (xem mục "Giai đoạn 5") — để trống key = không gọi AI, tin khó hiện nguyên văn
+AI_PROVIDER=openai
+OPENAI_API_KEY=<key OpenAI>
+AI_MODEL=gpt-4.1-mini
+AI_DAILY_BUDGET_USD=5                              # trần dự phòng khi chưa hỏi được Laravel
+# Còn lại (AI_BATCH_SIZE, RIDES_FLUSH_MS, QR_INTERVAL_MS, QR_REFRESH_DAYS, …) để mặc định
+
+# Cập nhật mã nguồn bằng rsync như mục "Giai đoạn 4" bên dưới (thư mục VPS không phải git checkout), rồi:
+sudo npm ci && sudo npm run build && sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
+sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v3 khi khởi động
+```
+
+- Chưa có key AI (`OPENAI_API_KEY`, hoặc `ANTHROPIC_API_KEY` khi `AI_PROVIDER=anthropic`) thì tin khó hiện nguyên văn; thêm key rồi `sudo systemctl restart greenca-zalo-service` để bật AI.
+- `zalo:service-status` cảnh báo thêm: hộp thư đi tồn > 1000 cuốc, tỷ lệ không lấy được mã QR > 80%,
+  cuốc bị giữ vì thiếu mã > 200.
+
+### Giai đoạn 3 — tab Free
+
+- `php artisan migrate --force`: `2026_10_07_000001_create_free_ride_driver_tables` (bảng `free_ride_reports`,
+  `driver_hidden_senders`) và `2026_10_09_000001_add_updated_at_index_to_free_rides` (index `free_rides.updated_at`).
+- Cần queue worker + Reverb chạy: tín hiệu `free-rides.updated` phát qua job `BroadcastFreeRidesSignal` (gom ≤ 1 tín hiệu / ~2 giây).
+- Các POST của tài xế (báo cáo, ẩn người bắn, báo link lỗi) giới hạn 20 lần/phút/tài xế (`throttle:20,1`).
+- **Theo thứ tự ở đầu mục này** — sau khi đã xác nhận cuốc về tới Laravel: build lại app tài xế
+  (`npm run build:driver -- --mode production`, kiểm VAPID như các lần deploy trước) và rsync `dist-driver/`.
+
+### Giai đoạn 4 — trang admin "Cuốc Free", quét toàn bộ nhóm
+
+Trang admin (nhóm Zalo / người bắn / tình trạng service) + service tự quét toàn bộ nhóm nick phụ
+đang ở (không còn phải khai từng ID nhóm thủ công).
+
+**Thứ tự BẮT BUỘC:** (1) Laravel migrate → (2) redeploy service Zalo → (3) build + rsync app admin.
+Laravel phải nhận được các trường mới (`member_count`, `accounts`, `left`) trước khi service bắt đầu gửi.
+
+1. **Laravel (production):**
+   ```bash
+   php artisan migrate --force
+   # 2026_10_10_000001_add_scan_fields_to_zalo_groups: thêm member_count, accounts, left_at vào zalo_groups
+   ```
+2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn rồi build lại:
+   Thư mục trên VPS **không phải git checkout** (lúc cài là copy mã nguồn) — cập nhật cũng bằng copy.
+   Từ thư mục gốc repo ở máy local (KHÔNG đè `.env`, `data/` chứa phiên đăng nhập + SQLite):
+   ```bash
+   rsync -az --delete --exclude node_modules --exclude dist --exclude data --exclude .env \
+     zalo-service/ <vps>:/opt/greenca-zalo-service/
+   ```
+   Trên VPS:
+   ```bash
+   cd /opt/greenca-zalo-service
+   sudo npm ci && sudo npm run build
+   sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
+   sudo systemctl restart greenca-zalo-service       # SQLite tự nâng lên schema v4 khi khởi động
+   ```
+   Log service ghi ra file (unit dùng `StandardOutput=append:`), không vào journald:
+   `tail -n 200 /var/log/greenca-zalo-service.log | grep "Quét nhóm"` — phải có dòng
+   `Quét nhóm: N nick, M nhóm, …` trong vài phút đầu (lượt quét đầu chờ mọi nick đăng nhập xong hoặc
+   báo lỗi, tối đa 2 phút).
+3. **App admin**: build + rsync `dist-admin` (xem gạch đầu dòng "App admin" bên dưới).
+
+> **Ghi chú phát hành:** ngay sau deploy, nhóm của các nick còn đang đăng nhập có thể tạm hiện
+> "Nick đã rời" ở trang admin — tự hết sau lượt quét nhóm đầu tiên, không cần làm gì.
+
+- **Dọn cuốc hết hạn**: từ giai đoạn 4, `zalo:prune-rides` giữ cuốc thêm **8 ngày** sau khi hết hạn (trước
+  đây 1 ngày) để số "cuốc/7 ngày" ở tab Người bắn đếm đủ tuần. Tài xế không bị ảnh hưởng — tab Free chỉ
+  lấy cuốc còn hạn.
+
+- **App admin**: không phải build/rsync riêng — bundle `dist-admin` đã nằm trong lệnh build 3-app
+  ở mục "Frontend (build local, rsync lên)" bên dưới; chỉ cần đi qua bước đó như mọi lần deploy để
+  trang "Cuốc Free" (`/free-rides`) có mặt trên `admin.greenca.vn`.
+- **Service (VPS riêng)**: để `ALLOWED_GROUP_IDS` **rỗng** — service nghe mọi nhóm nick phụ đang ở,
+  việc bật/tắt từng nhóm chuyển hẳn sang trang admin (tab "Nhóm Zalo"), không còn sửa `.env` + restart
+  mỗi khi cần thêm/bớt nhóm.
+  ```bash
+  # zalo-service/.env — không cần sửa nếu đã để trống từ trước
+  ALLOWED_GROUP_IDS=
+  GROUP_SCAN_MS=1800000   # mặc định 30 phút; chỉnh nếu cần nhóm mới hiện ở admin nhanh hơn
+  ```
+  Đổi `.env` xong thì `sudo systemctl restart greenca-zalo-service`.
+- **Cách thêm một nhóm Zalo mới**: thêm một trong các nick phụ (tài khoản service đang đăng nhập) vào
+  nhóm Zalo đó như người dùng bình thường (ai trong nhóm cũng thêm được, không cần quyền admin nhóm).
+  Service tự thấy nhóm trong vòng ≤ `GROUP_SCAN_MS` (mặc định 30 phút, cộng thêm lượt quét ngay sau khi
+  nick đăng nhập) và gửi lên Laravel qua `POST /internal/zalo/groups` — nhóm xuất hiện ở tab "Nhóm Zalo"
+  của admin, **mặc định đang bật** (tài xế thấy cuốc của nhóm ngay, không cần admin bật tay).
+- **Bật/tắt nhóm ở admin**: `admin.greenca.vn/free-rides` → tab "Nhóm Zalo" → gạt nút ở hàng nhóm cần
+  đổi. Tắt một nhóm ẩn ngay cuốc của nhóm đó khỏi tab Free của mọi tài xế (kể cả cuốc đã đồng bộ từ
+  trước khi tắt); service không bị ảnh hưởng — vẫn quét/lưu tin bình thường, chỉ Laravel lọc bớt lúc
+  trả về cho tài xế.
+- Nhóm nào không còn nick phụ nào ở ("Nick đã rời" trong admin) bị loại khỏi tổng nhóm "chưa rời" ở tab
+  Tình trạng; thêm lại nick vào nhóm đó để service nhận diện lại ở lượt quét kế tiếp.
+
+### Giai đoạn 5 — tab admin "Nick Zalo" (thêm/gỡ bằng QR), tài xế báo cuốc phù hợp
+
+Hai tính năng độc lập, lên cùng đợt: (1) admin thêm/gỡ nick Zalo phụ bằng mã QR ngay trên trình duyệt
+(thay cho `npm run login` + `scp` file thủ công lên VPS); (2) tài xế lưu bộ lọc để nhận thông báo đẩy
+(Web Push) khi có cuốc Free mới khớp.
+
+**Thứ tự BẮT BUỘC:** (1) Laravel migrate → (2) redeploy service Zalo (thêm vòng hỏi yêu cầu nick) →
+(3) build + rsync app admin + app tài xế. Admin bấm "Thêm nick" trước khi service đã redeploy sẽ tạo
+được yêu cầu nhưng không ai xử lý — không hỏng gì, chỉ đứng ở trạng thái "pending" tới khi service mới
+chạy lên và lượt hỏi đầu tiên của nó bắt được.
+
+1. **Laravel (production):**
+   ```bash
+   php artisan migrate --force
+   # 2026_10_11_000001_create_zalo_account_requests_table: hàng đợi yêu cầu đăng nhập/gỡ nick (tab admin)
+   # 2026_10_11_000002_create_driver_free_ride_alerts_table: bộ lọc tài xế đã lưu để nhận thông báo đẩy
+   # 2026_10_12_000001_add_qr_code_to_sender_blocks_and_hidden_senders: chặn/ẩn người bắn theo mã QR (hồ sơ)
+   # 2026_10_13_000001_add_duplicate_of_id_to_free_rides: gộp cuốc trùng cùng người ở nhiều nhóm (trỏ về cuốc gốc)
+   # 2026_10_14_000001_add_qr_code_index_to_free_rides: index (qr_code, expires_at) cho tab Free + cảnh báo đẩy
+   # 2026_10_15_000001_add_last_pushed_max_id_to_driver_free_ride_alerts: mốc push cảnh báo theo id cuốc
+   #   (thay mốc created_at có thể bỏ sót cuốc); cảnh báo có sẵn được đặt mốc = id cuốc lớn nhất lúc
+   #   migrate nên không dội ngược cuốc cũ
+   ```
+   Không có biến `.env` mới phía Laravel cho giai đoạn này — dùng lại `ZALO_BOT_SECRET` đã có (endpoint
+   nội bộ mới `/internal/zalo/account-requests*` nằm trong cùng middleware `zalo.bot` như các endpoint
+   khác) và hạ tầng Web Push đã có sẵn từ trước Cuốc Free (VAPID, `ShouldQueue` notification) —
+   `FreeRideMatchNotification` chỉ là một notification WebPush nữa, không cần cấu hình thêm.
+2. **Service Zalo (VPS riêng, `/opt/greenca-zalo-service`)** — cập nhật mã nguồn như mục "Giai đoạn 4"
+   ở trên (rsync, không đè `.env`/`data/`).
+
+   **⚠️ Bẫy nâng cấp từ giai đoạn 2/4:** `.env` cũ trên VPS (rsync giữ nguyên) có thể còn
+   `AI_MODEL=claude-haiku-4-5`, `ANTHROPIC_API_KEY=...`, **không có** `AI_PROVIDER` (mặc định cũ là
+   Anthropic), và đôi khi `AI_FLUSH_MS=3000` / `RIDES_FLUSH_MS=2000` (nhịp cũ, nhanh hơn nhiều so với
+   mặc định mới). Lên bản giai đoạn 5 phải sửa `.env` tay — KHÔNG chỉ thêm dòng mới:
+   ```bash
+   # zalo-service/.env — AI chuyển sang OpenAI: mọi tin không trùng đều gửi AI tách cuốc,
+   # quy tắc chỉ còn dự phòng khi AI lỗi/hết ngân sách (cuốc vẫn hiện nguyên văn, không mất)
+   AI_PROVIDER=openai              # THÊM dòng này — mặc định mới; đặt anthropic để quay về Claude
+   OPENAI_API_KEY=<key OpenAI>     # THÊM — BẮT BUỘC nếu muốn bật AI; trống = tin khó hiện nguyên văn
+   AI_MODEL=gpt-4.1-mini           # SỬA dòng AI_MODEL cũ (vd. claude-haiku-4-5) thành model OpenAI —
+                                    # để sót dòng cũ thì AI_PROVIDER=openai + AI_MODEL=claude-... lệch
+                                    # nhau, service gọi OpenAI với tên model Claude và lỗi ngay
+   # Có mặc định, không bắt buộc phải đặt — nhưng nếu .env cũ có sẵn AI_FLUSH_MS/RIDES_FLUSH_MS (nhịp
+   # giai đoạn 2, vd. 3000/2000) thì XOÁ hẳn 2 dòng đó để dùng mặc định mới (giãn nhịp 30 giây):
+   # AI_FLUSH_MS=30000              (XOÁ nếu .env cũ có AI_FLUSH_MS=3000 hoặc khác 30000)
+   # RIDES_FLUSH_MS=30000           (XOÁ nếu .env cũ có RIDES_FLUSH_MS=2000 hoặc khác 30000)
+   ACCOUNT_REQUESTS_POLL_MS=5000   # nhịp hỏi GET /internal/zalo/account-requests (có mặc định)
+   ```
+   Có thể xoá `ANTHROPIC_API_KEY` cũ luôn nếu không định quay lại Claude (`AI_PROVIDER=anthropic`).
+   ```bash
+   cd /opt/greenca-zalo-service
+   sudo npm ci && sudo npm run build
+   sudo chown -R zalobot:zalobot /opt/greenca-zalo-service
+   sudo systemctl restart greenca-zalo-service
+   ```
+   **Kiểm sau khi deploy (bắt buộc, không chỉ xem log khởi động không lỗi):**
+   - `tail -n 50 /var/log/greenca-zalo-service.log` — nếu `.env` lệch (provider/model không khớp,
+     hoặc thiếu key của provider đang chọn), service log loud ngay lúc khởi động dòng chứa
+     **`Lệch cấu hình AI`** hoặc **`AI đang TẮT`** — thấy 1 trong 2 dòng này là `.env` còn sai, sửa
+     lại theo bẫy nâng cấp ở trên rồi restart; không có dòng nào là cấu hình AI ổn.
+   - Đợi vài tin nhắn mới đổ về nhóm Zalo (hoặc nhắn thử 1 tin vào nhóm test), rồi vào
+     `admin.greenca.vn/free-rides` → tab "Tình trạng": chi phí AI ước tính trong ngày phải **tăng lên**
+     sau khi tin mới được xử lý — đứng yên ở 0 nghĩa là AI không chạy (key sai/thiếu, hoặc model không
+     tồn tại ở OpenAI) dù service không crash.
+   - Nếu thấy log lặp lại dòng **`Mạch ngắt AI: mở`**: AI đang lỗi 3 lô liên tiếp (key sai, hết hạn
+     mức, OpenAI/Anthropic sập...) — service tự chuyển mọi tin sang quy tắc dự phòng (nguyên văn, không
+     mất cuốc) trong 10 phút rồi tự thử lại; log **`Mạch ngắt AI: đóng lại`** là đã thử lại bình thường.
+   Service chạy được với `data/accounts/` **rỗng** (0 tài khoản) — không bắt buộc phải có nick nào
+   trước khi lên bản này; thêm nick đầu tiên bằng trang admin sau khi service đã chạy (xem bước 4).
+3. **App admin + app tài xế**: build + rsync `dist-admin` và `dist-driver` như mục "Frontend (build
+   local, rsync lên)" bên dưới — `dist-admin` có tab "Nick Zalo" mới, `dist-driver` có nút chuông "Báo
+   khi có cuốc phù hợp" mới ở tab Free. Nhớ kiểm VAPID key có trong cả 2 bundle như mọi lần deploy
+   (mục "⚠️ BẮT BUỘC trước khi rsync: key VAPID thật phải nằm trong cả 3 bundle").
+4. **Thêm nick Zalo phụ từ giờ trở đi**: `admin.greenca.vn/free-rides` → tab "Nick Zalo" → "Thêm nick"
+   → nhập tên (chữ thường/số/gạch ngang, ≤ 32 ký tự) → quét mã QR hiện ra bằng Zalo của nick phụ trên
+   điện thoại. Không cần SSH vào VPS, không cần restart service. `npm run login -- <id>` (`zalo-service/README.md`)
+   vẫn còn nhưng chỉ dùng khi chưa có service nào chạy để nhận yêu cầu, hoặc gỡ lỗi cục bộ.
+5. **Gỡ nick**: cùng tab, nút "Gỡ" trên thẻ nick → xác nhận. Service đổi tên file phiên thành
+   `<id>.json.removed-<epoch ms>` (không xoá hẳn) và dừng nghe nhóm của nick đó ngay, không restart.
+6. **Tài xế bật báo cuốc phù hợp**: tab Free → nút chuông "Báo khi có cuốc phù hợp" → bật công tắc →
+   "Lưu". Dùng đúng bộ lọc (chiều, số chỗ, từ khoá) đang chọn ở tab Free làm tiêu chí; từ khoá khớp
+   nguyên cụm, không tách rời từng chữ. Thông báo gửi tối đa 1 lần / 2 phút / tài xế, chỉ cho tài xế
+   đang active và áp đúng điều kiện hiển thị như danh sách Free (chặn người bắn, nhóm tắt, mã QR an
+   toàn, còn hạn) — cần queue worker chạy (mục "⚠️ Queue worker + scheduler" ở trên), không chạy thì
+   tài xế không bao giờ nhận được thông báo mà không có lỗi nào hiện ra.
+
+### Dọn dữ liệu Cuốc Free + xoay vòng log service
+
+Không có migration mới. **Laravel** — `zalo:prune-data` chạy 03:20 hằng ngày (cần scheduler, mục "⚠️ Queue worker + scheduler"),
+cạnh `zalo:prune-rides` (03:10, giữ cuốc hết hạn 8 ngày như cũ). Mốc giữ ở `config/zalo.php`, đổi bằng
+`.env` nếu cần (để trống = mặc định):
+
+| Biến `.env` (backend) | Mặc định | Xoá gì |
+| --- | --- | --- |
+| `ZALO_ACCOUNT_REQUESTS_RETENTION_DAYS` | `30` | `zalo_account_requests` đã kết thúc (done/expired/failed), theo `created_at` |
+| `ZALO_REPORTS_RETENTION_DAYS` | `90` | `free_ride_reports`, theo `created_at` |
+| `ZALO_QR_REFRESH_REQUESTS_RETENTION_DAYS` | `90` | `zalo_qr_refresh_requests` ĐÃ giao, theo `delivered_at` |
+| `ZALO_LEFT_GROUPS_RETENTION_DAYS` | `30` | `zalo_groups` đã rời, theo `left_at` — trừ nhóm admin đã TẮT (giữ lại để nick vào lại thì nhóm vẫn tắt) |
+
+Chạy tay để xem số dòng bị xoá: `php artisan zalo:prune-data`.
+
+**Service Zalo** — tự dọn trong vòng prune mỗi giờ: file session nick đã gỡ
+(`REMOVED_SESSION_RETENTION_DAYS`, mặc định 7 ngày — file này còn cookie đăng nhập sống), nhóm đã rời
+(`LEFT_GROUP_RETENTION_DAYS`, 30) và người bắn lâu không thấy (`STALE_SENDER_DAYS`, 30). Chi tiết ở
+`zalo-service/README.md` mục "Dọn dữ liệu cũ". Nên để `LEFT_GROUP_RETENTION_DAYS` (service) bằng
+`ZALO_LEFT_GROUPS_RETENTION_DAYS` (Laravel): nếu Laravel xoá nhóm trước, lượt đồng bộ nhóm kế tiếp của
+service (10 phút) sẽ tạo lại nhóm đó ở Laravel với `left_at` mới và nó nằm thêm một chu kỳ nữa.
+
+**Xoay vòng log** — systemd ghi thẳng vào `/var/log/greenca-zalo-service.log` (`StandardOutput=append:`),
+không có gì tự cắt. Cài một lần trên VPS service:
+```bash
+cd /opt/greenca-zalo-service
+sudo cp deploy/logrotate-greenca-zalo-service /etc/logrotate.d/greenca-zalo-service
+sudo logrotate -d /etc/logrotate.d/greenca-zalo-service   # chạy thử, không đổi gì
+```
+Hằng ngày, giữ 14 bản nén, `copytruncate` (systemd giữ file mở nên không đổi tên được) — không cần
+restart service.
+
 ## Lịch sử production
 
 - 2026-09-23: **Sự cố push tài xế 6 tuần.** Tài xế báo không nhận noti cuốc mới; nghi

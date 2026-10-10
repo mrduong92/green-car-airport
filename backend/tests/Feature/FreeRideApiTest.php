@@ -1,0 +1,263 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\DriverProfile;
+use App\Models\FreeRide;
+use App\Models\User;
+use App\Models\ZaloGroup;
+use App\Models\ZaloQrRefreshRequest;
+use App\Models\ZaloSenderBlock;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+class FreeRideApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->travelTo(Carbon::parse('2026-10-07 01:00:00')); // 08:00 giờ VN
+    }
+
+    private function driver(string $status = 'active'): User
+    {
+        $driver = User::factory()->create(['role' => 'driver']);
+        DriverProfile::create([
+            'user_id' => $driver->id, 'vehicle_make' => 'Toyota', 'vehicle_model' => 'Vios', 'vehicle_plate' => '30A-'.random_int(10000, 99999),
+            'vehicle_year' => 2021, 'vehicle_color' => 'Trắng', 'vehicle_type' => 'sedan_4', 'status' => $status,
+        ]);
+
+        return $driver;
+    }
+
+    private function ride(array $overrides = []): FreeRide
+    {
+        static $n = 0;
+        $n++;
+
+        return FreeRide::create(array_merge([
+            'ride_uid' => "r-$n", 'sender_uid' => '111', 'sender_name' => 'Đức', 'qr_code' => '758z6tl22yft',
+            'zalo_group_id' => 'g1', 'group_name' => 'Taxi Nội Bài', 'direction' => 'to_airport',
+            'pickup' => "điểm $n", 'destination' => 'Sân bay Nội Bài', 'pickup_at' => now()->addHour(),
+            'pickup_time_text' => '9h', 'seats' => 5, 'price' => 200000, 'is_free' => false, 'is_raw' => false,
+            'raw_text' => "tiễn 9h điểm $n", 'group_count' => 1, 'posted_at' => now()->subMinutes(100 - $n),
+            'expires_at' => now()->addHours(2),
+        ], $overrides));
+    }
+
+    public function test_lists_active_rides_newest_first_with_contact_url(): void
+    {
+        $this->ride(['pickup' => 'cũ']);
+        $this->ride(['pickup' => 'mới']);
+        $this->ride(['pickup' => 'hết hạn', 'expires_at' => now()->subMinute()]);
+
+        $res = $this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->assertOk();
+
+        $this->assertSame(['mới', 'cũ'], array_column($res->json('data'), 'pickup'));
+        $this->assertSame('zalo://qr/p/758z6tl22yft', $res->json('data.0.contact_url'));
+        $this->assertNotNull($res->json('latest'));
+    }
+
+    // Cuốc không ghi giờ = "Đi luôn": thuộc "2 giờ tới" và "Hôm nay", không thuộc "Ngày mai".
+    public function test_rides_without_time_count_as_leaving_now(): void
+    {
+        $this->ride(['pickup' => 'đi luôn', 'pickup_at' => null, 'pickup_time_text' => null]);
+        $this->ride(['pickup' => 'ngày mai', 'pickup_at' => now()->addHours(30), 'expires_at' => now()->addHours(31)]);
+        $driver = $this->driver();
+        $pickups = fn (string $qs) => array_column($this->actingAs($driver, 'sanctum')->getJson("/api/driver/free-rides?$qs")->json('data'), 'pickup');
+
+        $this->assertContains('đi luôn', $pickups('window=2h'));
+        $this->assertContains('đi luôn', $pickups('window=today'));
+        $this->assertNotContains('đi luôn', $pickups('window=tomorrow'));
+    }
+
+    public function test_filters_by_direction_seats_window_and_search(): void
+    {
+        $this->ride(['pickup' => 'A', 'direction' => 'to_airport', 'seats' => 5]);
+        $this->ride(['pickup' => 'B', 'direction' => 'from_airport', 'seats' => 7]);
+        $this->ride(['pickup' => 'C Hà Đông', 'direction' => 'other', 'seats' => 5, 'pickup_at' => now()->addHours(30), 'expires_at' => now()->addHours(31)]);
+        $driver = $this->driver();
+        $pickups = fn (string $qs) => array_column($this->actingAs($driver, 'sanctum')->getJson("/api/driver/free-rides?$qs")->json('data'), 'pickup');
+
+        $this->assertSame(['B'], $pickups('direction=from_airport'));
+        $this->assertSame(['C Hà Đông', 'A'], $pickups('seats=5'));
+        $this->assertSame(['C Hà Đông'], $pickups('window=tomorrow'));
+        $this->assertSame(['B', 'A'], $pickups('window=2h'));
+        // SQLite (test) chỉ không phân biệt hoa thường với chữ ASCII; MySQL production (utf8mb4_unicode_ci) còn bỏ qua dấu.
+        $this->assertSame(['C Hà Đông'], $pickups('q='.urlencode('Hà Đông')));
+    }
+
+    public function test_since_returns_rides_changed_after_the_mark(): void
+    {
+        $this->ride(['pickup' => 'trước']);
+        $this->travel(1)->seconds(); // updated_at chỉ chính xác tới giây
+        $mark = now()->getTimestampMs();
+        $this->travel(5)->seconds();
+        $this->ride(['pickup' => 'sau']);
+
+        $res = $this->actingAs($this->driver(), 'sanctum')->getJson("/api/driver/free-rides?since=$mark")->assertOk();
+
+        $this->assertSame(['sau'], array_column($res->json('data'), 'pickup'));
+        $this->assertNull($res->json('next_cursor'));
+        $this->assertFalse($res->json('reset'));
+    }
+
+    public function test_since_reports_reset_when_limit_exceeded(): void
+    {
+        $driver = $this->driver();
+        $mark = now()->getTimestampMs();
+        $this->travel(1)->seconds();
+
+        foreach (range(1, 2) as $i) {
+            $this->ride();
+        }
+        $few = $this->actingAs($driver, 'sanctum')->getJson("/api/driver/free-rides?since=$mark")->assertOk();
+        $this->assertFalse($few->json('reset'));
+
+        // Tổng 201 cuốc (2 + 199) > SINCE_LIMIT (200) để kích hoạt reset.
+        foreach (range(1, 199) as $i) {
+            $this->ride();
+        }
+        $many = $this->actingAs($driver, 'sanctum')->getJson("/api/driver/free-rides?since=$mark")->assertOk();
+        $this->assertTrue($many->json('reset'));
+    }
+
+    public function test_cursor_pagination(): void
+    {
+        foreach (range(1, 35) as $i) {
+            $this->ride();
+        }
+        $driver = $this->driver();
+
+        $first = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->assertOk();
+        $this->assertCount(30, $first->json('data'));
+        $second = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides?cursor='.$first->json('next_cursor'))->assertOk();
+        $this->assertCount(5, $second->json('data'));
+    }
+
+    public function test_hidden_and_blocked_senders_are_excluded(): void
+    {
+        // Mỗi người một mã QR riêng — ẩn/chặn giờ khoá theo hồ sơ (qr_code).
+        $this->ride(['sender_uid' => 'hidden', 'qr_code' => 'QRhidden', 'pickup' => 'ẩn']);
+        $this->ride(['sender_uid' => 'spam', 'qr_code' => 'QRspam', 'pickup' => 'chặn']);
+        $this->ride(['sender_uid' => 'ok', 'qr_code' => 'QRok', 'pickup' => 'hiện']);
+        ZaloSenderBlock::create(['sender_uid' => 'spam']);
+        $driver = $this->driver();
+
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['sender_uid' => 'hidden'])->assertOk();
+
+        $this->assertSame(['hiện'], array_column($this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'pickup'));
+        // Tài xế khác vẫn thấy cuốc của người bắn mà tài xế này ẩn
+        $this->assertCount(2, $this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->json('data'));
+    }
+
+    public function test_hide_sender_hides_every_uid_sharing_the_qr_code(): void
+    {
+        // Cùng một người (mã QR 'QRX') nhưng hai nick phụ thấy hai uid khác nhau.
+        $this->ride(['sender_uid' => 'U1', 'qr_code' => 'QRX', 'pickup' => 'uid 1']);
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX', 'pickup' => 'uid 2']);
+        $this->ride(['sender_uid' => 'Z9', 'qr_code' => 'QRZ', 'pickup' => 'người khác']);
+        $driver = $this->driver();
+
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['sender_uid' => 'U1'])->assertOk();
+
+        $this->assertDatabaseHas('driver_hidden_senders', ['driver_id' => $driver->id, 'qr_code' => 'QRX']);
+        $this->assertSame(['người khác'], array_column($this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'pickup'));
+    }
+
+    public function test_hide_sender_accepts_qr_code_directly_and_is_idempotent(): void
+    {
+        $this->ride(['sender_uid' => 'U1', 'qr_code' => 'QRX', 'pickup' => 'uid 1']);
+        $this->ride(['sender_uid' => 'U2', 'qr_code' => 'QRX', 'pickup' => 'uid 2']);
+        $driver = $this->driver();
+
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['sender_uid' => 'U2', 'qr_code' => 'QRX'])->assertOk();
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['qr_code' => 'QRX'])->assertOk();
+
+        $this->assertDatabaseCount('driver_hidden_senders', 1);
+        $this->assertCount(0, $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'));
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['qr_code' => 'ab/c'])->assertUnprocessable();
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', [])->assertUnprocessable();
+    }
+
+    public function test_ride_payload_exposes_qr_code(): void
+    {
+        $this->ride(['qr_code' => 'QRX']);
+
+        $res = $this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->assertOk();
+        $this->assertSame('QRX', $res->json('data.0.qr_code'));
+    }
+
+    public function test_rides_with_unsafe_codes_are_not_listed(): void
+    {
+        $this->ride(['qr_code' => '758z6tl22yft', 'pickup' => 'mã an toàn']);
+        $this->ride(['qr_code' => 'abc/../x', 'pickup' => 'mã bẩn']);
+
+        $data = collect($this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->json('data'))->keyBy('pickup');
+
+        $this->assertSame('zalo://qr/p/758z6tl22yft', $data['mã an toàn']['contact_url']);
+        $this->assertArrayNotHasKey('mã bẩn', $data->all());
+    }
+
+    public function test_rides_of_disabled_groups_are_hidden(): void
+    {
+        $this->ride(['zalo_group_id' => 'g-on', 'pickup' => 'nhóm bật']);
+        $this->ride(['zalo_group_id' => 'g-off', 'pickup' => 'nhóm tắt']);
+        ZaloGroup::create(['zalo_group_id' => 'g-off', 'name' => 'Nhóm bị tắt', 'enabled' => false]);
+
+        $pickups = array_column($this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'pickup');
+
+        $this->assertSame(['nhóm bật'], $pickups);
+    }
+
+    public function test_report_and_broken_link(): void
+    {
+        $ride = $this->ride();
+        $driver = $this->driver();
+
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/report", ['reason' => 'spam'])->assertOk();
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/report", ['reason' => 'wrong_info'])->assertOk();
+        $this->assertDatabaseCount('free_ride_reports', 1);
+        $this->assertDatabaseHas('free_ride_reports', ['free_ride_uid' => $ride->ride_uid, 'reason' => 'wrong_info']);
+
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/broken-link")->assertOk();
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/broken-link")->assertOk();
+        $this->assertSame(1, ZaloQrRefreshRequest::where('sender_uid', '111')->whereNull('delivered_at')->count());
+
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/free-rides/khong-co/report', ['reason' => 'spam'])->assertNotFound();
+    }
+
+    public function test_driver_posts_are_throttled_at_20_per_minute(): void
+    {
+        $ride = $this->ride();
+        $driver = $this->driver();
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/broken-link")->assertOk();
+        }
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/broken-link")->assertStatus(429);
+
+        // Danh sách (GET) không bị giới hạn chung với các POST.
+        $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->assertOk();
+    }
+
+    public function test_free_rides_updated_at_is_indexed(): void
+    {
+        // Mốc `latest` và tín hiệu realtime dùng max(updated_at) — cần index để không quét cả bảng.
+        $indexed = collect(Schema::getIndexes('free_rides'))
+            ->contains(fn (array $i) => $i['columns'] === ['updated_at']);
+
+        $this->assertTrue($indexed);
+    }
+
+    public function test_inactive_driver_is_forbidden(): void
+    {
+        $this->actingAs($this->driver('pending'), 'sanctum')->getJson('/api/driver/free-rides')->assertForbidden();
+        $this->actingAs($this->driver('blocked'), 'sanctum')->postJson('/api/driver/free-rides/hidden-senders', ['sender_uid' => 'x'])->assertForbidden();
+        $this->actingAs(User::factory()->create(['role' => 'customer']), 'sanctum')->getJson('/api/driver/free-rides')->assertForbidden();
+    }
+}

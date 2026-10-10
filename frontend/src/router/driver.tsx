@@ -5,6 +5,7 @@ import DriverLayout from '@/layouts/DriverLayout'
 import LoginPage from '@/pages/driver/LoginPage'
 import DriverRegisterPage from '@/pages/DriverRegisterPage'
 import TripListPage from '@/pages/driver/TripListPage'
+import FreeRidesPage from '@/pages/driver/FreeRidesPage'
 import TripDetailPage from '@/pages/driver/TripDetailPage'
 import TripHistoryPage from '@/pages/driver/TripHistoryPage'
 import WalletPage from '@/pages/driver/WalletPage'
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
         element: <DriverLayout />,
         children: [
           { path: '/driver/trips', element: <TripListPage /> },
+          { path: '/driver/free', element: <FreeRidesPage /> },
           { path: '/driver/trips/history', element: <TripHistoryPage /> },
           { path: '/driver/trips/:id', element: <TripDetailPage /> },
           { path: '/driver/wallet', element: <WalletPage /> },

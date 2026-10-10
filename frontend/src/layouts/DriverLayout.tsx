@@ -8,6 +8,7 @@ import clsx from 'clsx'
 
 const TABS = [
   { to: '/driver/trips',         icon: 'list_alt',               label: 'Cuốc xe',  end: true },
+  { to: '/driver/free',          icon: 'local_taxi',             label: 'Free',     end: true },
   { to: '/driver/trips/history', icon: 'receipt_long',           label: 'Lịch sử',  end: true },
   { to: '/driver/stats',         icon: 'bar_chart',              label: 'Thống kê', end: true },
   { to: '/driver/wallet',        icon: 'account_balance_wallet',  label: 'Ví điểm', end: true },
@@ -34,7 +35,7 @@ export default function DriverLayout() {
               to={tab.to}
               end={'end' in tab ? tab.end : undefined}
               className={({ isActive }) =>
-                clsx('flex-1 flex flex-col items-center py-1.5 gap-[3px] transition-colors',
+                clsx('flex-1 min-w-0 flex flex-col items-center py-1.5 gap-[3px] transition-colors',
                   isActive ? 'text-primary' : 'text-neutral-dim')
               }
             >
@@ -51,7 +52,8 @@ export default function DriverLayout() {
                       </span>
                     )}
                   </span>
-                  <span className={clsx('text-[10px]', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
+                  {/* 7 tab trên máy 360px: nhãn 9px, luôn một dòng — máy hẹp hơn thì cắt "…" thay vì xuống dòng. */}
+                  <span className={clsx('text-[9px] max-w-full whitespace-nowrap truncate px-px', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
                 </>
               )}
             </NavLink>

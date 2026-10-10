@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Middleware\EnsureDriverActive;
+use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\VerifyZaloBotSignature;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use App\Http\Middleware\EnsureRole;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => EnsureRole::class,
+            'zalo.bot' => VerifyZaloBotSignature::class,
+            'driver.active' => EnsureDriverActive::class,
         ]);
 
         $middleware->statefulApi();

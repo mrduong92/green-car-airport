@@ -373,6 +373,175 @@ declare namespace App {
     last_page: number
     total: number
   }
+
+  type FreeRideDirection = 'to_airport' | 'from_airport' | 'other'
+
+  interface FreeRide {
+    ride_uid: string
+    sender_uid: string
+    sender_name: string
+    group_name: string
+    direction: FreeRideDirection | null
+    pickup: string | null
+    destination: string | null
+    pickup_at: number | null
+    pickup_time_text: string | null
+    seats: number | null
+    vehicle_note: string | null
+    price: number | null
+    is_free: boolean
+    is_raw: boolean
+    raw_text: string
+    group_count: number
+    // Backend luôn trả chuỗi dạng zalo://qr/p/<mã> — cuốc có mã bẩn bị loại ở
+    // server (FreeRideController::safe()), không lọt ra tới đây.
+    contact_url: string
+    // Mã hồ sơ Zalo (danh tính thật của người bắn — cùng người có thể mang nhiều sender_uid
+    // tuỳ nick phụ nhìn thấy); "Ẩn người bắn" gửi lại mã này để ẩn mọi uid của họ.
+    qr_code: string
+    posted_at: number
+    expires_at: number
+  }
+
+  interface FreeRidePage {
+    data: FreeRide[]
+    next_cursor: string | null
+    latest: number | null
+    // true khi server chạm trần SINCE_LIMIT (200 dòng): nghĩa là còn cuốc cũ
+    // hơn bị bỏ sót, client phải nạp lại trang 1 thay vì gộp theo since.
+    reset?: boolean
+  }
+
+  interface FreeRideFilters {
+    direction?: FreeRideDirection
+    seats?: number
+    window?: '2h' | 'today' | 'tomorrow'
+    q?: string
+  }
+
+  // Bộ lọc đã lưu để nhận thông báo đẩy (giai đoạn 5) — khớp JSON của FreeRideController::alert()/saveAlert()
+  // (xem task-4-report.md). `keywords` được so khớp NGUYÊN CỤM, không tách rời từng từ.
+  interface FreeRideAlert {
+    enabled: boolean
+    direction: FreeRideDirection | null
+    seats: number | null
+    keywords: string | null
+  }
+
+  // Trang admin "Cuốc Free" — khớp JSON thực tế của FreeRideAdminController (xem task-3-report.md, task-4-report.md).
+  interface AdminZaloGroup {
+    zalo_group_id: string
+    name: string
+    enabled: boolean
+    member_count: number | null
+    messages_24h: number
+    last_message_at: number | null
+    accounts: string[]
+    left: boolean
+    rides_24h: number
+    rides_7d: number
+  }
+
+  // Một hàng = một hồ sơ (qr_code), cộng dồn mọi sender_uid của cùng người. qr_code/contact_url
+  // null chỉ với hàng chặn kiểu cũ theo uid đã hết cuốc (không suy ra được hồ sơ).
+  interface AdminFreeRideSender {
+    qr_code: string | null
+    contact_url: string | null
+    sender_name: string
+    // uid của cuốc gần nhất (hoặc uid chặn kiểu cũ); null khi hồ sơ bị chặn đã hết cuốc.
+    sender_uid: string | null
+    sender_uids: string[]
+    // Nhóm Zalo đã đăng, gần nhất trước (tối đa 10); groups_count = tổng số nhóm.
+    groups: string[]
+    groups_count: number
+    active_rides: number
+    rides_7d: number
+    reports: number
+    blocked: boolean
+  }
+
+  interface AdminFreeRideServiceAccount {
+    id: string
+    connected: boolean
+    logged_in: boolean | null
+    last_error: string | null
+  }
+
+  interface AdminFreeRideService {
+    service_id: string
+    last_heartbeat_at: number
+    stale: boolean
+    accounts: AdminFreeRideServiceAccount[]
+    ai_spent_today_usd: number
+    ai_budget_usd: number
+    outbox_backlog: number
+    held_back_rides: number
+    qr_ok_24h: number
+    qr_empty_24h: number
+  }
+
+  interface AdminFreeRideStatus {
+    services: AdminFreeRideService[]
+    active_rides: number
+    groups_enabled: number
+    groups_total: number
+  }
+
+  // Tab admin "Nick Zalo" (giai đoạn 5) — khớp JSON của ZaloAccountController (xem task-3-report.md).
+  type AdminZaloAccountRequestType = 'login' | 'remove'
+  type AdminZaloAccountRequestStatus = 'pending' | 'qr_ready' | 'done' | 'expired' | 'failed'
+
+  interface AdminZaloAccount {
+    id: string
+    zalo_uid: string | null
+    zalo_name: string | null
+    connected: boolean
+    logged_in: boolean | null
+    last_error: string | null
+    logged_in_at: number | null
+    groups: number | null
+    service_id: string
+    stale: boolean
+  }
+
+  // Dòng trong `requests` của GET /admin/free-rides/accounts — chỉ yêu cầu đang mở (pending/qr_ready).
+  interface AdminZaloAccountRequestSummary {
+    id: number
+    type: AdminZaloAccountRequestType
+    account_id: string
+    status: AdminZaloAccountRequestStatus
+  }
+
+  interface AdminZaloAccountsResponse {
+    accounts: AdminZaloAccount[]
+    requests: AdminZaloAccountRequestSummary[]
+  }
+
+  // POST/DELETE /admin/free-rides/accounts(/...) — luôn status=pending lúc tạo.
+  interface AdminZaloAccountRequestCreated {
+    id: number
+    type: AdminZaloAccountRequestType
+    account_id: string
+    status: AdminZaloAccountRequestStatus
+  }
+
+  // GET /admin/free-rides/account-requests/{id} — luôn đủ 8 khoá, poll mỗi 2 giây.
+  interface AdminZaloAccountRequestDetail {
+    id: number
+    type: AdminZaloAccountRequestType
+    account_id: string
+    status: AdminZaloAccountRequestStatus
+    qr_image: string | null
+    qr_expires_at: number | null
+    zalo_name: string | null
+    error: string | null
+  }
+
+  // Dạng phân trang { data, meta } của FreeRideAdminController — khác App.Paginated<T> (phẳng).
+  interface AdminPage<T> {
+    data: T[]
+    meta: { current_page: number; last_page: number; total: number }
+  }
 }
 
 declare module '@goongmaps/goong-js' {
