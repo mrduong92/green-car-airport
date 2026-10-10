@@ -2,6 +2,7 @@
 import { precacheAndRoute } from 'workbox-precaching'
 import { clientsClaim } from 'workbox-core'
 import { BRAND } from './brand'
+import { pushRoute, type PushData } from './push/route'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -39,15 +40,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const { action, booking_id } = (event.notification.data ?? {}) as {
-    action?: string
-    booking_id?: number
-  }
-
-  let url = '/'
-  if (action === 'view_booking' && booking_id) url = `/customer/booking/${booking_id}`
-  else if (action === 'view_trip' && booking_id) url = `/driver/trips/${booking_id}`
-  else if (action === 'view_wallet') url = '/driver/wallet'
+  const url = pushRoute((event.notification.data ?? {}) as PushData)
 
   event.waitUntil(
     self.clients
