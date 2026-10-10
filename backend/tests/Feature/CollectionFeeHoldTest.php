@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -102,7 +104,8 @@ class CollectionFeeHoldTest extends TestCase
         $this->actingAs($driver, 'sanctum')->postJson("/api/driver/trips/{$booking->id}/accept")->assertOk();
 
         $this->assertSame(20, $this->points($driver)); // 800 - 380 - 400
-        $this->assertSame(400, $booking->fresh()->held_points);
+        $this->assertSame(380, $booking->fresh()->charged_fee_points);
+        $this->assertSame(400, $booking->fresh()->held_collection_points);
         $this->assertDatabaseHas('wallet_transactions', [
             'booking_id' => $booking->id, 'type' => 'debit', 'points' => 400,
             'description' => "Thu hộ cuốc #{$booking->id}",
@@ -117,7 +120,8 @@ class CollectionFeeHoldTest extends TestCase
         $this->actingAs($driver, 'sanctum')->postJson("/api/driver/trips/{$booking->id}/accept")->assertOk();
 
         $this->assertSame(1_000 - 380 - 400 - 50, $this->points($driver));
-        $this->assertSame(450, $booking->fresh()->held_points);
+        $this->assertSame(400, $booking->fresh()->held_collection_points);
+        $this->assertSame(50, $booking->fresh()->held_surcharge_points);
         $this->assertDatabaseHas('wallet_transactions', [
             'booking_id' => $booking->id, 'type' => 'debit', 'points' => 50,
             'description' => "Phí phạt huỷ khách cuốc #{$booking->id}",
@@ -151,7 +155,8 @@ class CollectionFeeHoldTest extends TestCase
         $this->actingAs($driver, 'sanctum')->patchJson("/api/driver/trips/{$booking->id}/cancel")->assertOk();
 
         $this->assertSame(1_000 - 380, $this->points($driver)); // phí app không hoàn khi tài xế huỷ
-        $this->assertSame(0, $booking->fresh()->held_points);
+        $this->assertNull($booking->fresh()->charged_fee_points);
+        $this->assertSame(0, $booking->fresh()->held_collection_points);
         $this->assertSame('finding_driver', $booking->fresh()->status);
     }
 
@@ -164,7 +169,7 @@ class CollectionFeeHoldTest extends TestCase
         $this->actingAs($booking->customer, 'sanctum')->patchJson("/api/bookings/{$booking->id}/cancel")->assertOk();
 
         $this->assertSame(1_000, $this->points($driver));
-        $this->assertSame(0, $booking->fresh()->held_points);
+        $this->assertNull($booking->fresh()->charged_fee_points);
     }
 
     public function test_booking_without_collaborator_holds_nothing_for_collection(): void
@@ -175,7 +180,7 @@ class CollectionFeeHoldTest extends TestCase
         $this->actingAs($driver, 'sanctum')->postJson("/api/driver/trips/{$booking->id}/accept")->assertOk();
 
         $this->assertSame(0, $this->points($driver));
-        $this->assertSame(0, $booking->fresh()->held_points);
+        $this->assertSame(0, $booking->fresh()->held_collection_points);
     }
 
     /** Cuốc nhận TRƯỚC khi deploy (chưa giữ gì) mà ví không đủ: chặn hoàn thành, không để nửa vời. */
@@ -205,5 +210,95 @@ class CollectionFeeHoldTest extends TestCase
 
         $this->assertSame(100, $this->points($driver));
         $this->assertSame(400, $this->points($booking->collaborator));
+    }
+
+    // ── Các lỗi từ code review PR #17 ─────────────────────────────────────────
+
+    private function accepted(int $points, array $overrides = []): array
+    {
+        $driver = $this->driver($points);
+        $booking = $this->booking($overrides);
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/trips/{$booking->id}/accept")->assertOk();
+
+        return [$driver, $booking->fresh()];
+    }
+
+    public function test_driver_double_tap_cancel_refunds_held_amount_once(): void
+    {
+        [$driver, $booking] = $this->accepted(1_000);
+
+        $this->actingAs($driver, 'sanctum')->patchJson("/api/driver/trips/{$booking->id}/cancel")->assertOk();
+        $this->actingAs($driver, 'sanctum')->patchJson("/api/driver/trips/{$booking->id}/cancel")->assertStatus(403);
+
+        $this->assertSame(1_000 - 380, $this->points($driver));
+    }
+
+    public function test_refund_on_stale_copies_only_pays_once(): void
+    {
+        [$driver, $booking] = $this->accepted(1_000);
+
+        // Hai request đọc booking cùng lúc → hai bản trong bộ nhớ cùng thấy "đã trừ".
+        $copyA = Booking::find($booking->id);
+        $copyB = Booking::find($booking->id);
+
+        DB::transaction(fn () => $copyA->refundAcceptCharges('khách', refundFee: true));
+        DB::transaction(fn () => $copyB->refundAcceptCharges('tài xế', refundFee: false));
+
+        $this->assertSame(1_000, $this->points($driver));
+        $this->assertSame(1, \App\Models\WalletTransaction::where('booking_id', $booking->id)
+            ->where('description', 'like', 'Hoàn thu hộ%')->count());
+    }
+
+    public function test_customer_cancel_after_driver_cancel_does_not_refund_again(): void
+    {
+        [$driver, $booking] = $this->accepted(1_000);
+
+        $this->actingAs($driver, 'sanctum')->patchJson("/api/driver/trips/{$booking->id}/cancel")->assertOk();
+        $this->actingAs($booking->customer, 'sanctum')->patchJson("/api/bookings/{$booking->id}/cancel")->assertOk();
+
+        $this->assertSame(1_000 - 380, $this->points($driver));
+    }
+
+    public function test_customer_cancel_refunds_fee_actually_charged_even_if_rate_changed(): void
+    {
+        [$driver, $booking] = $this->accepted(1_000); // trừ 380 phí (20%) + 400 thu hộ
+
+        AppSetting::set(AppSetting::APP_FEE_PERCENT, '15');
+        $this->actingAs($booking->customer, 'sanctum')->patchJson("/api/bookings/{$booking->id}/cancel")->assertOk();
+
+        $this->assertSame(1_000, $this->points($driver)); // hoàn đủ 380, không phải 285
+    }
+
+    public function test_collaborator_gets_held_amount_even_if_collection_fee_edited_later(): void
+    {
+        [$driver, $booking] = $this->accepted(1_000);
+        $booking->update(['collection_fee' => 100_000]); // admin sửa sau khi tài xế đã bị giữ 400
+
+        $this->complete($driver, $booking)->assertOk();
+
+        $this->assertSame(400, $this->points($booking->collaborator));
+    }
+
+    public function test_trip_list_reports_zero_collection_points_without_collaborator(): void
+    {
+        $driver = $this->driver(0);
+        $booking = $this->booking(['collaborator_id' => null]);
+
+        $trip = collect($this->actingAs($driver, 'sanctum')->getJson('/api/driver/trips')->assertOk()->json())
+            ->firstWhere('id', $booking->id);
+
+        $this->assertSame(0, $trip['collection_points']);
+        $this->assertSame(380, $trip['required_points']);
+    }
+
+    public function test_expire_command_skips_booking_accepted_in_the_meantime(): void
+    {
+        [$driver, $booking] = $this->accepted(1_000);
+        $booking->forceFill(['created_at' => now()->subDays(2)])->save();
+
+        $this->artisan('bookings:expire')->assertSuccessful();
+
+        $this->assertSame('accepted', $booking->fresh()->status);
+        $this->assertSame(1_000 - 380 - 400, $this->points($driver));
     }
 }
