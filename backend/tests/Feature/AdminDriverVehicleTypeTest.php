@@ -70,6 +70,22 @@ class AdminDriverVehicleTypeTest extends TestCase
         $this->assertDatabaseHas('driver_profiles', ['user_id' => $driver->id, 'vehicle_type' => 'mpv_7']);
     }
 
+    public function test_driver_list_and_update_return_vehicle_year(): void
+    {
+        // Thiếu trường này thì ô "Năm SX" trong form sửa tài xế luôn trống.
+        $driver = $this->driver('suv_5');
+        $admin = $this->admin();
+
+        $row = collect($this->actingAs($admin, 'sanctum')->getJson('/api/admin/drivers')->assertOk()->json())
+            ->firstWhere('id', $driver->id);
+        $this->assertSame(2020, $row['vehicle_year']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson("/api/admin/drivers/{$driver->id}", ['vehicle_year' => 2022])
+            ->assertOk()
+            ->assertJsonPath('vehicle_year', 2022);
+    }
+
     public function test_invalid_vehicle_type_is_rejected(): void
     {
         $driver = $this->driver('suv_5');

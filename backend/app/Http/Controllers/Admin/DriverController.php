@@ -120,6 +120,7 @@ class DriverController extends Controller
             'vehicle_make'   => $p?->vehicle_make,
             'vehicle_model'  => $p?->vehicle_model,
             'vehicle_plate'  => $p?->vehicle_plate,
+            'vehicle_year'   => $p?->vehicle_year,
             'vehicle_color'  => $p?->vehicle_color,
             'vehicle_type'   => $p?->vehicle_type,
             'is_vip' => (bool) $p?->is_vip,
