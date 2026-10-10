@@ -92,13 +92,13 @@ android-build:
 	@test -d "$(ANDROID_SDK)" || { echo "✗ Không thấy Android SDK ở $(ANDROID_SDK) — đặt ANDROID_HOME"; exit 1; }
 	@test -f mobile/keystore.properties || { echo "✗ Thiếu mobile/keystore.properties — docs/MOBILE.md mục Khoá ký"; exit 1; }
 	@test -f mobile/$(APP)/android/app/google-services.json || { echo "✗ Thiếu google-services.json cho $(APP) — không có thì app không nhận push"; exit 1; }
-	@test -f frontend/public/sounds/new_ride.mp3 || { echo "✗ Thiếu frontend/public/sounds/new_ride.mp3"; exit 1; }
+	@test -f frontend/public/sounds/new_ride.wav || { echo "✗ Thiếu frontend/public/sounds/new_ride.wav"; exit 1; }
 	@test -f frontend/.env.native || { echo "✗ Thiếu frontend/.env.native — docs/MOBILE.md"; exit 1; }
 	node mobile/scripts/check-capacitor-versions.mjs
 	cd frontend && npm run build:$(APP):native
 	@! grep -l "e2e-test-placeholder" frontend/$(NATIVE_DIST_$(APP))/assets/*.js || { echo "✗ Bundle mang key Goong giả của e2e — kiểm frontend/.env"; exit 1; }
 	mkdir -p mobile/$(APP)/android/app/src/main/res/raw
-	cp frontend/public/sounds/new_ride.mp3 mobile/$(APP)/android/app/src/main/res/raw/new_ride.mp3
+	cp frontend/public/sounds/new_ride.wav mobile/$(APP)/android/app/src/main/res/raw/new_ride.wav
 	cd mobile/$(APP) && npx cap sync android
 	cd mobile/$(APP)/android && ANDROID_HOME=$(ANDROID_SDK) JAVA_HOME=$(JAVA21) ./gradlew --no-daemon clean assembleRelease bundleRelease
 	mkdir -p dist-mobile

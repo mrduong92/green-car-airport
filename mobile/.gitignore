@@ -15,4 +15,4 @@ keystore.properties
 *.jks
 *.keystore
 # Âm báo được Makefile chép từ frontend/public/sounds lúc build
-*/android/app/src/main/res/raw/new_ride.mp3
+*/android/app/src/main/res/raw/new_ride.wav

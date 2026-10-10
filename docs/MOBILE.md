@@ -46,7 +46,7 @@ Kiểm chữ ký: `~/Library/Android/sdk/build-tools/<bản>/apksigner verify --
 
 ### Âm báo cuốc mới
 
-Nguồn: `frontend/public/sounds/new_ride.mp3`, tạo bằng `mobile/scripts/tts-new-ride.mjs` (Google Cloud TTS). Makefile chép sang `res/raw/` mỗi lần build. ⚠️ Android **khoá âm báo của kênh** khi kênh đã tạo trên máy — đổi file sau khi đã phát hành thì phải đổi id kênh (`new_ride_v2`) ở cả `frontend/src/push/native.ts` lẫn `backend/app/Channels/Push/FcmTransport.php`.
+Nguồn: `frontend/public/sounds/new_ride.wav`, tạo bằng `mobile/scripts/tts-new-ride.mjs` (Gemini TTS, gói miễn phí — không cần thẻ). Makefile chép sang `res/raw/` mỗi lần build. ⚠️ Android **khoá âm báo của kênh** khi kênh đã tạo trên máy — đổi file sau khi đã phát hành thì phải đổi id kênh (`new_ride_v2`) ở cả `frontend/src/push/native.ts` lẫn `backend/app/Channels/Push/FcmTransport.php`.
 
 ### Firebase
 
