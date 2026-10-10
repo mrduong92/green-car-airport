@@ -121,7 +121,7 @@ export default function AccountsTab() {
           <EmptyState icon="person" title="Chưa có nick Zalo nào" description="Bấm 'Thêm nick' để đăng nhập nick phụ đầu tiên" />
         )}
 
-        {accounts.map((acc) => {
+        {accounts.map((acc, index) => {
           const openReq = openRequests.find((r) => r.account_id === acc.id)
           const removingThis = removing?.accountId === acc.id
             && (!removeDetail || removing?.requestId !== removeDetail.id || !TERMINAL_STATUSES.has(removeDetail.status))
@@ -134,10 +134,14 @@ export default function AccountsTab() {
           return (
             <div key={acc.id} data-testid="admin-account-card" className="bg-white rounded-card shadow-card p-4">
               <div className="flex items-start gap-3">
-                <span className={clsx('w-2.5 h-2.5 rounded-full mt-1.5 shrink-0', dotClass)} />
+                {/* Số thứ tự nick (1, 2, 3…) kèm chấm trạng thái kết nối ở góc. */}
+                <div data-testid="admin-account-ordinal" className="relative w-9 h-9 rounded-full bg-light-green text-primary font-bold text-sm flex items-center justify-center shrink-0">
+                  {index + 1}
+                  <span className={clsx('absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white', dotClass)} />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-sm font-semibold text-navy truncate">{acc.zalo_name || acc.id}</p>
+                    <p className="text-base font-bold text-navy truncate">{acc.zalo_name || acc.id}</p>
                     <span className={clsx(
                       'text-[10px] font-semibold rounded-pill px-2 py-0.5 shrink-0',
                       acc.stale
@@ -147,7 +151,9 @@ export default function AccountsTab() {
                       {statusLabel}
                     </span>
                   </div>
-                  <p className="text-[11px] text-neutral-gray mt-0.5">UID: {acc.zalo_uid ?? '—'}</p>
+                  <p className="text-[11px] text-neutral-gray mt-0.5 break-all">
+                    {acc.zalo_name ? `${acc.id} · ` : ''}UID: {acc.zalo_uid ?? '—'}
+                  </p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap text-caption text-neutral-gray">
                     <span>{acc.groups ?? 0} nhóm</span>
                     <span>· Đăng nhập lúc: {fmtLoginAt(acc.logged_in_at)}</span>
