@@ -23,6 +23,27 @@ test('an explicit date is used, with year rollover', () => {
   assert.equal(vn(resolvePickupAt(at('2026-12-31 20:00'), 7, 0, 2, 1)), '2027-01-02 07:00')
 })
 
+test('a stale reposted date stays in the past (no year rollover)', () => {
+  assert.equal(vn(resolvePickupAt(at('2026-10-10 09:00'), 8, 0, 9, 10)), '2026-10-09 08:00')
+  assert.equal(vn(resolvePickupAt(at('2026-10-10 09:00'), 8, 0, 1, 9)), '2026-09-01 08:00')
+  assert.equal(vn(resolvePickupAt(at('2026-12-31 20:00'), 7, 0, 15, 11)), '2026-11-15 07:00')
+})
+
+test('year rollover only when the stated month wraps past December', () => {
+  assert.equal(vn(resolvePickupAt(at('2026-12-31 20:00'), 7, 0, 2, 1)), '2027-01-02 07:00')
+  assert.equal(vn(resolvePickupAt(at('2026-11-30 20:00'), 7, 0, 2, 1)), '2027-01-02 07:00')
+  assert.equal(vn(resolvePickupAt(at('2026-12-20 20:00'), 7, 0, 5, 2)), '2027-02-05 07:00')
+})
+
+test('a future date in the same year stays this year', () => {
+  assert.equal(vn(resolvePickupAt(at('2026-06-15 10:00'), 9, 0, 20, 6)), '2026-06-20 09:00')
+  assert.equal(vn(resolvePickupAt(at('2026-03-10 10:00'), 9, 0, 20, 11)), '2026-11-20 09:00')
+})
+
+test('a December date posted in early January is last year (stale, stays past)', () => {
+  assert.equal(vn(resolvePickupAt(at('2026-01-02 10:00'), 9, 0, 31, 12)), '2025-12-31 09:00')
+})
+
 test('findTimes recognises common formats and ignores overlaps', () => {
   const pick = (t: string) => findTimes(t).map((x) => [x.hour, x.minute, x.text, x.relative])
   assert.deepEqual(pick('tiễn 4h15 phố cổ'), [[4, 15, '4h15', false]])

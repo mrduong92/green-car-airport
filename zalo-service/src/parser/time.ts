@@ -43,17 +43,25 @@ export function findDate(text: string): { day: number; month: number; text: stri
   return { day, month, text: m[0] }
 }
 
+// Ngày ghi rõ chỉ đổi năm khi tháng "quấn" qua mốc năm: đăng tháng 11–12 mà ghi tháng 1–2 → năm sau
+// ("2/1" đăng ngày 31/12); đăng tháng 1–2 mà ghi tháng 11–12 → năm trước (tin cũ đăng lại). Mọi
+// trường hợp khác giữ năm hiện tại — ngày đã qua thì vẫn là quá khứ, cuốc hết hạn ngay và bị loại,
+// thay vì bị đẩy sang năm sau và nằm ~1 năm trên tab Free.
+const YEAR_WRAP_MONTHS = 10
+
 export function resolvePickupAt(sentAt: number, hour: number, minute: number, day?: number | null, month?: number | null): number {
   const local = new Date(sentAt + VN_OFFSET_MS) // getUTC* trên mốc đã cộng 7h = giờ VN
-  const year = local.getUTCFullYear()
-  const m = month ? month - 1 : local.getUTCMonth()
+  const sentMonth = local.getUTCMonth()
+  const m = month ? month - 1 : sentMonth
   const d = day ?? local.getUTCDate()
-  let candidate = Date.UTC(year, m, d, hour, minute) - VN_OFFSET_MS
+  let year = local.getUTCFullYear()
 
-  if (day == null) {
-    if (candidate < sentAt - 30 * 60_000) candidate += DAY_MS // giờ đã qua → hôm sau
-  } else if (candidate < sentAt - DAY_MS) {
-    candidate = Date.UTC(year + 1, m, d, hour, minute) - VN_OFFSET_MS // "2/1" đăng ngày 31/12
+  if (day != null && month) {
+    if (sentMonth - m >= YEAR_WRAP_MONTHS) year += 1
+    else if (m - sentMonth >= YEAR_WRAP_MONTHS) year -= 1
   }
+
+  let candidate = Date.UTC(year, m, d, hour, minute) - VN_OFFSET_MS
+  if (day == null && candidate < sentAt - 30 * 60_000) candidate += DAY_MS // giờ đã qua → hôm sau
   return candidate
 }
