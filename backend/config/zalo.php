@@ -28,4 +28,15 @@ return [
     'rides_backlog_alert' => 1000,
     // Cảnh báo khi số cuốc còn hạn bị giữ lại (người bắn chưa có mã QR) vượt ngưỡng này.
     'held_back_alert' => 200,
+
+    // Dọn dữ liệu phụ (zalo:prune-data, 03:20 hằng ngày) — số ngày giữ lại.
+    // Yêu cầu thêm/gỡ nick đã kết thúc (done/expired/failed), tính từ lúc tạo.
+    'account_requests_retention_days' => (int) env('ZALO_ACCOUNT_REQUESTS_RETENTION_DAYS', 30),
+    // Báo cáo cuốc của tài xế (free_ride_reports), tính từ lúc tạo.
+    'reports_retention_days' => (int) env('ZALO_REPORTS_RETENTION_DAYS', 90),
+    // Yêu cầu lấy lại mã QR ĐÃ giao cho service, tính từ delivered_at.
+    'qr_refresh_requests_retention_days' => (int) env('ZALO_QR_REFRESH_REQUESTS_RETENTION_DAYS', 90),
+    // Nhóm nick phụ đã rời (zalo_groups.left_at). Service cũng tự xoá nhóm đã rời của nó sau
+    // LEFT_GROUP_RETENTION_DAYS (mặc định 30) — nên đặt hai bên bằng nhau.
+    'left_groups_retention_days' => (int) env('ZALO_LEFT_GROUPS_RETENTION_DAYS', 30),
 ];
