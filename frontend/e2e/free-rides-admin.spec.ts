@@ -78,6 +78,19 @@ test('admin bật/tắt nhóm Zalo và chặn/bỏ chặn người bắn, ảnh 
     await expect(senderRow.getByTestId('admin-sender-contact')).toHaveAttribute('href', `zalo://qr/p/e2eadms${tag}`)
     await expect(senderCard).toBeVisible()
 
+    // Bộ lọc "Chỉ người đang bị chặn" đi query string `blocked` — nếu frontend gửi boolean thật
+    // (true/false) thay vì 1/0, axios serialize thành chuỗi "true" và rule `boolean` của Laravel
+    // từ chối nó (422), lọc luôn báo lỗi. Bật lọc trước khi chặn (chưa ai bị chặn) → danh sách
+    // rỗng nhưng KHÔNG lỗi; chặn xong bật lại lọc → thấy đúng hàng vừa chặn.
+    const blockedOnlyToggle = page.getByTestId('admin-senders-blocked-only')
+    await blockedOnlyToggle.click()
+    await expect(blockedOnlyToggle).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByText('Không tải được danh sách người bắn')).toHaveCount(0)
+    await expect(senderRow).toHaveCount(0)
+    await blockedOnlyToggle.click()
+    await expect(blockedOnlyToggle).toHaveAttribute('aria-checked', 'false')
+    await expect(senderRow).toBeVisible()
+
     await senderRow.getByTestId('admin-sender-block').click()
     // ConfirmDialog không có testid riêng và nhãn nút xác nhận ("Chặn") trùng nhãn nút ở hàng danh
     // sách, nên phải khoanh vùng theo khung dialog (lọc theo tiêu đề) để tránh khớp nhầm 2 phần tử.
@@ -85,6 +98,15 @@ test('admin bật/tắt nhóm Zalo và chặn/bỏ chặn người bắn, ảnh 
     await confirmBlockDialog.getByRole('button', { name: 'Chặn', exact: true }).click()
     await expect(page.getByText('Đã chặn người bắn')).toBeVisible()
     await expect(senderRow.getByTestId('admin-sender-unblock')).toBeVisible()
+
+    // Giờ đã chặn xong — bật lại lọc "Chỉ người đang bị chặn" phải thấy đúng hàng này, không lỗi.
+    await blockedOnlyToggle.click()
+    await expect(blockedOnlyToggle).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByText('Không tải được danh sách người bắn')).toHaveCount(0)
+    await expect(senderRow).toBeVisible()
+    await expect(senderRow.getByTestId('admin-sender-unblock')).toBeVisible()
+    await blockedOnlyToggle.click()
+    await expect(blockedOnlyToggle).toHaveAttribute('aria-checked', 'false')
 
     await driver.reload()
     await expect(senderCard).toHaveCount(0)
