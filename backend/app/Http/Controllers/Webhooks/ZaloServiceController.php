@@ -112,7 +112,7 @@ class ZaloServiceController extends Controller
 
         if ($data['status'] === 'qr_ready') {
             $update['qr_image'] = $data['qr_image'] ?? null;
-            $update['qr_expires_at'] = isset($data['qr_expires_at']) ? Carbon::createFromTimestampMs($data['qr_expires_at']) : null;
+            $update['qr_expires_at'] = isset($data['qr_expires_at']) ? Carbon::createFromTimestampMs($data['qr_expires_at'], config('app.timezone')) : null;
         } else {
             // done | expired | failed: ảnh QR là thông tin nhạy cảm (ai quét cũng đăng nhập
             // nick của người quét) — xoá ngay khi không còn cần hiển thị cho admin nữa.
@@ -181,7 +181,7 @@ class ZaloServiceController extends Controller
             foreach ($data['groups'] as $g) {
                 $base = [
                     'name' => mb_substr((string) ($g['name'] ?? ''), 0, 255),
-                    'last_message_at' => isset($g['last_message_at']) ? Carbon::createFromTimestampMs($g['last_message_at']) : null,
+                    'last_message_at' => isset($g['last_message_at']) ? Carbon::createFromTimestampMs($g['last_message_at'], config('app.timezone')) : null,
                     'messages_24h' => $g['messages_24h'],
                     'updated_at' => $now,
                 ];

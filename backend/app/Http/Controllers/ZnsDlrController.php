@@ -32,7 +32,7 @@ class ZnsDlrController extends Controller
         if ($otp) {
             $otp->update([
                 'delivery_status' => $status === 1 ? 'delivered' : 'failed',
-                'delivered_at'    => $deliveredts ? Carbon::createFromTimestamp((int) $deliveredts) : now(),
+                'delivered_at'    => $deliveredts ? Carbon::createFromTimestamp((int) $deliveredts, config('app.timezone')) : now(),
             ]);
         }
 

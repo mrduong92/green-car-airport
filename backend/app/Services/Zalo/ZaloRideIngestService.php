@@ -92,7 +92,7 @@ class ZaloRideIngestService
                 'direction' => $d['direction'] ?? null,
                 'pickup' => isset($d['pickup']) ? mb_substr($d['pickup'], 0, 255) : null,
                 'destination' => isset($d['destination']) ? mb_substr($d['destination'], 0, 255) : null,
-                'pickup_at' => isset($d['pickup_at']) ? Carbon::createFromTimestampMs($d['pickup_at']) : null,
+                'pickup_at' => isset($d['pickup_at']) ? Carbon::createFromTimestampMs($d['pickup_at'], config('app.timezone')) : null,
                 'pickup_time_text' => isset($d['pickup_time_text']) ? mb_substr($d['pickup_time_text'], 0, 32) : null,
                 'seats' => $d['seats'] ?? null,
                 'vehicle_note' => isset($d['vehicle_note']) ? mb_substr($d['vehicle_note'], 0, 32) : null,
@@ -101,8 +101,8 @@ class ZaloRideIngestService
                 'is_raw' => (bool) $d['is_raw'],
                 'raw_text' => mb_substr($d['raw_text'], 0, 4000),
                 'group_count' => $d['group_count'],
-                'posted_at' => Carbon::createFromTimestampMs($d['posted_at']),
-                'expires_at' => Carbon::createFromTimestampMs($d['expires_at']),
+                'posted_at' => Carbon::createFromTimestampMs($d['posted_at'], config('app.timezone')),
+                'expires_at' => Carbon::createFromTimestampMs($d['expires_at'], config('app.timezone')),
                 // created_at/updated_at gán SAU khi giữ được khoá — xem bên dưới, lý do ở docblock lớp.
             ];
         }
