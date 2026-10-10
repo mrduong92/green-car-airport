@@ -10,11 +10,18 @@ export const setZaloGroupEnabled = (id: string, enabled: boolean) =>
 export const getFreeRideSenders = (params?: { q?: string; blocked?: boolean; page?: number }) =>
   api.get<App.AdminPage<App.AdminFreeRideSender>>('/admin/free-rides/senders', { params })
 
-export const blockFreeRideSender = (uid: string, reason?: string) =>
-  api.post<{ blocked: boolean }>(`/admin/free-rides/senders/${uid}/block`, { reason })
+// Chặn theo hồ sơ (mã QR) — áp lên mọi uid của cùng người. Hàng chặn kiểu cũ theo uid (không còn
+// cuốc nên không có qr_code) vẫn đi endpoint theo uid.
+const senderBlockPath = (s: Pick<App.AdminFreeRideSender, 'qr_code' | 'sender_uid'>) =>
+  s.qr_code
+    ? `/admin/free-rides/senders/qr/${encodeURIComponent(s.qr_code)}/block`
+    : `/admin/free-rides/senders/${encodeURIComponent(s.sender_uid ?? '')}/block`
 
-export const unblockFreeRideSender = (uid: string) =>
-  api.delete<{ blocked: boolean }>(`/admin/free-rides/senders/${uid}/block`)
+export const blockFreeRideSender = (s: App.AdminFreeRideSender, reason?: string) =>
+  api.post<{ blocked: boolean }>(senderBlockPath(s), { reason })
+
+export const unblockFreeRideSender = (s: App.AdminFreeRideSender) =>
+  api.delete<{ blocked: boolean }>(senderBlockPath(s))
 
 export const getFreeRideStatus = () => api.get<App.AdminFreeRideStatus>('/admin/free-rides/status')
 

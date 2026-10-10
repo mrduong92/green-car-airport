@@ -390,6 +390,9 @@ declare namespace App {
     // Backend luôn trả chuỗi dạng zalo://qr/p/<mã> — cuốc có mã bẩn bị loại ở
     // server (FreeRideController::safe()), không lọt ra tới đây.
     contact_url: string
+    // Mã hồ sơ Zalo (danh tính thật của người bắn — cùng người có thể mang nhiều sender_uid
+    // tuỳ nick phụ nhìn thấy); "Ẩn người bắn" gửi lại mã này để ẩn mọi uid của họ.
+    qr_code: string
     posted_at: number
     expires_at: number
   }
@@ -433,9 +436,18 @@ declare namespace App {
     rides_7d: number
   }
 
+  // Một hàng = một hồ sơ (qr_code), cộng dồn mọi sender_uid của cùng người. qr_code/contact_url
+  // null chỉ với hàng chặn kiểu cũ theo uid đã hết cuốc (không suy ra được hồ sơ).
   interface AdminFreeRideSender {
-    sender_uid: string
+    qr_code: string | null
+    contact_url: string | null
     sender_name: string
+    // uid của cuốc gần nhất (hoặc uid chặn kiểu cũ); null khi hồ sơ bị chặn đã hết cuốc.
+    sender_uid: string | null
+    sender_uids: string[]
+    // Nhóm Zalo đã đăng, gần nhất trước (tối đa 10); groups_count = tổng số nhóm.
+    groups: string[]
+    groups_count: number
     active_rides: number
     rides_7d: number
     reports: number

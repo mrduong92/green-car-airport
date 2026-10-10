@@ -5,10 +5,13 @@ import { pushFreeRides } from './fixtures/freeRides'
 
 // Giai đoạn 2 chỉ gửi sang Laravel cuốc có qr_code hợp lệ (cột NOT NULL) — không còn
 // trạng thái "Chưa liên hệ được", nên mọi cuốc fixture đẩy lên đều có qrCode.
+// "Ẩn người bắn" khoá theo mã QR hồ sơ (mọi uid cùng mã) và tài xế seed dùng chung giữa các lần
+// chạy — mã QR phải gắn tag theo lần chạy, nếu dùng mã cố định thì lần chạy sau cuốc đã bị ẩn sẵn.
 test('tài xế thấy cuốc Free, nút Nhận cuốc mở Zalo, ẩn được người bắn', async ({ page }) => {
   const tag = Date.now().toString(36)
+  const qrCode = `e2ea${tag}`
   await pushFreeRides([
-    { pickup: `Điểm có mã ${tag}`, senderUid: `e2e-a-${tag}`, qrCode: 'e2etestcode123' },
+    { pickup: `Điểm có mã ${tag}`, senderUid: `e2e-a-${tag}`, qrCode },
   ])
 
   await loginExisting(page, APP.driver, SEEDED.driver)
@@ -18,10 +21,10 @@ test('tài xế thấy cuốc Free, nút Nhận cuốc mở Zalo, ẩn được 
 
   const withCode = page.getByTestId('free-ride-card').filter({ hasText: `Điểm có mã ${tag}` })
   await expect(withCode).toBeVisible()
-  await expect(withCode.getByTestId('free-ride-accept')).toHaveAttribute('href', 'zalo://qr/p/e2etestcode123')
+  await expect(withCode.getByTestId('free-ride-accept')).toHaveAttribute('href', `zalo://qr/p/${qrCode}`)
 
   // Cuốc mới tới khi đang mở trang → hiện ra không cần tải lại (tín hiệu realtime + since, rải ≤ 3 giây)
-  await pushFreeRides([{ pickup: `Điểm realtime ${tag}`, senderUid: `e2e-c-${tag}`, qrCode: 'e2erealtime' }])
+  await pushFreeRides([{ pickup: `Điểm realtime ${tag}`, senderUid: `e2e-c-${tag}`, qrCode: `e2ec${tag}` }])
   const realtimeCard = page.getByTestId('free-ride-card').filter({ hasText: `Điểm realtime ${tag}` })
   await expect(realtimeCard).toBeVisible({ timeout: 15_000 })
 

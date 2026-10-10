@@ -15,7 +15,7 @@ const REASONS: { value: FreeRideReportReason; label: string }[] = [
 interface Props {
   ride: App.FreeRide
   onClose: () => void
-  onSenderHidden: (senderUid: string) => void
+  onSenderHidden: (ride: App.FreeRide) => void
 }
 
 export default function FreeRideActionsSheet({ ride, onClose, onSenderHidden }: Props) {
@@ -27,8 +27,8 @@ export default function FreeRideActionsSheet({ ride, onClose, onSenderHidden }: 
   const [confirmHide, setConfirmHide] = useState(false)
 
   const hide = useMutation({
-    mutationFn: () => hideFreeRideSender(ride.sender_uid),
-    onSuccess: () => { onSenderHidden(ride.sender_uid); showToast('Đã ẩn cuốc của người bắn này', 'success'); onClose() },
+    mutationFn: () => hideFreeRideSender(ride),
+    onSuccess: () => { onSenderHidden(ride); showToast('Đã ẩn cuốc của người bắn này', 'success'); onClose() },
     onError: fail,
   })
   const broken = useMutation({

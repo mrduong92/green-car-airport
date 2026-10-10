@@ -8,6 +8,12 @@ import clsx from 'clsx'
 
 const QUERY_ROOT = ['admin-free-ride-senders'] as const
 
+// Số nhóm Zalo hiện trên mỗi hàng, còn lại gộp thành "+N".
+const GROUPS_SHOWN = 3
+
+// Khoá hàng: hồ sơ (qr_code); hàng chặn kiểu cũ theo uid (không có qr_code) khoá theo uid.
+const rowKey = (s: App.AdminFreeRideSender) => s.qr_code ?? `uid:${s.sender_uid}`
+
 export default function SendersTab() {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
@@ -36,7 +42,7 @@ export default function SendersTab() {
   const invalidate = () => qc.invalidateQueries({ queryKey: QUERY_ROOT })
 
   const blockMutation = useMutation({
-    mutationFn: (uid: string) => blockFreeRideSender(uid),
+    mutationFn: (s: App.AdminFreeRideSender) => blockFreeRideSender(s),
     onSuccess: () => {
       showToast('Đã chặn người bắn', 'success')
       setBlockTarget(null)
@@ -46,7 +52,7 @@ export default function SendersTab() {
   })
 
   const unblockMutation = useMutation({
-    mutationFn: (uid: string) => unblockFreeRideSender(uid),
+    mutationFn: (s: App.AdminFreeRideSender) => unblockFreeRideSender(s),
     onSuccess: () => {
       showToast('Đã bỏ chặn người bắn', 'success')
       invalidate()
@@ -63,7 +69,7 @@ export default function SendersTab() {
           <input
             value={qInput}
             onChange={(e) => setQInput(e.target.value)}
-            placeholder="Tìm theo tên, UID"
+            placeholder="Tìm theo tên, nhóm, UID, mã QR"
             className="flex-1 outline-none text-sm text-navy"
           />
         </div>
@@ -106,53 +112,86 @@ export default function SendersTab() {
           <EmptyState icon="person_off" title="Không tìm thấy người bắn" description="Thử thay đổi từ khoá hoặc bộ lọc" />
         )}
 
-        {senders.map((s) => (
-          <div key={s.sender_uid} data-testid="admin-sender-row" className="bg-white rounded-card shadow-card p-4">
-            <div className="flex items-center gap-3">
-              <div className={clsx(
-                'w-11 h-11 rounded-full flex items-center justify-center font-bold shrink-0',
-                s.blocked ? 'bg-danger-red/10 text-danger-red' : 'bg-primary-tint text-primary',
-              )}>
-                {s.blocked
-                  ? <span className="material-symbols-outlined text-xl">block</span>
-                  : (s.sender_name?.[0] || s.sender_uid[0])}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-semibold text-navy truncate">{s.sender_name || s.sender_uid}</p>
-                  {s.blocked && (
-                    <span className="text-[10px] font-semibold text-danger-red bg-danger-red/10 rounded-pill px-2 py-0.5 shrink-0">
-                      Đã chặn
-                    </span>
+        {senders.map((s) => {
+          const title = s.sender_name || s.sender_uid || s.qr_code || '—'
+          const extraGroups = s.groups_count - Math.min(s.groups.length, GROUPS_SHOWN)
+          return (
+            <div key={rowKey(s)} data-testid="admin-sender-row" className="bg-white rounded-card shadow-card p-4">
+              <div className="flex items-start gap-3">
+                <div className={clsx(
+                  'w-11 h-11 rounded-full flex items-center justify-center font-bold shrink-0',
+                  s.blocked ? 'bg-danger-red/10 text-danger-red' : 'bg-primary-tint text-primary',
+                )}>
+                  {s.blocked
+                    ? <span className="material-symbols-outlined text-xl">block</span>
+                    : title[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-navy truncate">{title}</p>
+                    {s.blocked && (
+                      <span className="text-[10px] font-semibold text-danger-red bg-danger-red/10 rounded-pill px-2 py-0.5 shrink-0">
+                        Đã chặn
+                      </span>
+                    )}
+                  </div>
+                  {/* Cùng một người có thể mang nhiều UID (mỗi nick phụ thấy một UID khác). */}
+                  <p className="text-[11px] text-neutral-gray mt-0.5 break-all">
+                    {s.sender_uids.length > 1 ? `${s.sender_uids.length} UID: ` : 'UID: '}
+                    {s.sender_uids.length > 0 ? s.sender_uids.join(', ') : '—'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap text-caption text-neutral-gray">
+                    <span>{s.active_rides} cuốc đang hiện</span>
+                    <span>· {s.rides_7d} cuốc/7 ngày</span>
+                    {s.reports > 0 && <span className="text-danger-red font-medium">· {s.reports} báo cáo</span>}
+                  </div>
+                  {s.groups.length > 0 && (
+                    <div className="flex items-center gap-1 mt-2 flex-wrap">
+                      {s.groups.slice(0, GROUPS_SHOWN).map((g) => (
+                        <span key={g} className="text-[11px] text-navy bg-light-green rounded-pill px-2 py-0.5 max-w-[180px] truncate">
+                          {g}
+                        </span>
+                      ))}
+                      {extraGroups > 0 && (
+                        <span className="text-[11px] text-neutral-gray px-1">+{extraGroups}</span>
+                      )}
+                    </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-1 flex-wrap text-caption text-neutral-gray">
-                  <span>{s.active_rides} cuốc đang hiện</span>
-                  <span>· {s.rides_7d} cuốc/7 ngày</span>
-                  {s.reports > 0 && <span className="text-danger-red font-medium">· {s.reports} báo cáo</span>}
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {s.blocked ? (
+                    <button
+                      data-testid="admin-sender-unblock"
+                      onClick={() => unblockMutation.mutate(s)}
+                      disabled={unblockMutation.isPending}
+                      className="text-xs bg-success-green/10 text-success-green rounded-pill px-3 py-1.5 font-medium"
+                    >
+                      Bỏ chặn
+                    </button>
+                  ) : (
+                    <button
+                      data-testid="admin-sender-block"
+                      onClick={() => setBlockTarget(s)}
+                      className="text-xs bg-danger-red text-white rounded-pill px-3 py-1.5 font-medium"
+                    >
+                      Chặn
+                    </button>
+                  )}
+                  {s.contact_url && (
+                    <a
+                      data-testid="admin-sender-contact"
+                      href={s.contact_url}
+                      className="flex items-center gap-1 text-xs text-primary font-medium"
+                    >
+                      <span className="material-symbols-outlined text-base">chat</span>
+                      Mở Zalo
+                    </a>
+                  )}
                 </div>
               </div>
-              {s.blocked ? (
-                <button
-                  data-testid="admin-sender-unblock"
-                  onClick={() => unblockMutation.mutate(s.sender_uid)}
-                  disabled={unblockMutation.isPending}
-                  className="text-xs bg-success-green/10 text-success-green rounded-pill px-3 py-1.5 font-medium shrink-0"
-                >
-                  Bỏ chặn
-                </button>
-              ) : (
-                <button
-                  data-testid="admin-sender-block"
-                  onClick={() => setBlockTarget(s)}
-                  className="text-xs bg-danger-red text-white rounded-pill px-3 py-1.5 font-medium shrink-0"
-                >
-                  Chặn
-                </button>
-              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {hasNextPage && (
           <button
@@ -168,10 +207,10 @@ export default function SendersTab() {
       <ConfirmDialog
         open={!!blockTarget}
         title="Chặn người bắn này?"
-        description="Mọi cuốc của họ sẽ biến khỏi tab Free của tất cả tài xế."
+        description="Mọi cuốc của họ (mọi UID cùng mã QR) sẽ biến khỏi tab Free của tất cả tài xế."
         confirmLabel="Chặn"
         loading={blockMutation.isPending}
-        onConfirm={() => blockTarget && blockMutation.mutate(blockTarget.sender_uid)}
+        onConfirm={() => blockTarget && blockMutation.mutate(blockTarget)}
         onCancel={() => setBlockTarget(null)}
       />
     </div>

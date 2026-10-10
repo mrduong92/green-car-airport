@@ -170,11 +170,13 @@ export function useFreeRides(filters: App.FreeRideFilters) {
     return now === null ? deduped : deduped.filter((r) => r.expires_at > now)
   }, [query.data, now])
 
-  // Ẩn người bắn: bỏ ngay khỏi cache, không chờ tải lại.
-  const removeSender = useCallback((senderUid: string) => {
+  // Ẩn người bắn: bỏ ngay khỏi cache, không chờ tải lại — theo hồ sơ (qr_code) như server, tức
+  // mọi uid của cùng người; so thêm sender_uid cho chắc.
+  const removeSender = useCallback((hidden: Pick<App.FreeRide, 'sender_uid' | 'qr_code'>) => {
+    const keep = (r: App.FreeRide) => r.qr_code !== hidden.qr_code && r.sender_uid !== hidden.sender_uid
     queryClient.setQueriesData<Pages>({ queryKey: ['free-rides'] }, (old) => old && ({
       ...old,
-      pages: old.pages.map((p) => ({ ...p, data: p.data.filter((r) => r.sender_uid !== senderUid) })),
+      pages: old.pages.map((p) => ({ ...p, data: p.data.filter(keep) })),
     }))
   }, [queryClient])
 

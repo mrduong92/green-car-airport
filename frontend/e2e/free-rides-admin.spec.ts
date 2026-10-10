@@ -26,8 +26,9 @@ test('admin bật/tắt nhóm Zalo và chặn/bỏ chặn người bắn, ảnh 
   // phải tự đăng ký nhóm qua pushZaloGroups để nó xuất hiện (và bật/tắt được) ở tab Nhóm Zalo.
   await pushZaloGroups([{ zaloGroupId: groupId, name: groupName }])
   await pushFreeRides([
-    { pickup: pickupGroup, senderUid: groupSenderUid, qrCode: 'e2eadmgrp1', zaloGroupId: groupId, groupName },
-    { pickup: pickupSender, senderUid: blockSenderUid, qrCode: 'e2eadmsnd1' },
+    // Tab Người bắn gộp theo mã QR hồ sơ → mã gắn tag theo lần chạy, để hàng chỉ chứa uid của lần này.
+    { pickup: pickupGroup, senderUid: groupSenderUid, qrCode: `e2eadmg${tag}`, zaloGroupId: groupId, groupName },
+    { pickup: pickupSender, senderUid: blockSenderUid, qrCode: `e2eadms${tag}` },
   ])
 
   await loginExisting(page, APP.admin, SEEDED.admin)
@@ -71,9 +72,10 @@ test('admin bật/tắt nhóm Zalo và chặn/bỏ chặn người bắn, ảnh 
 
     // ── Tab Người bắn: tìm người bắn e2e → chặn (xác nhận) → tài xế hết thấy cuốc người đó ───
     await page.getByTestId('admin-free-tab-senders').click()
-    await page.getByPlaceholder('Tìm theo tên, UID').fill(blockSenderUid)
+    await page.getByPlaceholder('Tìm theo tên, nhóm, UID, mã QR').fill(blockSenderUid)
     const senderRow = page.getByTestId('admin-sender-row').filter({ hasText: blockSenderUid })
     await expect(senderRow).toBeVisible()
+    await expect(senderRow.getByTestId('admin-sender-contact')).toHaveAttribute('href', `zalo://qr/p/e2eadms${tag}`)
     await expect(senderCard).toBeVisible()
 
     await senderRow.getByTestId('admin-sender-block').click()
@@ -109,7 +111,7 @@ test('admin bật/tắt nhóm Zalo và chặn/bỏ chặn người bắn, ảnh 
     }
 
     await page.getByTestId('admin-free-tab-senders').click()
-    await page.getByPlaceholder('Tìm theo tên, UID').fill(blockSenderUid)
+    await page.getByPlaceholder('Tìm theo tên, nhóm, UID, mã QR').fill(blockSenderUid)
     const cleanupUnblock = page.getByTestId('admin-sender-row').filter({ hasText: blockSenderUid }).getByTestId('admin-sender-unblock')
     if (await cleanupUnblock.isVisible().catch(() => false)) {
       await cleanupUnblock.click()

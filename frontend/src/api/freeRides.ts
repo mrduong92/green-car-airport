@@ -8,8 +8,9 @@ export type FreeRideReportReason = 'spam' | 'wrong_info' | 'inappropriate' | 'ot
 export const reportFreeRide = (rideUid: string, reason: FreeRideReportReason, note?: string) =>
   api.post<{ ok: true }>(`/driver/free-rides/${encodeURIComponent(rideUid)}/report`, { reason, note })
 
-export const hideFreeRideSender = (senderUid: string) =>
-  api.post<{ ok: true }>('/driver/free-rides/hidden-senders', { sender_uid: senderUid })
+// Ẩn theo hồ sơ (qr_code) — server ẩn mọi uid của cùng người; sender_uid gửi kèm cho tương thích.
+export const hideFreeRideSender = (ride: Pick<App.FreeRide, 'sender_uid' | 'qr_code'>) =>
+  api.post<{ ok: true }>('/driver/free-rides/hidden-senders', { sender_uid: ride.sender_uid, qr_code: ride.qr_code })
 
 export const reportBrokenLink = (rideUid: string) =>
   api.post<{ ok: true }>(`/driver/free-rides/${encodeURIComponent(rideUid)}/broken-link`)
