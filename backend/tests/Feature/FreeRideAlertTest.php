@@ -641,30 +641,32 @@ class FreeRideAlertTest extends TestCase
         });
     }
 
-    public function test_cached_previous_run_mark_is_used_as_floor_when_newer_than_alert_update(): void
+    // Cảnh báo chưa từng push dùng maxId của lần chạy trước (cache) làm sàn: cuốc đã được xét mà không
+    // khớp (người bắn đang bị ẩn) không bị push muộn khi tài xế bỏ ẩn sau đó.
+    public function test_cached_previous_run_max_id_is_used_as_floor_for_never_pushed_alert(): void
     {
         Notification::fake();
         $driver = $this->driver();
         DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        $hidden = DriverHiddenSender::create(['driver_id' => $driver->id, 'sender_uid' => 'A1']);
 
         $this->travel(1)->second();
-        $this->ride(); // tạo ngay sau khi bật cảnh báo — nhưng sẽ bị loại vì mốc cache sau này mới hơn.
-
-        // Mô phỏng job đã chạy một lần (vd. vì cảnh báo của tài xế khác) và lưu mốc cache MỚI hơn cả
-        // thời điểm bật cảnh báo lẫn thời điểm tạo cuốc ở trên.
-        $this->travel(10)->minutes();
+        $this->ride(['sender_uid' => 'A1']);
         (new NotifyFreeRideAlerts)->handle();
         Notification::assertNotSentTo($driver, FreeRideMatchNotification::class);
 
+        $hidden->delete();
         $this->travel(1)->second();
-        $r2 = $this->ride(); // tạo SAU mốc cache vừa lưu — phải khớp.
+        $r2 = $this->ride(['sender_uid' => 'B2']);
 
         (new NotifyFreeRideAlerts)->handle();
 
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver, $r2) {
             $payload = $n->toWebPush($driver, $n);
 
-            return str_contains($payload['body'], $r2->pickup);
+            // Chỉ 1 cuốc (r2) — cuốc của người từng bị ẩn không bị gồm vào.
+            return str_contains($payload['body'], $r2->pickup) && ! str_contains($payload['body'], 'cuốc Free mới');
         });
     }
 
@@ -718,24 +720,137 @@ class FreeRideAlertTest extends TestCase
         });
     }
 
-    // Job tự ghi last_pushed_at KHÔNG được đụng tới updated_at — nếu không, mốc "cuốc bị chặn id ở
-    // CHÍNH lần chạy vừa push thành công" sẽ bị chính updated_at mới đó chặn vĩnh viễn ở mọi lần sau.
-    public function test_job_recording_last_pushed_at_does_not_bump_updated_at(): void
+    // ---- Mốc theo id (last_pushed_max_id) thay cho mốc created_at ----
+
+    // Lỗi cũ: ingest đóng dấu created_at bằng $now lấy ở ĐẦU request nhưng commit ở CUỐI. Cuốc commit
+    // sau khi job đã chốt maxId nhưng có created_at TRƯỚC lúc job bắt đầu bị chặn id ở lần chạy này và
+    // bị sàn created_at (= last_pushed_at) chặn vĩnh viễn ở mọi lần sau — tài xế không bao giờ nhận push.
+    public function test_ride_committed_after_max_id_but_stamped_before_job_start_is_pushed_next_run(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        $this->travel(1)->second();
+
+        $this->ride();
+        $this->travel(5)->seconds();
+
+        $late = null;
+        DB::listen(function ($query) use (&$late) {
+            if ($late === null && str_contains(strtolower($query->sql), 'max(')) {
+                // created_at lùi 3 giây — trước cả lúc job bắt đầu, như request ingest đã chạy từ trước.
+                $late = $this->ride(['pickup' => 'Commit Muộn', 'created_at' => now()->subSeconds(3), 'updated_at' => now()->subSeconds(3)]);
+            }
+        });
+
+        (new NotifyFreeRideAlerts)->handle();
+        $this->assertNotNull($late);
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+
+        $this->travel(3)->minutes();
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
+        Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
+            return str_contains($n->toWebPush($driver, $n)['body'], 'Commit Muộn');
+        });
+    }
+
+    // Cùng lỗi nhưng với cảnh báo CHƯA từng push (sàn cũ = mốc lần chạy trước trong cache).
+    public function test_never_pushed_alert_gets_ride_committed_after_previous_run_max_id(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true, 'direction' => 'to_airport']);
+        $this->travel(1)->second();
+
+        $this->ride(['direction' => 'from_airport']); // không khớp — chỉ để có maxId
+        $this->travel(5)->seconds();
+
+        $late = null;
+        DB::listen(function ($query) use (&$late) {
+            if ($late === null && str_contains(strtolower($query->sql), 'max(')) {
+                $late = $this->ride(['pickup' => 'Commit Muộn', 'created_at' => now()->subSeconds(3), 'updated_at' => now()->subSeconds(3)]);
+            }
+        });
+
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertNotSentTo($driver, FreeRideMatchNotification::class);
+
+        $this->travel(30)->seconds();
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+    }
+
+    public function test_saving_alert_via_api_sets_floor_to_current_max_ride_id(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        $old = $this->ride();
+
+        $this->actingAs($driver, 'sanctum')->putJson('/api/driver/free-rides/alert', ['enabled' => true])->assertOk();
+
+        $this->assertSame($old->id, (int) DriverFreeRideAlert::where('driver_id', $driver->id)->value('last_pushed_max_id'));
+
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertNotSentTo($driver, FreeRideMatchNotification::class);
+
+        $this->ride(['pickup' => 'Sau Khi Bật']);
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+    }
+
+    public function test_re_enabling_alert_does_not_push_rides_from_while_it_was_disabled(): void
     {
         Notification::fake();
         $driver = $this->driver();
         $alert = DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
-        $originalUpdatedAt = $alert->updated_at;
-        $this->travel(1)->second();
-
         $this->ride();
-        $this->travel(1)->second();
         (new NotifyFreeRideAlerts)->handle();
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
 
-        $alert->refresh();
-        $this->assertNotNull($alert->last_pushed_at);
-        $this->assertTrue($alert->updated_at->eq($originalUpdatedAt), 'updated_at không được đổi khi job tự ghi last_pushed_at');
+        $alert->update(['enabled' => false]);
+        $this->travel(5)->minutes();
+        $this->ride(['pickup' => 'Lúc Tắt']);
+        $alert->update(['enabled' => true]);
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+
+        $this->ride(['pickup' => 'Sau Khi Bật Lại']);
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
+        Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
+            $body = $n->toWebPush($driver, $n)['body'];
+
+            return str_contains($body, 'Sau Khi Bật Lại') && ! str_contains($body, 'Lúc Tắt');
+        });
+    }
+
+    // Cùng giây với lần push trước (độ phân giải giây của created_at) vẫn không bị trùng / bỏ sót.
+    public function test_rides_in_the_same_second_are_neither_duplicated_nor_missed(): void
+    {
+        Notification::fake();
+        Queue::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+
+        $this->ride(['pickup' => 'Một']);
+        (new NotifyFreeRideAlerts)->handle();
+        $this->ride(['pickup' => 'Hai']);
+        (new NotifyFreeRideAlerts)->handle(); // bị chặn 2 phút
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+
+        $this->travel(3)->minutes();
+        (new NotifyFreeRideAlerts)->handle();
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
+        Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
+            $body = $n->toWebPush($driver, $n)['body'];
+
+            return str_contains($body, 'Hai') && ! str_contains($body, 'Một');
+        });
     }
 
     // ---- Fix round 1 (minor): xếp lại job khi cảnh báo bị chặn còn cuốc chờ gộp ----

@@ -20,28 +20,21 @@ use Illuminate\Support\Facades\Cache;
  * xếp job này khi có cuốc MỚI (không phải cập nhật) với delay 10 giây, job là DUY NHẤT tới khi
  * bắt đầu chạy — nhiều lô cuốc mới tới liên tiếp chỉ sinh ra ≤ 1 lần chạy / 10 giây.
  *
- * Mỗi cảnh báo (driver_free_ride_alerts) dùng last_pushed_at làm mốc "cuốc tạo sau lần push
- * trước" của riêng tài xế đó — không chỉ để chống làm phiền (≤ 1 push / 2 phút) mà còn để GỘP:
- * tài xế đang trong 2 phút chặn bị bỏ qua lượt này, last_pushed_at không đổi, nên lần chạy sau
- * (khi hết chặn) mốc so sánh vẫn là lần push trước đó — tự động gồm cả cuốc dồn trong lúc bị chặn.
+ * Mốc "cuốc mới" HOÀN TOÀN theo id (không dùng created_at): ingest đóng dấu created_at bằng $now
+ * lấy ở ĐẦU request nhưng commit ở CUỐI, độ phân giải lại chỉ tới giây — cuốc commit sau khi job
+ * đã chốt maxId nhưng có created_at trước lúc job bắt đầu sẽ bị sàn created_at chặn vĩnh viễn.
  *
- * Mốc còn phải tính tới lúc cảnh báo được BẬT/ĐỔI (updated_at): floor = max(last_pushed_at ??
- * previousMark, updated_at) — nếu không, bật cảnh báo sau khi đã có sẵn cuốc cũ khớp (hoặc đổi bộ
- * lọc) sẽ dội ngược/gồm nhầm cuốc tạo TRƯỚC thời điểm đó. updated_at ở đây CHỈ được đổi khi tài xế
- * thật sự lưu lại bộ lọc (FreeRideController::saveAlert) — job tự ghi last_pushed_at với
- * `timestamps = false` nên KHÔNG đụng vào updated_at (xem processAlert()), để job không tự "che"
- * mất cuốc bị hoãn qua lần chạy sau (mục id high-water mark bên dưới) bằng chính mốc nó vừa ghi.
+ * - Mỗi lần chạy chốt maxId NGAY từ đầu và chỉ xét id ∈ (floorId, maxId]; cuốc ghi thêm trong lúc
+ *   job chạy có id > maxId → để dành cho lần chạy kế tiếp (sàn id của nó chưa vượt qua).
+ * - Cảnh báo ĐÃ từng push: floorId = last_pushed_max_id (maxId của lần push đó). Tài xế đang trong
+ *   2 phút chặn bị bỏ qua lượt này, mốc không đổi → lần chạy sau (hết chặn) tự GỘP cuốc dồn lại.
+ * - Bật cảnh báo / đổi bộ lọc: model DriverFreeRideAlert đặt last_pushed_max_id = max(id) hiện có
+ *   (xem booted()) — không dội ngược cuốc cũ.
+ * - Cảnh báo CHƯA từng push: floorId = max(mốc lúc bật, maxId lần chạy trước — lưu cache), để cuốc
+ *   đã được xét mà không khớp (vd. người bắn đang bị ẩn) không bị push muộn khi điều kiện đổi.
  *
- * Cảnh báo CHƯA từng push (last_pushed_at null) dùng mốc lần chạy job trước (lưu cache) làm sàn,
- * để không dội ngược toàn bộ cuốc cũ đang hiển thị mỗi khi job chạy — trừ lần chạy đầu tiên (chưa
- * có mốc nào trong cache) thì dùng $startedAt trừ một khoảng ân hạn nhỏ (không phải epoch 0): job
- * được xếp với delay 10 giây sau khi cuốc đã lưu nên cuốc kích hoạt job có thể đã tồn tại tới ~10
- * giây trước khi job này thật sự chạy.
- *
- * Mỗi lần chạy chốt id cuốc cao nhất (maxId) NGAY từ đầu và chỉ xét cuốc có id ≤ maxId — cuốc
- * service ghi thêm trong lúc job đang xử lý (hiếm nhưng có thể) sẽ có id lớn hơn, bị loại khỏi lần
- * chạy này một cách CHÍNH XÁC (so bằng id, không lệ thuộc độ phân giải giây của created_at) và để
- * dành cho lần chạy kế tiếp — không mất, không trùng.
+ * Giới hạn còn lại: hai request ingest chạy SONG SONG có thể commit lệch thứ tự id (id nhỏ commit
+ * sau id lớn) — service hiện đẩy lô tuần tự nên không gặp; nếu đổi sang đẩy song song cần xem lại.
  */
 class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
@@ -49,45 +42,36 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     public int $uniqueFor = 15;
 
-    private const CACHE_KEY = 'free_rides:alerts:last_run_at';
+    private const CACHE_KEY = 'free_rides:alerts:last_processed_max_id';
 
     private const QUIET_MINUTES = 2;
-
-    // Xem ghi chú ở đầu file: delay dispatch của ZaloServiceController::rides là 10 giây.
-    private const FIRST_RUN_GRACE_SECONDS = 20;
 
     public function handle(): void
     {
         $startedAt = now();
-        $maxId = FreeRide::max('id');
+        $maxId = (int) (FreeRide::max('id') ?? 0);
 
-        if ($maxId === null) {
-            Cache::forever(self::CACHE_KEY, $startedAt);
-
-            return;
-        }
-
-        $previousMarkRaw = Cache::get(self::CACHE_KEY);
-        $previousMark = $previousMarkRaw
-            ? Carbon::parse($previousMarkRaw)
-            : $startedAt->copy()->subSeconds(self::FIRST_RUN_GRACE_SECONDS);
+        $cached = Cache::get(self::CACHE_KEY);
+        $previousMaxId = is_numeric($cached) ? (int) $cached : null;
 
         // Tài xế đang bị chặn 2 phút nhưng đã có cuốc khớp đang chờ gộp — nhớ lại mốc hết chặn sớm
-        // nhất để xếp lại job đúng lúc đó (mục 5), không phải chờ tới khi có cuốc Free mới kế tiếp.
+        // nhất để xếp lại job đúng lúc đó, không phải chờ tới khi có cuốc Free mới kế tiếp.
         $resumeAt = [];
 
-        $alerts = DriverFreeRideAlert::query()->where('enabled', true)->get();
+        if ($maxId > 0) {
+            $alerts = DriverFreeRideAlert::query()->where('enabled', true)->get();
 
-        foreach ($alerts as $alert) {
-            $pendingResumeAt = $this->processAlert($alert, $previousMark, $startedAt, $maxId);
-            if ($pendingResumeAt !== null) {
-                $resumeAt[] = $pendingResumeAt;
+            foreach ($alerts as $alert) {
+                $pendingResumeAt = $this->processAlert($alert, $previousMaxId, $startedAt, $maxId);
+                if ($pendingResumeAt !== null) {
+                    $resumeAt[] = $pendingResumeAt;
+                }
             }
         }
 
-        // Chỉ tiến mốc sau khi đã xử lý xong lô này — mốc bắt đầu từ lúc job được gọi, không phải
-        // "bây giờ" sau khi xử lý, để cuốc chèn thêm trong lúc job chạy rơi vào lần chạy kế tiếp.
-        Cache::forever(self::CACHE_KEY, $startedAt);
+        // Chỉ tiến mốc sau khi đã xử lý xong lô này, và tiến tới maxId chốt từ đầu (không phải max hiện
+        // tại) — cuốc chèn thêm trong lúc job chạy rơi vào lần chạy kế tiếp.
+        Cache::forever(self::CACHE_KEY, max($maxId, $previousMaxId ?? 0));
 
         if ($resumeAt !== []) {
             static::dispatch()->delay(min($resumeAt)->addSecond());
@@ -95,7 +79,7 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
     }
 
     // Trả về mốc nên xếp lại job (nếu cảnh báo đang bị chặn nhưng có cuốc chờ gộp), ngược lại null.
-    private function processAlert(DriverFreeRideAlert $alert, Carbon $previousMark, Carbon $now, int $maxId): ?Carbon
+    private function processAlert(DriverFreeRideAlert $alert, ?int $previousMaxId, Carbon $now, int $maxId): ?Carbon
     {
         $driver = User::find($alert->driver_id);
         if (! $driver || $driver->role !== 'driver' || $driver->driverProfile?->status !== 'active') {
@@ -109,7 +93,13 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
         $cooldownEndsAt = $alert->last_pushed_at?->copy()->addMinutes(self::QUIET_MINUTES);
         $gated = $cooldownEndsAt !== null && $now->lt($cooldownEndsAt);
 
-        $floor = max($alert->last_pushed_at ?? $previousMark, $alert->updated_at);
+        $floorId = (int) ($alert->last_pushed_max_id ?? 0);
+        if ($alert->last_pushed_at === null) {
+            $floorId = max($floorId, $previousMaxId ?? 0);
+        }
+        if ($floorId >= $maxId) {
+            return null;
+        }
 
         $rides = FreeRide::query()
             ->visibleTo($alert->driver_id, [
@@ -117,7 +107,7 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
                 'seats' => $alert->seats,
                 'q' => $alert->keywords,
             ])
-            ->where('created_at', '>', $floor)
+            ->where('id', '>', $floorId)
             ->where('id', '<=', $maxId)
             ->orderBy('posted_at')
             ->get();
@@ -133,14 +123,8 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
         $driver->notify(new FreeRideMatchNotification($rides));
 
-        // updated_at CHỈ phản ánh lúc tài xế thật sự bật/đổi bộ lọc (qua FreeRideController::saveAlert)
-        // — tắt timestamps() khi job tự ghi last_pushed_at, nếu không updated_at bị job làm mới theo mỗi
-        // lần push, và một cuốc bị loại vì chặn id (mục 4) trong CHÍNH lần chạy có push thành công sẽ bị
-        // mốc updated_at mới đó (luôn muộn hơn cuốc kia) chặn vĩnh viễn ở mọi lần chạy sau — không phải
-        // do đổi bộ lọc, chỉ đơn thuần tới trong lúc job đang xử lý.
-        $alert->timestamps = false;
-        $alert->update(['last_pushed_at' => $now]);
-        $alert->timestamps = true;
+        // Chỉ ghi 2 cột mốc — không đụng cột bộ lọc nên không kích hoạt việc đặt lại mốc ở model.
+        $alert->update(['last_pushed_at' => $now, 'last_pushed_max_id' => $maxId]);
 
         return null;
     }
