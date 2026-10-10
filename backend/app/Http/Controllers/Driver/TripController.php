@@ -140,33 +140,68 @@ class TripController extends Controller
             ], 422);
         }
 
-        // Trừ phí app (AppSetting::appFeePercent) ngay khi nhận cuốc (chỉ tính trên giá cuốc, không gộp thu hộ).
-        // Check số dư TRƯỚC khi cập nhật booking — cột points là UNSIGNED, trừ âm sẽ
-        // crash SQL và để lại booking đã accepted nhưng chưa trừ phí.
-        $totalCollected = $booking->price - $booking->discount;
-        $feePoints = (int) round($totalCollected * AppSetting::appFeeRate() / 1000);
-        $wallet = $request->user()->wallet()->firstOrCreate(['user_id' => $request->user()->id], ['points' => 0]);
+        // Trừ NGAY khi nhận cuốc, trong một transaction:
+        //  - phí app (AppSetting::appFeePercent) — chỉ tính trên giá cuốc, không gộp thu hộ;
+        //  - TẠM GIỮ thu hộ + phí phạt huỷ — tiền mặt tài xế sẽ thu của khách rồi nộp lại.
+        // Trước đây thu hộ/phạt trừ lúc HOÀN THÀNH: ví không đủ thì lệnh trừ vượt cột
+        // UNSIGNED và nổ SQL, booking đã `completed` mà CTV không được cộng (cuốc #513).
+        // Khoá dòng booking + ví: chặn 2 tài xế cùng nhận, hoặc 1 tài xế bấm 2 lần.
+        $driver = $request->user();
+        $error = DB::transaction(function () use ($booking, $driver) {
+            $booking = Booking::lockForUpdate()->find($booking->id);
+            if ($booking->status !== 'finding_driver') {
+                return 'Chuyến này đã được nhận hoặc không còn khả dụng.';
+            }
 
-        if ($wallet->points < $feePoints) {
-            return response()->json([
-                'message' => "Số dư ví không đủ để nhận cuốc (cần {$feePoints} điểm phí app, ví còn {$wallet->points} điểm). Vui lòng nạp thêm điểm.",
-            ], 422);
+            $feePoints = (int) round(($booking->price - $booking->discount) * AppSetting::appFeeRate() / 1000);
+            $collectionPoints = $booking->collectionPoints();
+            $surchargePoints = $booking->surchargePoints();
+            $required = $feePoints + $collectionPoints + $surchargePoints;
+
+            $wallet = $driver->wallet()->firstOrCreate(['user_id' => $driver->id], ['points' => 0]);
+            $wallet = Wallet::lockForUpdate()->find($wallet->id);
+
+            if ($wallet->points < $required) {
+                $parts = ["{$feePoints} điểm phí app"];
+                if ($collectionPoints > 0) $parts[] = "{$collectionPoints} điểm thu hộ";
+                if ($surchargePoints > 0) $parts[] = "{$surchargePoints} điểm phí phạt huỷ";
+
+                return "Số dư ví không đủ để nhận cuốc (cần {$required} điểm: ".implode(' + ', $parts)
+                    .", ví còn {$wallet->points} điểm). Vui lòng nạp thêm điểm.";
+            }
+
+            $booking->update([
+                'driver_id' => $driver->id,
+                'status' => 'accepted',
+                'accepted_at' => now(),
+                'held_points' => $collectionPoints + $surchargePoints,
+            ]);
+
+            $debits = [
+                'Phí app '.AppSetting::appFeePercent()."% cuốc #{$booking->id}" => $feePoints,
+                "Thu hộ cuốc #{$booking->id}" => $collectionPoints,
+                "Phí phạt huỷ khách cuốc #{$booking->id}" => $surchargePoints,
+            ];
+            foreach ($debits as $description => $points) {
+                if ($points <= 0) continue;
+                $wallet->decrement('points', $points);
+                WalletTransaction::create([
+                    'wallet_id' => $wallet->id,
+                    'booking_id' => $booking->id,
+                    'type' => 'debit',
+                    'description' => $description,
+                    'points' => $points,
+                ]);
+            }
+
+            return null;
+        });
+
+        if ($error) {
+            return response()->json(['message' => $error], 422);
         }
 
-        $booking->update([
-            'driver_id' => $request->user()->id,
-            'status' => 'accepted',
-            'accepted_at' => now(),
-        ]);
-
-        $wallet->decrement('points', $feePoints);
-        WalletTransaction::create([
-            'wallet_id' => $wallet->id,
-            'booking_id' => $booking->id,
-            'type' => 'debit',
-            'description' => "Phí app ".AppSetting::appFeePercent()."% cuốc #{$booking->id}",
-            'points' => $feePoints,
-        ]);
+        $booking->refresh();
 
         // Cuốc rời khỏi sàn — vô hiệu hoá cache danh sách, nếu không tài xế khác
         // vẫn thấy cuốc này trong danh sách và bấm nhận rồi mới ăn lỗi 422.
@@ -204,7 +239,18 @@ class TripController extends Controller
             return response()->json(['message' => 'Chuyển trạng thái không hợp lệ.'], 422);
         }
 
-        $booking->update(['status' => $newStatus]);
+        if ($newStatus === 'completed') {
+            // Đổi trạng thái + toàn bộ tiền trong CÙNG một transaction: lỗi ở bất kỳ
+            // bước nào thì cuốc vẫn `in_progress`, không còn cảnh "hoàn thành nhưng
+            // không trừ/cộng điểm" như trước.
+            $error = DB::transaction(fn () => $this->settleCompletion($booking, $request->user()));
+            if ($error) {
+                return response()->json(['message' => $error], 422);
+            }
+            $booking->refresh();
+        } else {
+            $booking->update(['status' => $newStatus]);
+        }
 
         if ($newStatus === 'in_progress') {
             CustomerBookingUpdated::dispatch($booking->customer_id, 'trip_started', $booking->id);
@@ -213,62 +259,6 @@ class TripController extends Controller
         }
 
         if ($newStatus === 'completed') {
-            DB::transaction(function () use ($booking, $request) {
-                $request->user()->driverProfile?->increment('trips_count');
-
-                // Cash-flow: driver collects (price + surcharge) in cash from customer.
-                // Company reclaims the surcharge by debiting the driver's wallet at completion.
-                // Net: driver keeps (price - discount) * 80%; company gets fee + surcharge.
-                // Deduct surcharge from driver wallet — surcharge goes to company
-                if ($booking->surcharge > 0) {
-                    $surchargePoints = (int) round($booking->surcharge / 1000);
-                    $driverWallet = $request->user()->wallet()->first();
-                    if ($driverWallet && $surchargePoints > 0) {
-                        $driverWallet->decrement('points', $surchargePoints);
-                        WalletTransaction::create([
-                            'wallet_id' => $driverWallet->id,
-                            'booking_id' => $booking->id,
-                            'type' => 'debit',
-                            'description' => "Phí phạt huỷ khách cuốc #{$booking->id}",
-                            'points' => $surchargePoints,
-                        ]);
-                    }
-                }
-
-                // Thu hộ: tài xế thu tiền mặt rồi hoàn lại toàn bộ cho CTV — công ty KHÔNG cắt phí app trên khoản này.
-                if ($booking->collection_fee > 0 && $booking->collaborator_id) {
-                    $collectionPoints = (int) round($booking->collection_fee / 1000);
-                    $collabPoints = $collectionPoints;
-
-                    // Debit driver: full thu hộ collected in cash from customer
-                    $driverWallet = $request->user()->wallet()->first();
-                    if ($driverWallet && $collectionPoints > 0) {
-                        $driverWallet->decrement('points', $collectionPoints);
-                        WalletTransaction::create([
-                            'wallet_id' => $driverWallet->id,
-                            'booking_id' => $booking->id,
-                            'type' => 'debit',
-                            'description' => "Thu hộ cuốc #{$booking->id}",
-                            'points' => $collectionPoints,
-                        ]);
-                    }
-
-                    // Credit collaborator 100% thu hộ
-                    $collabWallet = Wallet::firstOrCreate(
-                        ['user_id' => $booking->collaborator_id],
-                        ['points' => 0]
-                    );
-                    $collabWallet->increment('points', $collabPoints);
-                    WalletTransaction::create([
-                        'wallet_id' => $collabWallet->id,
-                        'booking_id' => $booking->id,
-                        'type' => 'credit',
-                        'description' => "Thu hộ cuốc #{$booking->id}",
-                        'points' => $collabPoints,
-                    ]);
-                }
-            });
-
             app(ReferralService::class)->processDriverReferral(
                 $request->user()->fresh(['driverProfile', 'referredBy'])
             );
@@ -301,18 +291,24 @@ class TripController extends Controller
         // việc BỎ cuốc vào bảng riêng (không phải bookings.cancelled_*) vì booking sẽ
         // được tài xế khác nhận lại — cancelled_by/cancelled_at trên chính booking là
         // để ghi trạng thái CUỐI của nó, không phải lịch sử từng tài xế đã bỏ.
-        BookingDriverCancellation::create([
-            'booking_id' => $booking->id,
-            'driver_id' => $driverId,
-            'reason' => $data['reason'] ?? null,
-            'cancelled_at' => now(),
-        ]);
+        // Thu hộ/phí phạt tạm giữ lúc nhận thì HOÀN (tài xế chưa thu được của khách);
+        // phí app thì không — giữ nguyên quy tắc tài xế bỏ cuốc mất phí.
+        DB::transaction(function () use ($booking, $driverId, $data) {
+            BookingDriverCancellation::create([
+                'booking_id' => $booking->id,
+                'driver_id' => $driverId,
+                'reason' => $data['reason'] ?? null,
+                'cancelled_at' => now(),
+            ]);
 
-        $booking->update([
-            'driver_id' => null,
-            'status' => 'finding_driver',
-            'accepted_at' => null,
-        ]);
+            $booking->releaseHeldPoints('tài xế');
+
+            $booking->update([
+                'driver_id' => null,
+                'status' => 'finding_driver',
+                'accepted_at' => null,
+            ]);
+        });
 
         // Cuốc QUAY LẠI sàn — không flush thì tài xế khác không thấy nó xuất hiện lại.
         AvailableTripsCache::flush();
@@ -405,6 +401,73 @@ class TripController extends Controller
         return response()->json($this->formatDriverDrop($drop, $request->user()->driverProfile));
     }
 
+    /**
+     * Quyết toán khi hoàn thành cuốc. Chạy TRONG transaction; trả về thông báo lỗi
+     * (rollback, cuốc giữ nguyên `in_progress`) hoặc null nếu thành công.
+     *
+     * Cuốc nhận từ bản này đã tạm giữ thu hộ + phí phạt trong ví lúc nhận
+     * (`held_points` > 0), nên ở đây chỉ còn cộng điểm cho CTV. Cuốc nhận TRƯỚC
+     * bản này (`held_points` = 0) vẫn trừ tài xế tại đây như cũ — ví không đủ thì
+     * chặn hoàn thành, báo nạp thêm, thay vì để SQL nổ giữa chừng.
+     */
+    private function settleCompletion(Booking $booking, $driver): ?string
+    {
+        $booking = Booking::lockForUpdate()->find($booking->id);
+        if ($booking->status !== 'in_progress' || $booking->driver_id !== $driver->id) {
+            return 'Chuyển trạng thái không hợp lệ.';
+        }
+
+        $collectionPoints = $booking->collectionPoints();
+
+        if ($booking->held_points === 0) {
+            $debits = [
+                "Phí phạt huỷ khách cuốc #{$booking->id}" => $booking->surchargePoints(),
+                "Thu hộ cuốc #{$booking->id}" => $collectionPoints,
+            ];
+            $owed = array_sum($debits);
+
+            if ($owed > 0) {
+                $wallet = $driver->wallet()->firstOrCreate(['user_id' => $driver->id], ['points' => 0]);
+                $wallet = Wallet::lockForUpdate()->find($wallet->id);
+
+                if ($wallet->points < $owed) {
+                    return "Ví cần {$owed} điểm (thu hộ / phí phạt huỷ của cuốc này) để hoàn thành, "
+                        ."ví còn {$wallet->points} điểm. Vui lòng nạp thêm điểm rồi bấm hoàn thành lại.";
+                }
+
+                foreach ($debits as $description => $points) {
+                    if ($points <= 0) continue;
+                    $wallet->decrement('points', $points);
+                    WalletTransaction::create([
+                        'wallet_id' => $wallet->id,
+                        'booking_id' => $booking->id,
+                        'type' => 'debit',
+                        'description' => $description,
+                        'points' => $points,
+                    ]);
+                }
+            }
+        }
+
+        // CTV nhận 100% thu hộ — công ty KHÔNG cắt phí app trên khoản này.
+        if ($collectionPoints > 0) {
+            $collabWallet = Wallet::firstOrCreate(['user_id' => $booking->collaborator_id], ['points' => 0]);
+            $collabWallet->increment('points', $collectionPoints);
+            WalletTransaction::create([
+                'wallet_id' => $collabWallet->id,
+                'booking_id' => $booking->id,
+                'type' => 'credit',
+                'description' => "Thu hộ cuốc #{$booking->id}",
+                'points' => $collectionPoints,
+            ]);
+        }
+
+        $driver->driverProfile?->increment('trips_count');
+        $booking->update(['status' => 'completed']);
+
+        return null;
+    }
+
     /** Memo theo request: formatTrip chạy cho từng cuốc trong danh sách, tránh query app_settings N lần. */
     private ?float $feePercent = null;
 
@@ -463,6 +526,10 @@ class TripController extends Controller
             'final_price' => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
             'app_fee' => $appFee,
             'app_fee_percent' => $feePercent,
+            // Tổng điểm ví bị trừ lúc NHẬN cuốc: phí app + tạm giữ thu hộ + phí phạt huỷ.
+            // Cùng công thức với accept() để con số trên thẻ cuốc khớp thông báo lỗi.
+            'required_points' => (int) round($effectivePrice * $feePercent / 100 / 1000)
+                + $b->collectionPoints() + $b->surchargePoints(),
             'net_earning' => $netEarning,
             'status' => $statusMap[$b->status] ?? $b->status,
             'cancelled_at' => $b->cancelled_at?->toISOString(),

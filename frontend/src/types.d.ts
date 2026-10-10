@@ -93,6 +93,9 @@ declare namespace App {
     final_price: number
     app_fee: number
     app_fee_percent: number
+    /** Điểm ví bị trừ lúc nhận: phí app + tạm giữ thu hộ + phí phạt huỷ */
+    required_points?: number
+    surcharge?: number
     net_earning: number
     status: TripStatus
     cancelled_at?: string | null

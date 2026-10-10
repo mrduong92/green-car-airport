@@ -219,6 +219,8 @@ class BookingController extends Controller
                 }
             }
 
+            $booking->releaseHeldPoints('khách');
+
             $booking->update([
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
