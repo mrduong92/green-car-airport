@@ -1,16 +1,15 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 // Vỏ ứng dụng native cho app khách hàng GreenCA.
-// Không chứa logic nghiệp vụ — chỉ nạp bundle web đã build ở frontend/dist.
+// Không chứa logic nghiệp vụ — chỉ nạp bundle web đã build ở frontend/dist-native.
 //
-// Build lại bundle rồi đồng bộ sang đây:
-//   cd frontend && VITE_API_BASE_URL=https://webco.io.vn npm run build:customer
-//   cd mobile/customer && npx cap sync
+// Build: `make android-customer` (xem docs/MOBILE.md) — build bundle mode native
+// vào frontend/dist-native rồi `npx cap sync android`.
 const config: CapacitorConfig = {
   // KHÔNG đổi được sau khi phát hành lên store — đổi là thành app mới.
   appId: 'vn.greenca.customer',
   appName: 'GreenCA',
-  webDir: '../../frontend/dist',
+  webDir: '../../frontend/dist-native',
 
   server: {
     androidScheme: 'https',
@@ -23,6 +22,10 @@ const config: CapacitorConfig = {
     // Đặt hostname riêng để origin không còn là `localhost`; app dùng Bearer token
     // nên không cần luồng stateful. Xem thêm mục CORS/Sanctum trong spec.
     hostname: 'app.greenca.vn',
+  },
+
+  plugins: {
+    SplashScreen: { launchShowDuration: 800, backgroundColor: '#F8FAF9', showSpinner: false },
   },
 }
 

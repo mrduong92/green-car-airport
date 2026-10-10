@@ -1,0 +1,40 @@
+// Dùng chung cho mobile/customer và mobile/driver — áp sau plugin com.android.application.
+// - Phiên bản đọc từ mobile/<app>/package.json (một nguồn duy nhất, App.getInfo() trả đúng số này).
+// - Ký release bằng khoá trong mobile/keystore.properties (KHÔNG commit). Xem docs/MOBILE.md.
+import groovy.json.JsonSlurper
+
+def shellPackage = new JsonSlurper().parse(file('../../package.json'))
+def versionParts = shellPackage.version.tokenize('.').collect { it as int }
+if (versionParts.size() != 3) throw new GradleException("version trong package.json phải dạng x.y.z, đang là ${shellPackage.version}")
+
+def keystorePropsFile = file('../../../keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
+
+android {
+    defaultConfig {
+        versionCode versionParts[0] * 10000 + versionParts[1] * 100 + versionParts[2]
+        versionName shellPackage.version
+    }
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name.toLowerCase().contains('release') } && !keystorePropsFile.exists()) {
+        throw new GradleException('Thiếu mobile/keystore.properties — xem docs/MOBILE.md mục "Khoá ký"')
+    }
+}

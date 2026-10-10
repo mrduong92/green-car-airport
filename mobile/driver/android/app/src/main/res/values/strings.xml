@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GreenCA Tài Xế</string>
+    <string name="title_activity_main">GreenCA Tài Xế</string>
+    <string name="package_name">vn.greenca.driver</string>
+    <string name="custom_url_scheme">vn.greenca.driver</string>
+</resources>

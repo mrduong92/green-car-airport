@@ -9,3 +9,10 @@ node_modules/
 
 # Đường dẫn SDK theo máy từng người
 */android/local.properties
+
+# Khoá ký — KHÔNG BAO GIỜ commit
+keystore.properties
+*.jks
+*.keystore
+# Âm báo được Makefile chép từ frontend/public/sounds lúc build
+*/android/app/src/main/res/raw/new_ride.mp3

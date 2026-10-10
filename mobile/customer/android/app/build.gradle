@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply from: '../../../shared/release.gradle'
 
 android {
     namespace = "vn.greenca.customer"
@@ -7,8 +8,6 @@ android {
         applicationId "vn.greenca.customer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
