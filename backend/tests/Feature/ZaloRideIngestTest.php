@@ -54,6 +54,22 @@ class ZaloRideIngestTest extends TestCase
         $this->assertTrue($ride->expires_at->eq(now()->addHours(2)));
     }
 
+    // Mốc ms từ service là instant tuyệt đối. Carbon::createFromTimestampMs() mặc định trả về UTC,
+    // còn Eloquent ghi chuỗi 'Y-m-d H:i:s' KHÔNG đổi múi giờ → app chạy Asia/Ho_Chi_Minh sẽ lưu
+    // lệch 7 tiếng (cuốc vừa vào đã hết hạn). So sánh chuỗi giờ đã lưu, không chỉ instant.
+    public function test_ms_timestamps_are_stored_in_app_timezone(): void
+    {
+        $this->assertSame('Asia/Ho_Chi_Minh', config('app.timezone'));
+
+        $this->send([$this->ride()])->assertOk();
+
+        $raw = FreeRide::query()->toBase()->where('ride_uid', 'r-1')->first();
+        $this->assertSame(now()->format('Y-m-d H:i:s'), $raw->posted_at);
+        $this->assertSame(now()->addHours(2)->format('Y-m-d H:i:s'), $raw->expires_at);
+        $this->assertSame(now()->addHour()->format('Y-m-d H:i:s'), $raw->pickup_at);
+        $this->assertTrue(FreeRide::first()->expires_at->isFuture());
+    }
+
     // Ingest tuần tự (khoá zalo:ingest) để id cuốc commit đúng thứ tự — NotifyFreeRideAlerts dựa vào
     // mốc id. Khoá đang bị giữ quá lâu → 503 (service coi là lỗi, thử lại sau) và không lưu gì.
     public function test_held_ingest_lock_returns_503_and_stores_nothing(): void

@@ -328,9 +328,9 @@ class FreeRideAlertTest extends TestCase
         $this->travel(1)->second();
 
         $this->ride([
-            // 09:30 UTC (app.timezone) = 16:30 giờ VN.
+            // app.timezone = Asia/Ho_Chi_Minh → push hiển thị đúng 16:30.
             'pickup' => 'Phố cổ', 'destination' => 'Sân bay Nội Bài',
-            'pickup_at' => Carbon::parse('2026-10-11 09:30:00', 'UTC'), 'price' => 250000, 'is_free' => false,
+            'pickup_at' => Carbon::parse('2026-10-11 16:30:00'), 'price' => 250000, 'is_free' => false,
         ]);
         $this->travel(1)->second();
 
@@ -503,9 +503,9 @@ class FreeRideAlertTest extends TestCase
         $this->travel(1)->second();
 
         $this->ride([
-            // 09:30 UTC (app.timezone) = 16:30 giờ VN.
+            // app.timezone = Asia/Ho_Chi_Minh → push hiển thị đúng 16:30.
             'pickup' => 'Phố cổ', 'destination' => 'Sân bay Nội Bài',
-            'pickup_at' => Carbon::parse('2026-10-11 09:30:00', 'UTC'), 'price' => 300000, 'is_free' => true,
+            'pickup_at' => Carbon::parse('2026-10-11 16:30:00'), 'price' => 300000, 'is_free' => true,
         ]);
         $this->travel(1)->second();
 
@@ -528,7 +528,7 @@ class FreeRideAlertTest extends TestCase
 
         $this->ride([
             'pickup' => 'Phố cổ', 'destination' => 'Sân bay Nội Bài',
-            'pickup_at' => Carbon::parse('2026-10-11 09:30:00', 'UTC'), 'price' => null, 'is_free' => false,
+            'pickup_at' => Carbon::parse('2026-10-11 16:30:00'), 'price' => null, 'is_free' => false,
         ]);
         $this->travel(1)->second();
 

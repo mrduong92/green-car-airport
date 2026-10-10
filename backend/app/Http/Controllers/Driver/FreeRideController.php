@@ -37,7 +37,7 @@ class FreeRideController extends Controller
 
         if (isset($data['since'])) {
             // >= vì updated_at chỉ chính xác tới giây; client gộp theo ride_uid nên trả trùng không sao.
-            $rides = $query->where('updated_at', '>=', Carbon::createFromTimestampMs($data['since']))
+            $rides = $query->where('updated_at', '>=', Carbon::createFromTimestampMs($data['since'], config('app.timezone')))
                 ->orderByDesc('updated_at')->limit(self::SINCE_LIMIT)->get();
 
             return response()->json([
