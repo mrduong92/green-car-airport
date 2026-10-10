@@ -13,6 +13,8 @@ import Button from '@/components/common/Button'
 import { PushSettingsRow } from '@/components/driver/PushNotificationSettings'
 import { zaloLink } from '@/utils/zalo'
 import { BRAND } from '@/brand'
+import { canShare, shareLink } from '@/share'
+import { webOrigin } from '@/webOrigin'
 
 interface EditForm {
   name: string
@@ -219,7 +221,7 @@ export default function DriverProfilePage() {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/login?ref=${user.referral_code}`)
+                navigator.clipboard.writeText(`${webOrigin('driver')}/login?ref=${user.referral_code}`)
                 showToast('Đã sao chép link giới thiệu', 'success')
               }}
               className="flex-1 h-10 rounded-pill border border-primary text-primary text-[13px] font-semibold flex items-center justify-center gap-1"
@@ -227,12 +229,12 @@ export default function DriverProfilePage() {
               <span className="material-symbols-outlined text-[15px]">content_copy</span>
               Sao chép link
             </button>
-            {typeof navigator.share === 'function' && (
+            {canShare() && (
               <button
-                onClick={() => navigator.share({
+                onClick={() => shareLink({
                   title: BRAND.name,
                   text: `Tham gia ${BRAND.name} và nhận 50 điểm (50.000đ)!`,
-                  url: `${window.location.origin}/login?ref=${user.referral_code}`,
+                  url: `${webOrigin('driver')}/login?ref=${user.referral_code}`,
                 })}
                 className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
               >

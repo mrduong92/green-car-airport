@@ -4,6 +4,7 @@ import { RouterProvider, type RouterProviderProps } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useUiStore } from '@/stores/ui'
 import type { BeforeInstallPromptEvent } from '@/stores/ui'
+import { initNativeShell } from '@/nativeShell'
 import { isNativeApp } from '@/platform'
 import { initNativePush } from '@/push'
 import './index.css'
@@ -13,6 +14,8 @@ type AppRouter = RouterProviderProps['router']
 export type AppKind = 'customer' | 'driver' | 'admin'
 
 export function bootstrap(router: AppRouter, app: AppKind = 'customer') {
+  initNativeShell()
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: 1, staleTime: 30_000 },
