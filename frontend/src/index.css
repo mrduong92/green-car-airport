@@ -20,4 +20,7 @@
      content above the fixed bottom nav on all devices including notched phones. */
   .pb-nav  { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   .above-nav { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Khung app-shell cao đúng màn hình; 100dvh bám theo thanh địa chỉ iOS, trình duyệt cũ lùi về 100vh. */
+  .h-app { height: 100vh; height: 100dvh; }
 }
