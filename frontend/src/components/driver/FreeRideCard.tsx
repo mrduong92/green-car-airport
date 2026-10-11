@@ -1,3 +1,5 @@
+import { zaloProfileHref } from '@/utils/zalo'
+
 const DIRECTION_LABEL: Record<App.FreeRideDirection, string> = {
   to_airport: 'Tiễn sân bay',
   from_airport: 'Đón sân bay',
@@ -65,7 +67,7 @@ export default function FreeRideCard({ ride, onMore }: Props) {
           {ride.group_count > 1 && ` · đăng ở ${ride.group_count} nhóm`} · {ago(ride.posted_at)}
         </p>
 
-        <a data-testid="free-ride-accept" href={ride.contact_url}
+        <a data-testid="free-ride-accept" href={zaloProfileHref(ride.contact_url)}
           className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
           <span className="material-symbols-outlined text-[18px]">chat</span>
           Nhận cuốc
