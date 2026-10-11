@@ -116,6 +116,34 @@ test('AI outcome is applied: rides or not_ride', () => {
   assert.equal(h.rides.backlog(), 1)
 })
 
+// Sự cố prod 11/10: lô 20 tin toàn "đón T2/NB…" làm AI gán pickup="Sân bay Nội Bài" cho tin
+// "đón 16h tại hạ long trả kcn bắc thăng long" — tin không hề nhắc sân bay. Kết quả AI như vậy là bịa:
+// bỏ, dùng quy tắc dự phòng (ở đây ra cuốc nguyên văn) thay vì hiện điểm đón sai cho tài xế.
+test('AI puts the airport as pickup but the message never mentions an airport → fall back to the rule parser', () => {
+  const h = harness()
+  const content = 'Bx5c vf6 đón 16h tại hạ long trả kcn bắc thăng long 800k trọn gói cao tốc'
+  const id = h.save(content)
+  h.processor.applyAi({ id, isRide: true, rides: [{ direction: 'from_airport', pickup: 'Sân bay Nội Bài', destination: 'kcn bắc thăng long', pickupAt: SENT + HOUR, pickupTimeText: '16:00', seats: 5, vehicleNote: 'vf6', price: 800000, isFree: false, rawText: content }] })
+  h.giveQr()
+
+  const [ride] = h.rides.unsynced(10)
+  assert.notEqual(ride.pickup, 'Sân bay Nội Bài')
+  assert.notEqual(ride.direction, 'from_airport')
+  assert.equal(ride.raw_text, content)
+})
+
+test('AI airport pickup is kept when the message does mention the airport (T2, NB, sân bay…)', () => {
+  const h = harness()
+  for (const [i, content] of ['đón T2 16h về hạ long 800k', 'Đón NB 15h trả Cầu Giấy', 'đón sân bay 9h về phố cổ'].entries()) {
+    const id = h.save(content)
+    h.processor.applyAi({ id, isRide: true, rides: [{ direction: 'from_airport', pickup: 'Sân bay Nội Bài', destination: `nơi ${i}`, pickupAt: SENT + HOUR, pickupTimeText: null, seats: null, vehicleNote: null, price: null, isFree: false, rawText: content }] })
+  }
+  h.giveQr()
+  const rides = h.rides.unsynced(10)
+  assert.equal(rides.length, 3)
+  assert.ok(rides.every((r) => r.pickup === 'Sân bay Nội Bài' && r.direction === 'from_airport' && r.is_raw === false))
+})
+
 test('a duplicate arriving while the original is still ai_pending is still counted once the AI applies', () => {
   const h = harness()
   const content = 'tin khó, có thể lặp lại'

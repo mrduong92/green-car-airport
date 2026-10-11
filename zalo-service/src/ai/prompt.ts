@@ -28,12 +28,14 @@ Một tin có thể chứa nhiều cuốc (mỗi dòng một giờ khác nhau) �
 Thuật ngữ:
 - "tiễn" = chở khách ra sân bay Nội Bài (direction=to_airport, destination="Sân bay Nội Bài").
 - "đón" ở sân bay = đón khách từ sân bay (direction=from_airport, pickup="Sân bay Nội Bài"). "T1", "T2", "NB", "sb" = sân bay Nội Bài.
+- "đón" CHỈ là đón sân bay khi chính tin đó có chữ chỉ sân bay (sân bay, Nội Bài, NB, sb, T1, T2). "đón tại X", "đón ở X", "đón X trả Y" mà X không phải sân bay → pickup=X, destination=Y, direction=other.
 - Không liên quan sân bay → direction=other.
 - Giá: "200k"=200000, "1tr2"=1200000, "280,000đ"=280000. "1k" thường là 1 khách, không phải giá.
 - "ck", "TK 0.25" là chiết khấu/phí cho người bắn, không phải giá. "free", "feee", "ko thu ck" = không thu chiết khấu → is_free=true.
 - "xe 5", "5c", "5 chỗ" → seats=5. "limo", "vf8", "x7" → vehicle_note.
 - Giờ: trả pickup_time dạng "HH:MM" (24h). "15-16h" → "15:00". "0-30p" (trong 30 phút) hoặc không có giờ → null. Ngày "4/10" → pickup_date "04/10".
 Tin dạng "A → B", "A - B", "A đi B", "A về B": A là điểm đón, B là điểm đến. Sân bay (T1, T2, NB, sb, Nội Bài) ở A → direction=from_airport, pickup="Sân bay Nội Bài"; ở B → direction=to_airport, destination="Sân bay Nội Bài".
+Mỗi tin độc lập: chỉ dựa vào chữ trong chính tin đó, không suy ra từ các tin khác trong cùng danh sách.
 Giữ nguyên tên địa điểm như trong tin, không tự bịa thông tin không có.`
 
 export function toDraft(r: z.infer<typeof RideSchema>, item: AiItem): RideDraft {
