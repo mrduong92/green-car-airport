@@ -31,6 +31,18 @@ export default function FreeRideFilters({ value, onChange }: Props) {
   // thấy ngay vì sao danh sách đang bị lọc, thay vì phải đoán ra có bộ lọc ẩn.
   const [showMore, setShowMore] = useState(() => value.seats != null)
   const extraFilterCount = value.seats != null ? 1 : 0
+  const hasAnyFilter = q !== '' || value.q != null || value.direction != null || value.window != null || value.seats != null
+
+  // Xoá chữ / xoá lọc áp dụng NGAY, không chờ 400ms như lúc gõ.
+  const clearSearch = () => {
+    setQ('')
+    if (value.q != null) onChange({ ...value, q: undefined })
+  }
+  const resetAll = () => {
+    setQ('')
+    setShowMore(false)
+    onChange({})
+  }
 
   // Gõ tìm kiếm: chờ 400ms mới lọc để không gọi API mỗi phím.
   useEffect(() => {
@@ -42,10 +54,32 @@ export default function FreeRideFilters({ value, onChange }: Props) {
 
   return (
     <div className="bg-white px-4 pt-3 pb-2 border-b border-border-gray flex flex-col gap-2">
-      <input
-        type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm địa điểm (vd: Hà Đông, T2...)"
-        className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-primary"
-      />
+      <div className="flex items-stretch gap-2">
+        <div className="relative flex-1 min-w-0">
+          <input
+            type="search" data-testid="free-search" enterKeyHint="search"
+            value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm địa điểm (vd: Hà Đông, T2...)"
+            className="w-full border border-border-gray rounded-input pl-3 pr-11 py-2.5 text-sm text-navy outline-none focus:border-primary [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {q !== '' && (
+            <button
+              type="button" data-testid="free-search-clear" aria-label="Xoá chữ tìm kiếm" onClick={clearSearch}
+              className="absolute right-0 top-0 h-full min-w-touch flex items-center justify-center text-neutral-gray"
+            >
+              <span className="material-symbols-outlined text-[20px]">cancel</span>
+            </button>
+          )}
+        </div>
+        {hasAnyFilter && (
+          <button
+            type="button" data-testid="free-filters-reset" onClick={resetAll}
+            className="shrink-0 flex items-center gap-1 rounded-input px-3 text-[13px] font-medium whitespace-nowrap border border-border-gray text-neutral-gray bg-white"
+          >
+            <span className="material-symbols-outlined text-[16px] leading-none">filter_alt_off</span>
+            Xoá lọc
+          </button>
+        )}
+      </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {DIRECTIONS.map((d) => (
           <button key={d.label} type="button" className={chip(value.direction === d.value)} onClick={() => onChange({ ...value, direction: d.value })}>{d.label}</button>
