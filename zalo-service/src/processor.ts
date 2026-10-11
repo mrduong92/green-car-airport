@@ -1,6 +1,6 @@
 import type { AiOutcome, AiQueue } from './ai/queue.js'
 import type { Logger } from './logger.js'
-import { parseRides } from './parser/rules.js'
+import { AIRPORT, mentionsAirport, parseRides } from './parser/rules.js'
 import type { QrQueue } from './qr.js'
 import type { RemoteConfig } from './remote-config.js'
 import type { RideSource, RideStore } from './rides.js'
@@ -53,6 +53,14 @@ export class Processor {
     const msg = this.deps.messages.get(outcome.id)
     if (!msg) return
     if (!outcome.isRide) return this.deps.messages.setStatus(msg.id, 'not_ride')
+    // AI xử lý theo lô: lô toàn tin "đón T2/NB…" kéo AI gán pickup="Sân bay Nội Bài" cho cả tin
+    // "đón … tại hạ long" (sự cố 11/10). Đón từ sân bay mà tin không hề nhắc sân bay → điểm đón là bịa;
+    // bỏ kết quả AI của tin này, để quy tắc dự phòng tách (hoặc hiện nguyên văn). "tiễn" không cần
+    // nhắc sân bay (nghĩa sẵn là ra sân bay) nên chiều to_airport không bị kiểm.
+    if (!mentionsAirport(msg.content) && outcome.rides.some((r) => r.direction === 'from_airport' || r.pickup === AIRPORT)) {
+      this.deps.logger.warn(`AI gán sân bay làm điểm đón cho tin ${msg.id} không nhắc sân bay — dùng quy tắc dự phòng`)
+      return this.fallback(msg.id)
+    }
     this.deps.rides.upsertDrafts(this.source(msg), outcome.rides, this.groupCountFor(msg))
     this.deps.messages.setStatus(msg.id, 'ride')
     this.deps.qr.ensure(msg.sender_uid)
