@@ -47,12 +47,15 @@ export default function DriverLayout() {
   }, [moreOpen])
 
   return (
-    <div className="flex flex-col min-h-svh w-full bg-warm-white">
+    // App-shell: khung cao đúng màn hình, chỉ <main> cuộn, bottom nav là phần tử thường (không fixed).
+    // Safari iOS hay vẽ lệch thanh fixed/sticky có backdrop-filter khi cả trang cuộn (thanh địa chỉ co
+    // giãn, danh sách đổi chiều cao lúc đang cuộn) → menu "kẹt" giữa màn hình ở tab Free.
+    <div className="flex flex-col h-app w-full bg-warm-white overflow-hidden">
       <AppHeader />
-      <main className="flex-1 w-full overflow-y-auto pb-nav flex flex-col">
+      <main className="flex-1 min-h-0 w-full overflow-y-auto flex flex-col">
         <Outlet />
       </main>
-      <nav className="fixed bottom-0 left-0 w-full bg-white/[0.96] backdrop-blur-[12px] [-webkit-backdrop-filter:blur(12px)] border-t border-border-soft shadow-card-up safe-bottom z-40">
+      <nav className="relative shrink-0 w-full bg-white/[0.96] backdrop-blur-[12px] [-webkit-backdrop-filter:blur(12px)] border-t border-border-soft shadow-card-up safe-bottom z-40">
         <div className="flex pt-2 pb-1">
           {PRIMARY_TABS.map((tab) => (
             <NavLink

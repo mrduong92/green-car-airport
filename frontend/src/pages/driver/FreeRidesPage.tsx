@@ -5,7 +5,7 @@ import FreeRideCard from '@/components/driver/FreeRideCard'
 import FreeRideFilters from '@/components/driver/FreeRideFilters'
 import FreeRideActionsSheet from '@/components/driver/FreeRideActionsSheet'
 import FreeRideAlertSheet from '@/components/driver/FreeRideAlertSheet'
-import { FREE_ALERT_QUERY_KEY, getFreeRideAlert, summarizeAlertFilters } from '@/api/freeRides'
+import { FREE_ALERT_QUERY_KEY, FREE_RIDE_SEATS, getFreeRideAlert, summarizeAlertFilters } from '@/api/freeRides'
 import { useFreeRides } from '@/hooks/useFreeRides'
 
 const STORAGE_KEY = 'free-rides-filters'
@@ -21,7 +21,8 @@ function loadFilters(): App.FreeRideFilters {
     const r = raw as Record<string, unknown>
     const filters: App.FreeRideFilters = {}
     if (DIRECTIONS.includes(r.direction as App.FreeRideDirection)) filters.direction = r.direction as App.FreeRideDirection
-    if (typeof r.seats === 'number' && Number.isInteger(r.seats) && r.seats >= 1 && r.seats <= 60) filters.seats = r.seats
+    // Chỉ giữ số chỗ còn chip để bấm tắt (vd. "16 chỗ" đã bỏ) — nếu không, tài xế bị lọc ngầm mà không thấy.
+    if (typeof r.seats === 'number' && FREE_RIDE_SEATS.includes(r.seats)) filters.seats = r.seats
     if (WINDOWS.includes(r.window as NonNullable<App.FreeRideFilters['window']>)) filters.window = r.window as App.FreeRideFilters['window']
     if (typeof r.q === 'string' && r.q.length <= 100) filters.q = r.q
     return filters

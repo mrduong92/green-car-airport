@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
+import { FREE_RIDE_SEATS } from '@/api/freeRides'
 
 const DIRECTIONS: { value?: App.FreeRideDirection; label: string }[] = [
   { label: 'Tất cả' },
@@ -13,7 +14,6 @@ const WINDOWS: { value?: App.FreeRideFilters['window']; label: string }[] = [
   { value: 'today', label: 'Hôm nay' },
   { value: 'tomorrow', label: 'Ngày mai' },
 ]
-const SEATS = [4, 5, 7, 16]
 
 interface Props {
   value: App.FreeRideFilters
@@ -79,7 +79,7 @@ export default function FreeRideFilters({ value, onChange }: Props) {
       {showMore && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1" data-testid="free-filters-more">
           <span className="text-[12px] text-neutral-gray shrink-0">Số chỗ</span>
-          {SEATS.map((s) => (
+          {FREE_RIDE_SEATS.map((s) => (
             <button key={s} type="button" className={chip(value.seats === s)} onClick={() => onChange({ ...value, seats: value.seats === s ? undefined : s })}>{s} chỗ</button>
           ))}
         </div>

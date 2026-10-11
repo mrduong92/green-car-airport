@@ -51,3 +51,6 @@ export function summarizeAlertFilters(c: AlertCriteria): string {
   if (c.q) parts.push(`"${c.q}"`)
   return parts.join(' · ')
 }
+
+// Lựa chọn "Số chỗ" ở Lọc thêm (bỏ 16 chỗ theo yêu cầu GreenCA 11/10).
+export const FREE_RIDE_SEATS: readonly number[] = [4, 5, 7]
