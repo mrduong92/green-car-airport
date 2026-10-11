@@ -68,7 +68,7 @@ export default function FreeRideCard({ ride, onMore }: Props) {
         <a data-testid="free-ride-accept" href={ride.contact_url}
           className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
           <span className="material-symbols-outlined text-[18px]">chat</span>
-          Nhận cuốc — mở Zalo
+          Nhận cuốc
         </a>
       </div>
     </div>
