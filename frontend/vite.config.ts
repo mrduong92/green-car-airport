@@ -104,6 +104,8 @@ function buildAppConfig(target: AppTarget): UserConfig {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
+        // Tự đăng ký trong src/pwaUpdate.ts (kiểm tra bản mới mỗi lần mở lại app + tự tải lại).
+        injectRegister: false,
         strategies: 'injectManifest',
         srcDir: 'src',
         filename: 'sw.ts',
