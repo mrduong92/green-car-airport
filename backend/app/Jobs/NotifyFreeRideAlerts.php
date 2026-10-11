@@ -7,6 +7,7 @@ use App\Models\DriverFreeRideAlert;
 use App\Models\FreeRide;
 use App\Models\User;
 use App\Notifications\FreeRideMatchNotification;
+use App\Services\DriverAppPresence;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -122,6 +123,14 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
         $rides = FreeRide::filterSafe($rides)->values();
         if ($rides->isEmpty()) {
+            return null;
+        }
+
+        // Đang mở app: tab Free tự cập nhật realtime, không push. Vẫn tiến mốc để thoát app ra không bị
+        // push dồn lại những cuốc đã thấy; không ghi last_pushed_at nên không kéo dài 2 phút chặn.
+        if (DriverAppPresence::isOpen($alert->driver_id)) {
+            $alert->update(['last_pushed_max_id' => $maxId]);
+
             return null;
         }
 

@@ -3,6 +3,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import ToastContainer from '@/components/common/Toast'
 import AppHeader from '@/components/common/AppHeader'
 import { useNotifications } from '@/hooks/useNotifications'
+import { useAppPresence } from '@/hooks/useAppPresence'
 import { useDriverStream } from '@/hooks/useDriverStream'
 import { useDriverCapacity } from '@/hooks/useDriverCapacity'
 import clsx from 'clsx'
@@ -29,6 +30,7 @@ export default function DriverLayout() {
   const { unreadCount } = useNotifications()
   const { atCapacity } = useDriverCapacity()
   useDriverStream(true, atCapacity)
+  useAppPresence()
   const { pathname } = useLocation()
   // Lưu path lúc mở sheet: điều hướng đi (kể cả nút back) là sheet tự đóng
   const [moreOpenAt, setMoreOpenAt] = useState<string | null>(null)

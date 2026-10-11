@@ -447,6 +447,69 @@ class FreeRideAlertTest extends TestCase
         });
     }
 
+    // ---- tài xế đang mở app: không push (toast + tab Free realtime đã đủ) ----
+    // iOS thu hồi đăng ký push nếu service worker nhận push mà không hiện thông báo, nên không thể
+    // chặn ở sw.ts — phải chặn từ server: app báo "đang mở" qua /api/driver/app-presence.
+
+    public function test_no_push_while_driver_app_is_open_and_those_rides_are_not_pushed_later(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        $this->travel(1)->second();
+
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/app-presence', ['active' => true])->assertNoContent();
+        $this->ride();
+        $this->travel(1)->second();
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertNothingSentTo($driver);
+
+        // Thoát app → cuốc mới được push, nhưng KHÔNG dồn lại cuốc đã thấy lúc đang mở app.
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/app-presence', ['active' => false])->assertNoContent();
+        $this->ride(['pickup' => 'Phố cổ']);
+        $this->travel(1)->second();
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+        Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
+            return str_starts_with($n->toWebPush($driver, $n)['body'], 'Cuốc Free: Phố cổ');
+        });
+    }
+
+    public function test_app_presence_expires_when_heartbeats_stop(): void
+    {
+        Notification::fake();
+        $driver = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $driver->id, 'enabled' => true]);
+        $this->travel(1)->second();
+
+        // App bị đóng đột ngột (không kịp báo active=false): quá 70 giây không có nhịp → coi như đã thoát.
+        $this->actingAs($driver, 'sanctum')->postJson('/api/driver/app-presence', ['active' => true])->assertNoContent();
+        $this->travel(71)->seconds();
+        $this->ride();
+        $this->travel(1)->second();
+        (new NotifyFreeRideAlerts)->handle();
+        Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
+    }
+
+    public function test_app_presence_is_per_driver_and_validated(): void
+    {
+        Notification::fake();
+        $open = $this->driver();
+        $closed = $this->driver();
+        DriverFreeRideAlert::create(['driver_id' => $open->id, 'enabled' => true]);
+        DriverFreeRideAlert::create(['driver_id' => $closed->id, 'enabled' => true]);
+        $this->travel(1)->second();
+
+        $this->actingAs($open, 'sanctum')->postJson('/api/driver/app-presence', [])->assertUnprocessable();
+        $this->actingAs($open, 'sanctum')->postJson('/api/driver/app-presence', ['active' => true])->assertNoContent();
+        $this->ride();
+        $this->travel(1)->second();
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertNothingSentTo($open);
+        Notification::assertSentToTimes($closed, FreeRideMatchNotification::class, 1);
+    }
+
     // ---- cuốc cập nhật (không mới) không kích hoạt job ----
 
     public function test_updating_existing_ride_does_not_dispatch_alert_job(): void
