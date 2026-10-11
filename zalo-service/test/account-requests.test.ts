@@ -235,32 +235,85 @@ test('poller remove nick không có file → vẫn done', async () => {
   assert.deepEqual(h.posts, [['/api/internal/zalo/account-requests/14', { status: 'done' }]])
 })
 
-test('poller: mỗi lần chỉ xử lý MỘT yêu cầu', async () => {
+test('poller: một lượt poll xử lý mọi yêu cầu đang chờ, không xếp hàng', async () => {
   const h = harness({ requests: { requests: [
     { id: 1, type: 'remove', account_id: 'a' },
     { id: 2, type: 'remove', account_id: 'b' },
   ] } })
   await h.poller.poll()
-  assert.deepEqual(h.manager.calls, ['remove:a'])
+  assert.deepEqual(h.manager.calls.sort(), ['remove:a', 'remove:b'])
 })
 
-test('poller: đang đăng nhập thì lượt poll khác không lấy thêm yêu cầu', async () => {
-  let release: (() => void) | undefined
+// Sự cố prod 11/10: một nick chờ quét QR (tới ~5 phút) chặn mọi yêu cầu sau → admin thấy
+// "Đang tạo mã QR" quay mãi. Mỗi lượt đăng nhập phải chạy độc lập.
+test('poller: đang chờ quét QR nick này thì yêu cầu nick khác vẫn được xử lý ngay', async () => {
+  const releases: (() => void)[] = []
+  const pending = { requests: [{ id: 20, type: 'login', account_id: 'acc6' }] as unknown[] }
   const h = harness({
-    requests: { requests: [{ id: 20, type: 'login', account_id: 'acc6' }] },
-    // Lượt đầu treo tới khi release(); các lượt sau (GET vẫn trả yêu cầu cũ) xong ngay.
-    login: () => (release ? Promise.resolve({ credentials: {} }) : new Promise((resolve) => { release = () => resolve({ credentials: {} }) })),
+    requests: pending,
+    login: async (onQr) => {
+      await onQr('png', 1)
+      return new Promise((resolve) => { releases.push(() => resolve({ credentials: {} })) })
+    },
   })
   const first = h.poller.poll()
   await tick()
-  assert.equal(h.gets(), 1)
+  assert.equal(releases.length, 1)
+
+  // Laravel vẫn trả #20 (chưa kịp thấy qr_ready) kèm yêu cầu mới #21.
+  pending.requests = [{ id: 20, type: 'login', account_id: 'acc6' }, { id: 21, type: 'login', account_id: 'acc7' }]
+  const second = h.poller.poll()
+  await tick()
+  assert.equal(releases.length, 2, '#21 phải bắt đầu ngay, #20 không bị chạy lại')
+  assert.ok(h.posts.some(([path, p]) => path.endsWith('/21') && p.status === 'qr_ready'))
+
+  releases.forEach((r) => r())
+  await Promise.all([first, second])
+  assert.deepEqual(h.added.sort(), ['acc6', 'acc7'])
+})
+
+test('poller: hai yêu cầu cùng một nick → chỉ chạy một lượt đăng nhập', async () => {
+  let logins = 0
+  const h = harness({
+    requests: { requests: [{ id: 30, type: 'login', account_id: 'acc8' }, { id: 31, type: 'login', account_id: 'acc8' }] },
+    login: async () => { logins++; return { credentials: {} } },
+  })
   await h.poller.poll()
-  await h.poller.poll()
-  assert.equal(h.gets(), 1)
-  release!()
+  assert.equal(logins, 1)
+})
+
+test('poller: tối đa 3 lượt đăng nhập QR cùng lúc', async () => {
+  let running = 0
+  let peak = 0
+  const releases: (() => void)[] = []
+  const h = harness({
+    requests: { requests: [1, 2, 3, 4, 5].map((i) => ({ id: i, type: 'login', account_id: `n${i}` })) },
+    login: () => {
+      running++
+      peak = Math.max(peak, running)
+      return new Promise((resolve) => { releases.push(() => { running--; resolve({ credentials: {} }) }) })
+    },
+  })
+  const first = h.poller.poll()
+  await tick()
+  assert.equal(peak, 3)
+  releases.splice(0).forEach((r) => r())
   await first
+  // Lượt sau nhận nốt 2 yêu cầu còn lại (GET giả vẫn trả cả 5, 3 cái đầu đã có file phiên → chạy lại cũng không sao).
+  const second = h.poller.poll()
+  await tick()
+  assert.equal(releases.length, 3)
+  releases.splice(0).forEach((r) => r())
+  await second
+  assert.equal(peak, 3)
+})
+
+test('poller: lượt poll đang gọi GET thì lượt khác bỏ qua (không GET chồng)', async () => {
+  const h = harness({})
+  const first = h.poller.poll()   // GET chưa trả về (await đầu tiên chưa chạy xong)
   await h.poller.poll()
-  assert.equal(h.gets(), 2)
+  assert.equal(h.gets(), 1)
+  await first
 })
 
 test('poller: GET lỗi mạng / HTTP lỗi / body hỏng → không ném, không làm gì', async () => {

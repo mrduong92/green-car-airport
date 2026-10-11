@@ -13,6 +13,10 @@ import { QrExpiredError } from './zalo-login.js'
 export const ACCOUNT_ID_PATTERN = /^[a-z0-9-]{1,32}$/
 const REQUESTS_PATH = '/api/internal/zalo/account-requests'
 const MAX_ERROR_CHARS = 300
+// Mỗi lượt đăng nhập QR chờ người quét tới vài phút — chạy song song để một nick chưa quét không chặn
+// các nick khác (sự cố prod 11/10: "Đang tạo mã QR" quay mãi). Giới hạn để admin bấm nhầm nhiều lần
+// không mở hàng loạt phiên tới Zalo.
+export const MAX_CONCURRENT_REQUESTS = 3
 
 export interface AccountRequest {
   id: number | string
@@ -30,7 +34,12 @@ const isRequest = (v: unknown): v is AccountRequest => {
 }
 
 export class AccountRequestsPoller {
-  private busy = false
+  private fetching = false
+  // Yêu cầu đang xử lý, theo id và theo nick: Laravel vẫn trả yêu cầu là pending cho tới khi service
+  // báo qr_ready, nên lượt poll sau sẽ thấy lại nó — không được chạy lần hai, cũng không chạy hai
+  // lượt đăng nhập song song cho cùng một nick (hai phiên tranh nhau một file session).
+  private readonly inFlightIds = new Set<string>()
+  private readonly inFlightAccounts = new Set<string>()
 
   constructor(
     private readonly deps: {
@@ -51,10 +60,15 @@ export class AccountRequestsPoller {
     },
   ) {}
 
-  /** Mỗi lần xử lý MỘT yêu cầu; đang đăng nhập (chờ quét QR, có thể vài phút) thì các lượt poll khác bỏ qua. Không ném lỗi. */
+  /**
+   * Lấy các yêu cầu đang chờ và bắt đầu xử lý từng cái độc lập (tối đa MAX_CONCURRENT_REQUESTS cùng lúc).
+   * Promise trả về xong khi các yêu cầu do lượt NÀY bắt đầu đã xử lý xong; lượt poll sau không phải chờ.
+   * Không ném lỗi.
+   */
   async poll(): Promise<void> {
-    if (this.busy) return
-    this.busy = true
+    if (this.fetching) return
+    this.fetching = true
+    const started: Promise<void>[] = []
     try {
       const res = await this.deps.get(REQUESTS_PATH)
       if (res.status !== 200) {
@@ -66,13 +80,25 @@ export class AccountRequestsPoller {
         this.deps.logger.error('Danh sách yêu cầu nick sai định dạng')
         return
       }
-      const request = list.find(isRequest)
-      if (request) await this.handle(request)
+      for (const request of list.filter(isRequest)) {
+        if (this.inFlightIds.size >= MAX_CONCURRENT_REQUESTS) break
+        const key = String(request.id)
+        if (this.inFlightIds.has(key) || this.inFlightAccounts.has(request.account_id)) continue
+        this.inFlightIds.add(key)
+        this.inFlightAccounts.add(request.account_id)
+        started.push(this.handle(request)
+          .catch((err) => { this.deps.logger.error('Xử lý yêu cầu nick lỗi:', err instanceof Error ? err.message : err) })
+          .finally(() => {
+            this.inFlightIds.delete(key)
+            this.inFlightAccounts.delete(request.account_id)
+          }))
+      }
     } catch (err) {
       this.deps.logger.error('Xử lý yêu cầu nick lỗi:', err instanceof Error ? err.message : err)
     } finally {
-      this.busy = false
+      this.fetching = false
     }
+    await Promise.all(started)
   }
 
   private async handle(request: AccountRequest): Promise<void> {
