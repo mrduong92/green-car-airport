@@ -35,7 +35,7 @@ test.describe('Referral tài xế → tài xế', () => {
     await loginExisting(driverA, APP.driver, SEEDED.driver)
     await expect(driverA).toHaveURL(/\/driver\/trips/)
     const referralCode = await getDriverReferralCode(driverA)
-    expect(referralCode).toMatch(/-/)
+    expect(referralCode).toMatch(/^0\d{9,10}$/)
     const aPointsBefore = await readDriverWalletPoints(driverA)
 
     const driverBSignup = await newActor(browser)
