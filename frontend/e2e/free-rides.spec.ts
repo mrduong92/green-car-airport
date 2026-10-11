@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, devices } from '@playwright/test'
 import { APP, SEEDED } from './fixtures/testData'
 import { loginExisting } from './fixtures/auth'
 import { pushFreeRides } from './fixtures/freeRides'
@@ -65,4 +65,24 @@ test('xoá chữ tìm kiếm bằng nút ✕ và "Xoá lọc" đưa bộ lọc v
   await expect(page.getByRole('button', { name: 'Mọi giờ' })).toHaveClass(/bg-primary/)
   await expect(page.getByTestId('free-filters-reset')).toHaveCount(0)
   await expect(card).toBeVisible()
+})
+
+// Zalo Android chỉ nhận scheme zalo:// với host zaloapp.com — zalo://qr/p/<mã> (host "qr", iOS mở
+// được) bấm trên Android không mở gì. Dùng đúng intent mà trang zaloapp.com/qr/p/… tự dùng trên Android.
+test.describe('Android', () => {
+  const { defaultBrowserType: _ignored, ...pixel } = devices['Pixel 7']
+  test.use(pixel)
+
+  test('nút Nhận cuốc dùng intent Zalo Android, có link web dự phòng', async ({ page }) => {
+    const tag = Date.now().toString(36)
+    const qrCode = `e2ed${tag}`
+    await pushFreeRides([{ pickup: `Điểm Android ${tag}`, senderUid: `e2e-d-${tag}`, qrCode }])
+    await loginExisting(page, APP.driver, SEEDED.driver)
+    await page.getByRole('link', { name: 'Free' }).click()
+    const card = page.getByTestId('free-ride-card').filter({ hasText: `Điểm Android ${tag}` })
+    await expect(card.getByTestId('free-ride-accept')).toHaveAttribute('href',
+      `intent://zaloapp.com/qr/p/${qrCode}#Intent;scheme=zalo;action=android.intent.action.VIEW;`
+      + `category=android.intent.category.BROWSABLE;package=com.zing.zalo;`
+      + `S.browser_fallback_url=${encodeURIComponent(`https://zaloapp.com/qr/p/${qrCode}`)};end`)
+  })
 })
