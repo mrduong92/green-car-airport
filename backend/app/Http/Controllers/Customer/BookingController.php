@@ -256,7 +256,7 @@ class BookingController extends Controller
             'driver' => $driver ? [
                 'id' => $driver->id,
                 'name' => $driver->name,
-                'phone' => $driver->phone,
+                'phone' => $driver->contactPhone(),
                 'vehicle_make' => $profile?->vehicle_make,
                 'vehicle_model' => $profile?->vehicle_model,
                 'vehicle_plate' => $profile?->vehicle_plate,

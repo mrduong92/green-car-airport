@@ -13,7 +13,7 @@ class DriverController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = User::with(['driverProfile', 'wallet'])->where('role', 'driver');
+        $query = User::with(['driverProfile', 'wallet'])->where('role', 'driver')->whereNull('deleted_at');
 
         if ($request->status) {
             $query->whereHas('driverProfile', fn ($q) => $q->where('status', $request->status));

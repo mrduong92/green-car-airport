@@ -12,7 +12,7 @@ class CustomerController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = User::with('bookingsAsCustomer')->where('role', 'customer');
+        $query = User::with('bookingsAsCustomer')->where('role', 'customer')->whereNull('deleted_at');
 
         if ($request->search) {
             $s = '%' . $request->search . '%';

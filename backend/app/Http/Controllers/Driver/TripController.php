@@ -470,7 +470,7 @@ class TripController extends Controller
         $feePercent = $this->feePercent();
         $appFee = (int) round($effectivePrice * $feePercent / 100);
         $netEarning = $effectivePrice - $appFee;
-        $phone = $b->customer?->phone ?? '';
+        $phone = $b->customer?->contactPhone() ?? '';
         $durationMin = (int) round((float) $b->distance_km / 30 * 60);
 
         $statusMap = [
