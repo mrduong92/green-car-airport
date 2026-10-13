@@ -87,6 +87,9 @@ android-customer:
 android-driver:
 	@$(MAKE) --no-print-directory android-build APP=driver
 
+# 1 = WebView inspect được bằng chrome://inspect (bản test, không đưa lên store).
+WEBVIEW_DEBUG ?= 0
+
 android-build:
 	@test -n "$(JAVA21)" || { echo "✗ Thiếu JDK 21 — docs/MOBILE.md mục Build nhanh"; exit 1; }
 	@test -d "$(ANDROID_SDK)" || { echo "✗ Không thấy Android SDK ở $(ANDROID_SDK) — đặt ANDROID_HOME"; exit 1; }
@@ -100,10 +103,10 @@ android-build:
 	node mobile/scripts/check-css-viewport-fallback.mjs frontend/$(NATIVE_DIST_$(APP))
 	mkdir -p mobile/$(APP)/android/app/src/main/res/raw
 	cp frontend/public/sounds/new_ride.wav mobile/$(APP)/android/app/src/main/res/raw/new_ride.wav
-	cd mobile/$(APP) && npx cap sync android
+	cd mobile/$(APP) && GREENCA_WEBVIEW_DEBUG=$(WEBVIEW_DEBUG) npx cap sync android
 	cd mobile/$(APP)/android && ANDROID_HOME=$(ANDROID_SDK) JAVA_HOME=$(JAVA21) ./gradlew --no-daemon clean assembleRelease bundleRelease
 	mkdir -p dist-mobile
-	@V=$$(node -p "require('./mobile/$(APP)/package.json').version"); \
+	@V=$$(node -p "require('./mobile/$(APP)/package.json').version")$(if $(filter 1,$(WEBVIEW_DEBUG)),-debuggable); \
 	  cp mobile/$(APP)/android/app/build/outputs/apk/release/app-release.apk dist-mobile/greenca-$(APP)-$$V.apk; \
 	  cp mobile/$(APP)/android/app/build/outputs/bundle/release/app-release.aab dist-mobile/greenca-$(APP)-$$V.aab; \
 	  echo "✓ dist-mobile/greenca-$(APP)-$$V.apk + .aab"

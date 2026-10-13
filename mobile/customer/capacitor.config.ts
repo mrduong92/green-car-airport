@@ -24,6 +24,12 @@ const config: CapacitorConfig = {
     hostname: 'app.greenca.vn',
   },
 
+  android: {
+    // Cho Chrome trên máy tính inspect WebView (chrome://inspect). Chỉ bật cho bản test:
+    // `make android-<app> WEBVIEW_DEBUG=1` — file ra có hậu tố -debuggable, KHÔNG đưa lên store.
+    webContentsDebuggingEnabled: process.env.GREENCA_WEBVIEW_DEBUG === '1',
+  },
+
   plugins: {
     SplashScreen: { launchShowDuration: 800, backgroundColor: '#F8FAF9', showSpinner: false },
   },
