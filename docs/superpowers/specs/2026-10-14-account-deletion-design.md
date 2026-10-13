@@ -46,6 +46,7 @@ Giữ dòng `users` (id không đổi) → mọi khoá ngoại (`bookings.custom
 | `bookings` (địa chỉ, giá, thời gian, trạng thái) | Giữ — không còn gắn danh tính |
 | `wallets`, `wallet_transactions` | Giữ (chứng từ kế toán; ví đã = 0 vì bị chặn khi còn điểm) |
 | `terms_acceptances` | Giữ (chứng cứ pháp lý) |
+| `campaign_grants` (khuyến mãi người mới đã nhận) | Giữ `phone` (chặn đăng ký lại để nhận lại ưu đãi), đặt `user_id = null` — không còn nối với tài khoản |
 
 Tất cả trong **một transaction** — lỗi giữa chừng thì không đổi gì.
 

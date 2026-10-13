@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { deleteAccount } from '@/api/auth'
 import { getContactSettings } from '@/api/settings'
-import { unregisterPushSubscription } from '@/push'
+import { dropLocalPushSubscription } from '@/push'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { apiMessage } from '@/utils/apiError'
@@ -23,9 +23,9 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
   const mutation = useMutation({
     mutationFn: () => deleteAccount(pin),
     onSuccess: async () => {
-      // Server đã xoá token đăng nhập + token push: gọi API ở đây sẽ 401 (bỏ qua) —
-      // chỉ còn dọn trạng thái trên máy. Không gọi logoutApi().
-      await unregisterPushSubscription()
+      // Server đã xoá token đăng nhập + token push: KHÔNG gọi API nào nữa (401 → interceptor
+      // tải lại trang, mất toast). Chỉ dọn trạng thái trên máy.
+      await dropLocalPushSubscription()
       clearAuth()
       showToast('Tài khoản của bạn đã được xoá', 'success')
       navigate('/login', { replace: true })

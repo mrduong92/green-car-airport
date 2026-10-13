@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\AccountDeletionBlocked;
 use App\Models\Booking;
+use App\Models\CampaignGrant;
 use App\Models\DeviceToken;
 use App\Models\DriverFreeRideAlert;
 use App\Models\DriverHiddenSender;
@@ -86,6 +87,9 @@ class AccountDeletionService
             DriverHiddenSender::where('driver_id', $user->id)->delete();
             FreeRideReport::where('driver_id', $user->id)->delete();
             Voucher::where('user_id', $user->id)->doesntHave('bookings')->delete();
+            // Giữ SĐT trong khuyến mãi đã nhận (chặn đăng ký lại để nhận lại ưu đãi người mới)
+            // nhưng cắt liên kết với id — nếu không, ghép id là ra SĐT thật của tài khoản đã xoá.
+            CampaignGrant::where('user_id', $user->id)->update(['user_id' => null]);
             // Khách hay ghi SĐT/tên vào ghi chú cuốc.
             Booking::where('customer_id', $user->id)->whereNotNull('note')->update(['note' => null]);
 

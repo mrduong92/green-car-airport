@@ -85,7 +85,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
-    Route::delete('/me', [AccountController::class, 'destroy']);
+    // throttle: xoá là vĩnh viễn — token bị lộ không được dò hết mã PIN.
+    Route::delete('/me', [AccountController::class, 'destroy'])->middleware('throttle:5,1');
     Route::post('/auth/terms/accept', [AuthController::class, 'acceptTerms']);
 
     // Shared (any authenticated role)

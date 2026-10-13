@@ -96,6 +96,21 @@ export async function syncPushSubscription(): Promise<void> {
   }
 }
 
+/**
+ * Huỷ subscription CHỈ trên máy, không gọi API. Dùng sau khi xoá tài khoản: server đã xoá
+ * token đăng nhập + device_tokens, gọi DELETE /device-token lúc đó trả 401 → interceptor
+ * axios tải lại trang về /login (mất toast "đã xoá") và subscription không được huỷ.
+ */
+export async function dropLocalPushSubscription(): Promise<void> {
+  if (!('serviceWorker' in navigator)) return
+  try {
+    const reg = await navigator.serviceWorker.ready
+    await (await reg.pushManager.getSubscription())?.unsubscribe()
+  } catch {
+    // không có quyền / trình duyệt chặn — không còn gì để dọn
+  }
+}
+
 export async function unregisterPushSubscription(): Promise<void> {
   if (!('serviceWorker' in navigator)) return
   try {

@@ -154,4 +154,24 @@ class AccountDeletionServiceTest extends TestCase
         $this->expectException(AccountDeletionBlocked::class);
         $this->service()->delete($rich, ignoreHolds: true);
     }
+
+    /**
+     * campaign_grants giữ SĐT (chặn đăng ký lại để nhận lại khuyến mãi người mới) — nhưng
+     * không được còn nối với id tài khoản đã ẩn danh, nếu không ghép id là ra SĐT thật.
+     */
+    public function test_khuyen_mai_da_nhan_bo_lien_ket_voi_tai_khoan(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer', 'phone' => '0901000222']);
+        $campaignId = DB::table('campaigns')->insertGetId([
+            'name' => 'Chào mừng', 'trigger' => 'registered', 'reward' => '{}',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('campaign_grants')->insert([
+            'campaign_id' => $campaignId, 'user_id' => $customer->id, 'phone' => '0901000222', 'granted_at' => now(),
+        ]);
+
+        $this->service()->delete($customer);
+
+        $this->assertDatabaseHas('campaign_grants', ['campaign_id' => $campaignId, 'phone' => '0901000222', 'user_id' => null]);
+    }
 }

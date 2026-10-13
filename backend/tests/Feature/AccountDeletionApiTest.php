@@ -92,4 +92,16 @@ class AccountDeletionApiTest extends TestCase
         $this->actingAs($admin, 'sanctum')->deleteJson('/api/me', ['password' => '123456'])->assertForbidden();
         $this->assertFalse($admin->fresh()->isDeleted());
     }
+
+    // Xoá là vĩnh viễn: người cầm token bị lộ không được dò hết 10^6 mã PIN.
+    public function test_gioi_han_so_lan_thu_pin(): void
+    {
+        $user = $this->customer();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->actingAs($user, 'sanctum')->deleteJson('/api/me', ['password' => '000000'])->assertStatus(422);
+        }
+        $this->actingAs($user, 'sanctum')->deleteJson('/api/me', ['password' => '000000'])->assertStatus(429);
+        $this->assertFalse($user->fresh()->isDeleted());
+    }
 }
