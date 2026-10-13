@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppSetting;
 use App\Models\DriverProfile;
 use App\Models\FreeRide;
 use App\Models\ZaloQrRefreshRequest;
@@ -67,7 +68,7 @@ class FreeRideAccessTest extends TestCase
         $this->assertNull($page->json('data.0.qr_code'));
         $this->assertFalse($page->json('access.unlocked'));
         $this->assertNull($page->json('access.expires_at'));
-        $this->assertSame(config('business.free_unlock_instructions'), $page->json('access.instructions'));
+        $this->assertIsArray($page->json('access.payment'));
         $this->assertStringNotContainsString('QRDUC', $page->getContent());
 
         $since = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides?since=0')->assertOk();
@@ -88,7 +89,7 @@ class FreeRideAccessTest extends TestCase
         $this->assertSame('QRDUC', $res->json('data.0.qr_code'));
         $this->assertTrue($res->json('access.unlocked'));
         $this->assertSame($until->getTimestampMs(), $res->json('access.expires_at'));
-        $this->assertNull($res->json('access.instructions'));
+        $this->assertNull($res->json('access.payment'));
     }
 
     public function test_expired_unlock_is_locked_again(): void
@@ -151,5 +152,71 @@ class FreeRideAccessTest extends TestCase
             $this->assertStringNotContainsString('345', $masked, $in);
         }
         $this->assertSame('giá 1.200.000đ, 0.25 ck', \App\Models\FreeRide::maskPhones('giá 1.200.000đ, 0.25 ck'));
+    }
+
+    private function bank(): void
+    {
+        config(['sepay.bank' => ['name' => 'Vietcombank', 'bank_code' => 'VCB', 'account_number' => '0123456789', 'account_holder' => 'CONG TY GREENCA']]);
+    }
+
+    public function test_locked_driver_gets_payment_info_with_default_fee_and_non_topup_transfer_content(): void
+    {
+        $this->bank();
+        $driver = $this->driverWith(null);
+
+        $payment = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('access.payment');
+
+        $this->assertSame(100000, $payment['amount_vnd']);
+        $this->assertSame('MOKHOA '.$driver->phone, $payment['transfer_content']);
+        // Nội dung KHÔNG được chứa mã nạp ví (GCA + 6 số) — webhook SePay sẽ đổi tiền phí thành điểm ví.
+        $this->assertDoesNotMatchRegularExpression('/'.preg_quote(config('app.code_prefix'), '/').'\d{6}/', $payment['transfer_content']);
+        $this->assertSame(['name' => 'Vietcombank', 'account_number' => '0123456789', 'account_holder' => 'CONG TY GREENCA'], $payment['bank']);
+        $this->assertStringContainsString('VCB-0123456789', $payment['qr_url']);
+        $this->assertStringContainsString('amount=100000', $payment['qr_url']);
+        $this->assertStringContainsString('addInfo='.urlencode('MOKHOA '.$driver->phone), $payment['qr_url']);
+    }
+
+    public function test_payment_amount_follows_admin_setting_and_zero_means_no_amount_on_qr(): void
+    {
+        $this->bank();
+        $driver = $this->driverWith(null);
+
+        AppSetting::set(AppSetting::FREE_UNLOCK_FEE_VND, '250000');
+        $payment = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('access.payment');
+        $this->assertSame(250000, $payment['amount_vnd']);
+        $this->assertStringContainsString('amount=250000', $payment['qr_url']);
+
+        AppSetting::set(AppSetting::FREE_UNLOCK_FEE_VND, '0');
+        $payment = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('access.payment');
+        $this->assertNull($payment['amount_vnd']);
+        $this->assertStringNotContainsString('amount=', $payment['qr_url']);
+    }
+
+    public function test_payment_qr_is_null_when_no_bank_account_is_configured(): void
+    {
+        config(['sepay.bank.account_number' => '']);
+
+        $payment = $this->actingAs($this->driverWith(null), 'sanctum')->getJson('/api/driver/free-rides')->json('access.payment');
+
+        $this->assertNull($payment['qr_url']);
+    }
+
+    public function test_admin_can_read_and_update_unlock_fee_setting(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/settings')->assertOk()->assertJson(['free_unlock_fee_vnd' => 100000]);
+
+        $this->actingAs($admin, 'sanctum')->putJson('/api/admin/settings', [
+            'contact_hotline' => '1900 1234', 'contact_email' => 'help@greenca.vn', 'contact_zalo_phone' => '0931919786',
+            'free_unlock_fee_vnd' => 300000,
+        ])->assertOk()->assertJson(['free_unlock_fee_vnd' => 300000]);
+
+        $this->assertSame(300000, AppSetting::freeUnlockFeeVnd());
+
+        $this->actingAs($admin, 'sanctum')->putJson('/api/admin/settings', [
+            'contact_hotline' => '1900 1234', 'contact_email' => 'help@greenca.vn', 'contact_zalo_phone' => '0931919786',
+            'free_unlock_fee_vnd' => -1,
+        ])->assertStatus(422);
     }
 }

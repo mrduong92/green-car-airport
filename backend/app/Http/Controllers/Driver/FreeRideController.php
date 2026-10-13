@@ -8,6 +8,7 @@ use App\Models\DriverHiddenSender;
 use App\Models\FreeRide;
 use App\Models\FreeRideReport;
 use App\Models\ZaloQrRefreshRequest;
+use App\Services\FreeUnlockPayment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -175,7 +176,7 @@ class FreeRideController extends Controller
         return FreeRide::filterSafe($rides);
     }
 
-    /** @return array{unlocked: bool, expires_at: int|null, instructions: string|null} */
+    /** @return array{unlocked: bool, expires_at: int|null, payment: array|null} */
     private function access(Request $request): array
     {
         $profile = $request->user()->driverProfile;
@@ -184,7 +185,8 @@ class FreeRideController extends Controller
         return [
             'unlocked' => $unlocked,
             'expires_at' => $unlocked ? $profile->free_unlocked_until->getTimestampMs() : null,
-            'instructions' => $unlocked ? null : config('business.free_unlock_instructions'),
+            // Thông tin chuyển khoản mở khóa (QR VietQR) — chỉ khi đang khóa.
+            'payment' => $unlocked ? null : FreeUnlockPayment::forDriver($request->user()),
         ];
     }
 
