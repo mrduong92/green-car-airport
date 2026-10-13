@@ -41,6 +41,9 @@ test('tài xế khóa thấy nút Mở khóa, admin mở khóa xong thì Nhận 
   await adminPage.getByPlaceholder('Tìm theo tên, SĐT, biển số').fill(SEEDED.lockedDriver)
   await expect(adminPage.getByText(SEEDED.lockedDriver)).toBeVisible()
   await adminPage.getByRole('button', { name: 'Mở khóa Free' }).first().click()
+  // Thao tác liên quan tiền: phải qua hộp xác nhận (có ngày hết hạn mới), bấm nhầm không mở khóa.
+  await expect(adminPage.getByText('Mở khóa Nhận cuốc Free?')).toBeVisible()
+  await adminPage.getByRole('button', { name: 'Mở khóa 1 năm' }).click()
   await expect(adminPage.getByRole('button', { name: 'Gia hạn Free' }).first()).toBeVisible()
 
   try {
@@ -50,6 +53,8 @@ test('tài xế khóa thấy nút Mở khóa, admin mở khóa xong thì Nhận 
   } finally {
     // Dọn: thu hồi để lần chạy sau lại bắt đầu ở trạng thái khóa — kể cả khi assert ở trên fail.
     await adminPage.getByRole('button', { name: 'Thu hồi Free' }).first().click()
+    await expect(adminPage.getByText('Thu hồi khóa Nhận cuốc Free?')).toBeVisible()
+    await adminPage.getByRole('button', { name: 'Thu hồi', exact: true }).click()
     await expect(adminPage.getByRole('button', { name: 'Mở khóa Free' }).first()).toBeVisible()
   }
 })
