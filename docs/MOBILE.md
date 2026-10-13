@@ -52,6 +52,29 @@ Nguồn: `frontend/public/sounds/new_ride.wav`, tạo bằng `mobile/scripts/tts
 
 Project `GreenCA` chứa 2 app Android (`vn.greenca.customer`, `vn.greenca.driver`). Service account JSON chỉ nằm trên server (`FIREBASE_CREDENTIALS`, xem DEPLOY.md) — không commit.
 
+### Debug trên máy thật
+
+Bản release **không** inspect được (WebView tắt debug — chuẩn bảo mật). Build bản test:
+
+```bash
+make android-customer WEBVIEW_DEBUG=1   # → dist-mobile/greenca-customer-<ver>-debuggable.apk — KHÔNG đưa lên store
+```
+
+Cài bản `-debuggable` (cùng khoá ký → cài đè được bản thường), cắm cáp, bật Gỡ lỗi USB, rồi:
+
+- **Chrome DevTools:** Chrome trên Mac → `chrome://inspect/#devices` → mở app trên điện thoại (phải đang ở màn hình, MIUI hay tắt app ở nền) → mục *Remote Target* có `vn.greenca.<app>` → **inspect**. Không thấy máy: `adb` đang chạy giữ USB → `adb forward tcp:9223 localabstract:webview_devtools_remote_$(adb shell pidof vn.greenca.customer)` rồi trong `chrome://inspect` → *Configure…* thêm `localhost:9223`.
+- **Log (`adb logcat`):**
+
+```bash
+adb logcat -c                                                  # xoá log cũ, rồi thao tác lại trên máy
+adb logcat --pid=$(adb shell pidof vn.greenca.driver)          # mọi log của app tài xế
+adb logcat -s Capacitor/Console Capacitor chromium             # console.* của web (chỉ bản -debuggable) + lỗi WebView
+adb logcat -b crash                                            # app native bị crash
+adb shell dumpsys notification --noredact | grep -A30 vn.greenca  # thông báo đang hiện trên máy
+```
+
+`adb` nằm ở `~/Library/Android/sdk/platform-tools/` — thêm vào `PATH` cho gọn.
+
 ### Icon / splash
 
 Nguồn ở `mobile/assets/*.png`, sinh từ logo bằng `node mobile/scripts/render-asset-sources.mjs`. Sinh lại tài nguyên Android: trong `mobile/<app>` chạy `npx capacitor-assets generate --android --assetPath ../assets --iconBackgroundColor '#006a36' --splashBackgroundColor '#F8FAF9' --splashBackgroundColorDark '#F8FAF9'`.

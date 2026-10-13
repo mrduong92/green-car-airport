@@ -29,6 +29,8 @@ const config: CapacitorConfig = {
     // `make android-<app> WEBVIEW_DEBUG=1` — file ra có hậu tố -debuggable, KHÔNG đưa lên store.
     webContentsDebuggingEnabled: process.env.GREENCA_WEBVIEW_DEBUG === '1',
   },
+  // Bản test: console.* của app ghi ra logcat (tag Capacitor/Console) — mặc định chỉ bản debug mới ghi.
+  loggingBehavior: process.env.GREENCA_WEBVIEW_DEBUG === '1' ? 'production' : 'debug',
 
   plugins: {
     SplashScreen: { launchShowDuration: 800, backgroundColor: '#F8FAF9', showSpinner: false },
