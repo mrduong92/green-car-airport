@@ -22,6 +22,9 @@ if (!keyPath || !outDir) {
 
 const MODEL = 'gemini-2.5-flash-preview-tts'
 const SAMPLE_RATE = 24000
+// Gói miễn phí: 3 lượt/phút/model → giãn 21 giây giữa các lượt, gặp 429 thì chờ rồi thử lại.
+const PACE_MS = 21_000
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function authHeaders() {
   if (process.env.GEMINI_API_KEY) return { 'x-goog-api-key': process.env.GEMINI_API_KEY }
@@ -54,7 +57,7 @@ function wav(pcm) {
 
 // Giọng sáng, rõ, hợp làm âm báo. Gemini TTS là mô hình ngôn ngữ nên cách dặn
 // (prompt) quyết định ngữ điệu — mỗi giọng thử vài kiểu.
-const VOICES = ['Kore', 'Puck', 'Zephyr', 'Leda', 'Fenrir', 'Aoede']
+const VOICES = ['Kore', 'Puck', 'Zephyr', 'Leda']
 const STYLES = {
   vui: 'Đọc thật rõ ràng, vui tươi, dứt khoát như tiếng báo có khách, giọng Việt Nam: "Green C A! Green C A!"',
   gap: 'Say quickly and energetically, like an app alert, with a friendly Vietnamese accent: "Green C-A! Green C-A!"',
@@ -65,19 +68,26 @@ mkdirSync(outDir, { recursive: true })
 
 for (const voice of VOICES) {
   for (const [label, text] of Object.entries(STYLES)) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { ...auth, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-        },
-      }),
-    })
+    let res
+    for (let attempt = 0; attempt < 4; attempt++) {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+        method: 'POST',
+        headers: { ...auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+          },
+        }),
+      })
+      if (res.status !== 429) break
+      console.warn(`… ${voice}/${label}: hết lượt/phút, chờ 30 giây`)
+      await sleep(30_000)
+    }
     if (!res.ok) {
       console.warn(`✗ ${voice}/${label}: ${res.status} ${(await res.text()).slice(0, 200)}`)
+      await sleep(PACE_MS)
       continue
     }
     const data = (await res.json()).candidates?.[0]?.content?.parts?.[0]?.inlineData?.data
@@ -86,5 +96,6 @@ for (const voice of VOICES) {
     const file = `${outDir}/${voice}__${label}.wav`
     writeFileSync(file, wav(pcm))
     console.log(`✓ ${file} (${(pcm.length / 2 / SAMPLE_RATE).toFixed(1)}s)`)
+    await sleep(PACE_MS)
   }
 }
