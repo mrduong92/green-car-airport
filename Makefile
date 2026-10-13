@@ -97,6 +97,7 @@ android-build:
 	node mobile/scripts/check-capacitor-versions.mjs
 	cd frontend && npm run build:$(APP):native
 	@! grep -l "e2e-test-placeholder" frontend/$(NATIVE_DIST_$(APP))/assets/*.js || { echo "✗ Bundle mang key Goong giả của e2e — kiểm frontend/.env"; exit 1; }
+	node mobile/scripts/check-css-viewport-fallback.mjs frontend/$(NATIVE_DIST_$(APP))
 	mkdir -p mobile/$(APP)/android/app/src/main/res/raw
 	cp frontend/public/sounds/new_ride.wav mobile/$(APP)/android/app/src/main/res/raw/new_ride.wav
 	cd mobile/$(APP) && npx cap sync android

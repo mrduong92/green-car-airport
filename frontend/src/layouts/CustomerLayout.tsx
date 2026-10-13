@@ -22,7 +22,7 @@ export default function CustomerLayout() {
   useCustomerStream(!!token)
 
   return (
-    <div className="flex flex-col min-h-svh w-full bg-warm-white">
+    <div className="flex flex-col min-h-app w-full bg-warm-white">
       <AppHeader />
       <main className="flex-1 w-full overflow-y-auto pb-nav flex flex-col">
         <Outlet />

@@ -70,7 +70,7 @@ export default function InstallPage() {
   const steps = STEPS[tab]
 
   return (
-    <div className="min-h-svh flex flex-col bg-warm-white">
+    <div className="min-h-app flex flex-col bg-warm-white">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-border-gray px-4 py-3 flex items-center gap-3">
         <button

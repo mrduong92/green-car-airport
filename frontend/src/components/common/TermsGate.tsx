@@ -52,8 +52,8 @@ function TermsScreen() {
   })
 
   return (
-    // h-svh (không phải min-h): chỉ phần nội dung cuộn, ô tích + nút luôn nằm ở đáy.
-    <div className="h-svh w-full bg-white flex flex-col">
+    // h-app-svh (không phải min-h): chỉ phần nội dung cuộn, ô tích + nút luôn nằm ở đáy.
+    <div className="h-app-svh w-full bg-white flex flex-col">
       <div className="px-6 pt-14 pb-3 safe-top border-b border-border-gray">
         <h1 className="text-navy font-bold text-[22px]">{data?.title ?? 'Điều khoản sử dụng'}</h1>
         <p className="text-neutral-gray text-sm mt-1">

@@ -153,7 +153,14 @@ function buildAppConfig(target: AppTarget, isNative = false): UserConfig {
     resolve: {
       alias: { '@': path.resolve(__dirname, 'src') },
     },
-    build: { outDir: isNative ? app.nativeOutDir! : app.outDir },
+    build: {
+      outDir: isNative ? app.nativeOutDir! : app.outDir,
+      // Mặc định Vite nén CSS cho trình duyệt mới và XOÁ dòng `height:100vh` đứng trước
+      // `height:100dvh` → WebView Android cũ (Chrome < 108) mất chiều cao khung app, bottom nav
+      // trôi giữa màn hình. Target thấp giữ lại các khai báo dự phòng.
+      // Kiểm ở mobile/scripts/check-css-viewport-fallback.mjs.
+      cssTarget: ['chrome87', 'safari14', 'firefox78', 'edge88'],
+    },
     server: {
       host: true,
       port: app.port,

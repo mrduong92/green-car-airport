@@ -17,7 +17,7 @@ export default function AuthShell({
   children: ReactNode
 }) {
   return (
-    <div className="min-h-svh bg-white flex flex-col w-full">
+    <div className="min-h-app bg-white flex flex-col w-full">
       <ToastContainer />
       {/* Top bar */}
       <div className="px-4 pt-14 pb-2 safe-top flex items-center">
