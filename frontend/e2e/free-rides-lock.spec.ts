@@ -23,8 +23,13 @@ test('tài xế khóa thấy nút Mở khóa, admin mở khóa xong thì Nhận 
   const card = page.getByTestId('free-ride-card').filter({ hasText: `Điểm khóa ${tag}` })
   await expect(card).toBeVisible()
   await expect(card.getByTestId('free-ride-accept')).toHaveCount(0)
+  // Nút vẫn ghi "Nhận cuốc" (tài xế chỉ thấy khác biệt khi bấm): popup có nội dung chuyển khoản + số tiền.
+  await expect(card.getByTestId('free-ride-locked')).toContainText('Nhận cuốc')
+  await expect(page.getByTestId('free-locked-banner')).toHaveCount(0)
   await card.getByTestId('free-ride-locked').click()
   await expect(page.getByTestId('free-unlock-sheet')).toBeVisible()
+  await expect(page.getByTestId('free-unlock-content')).toHaveText(`MOKHOA ${SEEDED.lockedDriver}`)
+  await expect(page.getByTestId('free-unlock-amount')).toBeVisible()
   await page.getByRole('button', { name: 'Đã hiểu' }).click()
 
   // Khóa ở server: gọi thẳng API bằng token của tài xế khóa vẫn không lấy được mã QR.

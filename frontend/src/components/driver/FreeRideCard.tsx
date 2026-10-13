@@ -76,9 +76,9 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
           </a>
         ) : (
           <button type="button" data-testid="free-ride-locked" onClick={onLocked}
-            className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-white border border-primary text-primary flex items-center justify-center gap-1.5">
+            className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">lock</span>
-            Mở khóa để nhận cuốc
+            Nhận cuốc
           </button>
         )}
       </div>

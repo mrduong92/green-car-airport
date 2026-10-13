@@ -78,14 +78,6 @@ export default function FreeRidesPage() {
         </button>
       </div>
 
-      {access && !access.unlocked && (
-        <button type="button" data-testid="free-locked-banner" onClick={() => setUnlockOpen(true)}
-          className="mx-4 mb-2 rounded-card bg-amber-50 px-3 py-2 text-left text-[12px] text-navy flex items-center gap-2">
-          <span className="material-symbols-outlined text-[18px] text-alert-orange">lock</span>
-          Bạn chưa mở khóa Nhận cuốc — bấm để xem hướng dẫn.
-        </button>
-      )}
-
       {isLoading ? (
         <p className="text-center text-sm text-neutral-gray py-10">Đang tải cuốc…</p>
       ) : isError && rides.length === 0 ? (
@@ -106,7 +98,7 @@ export default function FreeRidesPage() {
       )}
 
       {selected && <FreeRideActionsSheet ride={selected} onClose={() => setSelected(null)} onSenderHidden={removeSender} />}
-      {unlockOpen && <FreeRideUnlockSheet instructions={access?.instructions ?? null} onClose={() => setUnlockOpen(false)} />}
+      {unlockOpen && <FreeRideUnlockSheet payment={access?.payment ?? null} onClose={() => setUnlockOpen(false)} />}
       {alertOpen && <FreeRideAlertSheet filters={filters} onClose={() => setAlertOpen(false)} />}
     </div>
   )

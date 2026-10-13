@@ -407,12 +407,22 @@ declare namespace App {
     expires_at: number
   }
 
+  interface FreeUnlockPayment {
+    // Phí mở khóa 1 năm (admin chỉnh ở Cài đặt); null = chưa đặt phí, QR không điền sẵn số tiền.
+    amount_vnd: number | null
+    // "MOKHOA <sđt>" — KHÔNG dùng mã nạp ví, vì webhook SePay sẽ đổi tiền thành điểm.
+    transfer_content: string
+    bank: { name: string | null; account_number: string; account_holder: string }
+    // null khi backend chưa cấu hình tài khoản nhận tiền.
+    qr_url: string | null
+  }
+
   interface FreeRideAccess {
     unlocked: boolean
     // Mốc hết hạn mở khóa (ms); null khi đang khóa.
     expires_at: number | null
-    // Chữ hướng dẫn mở khóa do backend cấu hình; null khi đã mở khóa.
-    instructions: string | null
+    // Thông tin chuyển khoản mở khóa (QR VietQR); null khi đã mở khóa.
+    payment: FreeUnlockPayment | null
   }
 
   interface FreeRidePage {
