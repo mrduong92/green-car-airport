@@ -51,6 +51,15 @@ test('ignores tiny "1k" (one passenger) and uses the real price', () => {
   ])
 })
 
+test('"sbnb" là sân bay Nội Bài (viết tắt)', () => {
+  assert.deepEqual(rides('đón sbnb 9h về Hà Đông 300k'), [
+    { direction: 'from_airport', pickup: AIRPORT, destination: 'Hà Đông', at: '2026-10-04 09:00', time: '9h', seats: null, vehicle: null, price: 300000, free: false },
+  ])
+  assert.deepEqual(rides('tiễn 4h15 phố cổ sbnb 250k'), [
+    { direction: 'to_airport', pickup: 'phố cổ', destination: AIRPORT, at: '2026-10-04 04:15', time: '4h15', seats: null, vehicle: null, price: 250000, free: false },
+  ])
+})
+
 test('đón at the airport with a separator', () => {
   assert.deepEqual(rides('đón T1 9h về Hà Đông 300k'), [
     { direction: 'from_airport', pickup: `${AIRPORT} (T1)`, destination: 'Hà Đông', at: '2026-10-04 09:00', time: '9h', seats: null, vehicle: null, price: 300000, free: false },
