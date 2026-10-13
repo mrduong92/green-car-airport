@@ -20,6 +20,8 @@ export const CODE_RE = new RegExp(`^${CODE_PREFIX}-`)
 export const SEEDED = {
   customer: '0901234567',
   driver:   '0912345678',
+  /** Tài xế seed KHÔNG được mở khóa Nhận cuốc ở tab Free (DriverProfileSeeder). */
+  lockedDriver: '0934567890',
   admin:    '0923456789',
 } as const
 
