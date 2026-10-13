@@ -1,4 +1,5 @@
 <?php
+
 // backend/tests/Feature/AccountDeletionServiceTest.php
 
 namespace Tests\Feature;
@@ -16,6 +17,7 @@ use App\Models\WalletTransaction;
 use App\Services\AccountDeletionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -57,7 +59,7 @@ class AccountDeletionServiceTest extends TestCase
         $customer->createToken('app');
         DeviceToken::create(['user_id' => $customer->id, 'endpoint' => 'https://push.example/1', 'p256dh' => 'p', 'auth' => 'a']);
         DB::table('notifications')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(), 'type' => 'X', 'notifiable_type' => User::class,
+            'id' => (string) Str::uuid(), 'type' => 'X', 'notifiable_type' => User::class,
             'notifiable_id' => $customer->id, 'data' => '{}', 'created_at' => now(), 'updated_at' => now(),
         ]);
         Otp::create(['phone' => '0901000111', 'code' => '123456', 'expires_at' => now()->addMinutes(5)]);
