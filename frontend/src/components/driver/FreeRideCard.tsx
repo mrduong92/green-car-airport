@@ -19,9 +19,10 @@ const ago = (ms: number) => {
 interface Props {
   ride: App.FreeRide
   onMore: (ride: App.FreeRide) => void
+  onLocked: () => void
 }
 
-export default function FreeRideCard({ ride, onMore }: Props) {
+export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
   return (
     <div data-testid="free-ride-card" className="bg-white rounded-card shadow-card overflow-hidden border-l-[4px] border-l-primary border border-border-soft">
       <div className="p-3.5 flex flex-col gap-2.5">
@@ -67,11 +68,19 @@ export default function FreeRideCard({ ride, onMore }: Props) {
           {ride.group_count > 1 && ` · đăng ở ${ride.group_count} nhóm`} · {ago(ride.posted_at)}
         </p>
 
-        <a data-testid="free-ride-accept" href={zaloProfileHref(ride.contact_url)}
-          className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
-          <span className="material-symbols-outlined text-[18px]">chat</span>
-          Nhận cuốc
-        </a>
+        {ride.contact_url !== null ? (
+          <a data-testid="free-ride-accept" href={zaloProfileHref(ride.contact_url)}
+            className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
+            <span className="material-symbols-outlined text-[18px]">chat</span>
+            Nhận cuốc
+          </a>
+        ) : (
+          <button type="button" data-testid="free-ride-locked" onClick={onLocked}
+            className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-white border border-primary text-primary flex items-center justify-center gap-1.5">
+            <span className="material-symbols-outlined text-[18px]">lock</span>
+            Mở khóa để nhận cuốc
+          </button>
+        )}
       </div>
     </div>
   )

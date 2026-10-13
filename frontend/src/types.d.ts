@@ -393,18 +393,28 @@ declare namespace App {
     is_raw: boolean
     raw_text: string
     group_count: number
-    // Backend luôn trả chuỗi dạng zalo://qr/p/<mã> — cuốc có mã bẩn bị loại ở
+    // zalo://qr/p/<mã> khi tài xế đã được mở khóa; null khi chưa mở khóa — cuốc có mã bẩn bị loại ở
     // server (FreeRideController::safe()), không lọt ra tới đây.
-    contact_url: string
+    contact_url: string | null
     // Mã hồ sơ Zalo (danh tính thật của người bắn — cùng người có thể mang nhiều sender_uid
     // tuỳ nick phụ nhìn thấy); "Ẩn người bắn" gửi lại mã này để ẩn mọi uid của họ.
-    qr_code: string
+    // null khi tài xế chưa được mở khóa — khi đó ẩn theo sender_uid, server tự suy ra hồ sơ.
+    qr_code: string | null
     posted_at: number
     expires_at: number
   }
 
+  interface FreeRideAccess {
+    unlocked: boolean
+    // Mốc hết hạn mở khóa (ms); null khi đang khóa.
+    expires_at: number | null
+    // Chữ hướng dẫn mở khóa do backend cấu hình; null khi đã mở khóa.
+    instructions: string | null
+  }
+
   interface FreeRidePage {
     data: FreeRide[]
+    access: FreeRideAccess
     next_cursor: string | null
     latest: number | null
     // true khi server chạm trần SINCE_LIMIT (200 dòng): nghĩa là còn cuốc cũ
