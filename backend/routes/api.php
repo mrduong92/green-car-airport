@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\Admin\AdminWalletController;
@@ -15,6 +14,7 @@ use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
 use App\Http\Controllers\Admin\ZaloAccountController;
 use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
+use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Customer\BookingController;
