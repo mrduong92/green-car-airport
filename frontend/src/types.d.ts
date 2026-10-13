@@ -67,6 +67,8 @@ declare namespace App {
     price: number
     vehicle_type: VehicleType
     is_vip?: boolean
+    /** Đi ngay: backend lấy giờ server làm giờ đón, bỏ quy tắc hẹn trước 30 phút. */
+    go_now?: boolean
     voucher_code?: string
     note?: string
     collection_fee?: number
