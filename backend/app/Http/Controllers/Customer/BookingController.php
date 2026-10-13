@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 
 use App\Events\DriverTripsUpdated;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Customer\StoreBookingRequest;
 use App\Jobs\SendNewBookingBroadcastJob;
 use App\Models\AppSetting;
 use App\Models\Booking;
@@ -12,7 +13,6 @@ use App\Models\Wallet;
 use App\Notifications\BookingCreatedNotification;
 use App\Notifications\CustomerCancelledNotification;
 use App\Support\AvailableTripsCache;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,42 +52,9 @@ class BookingController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreBookingRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'pickup' => 'required|string',
-            'pickup_lat' => 'nullable|numeric|between:-90,90',
-            'pickup_lng' => 'nullable|numeric|between:-180,180',
-            'destination' => 'required|string',
-            'destination_lat' => 'nullable|numeric|between:-90,90',
-            'destination_lng' => 'nullable|numeric|between:-180,180',
-            // "Đi ngay": giờ đón = lúc server nhận yêu cầu — bỏ qua ngày/giờ máy khách gửi
-            // (có thể lệch giờ, hoặc còn ở ngày hôm qua khi bấm sát nửa đêm).
-            'go_now' => 'sometimes|boolean',
-            'date' => 'exclude_if:go_now,true|required|date_format:Y-m-d|after_or_equal:today',
-            'time' => 'exclude_if:go_now,true|required|date_format:H:i',
-            'vehicle_type' => 'required|in:sedan_4,suv_5,mpv_7',
-            'distance_km' => 'required|numeric|min:0',
-            'price' => 'required|integer|min:0',
-            'voucher_code' => 'nullable|string',
-            'note' => 'nullable|string|max:500',
-            'collection_fee' => 'nullable|integer|min:0',
-            'is_vip' => 'sometimes|boolean',
-        ]);
-
-        if ($request->boolean('go_now')) {
-            $data['date'] = now()->toDateString();
-            $data['time'] = now()->format('H:i');
-        }
-
-        // Hẹn giờ trong hôm nay phải cách ít nhất 30 phút so với hiện tại.
-        // "Đi ngay" không áp quy tắc này — đi ngay tức là bây giờ.
-        if (! $request->boolean('go_now') && $data['date'] === now()->toDateString()) {
-            $bookingTime = Carbon::createFromFormat('H:i', $data['time']);
-            if ($bookingTime->lte(now()->addMinutes(30))) {
-                return response()->json(['message' => 'Giờ đón phải cách ít nhất 30 phút so với thời điểm đặt xe.'], 422);
-            }
-        }
+        $data = $request->bookingData();
 
         $collectionFee = (int) ($data['collection_fee'] ?? 0);
         $collaboratorId = null;
