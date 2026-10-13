@@ -27,10 +27,11 @@ class FreeRide extends Model
 
     private const TZ = 'Asia/Ho_Chi_Minh';
 
-    // Hai bản cùng người được coi là một cuốc khi giờ đón lệch nhau không quá chừng này.
+    // Hai bản được coi là một cuốc khi giờ đón lệch nhau không quá chừng này.
     public const MERGE_WINDOW_MINUTES = 30;
 
-    // Bản trùng (cùng người, cùng nội dung, nick phụ khác nghe được) trỏ về cuốc gốc qua duplicate_of_id.
+    // Bản trùng (cùng nội dung — của cùng người qua nick phụ khác, hoặc người khác chuyển tiếp lại) trỏ về
+    // cuốc gốc (bản đăng sớm nhất) qua duplicate_of_id.
     public function duplicates(): HasMany
     {
         return $this->hasMany(self::class, 'duplicate_of_id');
@@ -52,15 +53,16 @@ class FreeRide extends Model
     }
 
     /**
-     * Cùng người (qr_code) VÀ cùng nội dung: cùng số chỗ, cùng chiều, cùng điểm đón/điểm đến (đã chuẩn hoá),
-     * giờ đón lệch ≤ MERGE_WINDOW_MINUTES (cả hai không ghi giờ cũng tính là bằng). Cuốc nguyên văn
-     * (is_raw) thì so raw_text đã chuẩn hoá. Người khác nhau thì KHÔNG bao giờ gộp.
+     * Cùng nội dung: cùng số chỗ, cùng chiều, cùng điểm đón/điểm đến (đã chuẩn hoá), giờ đón lệch
+     * ≤ MERGE_WINDOW_MINUTES (cả hai không ghi giờ cũng tính là bằng). Cuốc nguyên văn (is_raw) thì so
+     * raw_text đã chuẩn hoá. KHÔNG xét người đăng: người B chuyển tiếp tin của A vẫn là một cuốc — chỉ
+     * giữ bản đăng đầu tiên, các bản sau (của ai cũng vậy) là bản trùng.
      */
     public function sameRideAs(self $other): bool
     {
         // Số chỗ phải bằng nhau (cả hai null cũng tính là bằng) — nếu không, bản gốc bị lọc theo
         // số chỗ sẽ kéo theo mất luôn bản trùng khớp bộ lọc ở tab Free / cảnh báo đẩy.
-        if ($this->qr_code !== $other->qr_code || $this->is_raw !== $other->is_raw || $this->seats !== $other->seats) {
+        if ($this->is_raw !== $other->is_raw || $this->seats !== $other->seats) {
             return false;
         }
         if ($this->is_raw) {

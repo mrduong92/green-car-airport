@@ -200,7 +200,7 @@ class FreeRideAdminController extends Controller
      */
     private function sendersQuery(Carbon $now, Carbon $weekAgo, ?string $like, bool $blockedOnly): QueryBuilder
     {
-        // Cuốc gộp (cùng người, cùng nội dung — duplicate_of_id) chỉ đếm một lần, khớp tab Free:
+        // Cuốc gộp (cùng nội dung, bất kể người đăng — duplicate_of_id) chỉ đếm một lần, khớp tab Free:
         // bản trùng chỉ được đếm khi cuốc gốc đã mất (c.id NULL) hoặc, với active_rides, đã hết hạn.
         // LEFT JOIN 1-1 theo khoá chính nên không nhân dòng; GROUP BY chỉ theo free_rides.qr_code.
         $rideStats = FreeRide::query()->toBase()

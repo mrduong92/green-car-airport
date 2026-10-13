@@ -18,10 +18,11 @@ use Illuminate\Support\Facades\Validator;
  * Người đăng không có mã QR đã bị service lọc bỏ trước khi gửi sang — mọi cuốc tới đây đều phải
  * có qr_code hợp lệ, nên trường này là required (không nullable).
  *
- * Gộp cuốc trùng: Zalo cấp uid khác nhau cho cùng một người tuỳ nick phụ, service khử trùng theo
- * sender_uid nên cùng một cuốc đăng ở hai nhóm (hai nick nghe) tới đây thành hai ride_uid. Cuốc MỚI
- * khớp một cuốc gốc còn hạn theo FreeRide::sameRideAs() (cùng qr_code + cùng nội dung) thì vẫn lưu
- * nhưng đánh dấu duplicate_of_id — xem markDuplicates().
+ * Gộp cuốc trùng: Zalo cấp uid khác nhau cho cùng một người tuỳ nick phụ, và service khử trùng theo
+ * sender_uid, nên cùng một cuốc đăng ở hai nhóm (hai nick nghe) hoặc do người khác chuyển tiếp tới
+ * đây thành nhiều ride_uid. Cuốc MỚI khớp một cuốc gốc còn hạn theo FreeRide::sameRideAs() (cùng nội
+ * dung, KHÔNG xét người đăng) thì vẫn lưu nhưng đánh dấu duplicate_of_id — xem markDuplicates().
+ * Cuốc gốc luôn là bản đăng sớm nhất.
  *
  * Các lô ingest chạy TUẦN TỰ dưới khoá Cache::lock('zalo:ingest'): id tự tăng của free_rides được
  * cấp lúc insert nhưng chỉ hiện ra khi commit — hai lô song song có thể commit lệch thứ tự (id nhỏ
@@ -163,7 +164,7 @@ class ZaloRideIngestService
 
     /**
      * Cuốc mới (xét theo posted_at tăng dần — cuốc gốc luôn là bản đăng sớm nhất trong số cuốc mới)
-     * so với cuốc gốc còn hạn cùng qr_code (đã có từ trước hoặc vừa tới trong cùng lô). Khớp thì
+     * so với cuốc gốc còn hạn của BẤT KỲ người đăng nào (đã có từ trước hoặc vừa tới trong cùng lô). Khớp thì
      * trỏ duplicate_of_id về cuốc gốc và "chạm" updated_at cuốc gốc để client đang nghe since nhận
      * group_count cộng dồn mới.
      *
@@ -176,8 +177,7 @@ class ZaloRideIngestService
         }
 
         $newRides = FreeRide::whereIn('ride_uid', $newRideUids)->orderBy('posted_at')->orderBy('id')->get();
-        $canonicals = FreeRide::whereIn('qr_code', $newRides->pluck('qr_code')->unique()->all())
-            ->whereNotIn('ride_uid', $newRideUids)
+        $canonicals = FreeRide::whereNotIn('ride_uid', $newRideUids)
             ->whereNull('duplicate_of_id')
             ->where('expires_at', '>', $now)
             ->orderBy('posted_at')->orderBy('id')
@@ -186,17 +186,20 @@ class ZaloRideIngestService
             // mới nhất, cuốc đã thành bản trùng bị whereNull loại → không có hai hàng trỏ nhau.
             ->lockForUpdate()
             ->get()
-            ->groupBy('qr_code')
+            // Chia xô theo (is_raw, seats) — hai điều kiện sameRideAs() luôn đòi bằng nhau — để mỗi cuốc
+            // mới chỉ so với một phần nhỏ thay vì toàn bộ cuốc còn hạn của mọi người đăng.
+            ->groupBy(fn (FreeRide $c) => $this->mergeBucket($c))
             ->map(fn ($rides) => $rides->all())
             ->all();
 
         $touched = [];
         foreach ($newRides as $ride) {
-            $canonical = collect($canonicals[$ride->qr_code] ?? [])->first(fn (FreeRide $c) => $c->sameRideAs($ride));
+            $bucket = $this->mergeBucket($ride);
+            $canonical = collect($canonicals[$bucket] ?? [])->first(fn (FreeRide $c) => $c->sameRideAs($ride));
             if ($canonical === null) {
                 // Cuốc mới không trùng (và còn hạn) thành ứng viên cuốc gốc cho cuốc mới sau nó trong lô.
                 if ($ride->expires_at->gt($now)) {
-                    $canonicals[$ride->qr_code][] = $ride;
+                    $canonicals[$bucket][] = $ride;
                 }
 
                 continue;
@@ -208,6 +211,11 @@ class ZaloRideIngestService
         if ($touched !== []) {
             FreeRide::whereIn('id', array_keys($touched))->update(['updated_at' => $now]);
         }
+    }
+
+    private function mergeBucket(FreeRide $ride): string
+    {
+        return ($ride->is_raw ? 'raw' : 'ride').'|'.($ride->seats ?? 'null');
     }
 
     /**
