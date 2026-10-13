@@ -24,7 +24,20 @@ class User extends Authenticatable
     protected $casts = [
         'is_blocked'      => 'boolean',
         'is_collaborator' => 'boolean',
+        'deleted_at'      => 'datetime',
     ];
+
+    /** Đã tự xoá tài khoản — dữ liệu nhận dạng đã bị ẩn danh hoá. */
+    public function isDeleted(): bool
+    {
+        return $this->deleted_at !== null;
+    }
+
+    /** SĐT để bên kia liên hệ — null khi đã xoá (phone lúc đó là `deleted-<id>`, không gọi được). */
+    public function contactPhone(): ?string
+    {
+        return $this->isDeleted() ? null : $this->phone;
+    }
 
     protected static function booted(): void
     {
