@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { APP, CODE_RE, TEST_OTP, TEST_PASSWORD } from './testData'
+import { APP, TEST_OTP, TEST_PASSWORD } from './testData'
 
 /** Logs in an already-registered account (phone → password). */
 export async function loginExisting(
@@ -55,7 +55,7 @@ export async function registerCustomer(
 
   await page.getByPlaceholder('9xx xxx xxx').fill(phone)
   if (opts.referralCode) {
-    await expect(page.getByPlaceholder('Nhập mã nếu có')).toHaveValue(opts.referralCode)
+    await expect(page.getByPlaceholder('SĐT người giới thiệu (nếu có)')).toHaveValue(opts.referralCode)
   }
   await page.getByRole('button', { name: 'Tiếp theo' }).click()
 
@@ -88,7 +88,7 @@ export async function registerDriver(
 
   await page.getByPlaceholder('9xx xxx xxx').fill(phone)
   if (opts.referralCode) {
-    await expect(page.getByPlaceholder('Nhập mã nếu có')).toHaveValue(opts.referralCode)
+    await expect(page.getByPlaceholder('SĐT người giới thiệu (nếu có)')).toHaveValue(opts.referralCode)
   }
   await page.getByRole('button', { name: 'Tiếp theo' }).click()
 
@@ -130,8 +130,9 @@ export async function registerDriver(
 export async function getCustomerReferralCode(page: Page): Promise<string> {
   await page.goto(`${APP.customer}/customer/profile`)
   await page.getByText('Giới thiệu bạn bè').click()
-  const code = await page.getByText(CODE_RE).first().textContent()
-  expect(code).toBeTruthy()
+  // Mã giới thiệu = số điện thoại của chính người dùng (mã GCA- cũ vẫn nhận được khi đăng ký).
+  const code = await page.getByTestId('referral-code').textContent()
+  expect(code?.trim()).toMatch(/^0\d{9,10}$/)
   await page.getByRole('button', { name: 'Đóng' }).click()
   return code!.trim()
 }
@@ -140,7 +141,7 @@ export async function getCustomerReferralCode(page: Page): Promise<string> {
 export async function getDriverReferralCode(page: Page): Promise<string> {
   await page.goto(`${APP.driver}/driver/profile`)
   await expect(page.getByText('Giới thiệu tài xế')).toBeVisible()
-  const code = await page.getByText(CODE_RE).first().textContent()
-  expect(code).toBeTruthy()
+  const code = await page.getByTestId('referral-code').textContent()
+  expect(code?.trim()).toMatch(/^0\d{9,10}$/)
   return code!.trim()
 }

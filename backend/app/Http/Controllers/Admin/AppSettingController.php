@@ -18,6 +18,7 @@ class AppSettingController extends Controller
             'app_fee_percent' => AppSetting::appFeePercent(),
             'referral_voucher_value' => AppSetting::referralVoucherValue(),
             'referral_driver_points' => AppSetting::referralDriverPoints(),
+            'free_unlock_fee_vnd' => AppSetting::freeUnlockFeeVnd(),
         ]);
     }
 
@@ -30,6 +31,7 @@ class AppSettingController extends Controller
             'app_fee_percent' => 'sometimes|required|numeric|min:0|max:100',
             'referral_voucher_value' => 'sometimes|required|integer|min:1000',
             'referral_driver_points' => 'sometimes|required|integer|min:0',
+            'free_unlock_fee_vnd' => 'sometimes|required|integer|min:0',
         ]);
 
         AppSetting::set(AppSetting::CONTACT_HOTLINE, $data['contact_hotline']);
@@ -39,6 +41,7 @@ class AppSettingController extends Controller
             AppSetting::APP_FEE_PERCENT,
             AppSetting::REFERRAL_VOUCHER_VALUE,
             AppSetting::REFERRAL_DRIVER_POINTS,
+            AppSetting::FREE_UNLOCK_FEE_VND,
         ] as $key) {
             if (array_key_exists($key, $data)) {
                 AppSetting::set($key, (string) $data[$key]);

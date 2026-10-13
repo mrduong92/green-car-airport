@@ -13,6 +13,7 @@ import AdminCustomersPage from '@/pages/admin/CustomersPage'
 import StaticPagesPage from '@/pages/admin/StaticPagesPage'
 import AdminsPage from '@/pages/admin/AdminsPage'
 import AdminSettingsPage from '@/pages/admin/SettingsPage'
+import FreeRidesAdminPage from '@/pages/admin/FreeRidesAdminPage'
 import InstallPage from '@/pages/InstallPage'
 
 function GuestOnly() {
@@ -46,6 +47,7 @@ export const router = createBrowserRouter([
           { path: '/pages', element: <StaticPagesPage /> },
           { path: '/admins', element: <AdminsPage /> },
           { path: '/settings', element: <AdminSettingsPage /> },
+          { path: '/free-rides', element: <FreeRidesAdminPage /> },
         ],
       },
     ],

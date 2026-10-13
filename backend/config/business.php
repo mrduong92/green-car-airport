@@ -12,4 +12,7 @@ return [
 
     // Tiền tố mã voucher thưởng giới thiệu (REF-<userId>-XXXX). Dashboard dựa vào đây để thống kê.
     'referral_voucher_prefix' => 'REF',
+
+    // Phí mở khóa Nhận cuốc tab Free (1 năm), VND — mặc định; admin chỉnh ở trang Cài đặt (app_settings ghi đè).
+    'free_unlock_fee_vnd' => 300000,
 ];

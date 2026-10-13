@@ -59,6 +59,9 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // Phiên MySQL cùng múi giờ với app: NOW()/CURRENT_TIMESTAMP do MySQL tự điền
+            // phải khớp giờ Laravel ghi, không phụ thuộc server đặt múi giờ gì.
+            'timezone' => '+07:00',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

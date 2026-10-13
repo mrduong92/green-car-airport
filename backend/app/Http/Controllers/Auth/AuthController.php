@@ -11,6 +11,7 @@ use App\Support\PhoneNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -32,9 +33,9 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $request->validate([
-            'phone'    => 'required|string|max:20',
+            'phone' => 'required|string|max:20',
             'password' => 'required|string',
-            'role'     => 'nullable|string|in:customer,driver,admin',
+            'role' => 'nullable|string|in:customer,driver,admin',
         ]);
 
         $phone = PhoneNumber::normalize($request->phone);
@@ -57,9 +58,10 @@ class AuthController extends Controller
             $user->loadMissing('driverProfile');
             if ($user->driverProfile?->status === 'blocked') {
                 $reason = $user->driverProfile->blocked_reason;
-                $msg    = $reason
+                $msg = $reason
                     ? "Tài khoản bị khoá: {$reason}"
                     : 'Tài khoản đã bị khoá bởi admin.';
+
                 return response()->json(['message' => $msg, 'code' => 'blocked'], 403);
             }
         }
@@ -70,7 +72,7 @@ class AuthController extends Controller
             if (! $user->password) {
                 return response()->json([
                     'message' => 'Tài khoản chưa có mật khẩu. Vui lòng đặt lại mật khẩu.',
-                    'code'    => 'no_password',
+                    'code' => 'no_password',
                 ], 422);
             }
 
@@ -90,7 +92,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'user'  => $this->userPayload($user),
+            'user' => $this->userPayload($user),
             'token' => $token,
         ]);
     }
@@ -98,11 +100,12 @@ class AuthController extends Controller
     public function register(Request $request): JsonResponse
     {
         $request->validate([
-            'phone'         => 'required|string|max:20',
-            'otp'           => 'nullable|string|size:6',
-            'password'      => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
-            'name'          => 'nullable|string|max:100',
-            'referral_code' => 'nullable|string|max:10',
+            'phone' => 'required|string|max:20',
+            'otp' => 'nullable|string|size:6',
+            'password' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'name' => 'nullable|string|max:100',
+            'referral_code' => 'nullable|string|max:20',
+            'accept_terms' => 'sometimes|boolean',
         ]);
 
         $phone = PhoneNumber::normalize($request->phone);
@@ -113,21 +116,19 @@ class AuthController extends Controller
 
         $this->consumeRegistrationOtp($request, $phone);
 
-        $referredById = null;
-        if ($request->referral_code) {
-            $referrer = User::where('referral_code', $request->referral_code)->first();
-            if ($referrer) {
-                $referredById = $referrer->id;
-            }
-        }
+        $referredById = ReferralService::findReferrer($request->referral_code, 'customer', $phone)?->id;
 
         $user = User::create([
-            'phone'               => $phone,
-            'name'                => $request->input('name'),
-            'password'            => Hash::make($request->password),
-            'role'                => 'customer',
+            'phone' => $phone,
+            'name' => $request->input('name'),
+            'password' => Hash::make($request->password),
+            'role' => 'customer',
             'referred_by_user_id' => $referredById,
         ]);
+
+        if ($request->boolean('accept_terms')) {
+            $user->acceptTerms($request);
+        }
 
         $token = $user->createToken('api')->plainTextToken;
 
@@ -135,7 +136,7 @@ class AuthController extends Controller
         app(ReferralService::class)->processCustomerReferral($user);
 
         return response()->json([
-            'user'  => $this->userPayload($user),
+            'user' => $this->userPayload($user),
             'token' => $token,
         ]);
     }
@@ -143,25 +144,26 @@ class AuthController extends Controller
     public function registerDriver(Request $request): JsonResponse
     {
         $request->validate([
-            'phone'                     => 'required|string|max:20',
-            'otp'                       => 'nullable|string|size:6',
-            'password'                  => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
-            'name'                      => 'required|string|max:100',
-            'vehicle_make'              => 'required|string|max:50',
-            'vehicle_model'             => 'required|string|max:50',
-            'vehicle_plate'             => 'required|string|max:20',
-            'vehicle_year'              => 'required|integer|min:2000|max:' . now()->year,
-            'vehicle_color'             => 'required|string|max:30',
-            'vehicle_type'              => 'required|in:sedan_4,suv_5,mpv_7',
-            'is_vip'                    => 'sometimes|boolean',
-            'cccd_number'               => 'required|string|max:20',
-            'gplx_number'               => 'required|string|max:20',
-            'vehicle_reg_number'        => 'required|string|max:30',
+            'phone' => 'required|string|max:20',
+            'otp' => 'nullable|string|size:6',
+            'password' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
+            'name' => 'required|string|max:100',
+            'vehicle_make' => 'required|string|max:50',
+            'vehicle_model' => 'required|string|max:50',
+            'vehicle_plate' => 'required|string|max:20',
+            'vehicle_year' => 'required|integer|min:2000|max:'.now()->year,
+            'vehicle_color' => 'required|string|max:30',
+            'vehicle_type' => 'required|in:sedan_4,suv_5,mpv_7',
+            'is_vip' => 'sometimes|boolean',
+            'cccd_number' => 'required|string|max:20',
+            'gplx_number' => 'required|string|max:20',
+            'vehicle_reg_number' => 'required|string|max:30',
             'vehicle_inspection_number' => 'required|string|max:30',
             'vehicle_inspection_expiry' => 'required|date|after:today',
-            'insurance_number'          => 'required|string|max:30',
-            'insurance_expiry'          => 'required|date|after:today',
-            'referral_code'             => 'nullable|string|max:10',
+            'insurance_number' => 'required|string|max:30',
+            'insurance_expiry' => 'required|date|after:today',
+            'referral_code' => 'nullable|string|max:20',
+            'accept_terms' => 'sometimes|boolean',
         ]);
 
         $phone = PhoneNumber::normalize($request->phone);
@@ -172,40 +174,36 @@ class AuthController extends Controller
 
         $this->consumeRegistrationOtp($request, $phone);
 
-        $referredById = null;
-        if ($request->referral_code) {
-            $referrer = User::where('referral_code', $request->referral_code)
-                ->where('phone', '!=', $phone)
-                ->first();
-            if ($referrer) {
-                $referredById = $referrer->id;
-            }
-        }
+        $referredById = ReferralService::findReferrer($request->referral_code, 'driver', $phone)?->id;
 
         $user = User::create([
-            'phone'               => $phone,
-            'name'                => $request->name,
-            'password'            => Hash::make($request->password),
-            'role'                => 'driver',
+            'phone' => $phone,
+            'name' => $request->name,
+            'password' => Hash::make($request->password),
+            'role' => 'driver',
             'referred_by_user_id' => $referredById,
         ]);
 
+        if ($request->boolean('accept_terms')) {
+            $user->acceptTerms($request);
+        }
+
         $user->driverProfile()->create([
-            'vehicle_make'              => $request->vehicle_make,
-            'vehicle_model'             => $request->vehicle_model,
-            'vehicle_plate'             => $request->vehicle_plate,
-            'vehicle_year'              => $request->vehicle_year,
-            'vehicle_color'             => $request->vehicle_color,
-            'vehicle_type'              => $request->vehicle_type,
-            'is_vip'                    => $request->boolean('is_vip'),
-            'is_online'                 => false,
-            'cccd_number'               => $request->cccd_number,
-            'gplx_number'               => $request->gplx_number,
-            'vehicle_reg_number'        => $request->vehicle_reg_number,
+            'vehicle_make' => $request->vehicle_make,
+            'vehicle_model' => $request->vehicle_model,
+            'vehicle_plate' => $request->vehicle_plate,
+            'vehicle_year' => $request->vehicle_year,
+            'vehicle_color' => $request->vehicle_color,
+            'vehicle_type' => $request->vehicle_type,
+            'is_vip' => $request->boolean('is_vip'),
+            'is_online' => false,
+            'cccd_number' => $request->cccd_number,
+            'gplx_number' => $request->gplx_number,
+            'vehicle_reg_number' => $request->vehicle_reg_number,
             'vehicle_inspection_number' => $request->vehicle_inspection_number,
             'vehicle_inspection_expiry' => $request->vehicle_inspection_expiry,
-            'insurance_number'          => $request->insurance_number,
-            'insurance_expiry'          => $request->insurance_expiry,
+            'insurance_number' => $request->insurance_number,
+            'insurance_expiry' => $request->insurance_expiry,
         ]);
 
         $user->wallet()->create(['points' => 0]);
@@ -215,7 +213,7 @@ class AuthController extends Controller
         $token = $user->createToken('api')->plainTextToken;
 
         return response()->json([
-            'user'  => $this->userPayload($user),
+            'user' => $this->userPayload($user),
             'token' => $token,
         ], 201);
     }
@@ -223,10 +221,10 @@ class AuthController extends Controller
     public function resetPassword(Request $request): JsonResponse
     {
         $request->validate([
-            'phone'    => 'required|string|max:20',
-            'otp'      => 'required|string|size:6',
+            'phone' => 'required|string|max:20',
+            'otp' => 'required|string|size:6',
             'password' => ['required', 'string', 'size:6', 'regex:/^\d{6}$/'],
-            'role'     => 'nullable|string|in:customer,driver,admin',
+            'role' => 'nullable|string|in:customer,driver,admin',
         ]);
 
         $phone = PhoneNumber::normalize($request->phone);
@@ -248,7 +246,7 @@ class AuthController extends Controller
         $token = $user->createToken('api')->plainTextToken;
 
         return response()->json([
-            'user'  => $this->userPayload($user),
+            'user' => $this->userPayload($user),
             'token' => $token,
         ]);
     }
@@ -259,6 +257,7 @@ class AuthController extends Controller
         if ($user->role === 'driver') {
             $user->loadMissing('driverProfile');
         }
+
         return response()->json($this->userPayload($user));
     }
 
@@ -267,6 +266,18 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out.']);
+    }
+
+    /** Khách/tài xế bấm "Đồng ý" Điều khoản sử dụng trong popup của app. */
+    public function acceptTerms(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->needsTermsAcceptance()) {
+            $user->acceptTerms($request);
+        }
+
+        return response()->json($this->userPayload($user));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -284,7 +295,9 @@ class AuthController extends Controller
      */
     private function consumeVerifiedOtp(string $phone): void
     {
-        if (app()->environment(['local', 'testing'])) return;
+        if (app()->environment(['local', 'testing'])) {
+            return;
+        }
 
         $otp = Otp::where('phone', $phone)
             ->whereNotNull('verified_at')
@@ -293,7 +306,7 @@ class AuthController extends Controller
             ->first();
 
         if (! $otp) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'otp' => 'Phiên đăng ký không hợp lệ, vui lòng xác thực lại số điện thoại.',
             ]);
         }
@@ -312,6 +325,7 @@ class AuthController extends Controller
     {
         if ($request->filled('otp')) {
             $this->consumeOtp($phone, $request->otp);   // app cũ
+
             return;
         }
 
@@ -320,7 +334,9 @@ class AuthController extends Controller
 
     private function consumeOtp(string $phone, string $code): void
     {
-        if (app()->environment(['local', 'testing'])) return;
+        if (app()->environment(['local', 'testing'])) {
+            return;
+        }
 
         $otp = Otp::where('phone', $phone)
             ->where('code', $code)
@@ -329,7 +345,7 @@ class AuthController extends Controller
             ->first();
 
         if (! $otp) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'otp' => 'Mã OTP không hợp lệ hoặc đã hết hạn.',
             ]);
         }
@@ -340,11 +356,12 @@ class AuthController extends Controller
     private function userPayload(User $user): array
     {
         $payload = [
-            'id'            => $user->id,
-            'name'          => $user->name,
-            'phone'         => $user->phone,
-            'role'          => $user->role,
+            'id' => $user->id,
+            'name' => $user->name,
+            'phone' => $user->phone,
+            'role' => $user->role,
             'referral_code' => $user->referral_code,
+            'needs_terms_acceptance' => $user->needsTermsAcceptance(),
         ];
 
         if ($user->role === 'customer') {
@@ -356,7 +373,7 @@ class AuthController extends Controller
 
         if ($user->role === 'driver') {
             $payload['needs_onboarding'] = ! $user->driverProfile?->vehicle_plate;
-            $payload['approval_status']  = $user->driverProfile?->status ?? 'pending';
+            $payload['approval_status'] = $user->driverProfile?->status ?? 'pending';
         }
 
         return $payload;

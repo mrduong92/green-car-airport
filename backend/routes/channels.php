@@ -1,5 +1,6 @@
 <?php
 
+use App\Broadcasting\DriverFreeRidesChannel;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
@@ -23,3 +24,8 @@ Broadcast::channel('driver.trips', function ($user) {
 Broadcast::channel('customer.{customerId}', function ($user, $customerId) {
     return (int) $user->id === (int) $customerId;
 });
+
+/**
+ * Kênh tab Free — chỉ tài xế đã được duyệt (status active), khớp middleware driver.active.
+ */
+Broadcast::channel('driver.free-rides', DriverFreeRidesChannel::class);
