@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AccountController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVoucherController;
 use App\Http\Controllers\Admin\AdminWalletController;
@@ -84,6 +85,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::delete('/me', [AccountController::class, 'destroy']);
     Route::post('/auth/terms/accept', [AuthController::class, 'acceptTerms']);
 
     // Shared (any authenticated role)
