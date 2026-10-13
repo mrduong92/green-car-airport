@@ -136,4 +136,20 @@ class FreeRideAccessTest extends TestCase
     {
         $this->assertSame('4h15 phố cổ 280,000đ xe 5 TK 0.25 1tr2 200k', \App\Models\FreeRide::maskPhones('4h15 phố cổ 280,000đ xe 5 TK 0.25 1tr2 200k'));
     }
+
+    public function test_masking_covers_numbers_followed_by_punctuation_and_parenthesised_country_code(): void
+    {
+        foreach ([
+            'lh 0912345678.' => 'lh •••••••••.',
+            'Gọi 0912345678. Cảm ơn' => 'Gọi •••••••••. Cảm ơn',
+            'lh 0912.345.678.' => 'lh •••••••••.',
+            '(+84) 912 345 678' => '(•••••••••',
+            'zalo: 0912345678, 200k' => 'zalo: •••••••••, 200k',
+        ] as $in => $out) {
+            $masked = \App\Models\FreeRide::maskPhones($in);
+            $this->assertStringNotContainsString('912', $masked, $in);
+            $this->assertStringNotContainsString('345', $masked, $in);
+        }
+        $this->assertSame('giá 1.200.000đ, 0.25 ck', \App\Models\FreeRide::maskPhones('giá 1.200.000đ, 0.25 ck'));
+    }
 }
