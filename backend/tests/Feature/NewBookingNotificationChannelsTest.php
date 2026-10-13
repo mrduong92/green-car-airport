@@ -106,4 +106,19 @@ class NewBookingNotificationChannelsTest extends TestCase
 
         $this->assertArrayNotHasKey('channel', $payload);
     }
+
+    /**
+     * Chạm push "Có cuốc mới" phải mở DANH SÁCH cuốc (nơi bấm Nhận), không phải
+     * /driver/trips/{id}: trang chi tiết chỉ cho tài xế ĐÃ nhận cuốc xem (403 với
+     * cuốc chưa ai nhận) → tài xế chạm thông báo chỉ thấy "Không tìm thấy cuốc xe này".
+     * open_url có sẵn ở mọi bản service worker, kể cả bản cũ còn trên máy.
+     */
+    public function test_cham_push_cuoc_moi_mo_danh_sach_cuoc(): void
+    {
+        $data = (new NewBookingAvailableNotification($this->makeBooking()))
+            ->toPush($this->makeDriver(), null)['data'];
+
+        $this->assertSame('open_url', $data['action']);
+        $this->assertSame('/driver/trips', $data['url']);
+    }
 }
