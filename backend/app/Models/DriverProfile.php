@@ -10,12 +10,13 @@ class DriverProfile extends Model
         'latitude','longitude','payment_code','months_active','rating','trips_count',
         'cccd_number','gplx_number','vehicle_reg_number',
         'vehicle_inspection_number','vehicle_inspection_expiry',
-        'insurance_number','insurance_expiry',
+        'insurance_number','insurance_expiry','free_unlocked_until',
     ];
     protected $casts = [
         'is_verified'               => 'boolean',
         'is_online'                 => 'boolean',
         'is_vip'                    => 'boolean',
+        'free_unlocked_until'       => 'datetime',
         'vehicle_inspection_expiry' => 'date',
         'insurance_expiry'          => 'date',
     ];
@@ -27,6 +28,12 @@ class DriverProfile extends Model
                 $profile->payment_code = config('app.code_prefix') . str_pad((string) $profile->user_id, 6, '0', STR_PAD_LEFT);
             }
         });
+    }
+
+    /** Còn hạn mở khóa Nhận cuốc ở tab Free (admin duyệt tay, 1 năm). */
+    public function hasFreeAccess(): bool
+    {
+        return $this->free_unlocked_until !== null && $this->free_unlocked_until->isFuture();
     }
 
     public function user() { return $this->belongsTo(User::class); }

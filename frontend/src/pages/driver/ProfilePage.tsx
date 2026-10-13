@@ -205,7 +205,7 @@ export default function DriverProfilePage() {
       </div>
 
       {/* Referral section */}
-      {user?.referral_code && (
+      {user?.phone && (
         <div className="bg-white mx-4 mt-3 rounded-card shadow-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="material-symbols-outlined text-primary text-[18px]"
@@ -216,12 +216,12 @@ export default function DriverProfilePage() {
             Mời tài xế mới — cả hai nhận 50 điểm (50.000đ) khi họ hoàn thành chuyến đầu tiên
           </p>
           <div className="bg-light-green rounded-input px-3 py-2.5 flex items-center mb-3">
-            <span className="text-primary font-bold text-sm tracking-wider flex-1">{user.referral_code}</span>
+            <span data-testid="referral-code" className="text-primary font-bold text-sm tracking-wider flex-1">{user.phone}</span>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => {
-                navigator.clipboard.writeText(`${webOrigin('driver')}/login?ref=${user.referral_code}`)
+                navigator.clipboard.writeText(`${webOrigin('driver')}/login?ref=${user.phone}`)
                 showToast('Đã sao chép link giới thiệu', 'success')
               }}
               className="flex-1 h-10 rounded-pill border border-primary text-primary text-[13px] font-semibold flex items-center justify-center gap-1"
@@ -234,7 +234,7 @@ export default function DriverProfilePage() {
                 onClick={() => shareLink({
                   title: BRAND.name,
                   text: `Tham gia ${BRAND.name} và nhận 50 điểm (50.000đ)!`,
-                  url: `${webOrigin('driver')}/login?ref=${user.referral_code}`,
+                  url: `${webOrigin('driver')}/login?ref=${user.phone}`,
                 })}
                 className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
               >

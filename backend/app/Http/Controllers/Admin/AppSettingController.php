@@ -20,6 +20,7 @@ class AppSettingController extends Controller
             'referral_voucher_value' => AppSetting::referralVoucherValue(),
             'referral_driver_points' => AppSetting::referralDriverPoints(),
             ...$this->appVersions(),
+            'free_unlock_fee_vnd' => AppSetting::freeUnlockFeeVnd(),
         ]);
     }
 
@@ -38,6 +39,7 @@ class AppSettingController extends Controller
             'referral_voucher_value' => 'sometimes|required|integer|min:1000',
             'referral_driver_points' => 'sometimes|required|integer|min:0',
             ...$versionRules,
+            'free_unlock_fee_vnd' => 'sometimes|required|integer|min:0',
         ]);
 
         // min > latest = mọi bản app bị chặn ở màn cập nhật trong khi store chưa
@@ -63,6 +65,7 @@ class AppSettingController extends Controller
             AppSetting::APP_FEE_PERCENT,
             AppSetting::REFERRAL_VOUCHER_VALUE,
             AppSetting::REFERRAL_DRIVER_POINTS,
+            AppSetting::FREE_UNLOCK_FEE_VND,
         ] as $key) {
             if (array_key_exists($key, $data)) {
                 AppSetting::set($key, (string) $data[$key]);

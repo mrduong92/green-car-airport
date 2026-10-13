@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Http\Request;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
@@ -50,6 +51,29 @@ class User extends Authenticatable
     public function wallet()
     {
         return $this->hasOne(Wallet::class);
+    }
+
+    public function termsAcceptances()
+    {
+        return $this->hasMany(TermsAcceptance::class);
+    }
+
+    /** Khách/tài xế chưa đồng ý phiên bản điều khoản hiện hành. Admin không bị hỏi. */
+    public function needsTermsAcceptance(): bool
+    {
+        if ($this->role === 'admin') return false;
+
+        return ! $this->termsAcceptances()->where('version', config('terms.version'))->exists();
+    }
+
+    public function acceptTerms(Request $request): void
+    {
+        $this->termsAcceptances()->create([
+            'version'     => config('terms.version'),
+            'ip'          => $request->ip(),
+            'user_agent'  => Str::limit((string) $request->userAgent(), 500, ''),
+            'accepted_at' => now(),
+        ]);
     }
 
     public function bookingsAsCustomer()

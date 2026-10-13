@@ -163,6 +163,7 @@ No API Resource classes — controllers return plain arrays directly.
 - **App fee = 20%** of `booking.price - booking.discount` (effective price after voucher); driver nets 80% of effective price converted to points (1 point = 1,000 VND). Example: price=500k, discount=50k → effective=450k → fee=90k, driver earns=360k.
 - `TripController::index()` only returns bookings with `status=finding_driver`.
 - `TripController::updateStatus()` to `completed` → creates `WalletTransaction` and increments `driver_profiles.trips_count`.
+- **Tab Free khóa theo năm:** liên hệ Zalo (`qr_code`/`contact_url`) chỉ trả cho tài xế có `driver_profiles.free_unlocked_until > now`; tài xế khóa nhận `null` và `raw_text` đã che số điện thoại. Admin mở/gia hạn/thu hồi ở trang Tài xế (`POST|DELETE /api/admin/drivers/{user}/free-unlock`). Khóa nằm ở `FreeRideController` (server), không phải ở frontend. Tài xế khóa bấm "Nhận cuốc" thấy popup QR VietQR (`access.payment`, dựng ở `FreeUnlockPayment`): cùng tài khoản nhận tiền với nạp điểm nhưng nội dung CK là `MOKHOA <sđt>` — KHÔNG dùng `payment_code`, vì webhook SePay cộng điểm ví cho mọi nội dung khớp `GCA\d{6}`. Phí mở khóa (`app_settings.free_unlock_fee_vnd`, mặc định 300.000đ, 0 = QR không điền tiền) chỉnh ở trang Cài đặt admin. Tài xế seed `0912345678` mở khóa sẵn, `0934567890` để khóa.
 - `RevenueController` groups completed bookings by `DATE(created_at)` — must use `groupByRaw` to avoid MySQL `only_full_group_by` error.
 
 ### Migration order (FK dependencies)

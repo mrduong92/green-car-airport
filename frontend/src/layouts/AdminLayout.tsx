@@ -22,6 +22,7 @@ const TABS = [
   { to: '/pages',     icon: 'article',             label: 'Trang tĩnh' },
   { to: '/admins',    icon: 'admin_panel_settings', label: 'Admin' },
   { to: '/settings',  icon: 'settings',            label: 'Cài đặt' },
+  { to: '/free-rides', icon: 'local_taxi',          label: 'Cuốc Free' },
 ]
 
 const PRIMARY_ORDER = ['/dashboard', '/drivers', '/customers', '/revenue']

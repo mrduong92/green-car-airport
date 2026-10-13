@@ -121,7 +121,7 @@ const api = axios.create({
 
 Xử lý: khi `API_BASE` có giá trị (tức bản build cho app native) thì lấy host và giao thức từ chính nó, và tuyệt đối hoá `authEndpoint`. Bản web để `API_BASE` rỗng nên hành vi không đổi. **Đã làm và kiểm chứng trên bundle build ra.**
 
-**Reverb `allowed_origins` bắt buộc phải mở.** Ghi chú trong `echo.ts` giải thích lý do chọn cùng domain là để khỏi phải mở `allowed_origins`. Lập luận đó đúng cho web nhưng **vô hiệu với app native** — app luôn cross-origin vì origin của nó là vỏ ứng dụng, không phải server. Phải thêm origin của WebView vào cấu hình Reverb, nếu không handshake bị từ chối.
+**Reverb `allowed_origins` — đã kiểm, KHÔNG cần sửa.** `config/reverb.php:85` đang đặt `'allowed_origins' => ['*']` nên handshake từ origin của WebView được chấp nhận sẵn. Ghi chú trong `echo.ts` nói chọn cùng domain để khỏi phải mở `allowed_origins` — lập luận đó đúng về ý định thiết kế, nhưng cấu hình thực tế đang mở hết. Nếu sau này siết về danh sách cụ thể thì phải thêm origin của WebView.
 
 **Nối lại khi app quay lại từ nền.** iOS treo WebView khi app vào nền nên socket chết. `EventSource` trước đây tự nối lại theo chuẩn; với WebSocket thì client thường không phát hiện kịp, dẫn tới tài xế mở app ra thấy danh sách cuốc cũ mà không biết là cũ. Bắt sự kiện `appStateChange` của `@capacitor/app`: khi resume thì ngắt và nối lại Echo, đồng thời `invalidateQueries` để tải lại dữ liệu.
 

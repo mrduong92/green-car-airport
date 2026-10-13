@@ -14,14 +14,14 @@ class StaticPageTest extends TestCase
     public function test_public_show_returns_active_page(): void
     {
         StaticPage::create([
-            'slug' => 'terms', 'title' => 'Điều khoản dịch vụ',
+            'slug' => 'about', 'title' => 'Điều khoản dịch vụ',
             'content' => '<p>Nội dung</p>', 'is_active' => true,
         ]);
 
-        $response = $this->getJson('/api/pages/terms')->assertOk();
+        $response = $this->getJson('/api/pages/about')->assertOk();
 
         $response->assertJson([
-            'slug' => 'terms', 'title' => 'Điều khoản dịch vụ', 'content' => '<p>Nội dung</p>',
+            'slug' => 'about', 'title' => 'Điều khoản dịch vụ', 'content' => '<p>Nội dung</p>',
         ]);
     }
 
@@ -74,17 +74,17 @@ class StaticPageTest extends TestCase
     public function test_create_rejects_duplicate_slug(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        StaticPage::create(['slug' => 'terms', 'title' => 'x', 'content' => '<p>x</p>']);
+        StaticPage::create(['slug' => 'about', 'title' => 'x', 'content' => '<p>x</p>']);
 
         $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/admin/pages', ['slug' => 'terms', 'title' => 'y', 'content' => '<p>y</p>'])
+            ->postJson('/api/admin/pages', ['slug' => 'about', 'title' => 'y', 'content' => '<p>y</p>'])
             ->assertStatus(422);
     }
 
     public function test_update_cannot_change_slug(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $page  = StaticPage::create(['slug' => 'terms', 'title' => 'Cũ', 'content' => '<p>Cũ</p>']);
+        $page  = StaticPage::create(['slug' => 'about', 'title' => 'Cũ', 'content' => '<p>Cũ</p>']);
 
         $this->actingAs($admin, 'sanctum')
             ->putJson("/api/admin/pages/{$page->id}", [
@@ -92,13 +92,13 @@ class StaticPageTest extends TestCase
             ])
             ->assertOk();
 
-        $this->assertDatabaseHas('static_pages', ['id' => $page->id, 'slug' => 'terms', 'title' => 'Mới']);
+        $this->assertDatabaseHas('static_pages', ['id' => $page->id, 'slug' => 'about', 'title' => 'Mới']);
     }
 
     public function test_destroy_soft_hides_instead_of_deleting(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $page  = StaticPage::create(['slug' => 'terms', 'title' => 'x', 'content' => '<p>x</p>']);
+        $page  = StaticPage::create(['slug' => 'about', 'title' => 'x', 'content' => '<p>x</p>']);
 
         $this->actingAs($admin, 'sanctum')
             ->deleteJson("/api/admin/pages/{$page->id}")

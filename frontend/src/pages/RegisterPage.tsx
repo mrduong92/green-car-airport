@@ -209,9 +209,10 @@ export default function RegisterPage() {
               <input
                 type="text"
                 value={referralCode}
-                onChange={(e) => setReferral(e.target.value.toUpperCase())}
-                placeholder="Nhập mã nếu có"
-                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow uppercase tracking-wider"
+                onChange={(e) => setReferral(e.target.value)}
+                inputMode="tel"
+                placeholder="SĐT người giới thiệu (nếu có)"
+                className="w-full h-[52px] border-[1.5px] border-border-gray rounded-input px-4 text-navy outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgba(0,106,54,0.18)] transition-shadow tracking-wider"
               />
             </div>
 

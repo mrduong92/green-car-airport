@@ -257,15 +257,15 @@ export default function CustomerProfilePage() {
               <p className="text-[13px] text-neutral-gray">
                 Mời bạn bè đặt chuyến — họ nhận 4 voucher 50k, bạn nhận 2 voucher 50k sau chuyến đầu tiên của họ
               </p>
-              {user?.referral_code && (
+              {user?.phone && (
                 <>
                   <div className="bg-light-green rounded-input px-3 py-2.5 flex items-center">
-                    <span className="text-primary font-bold text-sm tracking-wider flex-1">{user.referral_code}</span>
+                    <span data-testid="referral-code" className="text-primary font-bold text-sm tracking-wider flex-1">{user.phone}</span>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(`${webOrigin('customer')}/login?ref=${user.referral_code}`)
+                        navigator.clipboard.writeText(`${webOrigin('customer')}/login?ref=${user.phone}`)
                         showToast('Đã sao chép link giới thiệu', 'success')
                       }}
                       className="flex-1 h-10 rounded-pill border border-primary text-primary text-[13px] font-semibold flex items-center justify-center gap-1"
@@ -278,7 +278,7 @@ export default function CustomerProfilePage() {
                         onClick={() => shareLink({
                           title: BRAND.name,
                           text: `Tham gia ${BRAND.name} và nhận voucher ngay!`,
-                          url: `${webOrigin('customer')}/login?ref=${user.referral_code}`,
+                          url: `${webOrigin('customer')}/login?ref=${user.phone}`,
                         })}
                         className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
                       >

@@ -64,8 +64,9 @@ class CollaboratorFeeTest extends TestCase
             ->assertOk();
 
         // feePoints = round(1_000_000 * 0.20 / 1000) = 200 (chỉ tính giá cuốc, không gộp thu hộ)
+        // + tạm giữ thu hộ 200_000 / 1000 = 200 ngay lúc nhận (xem CollectionFeeHoldTest)
         $wallet = Wallet::where('user_id', $driver->id)->first();
-        $this->assertEquals(10_000 - 200, $wallet->points);
+        $this->assertEquals(10_000 - 200 - 200, $wallet->points);
     }
 
     /** Collaborator nhận 100% collection_fee khi trip completed */

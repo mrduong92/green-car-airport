@@ -24,6 +24,7 @@ class DriverProfileSeeder extends Seeder
                 'rating'        => 4.85,
                 'trips_count'   => 142,
                 'months_active' => 8,
+                'free_unlocked_until' => now()->addYear(),
             ],
             [
                 'phone'         => '0934567890',

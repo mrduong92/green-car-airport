@@ -118,6 +118,8 @@ function buildAppConfig(target: AppTarget, isNative = false): UserConfig {
         // song với FCM → thông báo hiện HAI lần; và precache làm bundle cũ bám dai.
         disable: isNative,
         registerType: 'autoUpdate',
+        // Tự đăng ký trong src/pwaUpdate.ts (kiểm tra bản mới mỗi lần mở lại app + tự tải lại).
+        injectRegister: false,
         strategies: 'injectManifest',
         srcDir: 'src',
         filename: 'sw.ts',

@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, topupDriver, deductDriverPoints } from '@/api/admin'
+import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, grantDriverFreeAccess, revokeDriverFreeAccess, topupDriver, deductDriverPoints } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import VipBadge from '@/components/common/VipBadge'
 import DriverPointsHistoryModal from '@/components/admin/DriverPointsHistoryModal'
 import Button from '@/components/common/Button'
+import ConfirmDialog from '@/components/common/ConfirmDialog'
 import clsx from 'clsx'
 
 type ApiError = { response?: { data?: { message?: string } } }
@@ -26,14 +27,23 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 interface EditForm {
   name: string; vehicle_make: string; vehicle_model: string
   vehicle_plate: string; vehicle_year: string; vehicle_color: string
+  // '' = tài xế cũ chưa khai loại xe; giữ nguyên nếu admin không chọn
+  vehicle_type: App.VehicleType | ''
   is_vip: boolean
 }
 
 const emptyForm = (): EditForm => ({
   name: '', vehicle_make: '', vehicle_model: '',
   vehicle_plate: '', vehicle_year: '', vehicle_color: '',
-  is_vip: false,
+  vehicle_type: '', is_vip: false,
 })
+
+// Hạn mới sau khi mở khóa/gia hạn: còn hạn thì cộng dồn từ hạn hiện tại, hết hạn/chưa mở thì từ hôm nay (khớp backend).
+function freeExpiryAfterGrant(d: App.DriverProfile): string {
+  const base = d.free_unlocked && d.free_unlocked_until ? new Date(d.free_unlocked_until) : new Date()
+  base.setFullYear(base.getFullYear() + 1)
+  return base.toLocaleDateString('vi-VN')
+}
 
 export default function DriversPage() {
   const qc = useQueryClient()
@@ -42,6 +52,8 @@ export default function DriversPage() {
   const [search, setSearch] = useState('')
   const [blockTarget, setBlockTarget] = useState<App.DriverProfile | null>(null)
   const [blockReason, setBlockReason] = useState('')
+  // Mở khóa/gia hạn/thu hồi Free liên quan tiền → luôn qua hộp xác nhận, không thực thi ngay khi chạm.
+  const [freeAction, setFreeAction] = useState<{ kind: 'grant' | 'revoke'; driver: App.DriverProfile } | null>(null)
   const [editTarget, setEditTarget] = useState<App.DriverProfile | null>(null)
   const [form, setForm] = useState<EditForm>(emptyForm())
   const [topupTarget, setTopupTarget] = useState<App.DriverProfile | null>(null)
@@ -66,6 +78,7 @@ export default function DriversPage() {
       vehicle_plate: d.vehicle_plate ?? '',
       vehicle_year:  d.vehicle_year?.toString() ?? '',
       vehicle_color: d.vehicle_color ?? '',
+      vehicle_type:  d.vehicle_type ?? '',
       is_vip:        d.is_vip ?? false,
     })
   }
@@ -78,6 +91,7 @@ export default function DriversPage() {
       vehicle_plate: form.vehicle_plate || undefined,
       vehicle_year:  form.vehicle_year ? Number(form.vehicle_year) : undefined,
       vehicle_color: form.vehicle_color || undefined,
+      vehicle_type:  form.vehicle_type || undefined,
       is_vip:        form.is_vip,
     }),
     onSuccess: () => {
@@ -102,6 +116,26 @@ export default function DriversPage() {
     mutationFn: (id: number) => approveDriver(id),
     onSuccess: () => {
       showToast('Đã duyệt tài xế', 'success')
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+    },
+    onError: () => showToast('Thao tác thất bại', 'error'),
+  })
+
+  const grantFreeMutation = useMutation({
+    mutationFn: (id: number) => grantDriverFreeAccess(id),
+    onSuccess: () => {
+      showToast('Đã mở khóa Nhận cuốc Free thêm 1 năm', 'success')
+      setFreeAction(null)
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+    },
+    onError: () => showToast('Thao tác thất bại', 'error'),
+  })
+
+  const revokeFreeMutation = useMutation({
+    mutationFn: (id: number) => revokeDriverFreeAccess(id),
+    onSuccess: () => {
+      showToast('Đã thu hồi khóa Nhận cuốc Free', 'success')
+      setFreeAction(null)
       qc.invalidateQueries({ queryKey: ['drivers'] })
     },
     onError: () => showToast('Thao tác thất bại', 'error'),
@@ -197,6 +231,9 @@ export default function DriversPage() {
                   )}
                 </p>
                 <p className="text-caption text-neutral-gray">{d.phone}</p>
+                <p className="text-caption text-neutral-gray">
+                  Free: {d.free_unlocked && d.free_unlocked_until ? `mở khóa đến ${new Date(d.free_unlocked_until).toLocaleDateString('vi-VN')}` : 'đang khóa'}
+                </p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <StatusBadge status={d.status} />
                   {d.is_online && (
@@ -221,6 +258,16 @@ export default function DriversPage() {
                   className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
                   Nạp điểm
                 </button>
+                <button onClick={() => setFreeAction({ kind: 'grant', driver: d })}
+                  className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
+                  {d.free_unlocked ? 'Gia hạn Free' : 'Mở khóa Free'}
+                </button>
+                {d.free_unlocked && (
+                  <button onClick={() => setFreeAction({ kind: 'revoke', driver: d })}
+                    className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
+                    Thu hồi Free
+                  </button>
+                )}
                 <button onClick={() => setHistoryTarget(d)}
                   className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
                   Lịch sử điểm
@@ -338,15 +385,29 @@ export default function DriversPage() {
                   </div>
                 ))}
               </div>
-              <label className="flex items-center gap-2 text-sm text-navy">
-                <input
-                  type="checkbox"
-                  checked={form.is_vip}
-                  onChange={(e) => setForm((f) => ({ ...f, is_vip: e.target.checked }))}
-                  className="w-4 h-4 accent-gold"
-                />
-                Xe cá nhân (biển trắng) — nhận cuốc VIP
-              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[12px] text-neutral-gray font-medium">Loại xe</label>
+                  <select className={inputCls} value={form.vehicle_type}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicle_type: e.target.value as EditForm['vehicle_type'] }))}>
+                    {form.vehicle_type === '' && <option value="">Chưa khai</option>}
+                    {Object.entries(VEHICLE_TYPE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[12px] text-neutral-gray font-medium">Loại biển</label>
+                  <select className={inputCls} value={form.is_vip ? 'white' : 'yellow'}
+                    onChange={(e) => setForm((f) => ({ ...f, is_vip: e.target.value === 'white' }))}>
+                    <option value="yellow">Biển vàng (xe dịch vụ)</option>
+                    <option value="white">Biển trắng (xe cá nhân, VIP)</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-[12px] text-neutral-gray -mt-1">
+                Biển trắng nhận được cả cuốc VIP lẫn cuốc thường. Đổi xong có hiệu lực ngay với danh sách cuốc của tài xế.
+              </p>
             </div>
             <div className="px-4 pb-6 pt-3 flex gap-3 shrink-0 border-t border-border-soft">
               <Button fullWidth variant="outline" onClick={() => setEditTarget(null)}>Huỷ</Button>
@@ -502,6 +563,20 @@ export default function DriversPage() {
       )}
 
       {/* Block modal */}
+      {freeAction && (
+        <ConfirmDialog
+          open
+          title={freeAction.kind === 'revoke' ? 'Thu hồi khóa Nhận cuốc Free?' : 'Mở khóa Nhận cuốc Free?'}
+          description={freeAction.kind === 'revoke'
+            ? `${freeAction.driver.name} sẽ mất quyền Nhận cuốc ngay. Mở khóa lại sẽ tính 1 năm từ hôm nay, không khôi phục hạn cũ.`
+            : `${freeAction.driver.name} · ${freeAction.driver.phone}: hạn mới đến ${freeExpiryAfterGrant(freeAction.driver)}.`}
+          confirmLabel={freeAction.kind === 'revoke' ? 'Thu hồi' : (freeAction.driver.free_unlocked ? 'Gia hạn thêm 1 năm' : 'Mở khóa 1 năm')}
+          loading={freeAction.kind === 'revoke' ? revokeFreeMutation.isPending : grantFreeMutation.isPending}
+          onConfirm={() => (freeAction.kind === 'revoke' ? revokeFreeMutation : grantFreeMutation).mutate(freeAction.driver.id)}
+          onCancel={() => setFreeAction(null)}
+        />
+      )}
+
       {blockTarget && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
           <div className="bg-white w-full max-w-[430px] rounded-t-2xl p-6 flex flex-col gap-4">

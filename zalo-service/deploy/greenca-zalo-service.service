@@ -1,0 +1,23 @@
+[Unit]
+Description=GreenCA microservice Zalo (Cuốc Free) — nghe tin nhóm, chỉ đọc
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zalobot
+WorkingDirectory=/opt/greenca-zalo-service
+EnvironmentFile=/opt/greenca-zalo-service/.env
+# Node cài từ tarball ở /opt/node22 (production) → sửa thành /opt/node22/bin/node.
+ExecStart=/usr/bin/node dist/src/index.js
+# Tài khoản lỗi tự đăng nhập lại bên trong tiến trình; systemd chỉ lo khi cả tiến trình chết.
+Restart=always
+RestartSec=5
+# Giới hạn để service không lấn MySQL/PHP khi chạy chung máy (đo thực tế: RAM 60–120 MB).
+MemoryMax=300M
+CPUQuota=50%
+StandardOutput=append:/var/log/greenca-zalo-service.log
+StandardError=append:/var/log/greenca-zalo-service.log
+
+[Install]
+WantedBy=multi-user.target

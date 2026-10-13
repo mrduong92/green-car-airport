@@ -8,6 +8,7 @@ import AppVersionGate from '@/components/common/AppVersionGate'
 import { initNativeShell } from '@/nativeShell'
 import { isNativeApp } from '@/platform'
 import { initNativePush } from '@/push'
+import { registerServiceWorker } from '@/pwaUpdate'
 import './index.css'
 
 type AppRouter = RouterProviderProps['router']
@@ -22,6 +23,9 @@ export function bootstrap(router: AppRouter, app: AppKind = 'customer') {
       queries: { retry: 1, staleTime: 30_000 },
     },
   })
+
+  // App native không có service worker (VitePWA tắt ở mode native) — push đi qua FCM.
+  if (!isNativeApp()) registerServiceWorker()
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()

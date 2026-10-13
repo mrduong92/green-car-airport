@@ -22,6 +22,8 @@ class AppSetting extends Model
 
     public const APP_VERSION_APPS = ['customer', 'driver'];
 
+    public const FREE_UNLOCK_FEE_VND = 'free_unlock_fee_vnd';
+
     protected $fillable = ['key', 'value'];
 
     /** vd appVersionKey('android', 'driver', 'min') → 'app_version_android_driver_min' */
@@ -54,6 +56,12 @@ class AppSetting extends Model
     public static function referralDriverPoints(): int
     {
         return (int) static::get(self::REFERRAL_DRIVER_POINTS, (string) config('business.referral_driver_points'));
+    }
+
+    /** Phí mở khóa Nhận cuốc tab Free (1 năm), VND. 0 = QR không điền sẵn số tiền. */
+    public static function freeUnlockFeeVnd(): int
+    {
+        return (int) static::get(self::FREE_UNLOCK_FEE_VND, (string) config('business.free_unlock_fee_vnd'));
     }
 
     public static function get(string $key, ?string $default = null): ?string

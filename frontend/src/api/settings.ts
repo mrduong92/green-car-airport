@@ -16,6 +16,7 @@ export interface AdminSettings {
   app_version_android_customer_latest: string
   app_version_android_driver_min: string
   app_version_android_driver_latest: string
+  free_unlock_fee_vnd: number
 }
 
 export const getAdminSettings = () =>
