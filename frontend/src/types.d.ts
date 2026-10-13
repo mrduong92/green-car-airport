@@ -159,6 +159,9 @@ declare namespace App {
     vehicle_color: string
     vehicle_type?: VehicleType | null
     is_vip?: boolean
+    // Quyền Nhận cuốc ở tab Free (admin duyệt tay, 1 năm); *_until là mốc hết hạn (ms).
+    free_unlocked?: boolean
+    free_unlocked_until?: number | null
     trips_count: number
     rating: number
     months_active: number

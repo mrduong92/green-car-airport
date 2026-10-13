@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, topupDriver, deductDriverPoints } from '@/api/admin'
+import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, grantDriverFreeAccess, revokeDriverFreeAccess, topupDriver, deductDriverPoints } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
 import VipBadge from '@/components/common/VipBadge'
@@ -111,6 +111,24 @@ export default function DriversPage() {
     onError: () => showToast('Thao tác thất bại', 'error'),
   })
 
+  const grantFreeMutation = useMutation({
+    mutationFn: (id: number) => grantDriverFreeAccess(id),
+    onSuccess: () => {
+      showToast('Đã mở khóa Nhận cuốc Free thêm 1 năm', 'success')
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+    },
+    onError: () => showToast('Thao tác thất bại', 'error'),
+  })
+
+  const revokeFreeMutation = useMutation({
+    mutationFn: (id: number) => revokeDriverFreeAccess(id),
+    onSuccess: () => {
+      showToast('Đã thu hồi khóa Nhận cuốc Free', 'success')
+      qc.invalidateQueries({ queryKey: ['drivers'] })
+    },
+    onError: () => showToast('Thao tác thất bại', 'error'),
+  })
+
   const unblockMutation = useMutation({
     mutationFn: (id: number) => unblockDriver(id),
     onSuccess: () => {
@@ -201,6 +219,9 @@ export default function DriversPage() {
                   )}
                 </p>
                 <p className="text-caption text-neutral-gray">{d.phone}</p>
+                <p className="text-caption text-neutral-gray">
+                  Free: {d.free_unlocked && d.free_unlocked_until ? `mở khóa đến ${new Date(d.free_unlocked_until).toLocaleDateString('vi-VN')}` : 'đang khóa'}
+                </p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <StatusBadge status={d.status} />
                   {d.is_online && (
@@ -225,6 +246,16 @@ export default function DriversPage() {
                   className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
                   Nạp điểm
                 </button>
+                <button onClick={() => grantFreeMutation.mutate(d.id)} disabled={grantFreeMutation.isPending}
+                  className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
+                  {d.free_unlocked ? 'Gia hạn Free' : 'Mở khóa Free'}
+                </button>
+                {d.free_unlocked && (
+                  <button onClick={() => revokeFreeMutation.mutate(d.id)} disabled={revokeFreeMutation.isPending}
+                    className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
+                    Thu hồi Free
+                  </button>
+                )}
                 <button onClick={() => setHistoryTarget(d)}
                   className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
                   Lịch sử điểm
