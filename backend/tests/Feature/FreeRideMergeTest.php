@@ -208,6 +208,29 @@ class FreeRideMergeTest extends TestCase
         $this->assertSame(['r-1'], array_column($this->visible(), 'ride_uid'));
     }
 
+    public function test_ingest_does_not_load_every_live_ride_to_find_a_merge_target(): void
+    {
+        Queue::fake();
+        // 60 cuốc đang sống không liên quan (khác chiều/điểm đón) — quét ứng viên không được nạp hết lên.
+        for ($i = 0; $i < 60; $i++) {
+            FreeRide::create($this->ride([
+                'ride_uid' => "bulk-$i", 'sender_uid' => "9$i", 'qr_code' => "QRB$i", 'direction' => 'from_airport',
+                'pickup' => "Điểm $i", 'pickup_at' => now()->addHours(5)->addMinutes($i),
+                'posted_at' => now(), 'expires_at' => now()->addHours(8),
+            ]) + ['created_at' => now(), 'updated_at' => now()]);
+        }
+        $hydrated = 0;
+        FreeRide::retrieved(function () use (&$hydrated) {
+            $hydrated++;
+        });
+
+        $this->send([$this->ride()]);
+        $this->send([$this->twin(['qr_code' => 'QRKHAC'])]);
+
+        $this->assertLessThan(15, $hydrated);
+        $this->assertSame(1, FreeRide::whereNotNull('duplicate_of_id')->count());
+    }
+
     public function test_same_profile_different_content_is_not_merged(): void
     {
         Queue::fake();

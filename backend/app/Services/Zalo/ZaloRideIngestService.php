@@ -177,29 +177,16 @@ class ZaloRideIngestService
         }
 
         $newRides = FreeRide::whereIn('ride_uid', $newRideUids)->orderBy('posted_at')->orderBy('id')->get();
-        $canonicals = FreeRide::whereNotIn('ride_uid', $newRideUids)
-            ->whereNull('duplicate_of_id')
-            ->where('expires_at', '>', $now)
-            ->orderBy('posted_at')->orderBy('id')
-            // Đọc có khoá (trong giao dịch của ingest): hai lô chạy song song không thể cùng lấy cuốc
-            // của nhau làm gốc — lô sau chờ lô trước commit rồi mới thấy trạng thái duplicate_of_id
-            // mới nhất, cuốc đã thành bản trùng bị whereNull loại → không có hai hàng trỏ nhau.
-            ->lockForUpdate()
-            ->get()
-            // Chia xô theo (is_raw, seats) — hai điều kiện sameRideAs() luôn đòi bằng nhau — để mỗi cuốc
-            // mới chỉ so với một phần nhỏ thay vì toàn bộ cuốc còn hạn của mọi người đăng.
-            ->groupBy(fn (FreeRide $c) => $this->mergeBucket($c))
-            ->map(fn ($rides) => $rides->all())
-            ->all();
 
+        // Cuốc mới không trùng (và còn hạn) thành ứng viên cuốc gốc cho cuốc mới sau nó trong lô.
+        $batchCandidates = [];
         $touched = [];
         foreach ($newRides as $ride) {
-            $bucket = $this->mergeBucket($ride);
-            $canonical = collect($canonicals[$bucket] ?? [])->first(fn (FreeRide $c) => $c->sameRideAs($ride));
+            $canonical = $this->findStoredCanonical($ride, $newRideUids, $now)
+                ?? collect($batchCandidates)->first(fn (FreeRide $c) => $c->sameRideAs($ride));
             if ($canonical === null) {
-                // Cuốc mới không trùng (và còn hạn) thành ứng viên cuốc gốc cho cuốc mới sau nó trong lô.
                 if ($ride->expires_at->gt($now)) {
-                    $canonicals[$bucket][] = $ride;
+                    $batchCandidates[] = $ride;
                 }
 
                 continue;
@@ -213,9 +200,37 @@ class ZaloRideIngestService
         }
     }
 
-    private function mergeBucket(FreeRide $ride): string
+    /**
+     * Cuốc gốc còn hạn đã lưu từ trước khớp $ride. SQL chỉ lấy ứng viên có thể khớp — cùng loại
+     * (is_raw), cùng số chỗ và, với cuốc đã tách, cùng chiều + giờ đón trong cửa sổ gộp — rồi
+     * sameRideAs() chốt bằng so sánh chữ. Không nạp toàn bộ cuốc đang sống: mỗi lô ingest chạy
+     * dưới khoá và số cuốc sống lên tới hàng nghìn.
+     *
+     * @param  list<string>  $newRideUids
+     */
+    private function findStoredCanonical(FreeRide $ride, array $newRideUids, Carbon $now): ?FreeRide
     {
-        return ($ride->is_raw ? 'raw' : 'ride').'|'.($ride->seats ?? 'null');
+        $query = FreeRide::whereNotIn('ride_uid', $newRideUids)
+            ->whereNull('duplicate_of_id')
+            ->where('expires_at', '>', $now)
+            ->where('is_raw', $ride->is_raw);
+
+        $ride->seats === null ? $query->whereNull('seats') : $query->where('seats', $ride->seats);
+
+        if (! $ride->is_raw) {
+            $ride->direction === null ? $query->whereNull('direction') : $query->where('direction', $ride->direction);
+            if ($ride->pickup_at === null) {
+                $query->whereNull('pickup_at');
+            } else {
+                $window = FreeRide::MERGE_WINDOW_MINUTES;
+                $query->whereBetween('pickup_at', [$ride->pickup_at->copy()->subMinutes($window), $ride->pickup_at->copy()->addMinutes($window)]);
+            }
+        }
+
+        // Đọc có khoá (trong giao dịch của ingest): hai lô chạy song song không thể cùng lấy cuốc của
+        // nhau làm gốc — lô sau chờ lô trước commit rồi mới thấy duplicate_of_id mới nhất.
+        return $query->orderBy('posted_at')->orderBy('id')->lockForUpdate()->get()
+            ->first(fn (FreeRide $c) => $c->sameRideAs($ride));
     }
 
     /**
