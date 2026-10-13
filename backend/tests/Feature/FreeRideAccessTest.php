@@ -166,13 +166,13 @@ class FreeRideAccessTest extends TestCase
 
         $payment = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('access.payment');
 
-        $this->assertSame(100000, $payment['amount_vnd']);
+        $this->assertSame(300000, $payment['amount_vnd']);
         $this->assertSame('MOKHOA '.$driver->phone, $payment['transfer_content']);
         // Nội dung KHÔNG được chứa mã nạp ví (GCA + 6 số) — webhook SePay sẽ đổi tiền phí thành điểm ví.
         $this->assertDoesNotMatchRegularExpression('/'.preg_quote(config('app.code_prefix'), '/').'\d{6}/', $payment['transfer_content']);
         $this->assertSame(['name' => 'Vietcombank', 'account_number' => '0123456789', 'account_holder' => 'CONG TY GREENCA'], $payment['bank']);
         $this->assertStringContainsString('VCB-0123456789', $payment['qr_url']);
-        $this->assertStringContainsString('amount=100000', $payment['qr_url']);
+        $this->assertStringContainsString('amount=300000', $payment['qr_url']);
         $this->assertStringContainsString('addInfo='.urlencode('MOKHOA '.$driver->phone), $payment['qr_url']);
     }
 
@@ -205,7 +205,7 @@ class FreeRideAccessTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
-        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/settings')->assertOk()->assertJson(['free_unlock_fee_vnd' => 100000]);
+        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/settings')->assertOk()->assertJson(['free_unlock_fee_vnd' => 300000]);
 
         $this->actingAs($admin, 'sanctum')->putJson('/api/admin/settings', [
             'contact_hotline' => '1900 1234', 'contact_email' => 'help@greenca.vn', 'contact_zalo_phone' => '0931919786',

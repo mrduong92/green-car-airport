@@ -29,7 +29,7 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 100000 },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000 },
   })
 
   useEffect(() => {
