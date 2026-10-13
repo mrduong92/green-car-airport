@@ -10,6 +10,7 @@ import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useLogout } from '@/hooks/useLogout'
 import StatusBadge from '@/components/common/StatusBadge'
 import Button from '@/components/common/Button'
+import DeleteAccountSheet from '@/components/common/DeleteAccountSheet'
 import { PushSettingsRow } from '@/components/driver/PushNotificationSettings'
 import { zaloLink } from '@/utils/zalo'
 import { BRAND } from '@/brand'
@@ -30,6 +31,7 @@ export default function DriverProfilePage() {
   const navigate = useNavigate()
   const { canInstall } = usePwaInstall()
   const [editing, setEditing] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
   const [form, setForm] = useState<EditForm>({
     name: '', vehicle_make: '', vehicle_model: '',
     vehicle_plate: '', vehicle_year: '', vehicle_color: '',
@@ -201,6 +203,13 @@ export default function DriverProfilePage() {
           <span className="text-sm font-medium">Đăng xuất</span>
         </button>
       </div>
+      <div className="flex justify-center mt-2">
+        <button type="button" onClick={() => setShowDelete(true)}
+          className="text-[12px] text-danger-red/80 underline underline-offset-2 py-1">
+          Xoá tài khoản
+        </button>
+      </div>
+      <DeleteAccountSheet open={showDelete} onClose={() => setShowDelete(false)} />
 
       {/* Referral section */}
       {user?.phone && (

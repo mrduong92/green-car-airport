@@ -40,7 +40,8 @@ declare namespace App {
     driver?: {
       id: number
       name: string
-      phone?: string
+      /** null khi tài xế đã xoá tài khoản. */
+      phone?: string | null
       vehicle_make?: string
       vehicle_model?: string
       vehicle_plate?: string
