@@ -38,7 +38,9 @@ class NewBookingAvailableNotification extends Notification implements ShouldQueu
         return [
             'title' => 'Có cuốc mới!',
             'body' => "{$this->booking->pickup} → {$this->booking->destination} · {$price}đ · {$this->booking->distance_km}km",
-            'data' => ['action' => 'view_trip', 'booking_id' => $this->booking->id],
+            // Mở danh sách cuốc (nơi bấm Nhận), không phải /driver/trips/{id} — trang chi tiết
+            // chỉ cho tài xế đã nhận cuốc xem, cuốc chưa ai nhận trả 403 "Không tìm thấy cuốc".
+            'data' => ['action' => 'open_url', 'url' => '/driver/trips', 'booking_id' => $this->booking->id],
         ];
     }
 
@@ -47,7 +49,8 @@ class NewBookingAvailableNotification extends Notification implements ShouldQueu
         return [
             'title' => 'Có cuốc mới!',
             'body' => "{$this->booking->pickup} → {$this->booking->destination}",
-            'action' => 'view_trip',
+            'action' => 'open_url',
+            'url' => '/driver/trips',
             'booking_id' => $this->booking->id,
         ];
     }
