@@ -80,6 +80,12 @@ class FreeRide extends Model
         return abs($this->pickup_at->getTimestamp() - $other->pickup_at->getTimestamp()) <= self::MERGE_WINDOW_MINUTES * 60;
     }
 
+    /** Che số điện thoại (0xxx… / +84xxx…, có thể kèm khoảng trắng, chấm, gạch nối) — dùng cho tài xế chưa mở khóa. */
+    public static function maskPhones(string $text): string
+    {
+        return (string) preg_replace('/(?<![\d.])(?:\+?84|0)(?:[ .-]?\d){8,10}(?![\d.])/u', '•••••••••', $text);
+    }
+
     // Chữ thường, bỏ khoảng trắng đầu/cuối, gộp khoảng trắng liên tiếp.
     public static function normalize(?string $text): string
     {

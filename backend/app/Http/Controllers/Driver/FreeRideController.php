@@ -205,7 +205,7 @@ class FreeRideController extends Controller
             'price' => $r->price,
             'is_free' => $r->is_free,
             'is_raw' => $r->is_raw,
-            'raw_text' => $r->raw_text,
+            'raw_text' => $unlocked ? $r->raw_text : FreeRide::maskPhones($r->raw_text),
             'group_count' => $r->displayedGroupCount(),
             // Mã hồ sơ (danh tính thật của người bắn) — tab Free gửi lại khi "Ẩn người bắn".
             // Tài xế chưa mở khóa không nhận mã hồ sơ lẫn link — khóa ở server, không chỉ ẩn nút.

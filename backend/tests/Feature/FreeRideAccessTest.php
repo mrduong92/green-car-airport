@@ -120,4 +120,20 @@ class FreeRideAccessTest extends TestCase
 
         $this->assertSame([], $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->json('data'));
     }
+
+    public function test_locked_driver_sees_raw_text_with_phone_numbers_masked(): void
+    {
+        $this->ride(['raw_text' => 'tiễn 11h phố cổ 200k lh 0912.345.678 hoặc +84 987 654 321']);
+
+        $locked = $this->actingAs($this->driverWith(null), 'sanctum')->getJson('/api/driver/free-rides')->json('data.0.raw_text');
+        $this->assertSame('tiễn 11h phố cổ 200k lh ••••••••• hoặc •••••••••', $locked);
+
+        $open = $this->actingAs($this->driverWith(now()->addYear()), 'sanctum')->getJson('/api/driver/free-rides')->json('data.0.raw_text');
+        $this->assertStringContainsString('0912.345.678', $open);
+    }
+
+    public function test_masking_keeps_prices_and_times(): void
+    {
+        $this->assertSame('4h15 phố cổ 280,000đ xe 5 TK 0.25 1tr2 200k', \App\Models\FreeRide::maskPhones('4h15 phố cổ 280,000đ xe 5 TK 0.25 1tr2 200k'));
+    }
 }
