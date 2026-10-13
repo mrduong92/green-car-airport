@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\DriverProfile;
 use App\Models\User;
 use App\Services\ReferralService;
 use Illuminate\Http\JsonResponse;
@@ -60,6 +61,37 @@ class DriverController extends Controller
         );
 
         return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
+    }
+
+    // Admin duyệt tay sau khi tài xế chuyển khoản phí năm. Còn hạn → cộng dồn từ ngày hết hạn; hết hạn/chưa mở → tính từ hôm nay.
+    public function grantFreeAccess(User $user): JsonResponse
+    {
+        $profile = $this->freeAccessProfile($user);
+        if ($profile === null) {
+            return response()->json(['message' => 'Không phải tài xế hoặc chưa có hồ sơ tài xế.'], 422);
+        }
+
+        $base = $profile->hasFreeAccess() ? $profile->free_unlocked_until->copy() : now();
+        $profile->update(['free_unlocked_until' => $base->addYear()]);
+
+        return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
+    }
+
+    public function revokeFreeAccess(User $user): JsonResponse
+    {
+        $profile = $this->freeAccessProfile($user);
+        if ($profile === null) {
+            return response()->json(['message' => 'Không phải tài xế hoặc chưa có hồ sơ tài xế.'], 422);
+        }
+
+        $profile->update(['free_unlocked_until' => null]);
+
+        return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
+    }
+
+    private function freeAccessProfile(User $user): ?DriverProfile
+    {
+        return $user->role === 'driver' ? $user->driverProfile : null;
     }
 
     public function update(Request $request, User $user): JsonResponse
@@ -131,6 +163,8 @@ class DriverController extends Controller
             'rating'         => $p ? (float) $p->rating : null,
             'trips_count'    => $p?->trips_count ?? 0,
             'points'                    => $u->wallet?->points ?? 0,
+            'free_unlocked'       => (bool) $p?->hasFreeAccess(),
+            'free_unlocked_until' => $p?->hasFreeAccess() ? $p->free_unlocked_until->getTimestampMs() : null,
             'cccd_number'               => $p?->cccd_number,
             'gplx_number'               => $p?->gplx_number,
             'vehicle_reg_number'        => $p?->vehicle_reg_number,
