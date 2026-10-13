@@ -1,3 +1,4 @@
+import { isNativeApp } from '@/platform'
 import { zaloProfileHref } from '@/utils/zalo'
 
 const DIRECTION_LABEL: Record<App.FreeRideDirection, string> = {
@@ -69,7 +70,7 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
         </p>
 
         {ride.contact_url !== null ? (
-          <a data-testid="free-ride-accept" href={zaloProfileHref(ride.contact_url)}
+          <a data-testid="free-ride-accept" href={zaloProfileHref(ride.contact_url, navigator.userAgent, isNativeApp())}
             className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">chat</span>
             Nhận cuốc
