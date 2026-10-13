@@ -44,10 +44,10 @@ const has = (re: RegExp, text: string) => new RegExp(re.source, 'iu').test(text)
 
 const TIEN = word('ti[eễ]n')
 const DON = word('[đd][oó]n')
-const AIRPORT_TOKEN = word('s[aâ]n\\s*bay(?:\\s*n[oộ]i\\s*b[aà]i)?|n[oộ]i\\s*b[aà]i|sb|nb|t[12]')
-/** Tin có nhắc sân bay (sân bay, Nội Bài, sb, NB, T1, T2) — điều kiện để coi sân bay là điểm đón. */
+const AIRPORT_TOKEN = word('s[aâ]n\\s*bay(?:\\s*n[oộ]i\\s*b[aà]i)?|n[oộ]i\\s*b[aà]i|sbnb|sb|nb|t[12]')
+/** Tin có nhắc sân bay (sân bay, Nội Bài, sb, sbnb, NB, T1, T2) — điều kiện để coi sân bay là điểm đón. */
 export const mentionsAirport = (text: string): boolean => has(AIRPORT_TOKEN, text)
-const AIRPORT_ONLY = /^(?:s[aâ]n\s*bay(?:\s*n[oộ]i\s*b[aà]i)?|n[oộ]i\s*b[aà]i|sb|nb|(t[12]))$/iu
+const AIRPORT_ONLY = /^(?:s[aâ]n\s*bay(?:\s*n[oộ]i\s*b[aà]i)?|n[oộ]i\s*b[aà]i|sbnb|sb|nb|(t[12]))$/iu
 const FREE_CK = word('(?:ko|k|không|khong)\\s+thu\\s+ck\\s*(\\d{2,4})?')
 const FREE_WORD = word('f+r*e{2,}|free')
 const FEE = word('(?:ck|tk)\\s*\\d[\\d.,]*k?')

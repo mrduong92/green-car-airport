@@ -8,6 +8,7 @@ use App\Models\DriverHiddenSender;
 use App\Models\FreeRide;
 use App\Models\FreeRideReport;
 use App\Models\ZaloQrRefreshRequest;
+use App\Services\FreeUnlockPayment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,9 @@ class FreeRideController extends Controller
             'cursor' => ['nullable', 'string'],
         ]);
 
-        // group_count hiển thị cộng dồn các bản trùng (cùng người, nick phụ khác) — xem FreeRide::scopeWithMergedGroupCount().
+        $access = $this->access($request);
+
+        // group_count hiển thị cộng dồn các bản trùng (cùng người qua nick phụ khác, hoặc người khác chuyển tiếp lại) — xem FreeRide::scopeWithMergedGroupCount().
         $query = $this->visibleTo($request->user()->id, $data)->withMergedGroupCount();
 
         if (isset($data['since'])) {
@@ -41,8 +44,9 @@ class FreeRideController extends Controller
                 ->orderByDesc('updated_at')->limit(self::SINCE_LIMIT)->get();
 
             return response()->json([
-                'data' => $this->safe($rides)->map(fn (FreeRide $r) => $this->format($r))->values(),
+                'data' => $this->safe($rides)->map(fn (FreeRide $r) => $this->format($r, $access['unlocked']))->values(),
                 'next_cursor' => null,
+                'access' => $access,
                 'latest' => $this->latestOf($rides, (int) $data['since']),
                 // Chạm giới hạn SINCE_LIMIT nghĩa là còn cuốc cũ hơn bị bỏ sót (sắp xếp mới nhất
                 // trước rồi cắt) — báo client nạp lại trang 1 thay vì coi since là đã đủ.
@@ -56,8 +60,9 @@ class FreeRideController extends Controller
         $page = $query->orderByDesc('posted_at')->orderByDesc('id')->cursorPaginate(self::PAGE_SIZE);
 
         return response()->json([
-            'data' => $this->safe(collect($page->items()))->map(fn (FreeRide $r) => $this->format($r))->values(),
+            'data' => $this->safe(collect($page->items()))->map(fn (FreeRide $r) => $this->format($r, $access['unlocked']))->values(),
             'next_cursor' => $page->nextCursor()?->encode(),
+            'access' => $access,
             'latest' => $latestBefore ? Carbon::parse($latestBefore)->getTimestampMs() : null,
         ]);
     }
@@ -103,6 +108,10 @@ class FreeRideController extends Controller
 
     public function brokenLink(Request $request, string $rideUid): JsonResponse
     {
+        if (! ($request->user()->driverProfile?->hasFreeAccess() ?? false)) {
+            return response()->json(['message' => 'Cần mở khóa Nhận cuốc để dùng chức năng này.', 'code' => 'free_locked'], 403);
+        }
+
         $ride = FreeRide::where('ride_uid', $rideUid)->firstOrFail();
 
         // Một yêu cầu chưa giao cho mỗi người bắn là đủ — service lấy lại mã một lần.
@@ -167,7 +176,21 @@ class FreeRideController extends Controller
         return FreeRide::filterSafe($rides);
     }
 
-    private function format(FreeRide $r): array
+    /** @return array{unlocked: bool, expires_at: int|null, payment: array|null} */
+    private function access(Request $request): array
+    {
+        $profile = $request->user()->driverProfile;
+        $unlocked = $profile?->hasFreeAccess() ?? false;
+
+        return [
+            'unlocked' => $unlocked,
+            'expires_at' => $unlocked ? $profile->free_unlocked_until->getTimestampMs() : null,
+            // Thông tin chuyển khoản mở khóa (QR VietQR) — chỉ khi đang khóa.
+            'payment' => $unlocked ? null : FreeUnlockPayment::forDriver($request->user()),
+        ];
+    }
+
+    private function format(FreeRide $r, bool $unlocked): array
     {
         return [
             'ride_uid' => $r->ride_uid,
@@ -184,11 +207,12 @@ class FreeRideController extends Controller
             'price' => $r->price,
             'is_free' => $r->is_free,
             'is_raw' => $r->is_raw,
-            'raw_text' => $r->raw_text,
+            'raw_text' => $unlocked ? $r->raw_text : FreeRide::maskPhones($r->raw_text),
             'group_count' => $r->displayedGroupCount(),
             // Mã hồ sơ (danh tính thật của người bắn) — tab Free gửi lại khi "Ẩn người bắn".
-            'qr_code' => $r->qr_code,
-            'contact_url' => "zalo://qr/p/{$r->qr_code}",
+            // Tài xế chưa mở khóa không nhận mã hồ sơ lẫn link — khóa ở server, không chỉ ẩn nút.
+            'qr_code' => $unlocked ? $r->qr_code : null,
+            'contact_url' => $unlocked ? "zalo://qr/p/{$r->qr_code}" : null,
             'posted_at' => $r->posted_at->getTimestampMs(),
             'expires_at' => $r->expires_at->getTimestampMs(),
         ];

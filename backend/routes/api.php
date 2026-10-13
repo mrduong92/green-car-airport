@@ -156,6 +156,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/admin/drivers/{user}/block', [DriverController::class, 'block']);
         Route::patch('/admin/drivers/{user}/unblock', [DriverController::class, 'unblock']);
         Route::patch('/admin/drivers/{user}/approve', [DriverController::class, 'approve']);
+        Route::post('/admin/drivers/{user}/free-unlock', [DriverController::class, 'grantFreeAccess']);
+        Route::delete('/admin/drivers/{user}/free-unlock', [DriverController::class, 'revokeFreeAccess']);
         Route::get('/admin/vouchers', [AdminVoucherController::class, 'index']);
         Route::post('/admin/vouchers', [AdminVoucherController::class, 'store']);
         Route::post('/admin/vouchers/bulk', [AdminVoucherController::class, 'storeBulk']);

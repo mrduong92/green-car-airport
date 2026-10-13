@@ -23,6 +23,8 @@ export const unblockDriver = (id: number) =>
   api.patch(`/admin/drivers/${id}/unblock`)
 
 export const approveDriver = (id: number) => api.patch(`/admin/drivers/${id}/approve`)
+export const grantDriverFreeAccess = (id: number) => api.post<App.DriverProfile>(`/admin/drivers/${id}/free-unlock`)
+export const revokeDriverFreeAccess = (id: number) => api.delete<App.DriverProfile>(`/admin/drivers/${id}/free-unlock`)
 
 export const updateCustomer = (id: number, data: { name: string }) =>
   api.patch(`/admin/customers/${id}`, data)

@@ -159,6 +159,9 @@ declare namespace App {
     vehicle_color: string
     vehicle_type?: VehicleType | null
     is_vip?: boolean
+    // Quyền Nhận cuốc ở tab Free (admin duyệt tay, 1 năm); *_until là mốc hết hạn (ms).
+    free_unlocked?: boolean
+    free_unlocked_until?: number | null
     trips_count: number
     rating: number
     months_active: number
@@ -393,18 +396,38 @@ declare namespace App {
     is_raw: boolean
     raw_text: string
     group_count: number
-    // Backend luôn trả chuỗi dạng zalo://qr/p/<mã> — cuốc có mã bẩn bị loại ở
+    // zalo://qr/p/<mã> khi tài xế đã được mở khóa; null khi chưa mở khóa — cuốc có mã bẩn bị loại ở
     // server (FreeRideController::safe()), không lọt ra tới đây.
-    contact_url: string
+    contact_url: string | null
     // Mã hồ sơ Zalo (danh tính thật của người bắn — cùng người có thể mang nhiều sender_uid
     // tuỳ nick phụ nhìn thấy); "Ẩn người bắn" gửi lại mã này để ẩn mọi uid của họ.
-    qr_code: string
+    // null khi tài xế chưa được mở khóa — khi đó ẩn theo sender_uid, server tự suy ra hồ sơ.
+    qr_code: string | null
     posted_at: number
     expires_at: number
   }
 
+  interface FreeUnlockPayment {
+    // Phí mở khóa 1 năm (admin chỉnh ở Cài đặt); null = chưa đặt phí, QR không điền sẵn số tiền.
+    amount_vnd: number | null
+    // "MOKHOA <sđt>" — KHÔNG dùng mã nạp ví, vì webhook SePay sẽ đổi tiền thành điểm.
+    transfer_content: string
+    bank: { name: string | null; account_number: string; account_holder: string }
+    // null khi backend chưa cấu hình tài khoản nhận tiền.
+    qr_url: string | null
+  }
+
+  interface FreeRideAccess {
+    unlocked: boolean
+    // Mốc hết hạn mở khóa (ms); null khi đang khóa.
+    expires_at: number | null
+    // Thông tin chuyển khoản mở khóa (QR VietQR); null khi đã mở khóa.
+    payment: FreeUnlockPayment | null
+  }
+
   interface FreeRidePage {
     data: FreeRide[]
+    access: FreeRideAccess
     next_cursor: string | null
     latest: number | null
     // true khi server chạm trần SINCE_LIMIT (200 dòng): nghĩa là còn cuốc cũ

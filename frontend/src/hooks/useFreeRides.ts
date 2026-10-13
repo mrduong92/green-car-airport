@@ -73,6 +73,12 @@ export function useFreeRides(filters: App.FreeRideFilters) {
 
     const { data } = await getFreeRides({ ...apiFilters, since })
 
+    // Admin vừa mở/thu hồi khóa: cuốc trong cache còn mang contact_url của trạng thái cũ → nạp lại trang 1.
+    if (data.access.unlocked !== cached?.pages[0]?.access.unlocked) {
+      await trimToFirstPage()
+      return
+    }
+
     // Server chạm trần SINCE_LIMIT (200 dòng): còn cuốc cũ hơn bị bỏ sót bởi
     // phép cắt "mới nhất trước". Gộp theo since lúc này sẽ thiếu dữ liệu, nên
     // phải nạp lại từ trang 1 thay vì gộp.
@@ -193,7 +199,8 @@ export function useFreeRides(filters: App.FreeRideFilters) {
   // Ẩn người bắn: bỏ ngay khỏi cache, không chờ tải lại — theo hồ sơ (qr_code) như server, tức
   // mọi uid của cùng người; so thêm sender_uid cho chắc.
   const removeSender = useCallback((hidden: Pick<App.FreeRide, 'sender_uid' | 'qr_code'>) => {
-    const keep = (r: App.FreeRide) => r.qr_code !== hidden.qr_code && r.sender_uid !== hidden.sender_uid
+    // Tài xế chưa mở khóa nhận qr_code = null — so null với null sẽ khớp MỌI cuốc, nên chỉ so qr_code khi có.
+    const keep = (r: App.FreeRide) => (hidden.qr_code === null || r.qr_code !== hidden.qr_code) && r.sender_uid !== hidden.sender_uid
     queryClient.setQueriesData<Pages>({ queryKey: ['free-rides'] }, (old) => old && ({
       ...old,
       pages: old.pages.map((p) => ({ ...p, data: p.data.filter(keep) })),
@@ -209,5 +216,6 @@ export function useFreeRides(filters: App.FreeRideFilters) {
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     removeSender,
+    access: query.data?.pages[0]?.access ?? null,
   }
 }

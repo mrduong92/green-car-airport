@@ -15,6 +15,7 @@ const schema = z.object({
   app_fee_percent:        z.number({ coerce: true }).min(0, 'Từ 0 đến 100').max(100, 'Từ 0 đến 100'),
   referral_voucher_value: z.number({ coerce: true }).int('Phải là số nguyên').min(1000, 'Tối thiểu 1.000đ'),
   referral_driver_points: z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
+  free_unlock_fee_vnd:    z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
 })
 type FormData = z.infer<typeof schema>
 
@@ -28,7 +29,7 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50 },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000 },
   })
 
   useEffect(() => {
@@ -95,6 +96,13 @@ export default function AdminSettingsPage() {
           <input type="number" {...register('referral_driver_points')}
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
           {errors.referral_driver_points && <p className="text-danger-red text-xs mt-1">{errors.referral_driver_points.message}</p>}
+        </div>
+
+        <div>
+          <label className="text-xs text-neutral-gray mb-1 block">Phí mở khóa Nhận cuốc Free (1 năm, VNĐ) — 0 = QR không điền sẵn số tiền</label>
+          <input type="number" data-testid="setting-free-unlock-fee" {...register('free_unlock_fee_vnd')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.free_unlock_fee_vnd && <p className="text-danger-red text-xs mt-1">{errors.free_unlock_fee_vnd.message}</p>}
         </div>
 
         <Button type="submit" loading={updateMutation.isPending}>Lưu thay đổi</Button>

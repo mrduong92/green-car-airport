@@ -39,6 +39,7 @@ class FreeRideAlertTest extends TestCase
             'user_id' => $driver->id, 'vehicle_make' => 'Toyota', 'vehicle_model' => 'Vios',
             'vehicle_plate' => '30A-'.random_int(10000, 99999), 'vehicle_year' => 2021,
             'vehicle_color' => 'Trắng', 'vehicle_type' => 'sedan_4', 'status' => $status,
+            'free_unlocked_until' => now()->addYear(),
         ]);
 
         if ($withToken) {
@@ -981,5 +982,20 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Queue::assertNotPushed(NotifyFreeRideAlerts::class);
+    }
+
+    public function test_push_body_masks_phone_numbers_for_locked_driver_only(): void
+    {
+        $locked = $this->driver();
+        $locked->driverProfile->update(['free_unlocked_until' => null]);
+        $open = $this->driver();
+        $ride = $this->ride(['pickup' => null, 'destination' => null, 'is_raw' => true, 'raw_text' => 'Cần xe gấp đi Hạ Long lh 0912345678']);
+
+        $lockedBody = (new FreeRideMatchNotification(collect([$ride])))->toWebPush($locked->fresh(), null)['body'];
+        $openBody = (new FreeRideMatchNotification(collect([$ride])))->toWebPush($open->fresh(), null)['body'];
+
+        $this->assertStringNotContainsString('0912345678', $lockedBody);
+        $this->assertStringContainsString('Hạ Long', $lockedBody);
+        $this->assertStringContainsString('0912345678', $openBody);
     }
 }

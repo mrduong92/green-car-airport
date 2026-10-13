@@ -29,6 +29,7 @@ class FreeRideApiTest extends TestCase
         DriverProfile::create([
             'user_id' => $driver->id, 'vehicle_make' => 'Toyota', 'vehicle_model' => 'Vios', 'vehicle_plate' => '30A-'.random_int(10000, 99999),
             'vehicle_year' => 2021, 'vehicle_color' => 'Trắng', 'vehicle_type' => 'sedan_4', 'status' => $status,
+            'free_unlocked_until' => now()->addYear(),
         ]);
 
         return $driver;

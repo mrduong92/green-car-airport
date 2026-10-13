@@ -32,7 +32,7 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
         return [
             'title' => 'Cuốc Free',
             'body' => $this->rides->count() === 1
-                ? $this->describe($this->rides->first())
+                ? $this->describe($this->rides->first(), $notifiable)
                 : "{$this->rides->count()} cuốc Free mới phù hợp",
             'data' => ['action' => 'open_url', 'url' => '/driver/free'],
             // Tag riêng để push Cuốc Free không âm thầm đè push cuốc trả khách (mặc định
@@ -41,7 +41,7 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
         ];
     }
 
-    private function describe(FreeRide $ride): string
+    private function describe(FreeRide $ride, $notifiable): string
     {
         // is_free = "Không chiết khấu" trong domain này (xem FreeRideCard) — KHÔNG phải cuốc miễn phí,
         // và giá (nếu có) vẫn phải hiện — không được ẩn đi vì cờ này.
@@ -53,18 +53,20 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
             $parts[] = 'Không chiết khấu';
         }
 
-        return "Cuốc Free: {$this->routeLabel($ride)} · ".implode(' · ', $parts);
+        return "Cuốc Free: {$this->routeLabel($ride, $notifiable)} · ".implode(' · ', $parts);
     }
 
     // Cuốc nguyên văn (AI/quy tắc không tách được pickup/destination): dùng đoạn trích raw_text
     // thay vì để trống " →  " vô nghĩa.
-    private function routeLabel(FreeRide $ride): string
+    private function routeLabel(FreeRide $ride, $notifiable): string
     {
         if (! empty($ride->pickup)) {
             return "{$ride->pickup} → ".($ride->destination ?: '?');
         }
 
-        $trimmed = trim($ride->raw_text);
+        // Tài xế chưa mở khóa không được thấy số điện thoại người bắn (cũng là liên hệ) — che như ở tab Free.
+        $raw = ($notifiable->driverProfile?->hasFreeAccess() ?? false) ? $ride->raw_text : FreeRide::maskPhones($ride->raw_text);
+        $trimmed = trim($raw);
 
         return mb_strlen($trimmed) <= self::RAW_SNIPPET_LENGTH
             ? $trimmed

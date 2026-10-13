@@ -41,6 +41,7 @@ class FreeRideMergeTest extends TestCase
             'user_id' => $driver->id, 'vehicle_make' => 'Toyota', 'vehicle_model' => 'Vios',
             'vehicle_plate' => '30A-'.random_int(10000, 99999), 'vehicle_year' => 2021,
             'vehicle_color' => 'Trắng', 'vehicle_type' => 'sedan_4', 'status' => 'active',
+            'free_unlocked_until' => now()->addYear(),
         ]);
         if ($withToken) {
             DeviceToken::create(['user_id' => $driver->id, 'endpoint' => 'https://push.example/'.$driver->id, 'p256dh' => 'k', 'auth' => 'a']);
@@ -154,14 +155,80 @@ class FreeRideMergeTest extends TestCase
 
     // ---- không gộp ----
 
-    public function test_different_profiles_with_identical_content_are_not_merged(): void
+    public function test_different_profiles_with_identical_content_are_merged_keeping_the_first_poster(): void
+    {
+        Queue::fake();
+        // Người B chuyển tiếp tin của người A: khác qr_code, cùng nội dung, đăng sau.
+        $this->send([$this->ride()]);
+        $this->send([$this->twin(['qr_code' => 'QRKHAC'])]);
+
+        $data = $this->visible();
+        $this->assertSame(['r-1'], array_column($data, 'ride_uid'));
+        $this->assertSame(FreeRide::where('ride_uid', 'r-1')->value('id'), FreeRide::where('ride_uid', 'r-2')->value('duplicate_of_id'));
+        $this->assertSame(2, $data[0]['group_count']);
+    }
+
+    public function test_different_profiles_in_the_same_batch_keep_the_earliest_poster(): void
+    {
+        Queue::fake();
+        $this->send([$this->twin(['qr_code' => 'QRKHAC']), $this->ride()]);
+
+        $this->assertSame(['r-1'], array_column($this->visible(), 'ride_uid'));
+    }
+
+    public function test_third_poster_is_also_ignored_even_when_first_comes_from_another_person(): void
     {
         Queue::fake();
         $this->send([$this->ride()]);
         $this->send([$this->twin(['qr_code' => 'QRKHAC'])]);
+        $this->send([$this->twin(['ride_uid' => 'r-3', 'qr_code' => 'QRBA', 'posted_at' => now()->addMinutes(2)->getTimestampMs()])]);
+
+        $this->assertSame(['r-1'], array_column($this->visible(), 'ride_uid'));
+        $this->assertSame(2, FreeRide::whereNotNull('duplicate_of_id')->count());
+        $this->assertSame(FreeRide::where('ride_uid', 'r-1')->value('id'), FreeRide::where('ride_uid', 'r-3')->value('duplicate_of_id'));
+    }
+
+    public function test_different_profiles_with_different_content_are_not_merged(): void
+    {
+        Queue::fake();
+        $this->send([$this->ride()]);
+        $this->send([$this->twin(['qr_code' => 'QRKHAC', 'pickup' => 'Hà Đông'])]);
 
         $this->assertSame(['r-2', 'r-1'], array_column($this->visible(), 'ride_uid'));
         $this->assertSame(0, FreeRide::whereNotNull('duplicate_of_id')->count());
+    }
+
+    public function test_different_profiles_with_identical_raw_text_are_merged(): void
+    {
+        Queue::fake();
+        $raw = ['is_raw' => true, 'pickup' => null, 'destination' => null, 'direction' => null, 'pickup_at' => null, 'raw_text' => 'Cần xe gấp đi Hạ Long'];
+        $this->send([$this->ride($raw)]);
+        $this->send([$this->twin($raw + ['qr_code' => 'QRKHAC'])]);
+
+        $this->assertSame(['r-1'], array_column($this->visible(), 'ride_uid'));
+    }
+
+    public function test_ingest_does_not_load_every_live_ride_to_find_a_merge_target(): void
+    {
+        Queue::fake();
+        // 60 cuốc đang sống không liên quan (khác chiều/điểm đón) — quét ứng viên không được nạp hết lên.
+        for ($i = 0; $i < 60; $i++) {
+            FreeRide::create($this->ride([
+                'ride_uid' => "bulk-$i", 'sender_uid' => "9$i", 'qr_code' => "QRB$i", 'direction' => 'from_airport',
+                'pickup' => "Điểm $i", 'pickup_at' => now()->addHours(5)->addMinutes($i),
+                'posted_at' => now(), 'expires_at' => now()->addHours(8),
+            ]) + ['created_at' => now(), 'updated_at' => now()]);
+        }
+        $hydrated = 0;
+        FreeRide::retrieved(function () use (&$hydrated) {
+            $hydrated++;
+        });
+
+        $this->send([$this->ride()]);
+        $this->send([$this->twin(['qr_code' => 'QRKHAC'])]);
+
+        $this->assertLessThan(15, $hydrated);
+        $this->assertSame(1, FreeRide::whereNotNull('duplicate_of_id')->count());
     }
 
     public function test_same_profile_different_content_is_not_merged(): void

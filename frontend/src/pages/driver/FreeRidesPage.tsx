@@ -5,6 +5,7 @@ import FreeRideCard from '@/components/driver/FreeRideCard'
 import FreeRideFilters from '@/components/driver/FreeRideFilters'
 import FreeRideActionsSheet from '@/components/driver/FreeRideActionsSheet'
 import FreeRideAlertSheet from '@/components/driver/FreeRideAlertSheet'
+import FreeRideUnlockSheet from '@/components/driver/FreeRideUnlockSheet'
 import { FREE_ALERT_QUERY_KEY, FREE_RIDE_SEATS, getFreeRideAlert, summarizeAlertFilters } from '@/api/freeRides'
 import { useFreeRides } from '@/hooks/useFreeRides'
 
@@ -35,7 +36,8 @@ export default function FreeRidesPage() {
   const [filters, setFilters] = useState<App.FreeRideFilters>(loadFilters)
   const [selected, setSelected] = useState<App.FreeRide | null>(null)
   const [alertOpen, setAlertOpen] = useState(false)
-  const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender } = useFreeRides(filters)
+  const [unlockOpen, setUnlockOpen] = useState(false)
+  const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender, access } = useFreeRides(filters)
 
   // Cùng khoá query với FreeRideAlertSheet — trạng thái hiện ngay trên nút chuông, sheet đọc lại
   // từ cache thay vì gọi API lần nữa khi mở.
@@ -85,7 +87,7 @@ export default function FreeRidesPage() {
         <EmptyState icon="local_taxi" title="Chưa có cuốc Free phù hợp" description="Thử đổi bộ lọc hoặc quay lại sau ít phút." />
       ) : (
         <div className="flex flex-col px-4 gap-2.5 pb-4">
-          {rides.map((ride) => <FreeRideCard key={ride.ride_uid} ride={ride} onMore={setSelected} />)}
+          {rides.map((ride) => <FreeRideCard key={ride.ride_uid} ride={ride} onMore={setSelected} onLocked={() => setUnlockOpen(true)} />)}
           {hasNextPage && (
             <button type="button" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}
               className="w-full min-h-touch text-sm text-primary font-medium">
@@ -96,6 +98,7 @@ export default function FreeRidesPage() {
       )}
 
       {selected && <FreeRideActionsSheet ride={selected} onClose={() => setSelected(null)} onSenderHidden={removeSender} />}
+      {unlockOpen && <FreeRideUnlockSheet payment={access?.payment ?? null} onClose={() => setUnlockOpen(false)} />}
       {alertOpen && <FreeRideAlertSheet filters={filters} onClose={() => setAlertOpen(false)} />}
     </div>
   )
