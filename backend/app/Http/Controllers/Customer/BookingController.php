@@ -61,8 +61,11 @@ class BookingController extends Controller
             'destination' => 'required|string',
             'destination_lat' => 'nullable|numeric|between:-90,90',
             'destination_lng' => 'nullable|numeric|between:-180,180',
-            'date' => 'required|date_format:Y-m-d|after_or_equal:today',
-            'time' => 'required|date_format:H:i',
+            // "Đi ngay": giờ đón = lúc server nhận yêu cầu — bỏ qua ngày/giờ máy khách gửi
+            // (có thể lệch giờ, hoặc còn ở ngày hôm qua khi bấm sát nửa đêm).
+            'go_now' => 'sometimes|boolean',
+            'date' => 'exclude_if:go_now,true|required|date_format:Y-m-d|after_or_equal:today',
+            'time' => 'exclude_if:go_now,true|required|date_format:H:i',
             'vehicle_type' => 'required|in:sedan_4,suv_5,mpv_7',
             'distance_km' => 'required|numeric|min:0',
             'price' => 'required|integer|min:0',
@@ -72,8 +75,14 @@ class BookingController extends Controller
             'is_vip' => 'sometimes|boolean',
         ]);
 
-        // Giờ đặt xe hôm nay phải cách ít nhất 30 phút so với hiện tại
-        if ($data['date'] === now()->toDateString()) {
+        if ($request->boolean('go_now')) {
+            $data['date'] = now()->toDateString();
+            $data['time'] = now()->format('H:i');
+        }
+
+        // Hẹn giờ trong hôm nay phải cách ít nhất 30 phút so với hiện tại.
+        // "Đi ngay" không áp quy tắc này — đi ngay tức là bây giờ.
+        if (! $request->boolean('go_now') && $data['date'] === now()->toDateString()) {
             $bookingTime = Carbon::createFromFormat('H:i', $data['time']);
             if ($bookingTime->lte(now()->addMinutes(30))) {
                 return response()->json(['message' => 'Giờ đón phải cách ít nhất 30 phút so với thời điểm đặt xe.'], 422);

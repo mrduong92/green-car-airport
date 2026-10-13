@@ -12,6 +12,7 @@ import { getPriceConfigs } from '@/api/priceConfig'
 import { goongDistanceMatrix } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
 import { useUiStore } from '@/stores/ui'
+import { apiMessage } from '@/utils/apiError'
 import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/common/Button'
 import AddressInput from '@/components/common/AddressInput'
@@ -311,8 +312,10 @@ export default function BookingFormPage() {
         //
         // Lưu ý: đường này CỐ Ý bỏ qua quy tắc "đặt hôm nay phải cách 30 phút"
         // của lưới chọn giờ — đi ngay tức là bây giờ, đó là mục đích của nó.
+        // `go_now` báo backend bỏ quy tắc đó và lấy giờ server (không có cờ này thì
+        // backend coi là hẹn giờ trong 30 phút → 422 — lỗi 09/08→14/10/2026).
         ...(goNow
-          ? { date: dayjs().format('YYYY-MM-DD'), time: dayjs().format('HH:mm') }
+          ? { date: dayjs().format('YYYY-MM-DD'), time: dayjs().format('HH:mm'), go_now: true }
           : {}),
         pickup_lat:      pickupLatLng?.lat,
         pickup_lng:      pickupLatLng?.lng,
@@ -327,7 +330,7 @@ export default function BookingFormPage() {
       queryClient.invalidateQueries({ queryKey: ['vouchers-list'] })
       navigate(`/customer/booking/${data.id}`)
     },
-    onError: () => showToast('Đặt xe thất bại, vui lòng thử lại', 'error'),
+    onError: (err) => showToast(apiMessage(err, 'Đặt xe thất bại, vui lòng thử lại'), 'error'),
   })
 
   const { data: activeBooking } = useQuery({
