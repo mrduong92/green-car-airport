@@ -19,6 +19,9 @@ class AppSettingController extends Controller
             'referral_voucher_value' => AppSetting::referralVoucherValue(),
             'referral_driver_points' => AppSetting::referralDriverPoints(),
             'free_unlock_fee_vnd' => AppSetting::freeUnlockFeeVnd(),
+            'free_show_sender_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_SENDER_NAME),
+            'free_show_group_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_GROUP_NAME),
+            'free_show_raw_text' => AppSetting::freeShow(AppSetting::FREE_SHOW_RAW_TEXT),
         ]);
     }
 
@@ -32,6 +35,9 @@ class AppSettingController extends Controller
             'referral_voucher_value' => 'sometimes|required|integer|min:1000',
             'referral_driver_points' => 'sometimes|required|integer|min:0',
             'free_unlock_fee_vnd' => 'sometimes|required|integer|min:0',
+            'free_show_sender_name' => 'sometimes|required|boolean',
+            'free_show_group_name' => 'sometimes|required|boolean',
+            'free_show_raw_text' => 'sometimes|required|boolean',
         ]);
 
         AppSetting::set(AppSetting::CONTACT_HOTLINE, $data['contact_hotline']);
@@ -45,6 +51,16 @@ class AppSettingController extends Controller
         ] as $key) {
             if (array_key_exists($key, $data)) {
                 AppSetting::set($key, (string) $data[$key]);
+            }
+        }
+
+        foreach ([
+            AppSetting::FREE_SHOW_SENDER_NAME,
+            AppSetting::FREE_SHOW_GROUP_NAME,
+            AppSetting::FREE_SHOW_RAW_TEXT,
+        ] as $key) {
+            if (array_key_exists($key, $data)) {
+                AppSetting::set($key, $data[$key] ? '1' : '0');
             }
         }
 

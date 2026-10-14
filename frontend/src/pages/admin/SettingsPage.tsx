@@ -16,6 +16,9 @@ const schema = z.object({
   referral_voucher_value: z.number({ coerce: true }).int('Phải là số nguyên').min(1000, 'Tối thiểu 1.000đ'),
   referral_driver_points: z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
   free_unlock_fee_vnd:    z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
+  free_show_sender_name: z.boolean(),
+  free_show_group_name: z.boolean(),
+  free_show_raw_text: z.boolean(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -29,7 +32,7 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000 },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_name: true, free_show_group_name: true, free_show_raw_text: true },
   })
 
   useEffect(() => {
@@ -104,6 +107,23 @@ export default function AdminSettingsPage() {
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
           {errors.free_unlock_fee_vnd && <p className="text-danger-red text-xs mt-1">{errors.free_unlock_fee_vnd.message}</p>}
         </div>
+
+        <p className="text-sm font-semibold text-navy">Tab Cuốc Free — thông tin hiển thị cho tài xế</p>
+        <p className="text-xs text-neutral-gray -mt-1">Tắt mục nào, server sẽ không gửi mục đó cho tài xế (bảo mật thông tin cá nhân).</p>
+        <label className="flex items-center gap-2 text-sm text-navy cursor-pointer">
+          <input type="checkbox" data-testid="setting-free-show-sender-name" {...register('free_show_sender_name')} />
+          Hiện tên người bắn
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-navy cursor-pointer">
+          <input type="checkbox" data-testid="setting-free-show-group-name" {...register('free_show_group_name')} />
+          Hiện tên nhóm
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-navy cursor-pointer">
+          <input type="checkbox" data-testid="setting-free-show-raw-text" {...register('free_show_raw_text')} />
+          Hiện tin nhắn gốc
+        </label>
 
         <Button type="submit" loading={updateMutation.isPending}>Lưu thay đổi</Button>
       </form>
