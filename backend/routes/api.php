@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\FreeRideAdminController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
+use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
 use App\Http\Controllers\Admin\ZaloAccountController;
@@ -175,6 +176,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/campaigns', [CampaignController::class, 'store']);
         Route::patch('/admin/campaigns/{campaign}', [CampaignController::class, 'update']);
         Route::get('/admin/revenue', [RevenueController::class, 'index']);
+        Route::get('/admin/referrals', [ReferralReportController::class, 'index']);
+        Route::get('/admin/referrals/{user}', [ReferralReportController::class, 'show']);
         Route::get('/admin/customers', [AdminCustomerController::class, 'index']);
         Route::patch('/admin/customers/{user}', [AdminCustomerController::class, 'update']);
         Route::get('/admin/customers/{user}/bookings', [AdminCustomerController::class, 'bookings']);
