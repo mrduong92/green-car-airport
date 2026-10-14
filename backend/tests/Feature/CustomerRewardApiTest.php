@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class CustomerRewardApiTest extends TestCase
@@ -87,5 +88,25 @@ class CustomerRewardApiTest extends TestCase
 
         $this->actingAs($ctv, 'sanctum')->getJson('/api/customer/collaborator/wallet')->assertOk()->assertJson(['points' => 100, 'total_earned' => 100]);
         $this->assertCount(1, $this->actingAs($ctv, 'sanctum')->getJson('/api/customer/collaborator/wallet/transactions')->json());
+    }
+
+    public function test_referrals_month_filter_does_not_overflow_on_long_current_day(): void
+    {
+        // "now" là ngày 31 — Carbon::createFromFormat('Y-m', ...) không reset ngày/giờ,
+        // nên tháng 2 (28/29 ngày) có thể tràn sang tháng 3 nếu không dùng modifier '!'.
+        $this->travelTo(Carbon::parse('2026-10-31 10:00:00'));
+
+        $me = User::factory()->create(['role' => 'customer']);
+        $f1 = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $me->id]);
+        $this->completed($f1, 200_000, '2026-09-15 10:00:00', 10);
+        $this->completed($f1, 300_000, '2026-10-05 10:00:00', 15);
+
+        $sep = collect(
+            $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?month=2026-09')->assertOk()->json('items')
+        )->firstWhere('id', $f1->id);
+
+        $this->assertSame(1, $sep['trips']);
+        $this->assertSame(200_000, $sep['spent']);
+        $this->assertSame(10, $sep['commission_points']);
     }
 }

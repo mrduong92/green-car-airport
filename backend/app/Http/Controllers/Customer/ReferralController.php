@@ -23,7 +23,7 @@ class ReferralController extends Controller
 
         $trips = Booking::whereIn('customer_id', $f1->pluck('id'))->where('status', 'completed')
             ->when($data['month'] ?? null, function ($q, $month) {
-                $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+                $start = Carbon::createFromFormat('!Y-m', $month)->startOfMonth();
                 $q->whereBetween('updated_at', [$start, $start->copy()->endOfMonth()]);
             })
             ->selectRaw('customer_id, COUNT(*) AS trips, SUM(price - discount) AS spent, SUM(COALESCE(commission_points, 0)) AS commission')
