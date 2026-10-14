@@ -40,9 +40,9 @@ Thành công khi:
 ### Dữ liệu (migration mới, không đổi dữ liệu cũ)
 
 - `wallets.reward_points` — unsigned int, default 0.
-- `wallet_transactions.balance` — enum `points|reward`, default `points` (mọi giao dịch cũ là `points`).
-- `wallet_transactions.type` thêm: `cashback`, `commission`, `reward_spend`, `reward_refund` (ALTER ENUM, bỏ qua trên sqlite như các migration trước).
-- `bookings.points_used` (unsigned int, default 0), `bookings.cashback_points` (nullable), `bookings.commission_points` (nullable).
+- `wallet_transactions.balance` — string `points|reward`, default `points` (mọi giao dịch cũ là `points`).
+- `wallet_transactions.kind` — string nullable: `cashback`, `commission`, `spend`, `refund` cho giao dịch điểm thưởng. `type` giữ `credit`/`debit` (không ALTER ENUM: test chạy sqlite, enum có CHECK constraint cố định).
+- `bookings.points_used` (unsigned int, default 0), `bookings.cashback_points` (nullable), `bookings.commission_points` (nullable), `bookings.points_refunded_at` (nullable — chốt hoàn điểm một lần).
 
 ### Backend
 
