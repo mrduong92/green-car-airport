@@ -22,6 +22,9 @@ class AppSettingController extends Controller
             'free_show_sender_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_SENDER_NAME),
             'free_show_group_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_GROUP_NAME),
             'free_show_raw_text' => AppSetting::freeShow(AppSetting::FREE_SHOW_RAW_TEXT),
+            'affiliate_cashback_percent' => AppSetting::cashbackPercent(),
+            'affiliate_commission_percent' => AppSetting::commissionPercent(),
+            'points_max_rate_percent' => AppSetting::pointsMaxRatePercent(),
         ]);
     }
 
@@ -38,6 +41,9 @@ class AppSettingController extends Controller
             'free_show_sender_name' => 'sometimes|required|boolean',
             'free_show_group_name' => 'sometimes|required|boolean',
             'free_show_raw_text' => 'sometimes|required|boolean',
+            'affiliate_cashback_percent' => 'sometimes|required|numeric|min:0|max:50',
+            'affiliate_commission_percent' => 'sometimes|required|numeric|min:0|max:50',
+            'points_max_rate_percent' => 'sometimes|required|numeric|min:0|max:50',
         ]);
 
         AppSetting::set(AppSetting::CONTACT_HOTLINE, $data['contact_hotline']);
@@ -48,6 +54,9 @@ class AppSettingController extends Controller
             AppSetting::REFERRAL_VOUCHER_VALUE,
             AppSetting::REFERRAL_DRIVER_POINTS,
             AppSetting::FREE_UNLOCK_FEE_VND,
+            AppSetting::AFFILIATE_CASHBACK_PERCENT,
+            AppSetting::AFFILIATE_COMMISSION_PERCENT,
+            AppSetting::POINTS_MAX_RATE_PERCENT,
         ] as $key) {
             if (array_key_exists($key, $data)) {
                 AppSetting::set($key, (string) $data[$key]);

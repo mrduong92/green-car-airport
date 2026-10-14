@@ -1,31 +1,54 @@
 <?php
+
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Model;
 
 class Booking extends Model
 {
     protected $fillable = [
-        'customer_id','driver_id','voucher_id','pickup','pickup_lat','pickup_lng',
-        'destination','destination_lat','destination_lng',
-        'date','time','distance_km','price','discount','surcharge',
-        'collection_fee','collaborator_id',
-        'charged_fee_points','held_collection_points','held_surcharge_points',
-        'status','vehicle_type','is_vip',
-        'cancelled_at','cancelled_by','cancel_reason','accepted_at','note',
-    ];
-    protected $casts = [
-        'cancelled_at' => 'datetime',
-        'accepted_at'  => 'datetime',
-        'is_vip'       => 'boolean',
-        'charged_fee_points'     => 'integer',
-        'held_collection_points' => 'integer',
-        'held_surcharge_points'  => 'integer',
+        'customer_id', 'driver_id', 'voucher_id', 'pickup', 'pickup_lat', 'pickup_lng',
+        'destination', 'destination_lat', 'destination_lng',
+        'date', 'time', 'distance_km', 'price', 'discount', 'surcharge',
+        'collection_fee', 'collaborator_id',
+        'charged_fee_points', 'held_collection_points', 'held_surcharge_points',
+        'points_used', 'cashback_points', 'commission_points', 'points_refunded_at',
+        'status', 'vehicle_type', 'is_vip',
+        'cancelled_at', 'cancelled_by', 'cancel_reason', 'accepted_at', 'note',
     ];
 
-    public function customer() { return $this->belongsTo(User::class, 'customer_id'); }
-    public function driver()   { return $this->belongsTo(User::class, 'driver_id'); }
-    public function voucher()  { return $this->belongsTo(Voucher::class); }
-    public function collaborator() { return $this->belongsTo(User::class, 'collaborator_id'); }
+    protected $casts = [
+        'cancelled_at' => 'datetime',
+        'accepted_at' => 'datetime',
+        'is_vip' => 'boolean',
+        'charged_fee_points' => 'integer',
+        'held_collection_points' => 'integer',
+        'held_surcharge_points' => 'integer',
+        'points_used' => 'integer',
+        'cashback_points' => 'integer',
+        'commission_points' => 'integer',
+        'points_refunded_at' => 'datetime',
+    ];
+
+    public function customer()
+    {
+        return $this->belongsTo(User::class, 'customer_id');
+    }
+
+    public function driver()
+    {
+        return $this->belongsTo(User::class, 'driver_id');
+    }
+
+    public function voucher()
+    {
+        return $this->belongsTo(Voucher::class);
+    }
+
+    public function collaborator()
+    {
+        return $this->belongsTo(User::class, 'collaborator_id');
+    }
 
     /**
      * Điểm phí app của cuốc theo tỉ lệ đang áp dụng. Chỉ phí trên giá cuốc sau
@@ -36,6 +59,32 @@ class Booking extends Model
     public function appFeePoints(float $feeRate): int
     {
         return (int) round(($this->price - $this->discount) * $feeRate / 1000);
+    }
+
+    /** Giá cơ sở cho phí app, hoàn điểm, hoa hồng: giá sau voucher (không gồm phụ phí phạt, thu hộ). */
+    public function basePrice(): int
+    {
+        return (int) $this->price - (int) $this->discount;
+    }
+
+    public function pointsDiscountVnd(): int
+    {
+        return (int) $this->points_used * 1000;
+    }
+
+    /** Số tiền khách trả tài xế. Nguồn DUY NHẤT — formatBooking, formatTrip đều gọi. */
+    public function finalPrice(): int
+    {
+        return $this->basePrice() - $this->pointsDiscountVnd() + (int) $this->surcharge + (int) ($this->collection_fee ?? 0);
+    }
+
+    /**
+     * Phí app trừ tài xế lúc nhận cuốc: phí 20% trừ đi số điểm khách dùng (app bù) — tài xế thu ít
+     * tiền mặt hơn đúng chừng đó nên vẫn nhận đủ 80% giá cơ sở. points_used ≤ 10% < phí nên không âm.
+     */
+    public function driverFeePoints(float $feeRate): int
+    {
+        return max(0, $this->appFeePoints($feeRate) - (int) $this->points_used);
     }
 
     /** Điểm thu hộ tài xế phải nộp lại (1 điểm = 1.000đ). Chỉ cuốc của CTV mới có thu hộ. */
