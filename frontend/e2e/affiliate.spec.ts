@@ -48,7 +48,11 @@ test('khách có điểm bật "Dùng điểm" → tổng tiền giảm, đơn c
 
   await page.goto(`${APP.customer}/customer/reward-wallet`)
   await expect(page.getByTestId('reward-balance')).toBeVisible()
-  await expect(page.getByText('Dùng điểm cuốc')).toBeVisible()
+  // `.first()`: repeated local runs leave more than one "Dùng điểm cuốc #N"
+  // row in the seeded customer's reward transaction history (dev DB persists
+  // across runs — not reset between them), so a plain getByText is a strict-
+  // mode violation here. Any match proves the spend transaction was recorded.
+  await expect(page.getByText('Dùng điểm cuốc').first()).toBeVisible()
 
   await page.goto(`${APP.customer}/customer/referrals`)
   await expect(page.getByTestId('referrals-total')).toBeVisible()
