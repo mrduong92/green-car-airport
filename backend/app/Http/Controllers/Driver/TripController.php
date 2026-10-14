@@ -8,13 +8,16 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\BookingDriverCancellation;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Notifications\BookingAcceptedNotification;
 use App\Notifications\BookingCompletedCustomerNotification;
 use App\Notifications\DriverCancelledNotification;
+use App\Notifications\RewardPointsEarnedNotification;
 use App\Notifications\TripAcceptedDriverNotification;
 use App\Notifications\TripCompletedDriverNotification;
 use App\Notifications\TripStartedNotification;
+use App\Services\AffiliateService;
 use App\Services\ReferralService;
 use App\Support\AvailableTripsCache;
 use App\Support\VehicleCapacity;
@@ -152,7 +155,8 @@ class TripController extends Controller
                 return 'Chuyến này đã được nhận hoặc không còn khả dụng.';
             }
 
-            $feePoints = $booking->appFeePoints(AppSetting::appFeeRate());
+            // Khách dùng điểm thưởng → app bù cho tài xế bằng cách trừ phí ít đi đúng số điểm đó.
+            $feePoints = $booking->driverFeePoints(AppSetting::appFeeRate());
             $collectionPoints = $booking->collectionPoints();
             $surchargePoints = $booking->surchargePoints();
             $required = $feePoints + $collectionPoints + $surchargePoints;
@@ -161,8 +165,12 @@ class TripController extends Controller
 
             if ($wallet->points < $required) {
                 $parts = ["{$feePoints} điểm phí app"];
-                if ($collectionPoints > 0) $parts[] = "{$collectionPoints} điểm thu hộ";
-                if ($surchargePoints > 0) $parts[] = "{$surchargePoints} điểm phí phạt huỷ";
+                if ($collectionPoints > 0) {
+                    $parts[] = "{$collectionPoints} điểm thu hộ";
+                }
+                if ($surchargePoints > 0) {
+                    $parts[] = "{$surchargePoints} điểm phí phạt huỷ";
+                }
 
                 return "Số dư ví không đủ để nhận cuốc (cần {$required} điểm: ".implode(' + ', $parts)
                     .", ví còn {$wallet->points} điểm). Vui lòng nạp thêm điểm.";
@@ -179,7 +187,11 @@ class TripController extends Controller
                 'held_surcharge_points' => $surchargePoints,
             ]);
 
-            $wallet->debit($feePoints, 'Phí app '.AppSetting::appFeePercent()."% cuốc #{$booking->id}", $booking->id);
+            $wallet->debit(
+                $feePoints,
+                'Phí app '.AppSetting::appFeePercent()."% cuốc #{$booking->id}".($booking->points_used > 0 ? " (app bù {$booking->points_used} điểm khách dùng)" : ''),
+                $booking->id,
+            );
             $wallet->debit($collectionPoints, "Thu hộ cuốc #{$booking->id}", $booking->id);
             $wallet->debit($surchargePoints, "Phí phạt huỷ khách cuốc #{$booking->id}", $booking->id);
 
@@ -258,6 +270,14 @@ class TripController extends Controller
             $booking->customer?->notify(new BookingCompletedCustomerNotification($booking));
             // T4 — notify driver of earnings
             $request->user()->notify(new TripCompletedDriverNotification($booking));
+
+            if ($this->affiliateResult['cashback'] > 0) {
+                $booking->customer?->notify(new RewardPointsEarnedNotification($booking, $this->affiliateResult['cashback'], 'cashback'));
+            }
+            if ($this->affiliateResult['referrer_id']) {
+                User::find($this->affiliateResult['referrer_id'])
+                    ?->notify(new RewardPointsEarnedNotification($booking, $this->affiliateResult['commission'], 'commission'));
+            }
         }
 
         return response()->json($this->formatTrip($booking->fresh('customer')));
@@ -450,10 +470,16 @@ class TripController extends Controller
         }
 
         $driver->driverProfile?->increment('trips_count');
+
+        $this->affiliateResult = app(AffiliateService::class)->settle($booking);
+
         $booking->update(['status' => 'completed']);
 
         return null;
     }
+
+    /** Kết quả AffiliateService::settle() của lần hoàn thành vừa chạy trong settleCompletion(), để updateStatus() bắn thông báo sau transaction. */
+    private array $affiliateResult = ['cashback' => 0, 'commission' => 0, 'referrer_id' => null];
 
     /** Memo theo request: formatTrip chạy cho từng cuốc trong danh sách, tránh query app_settings N lần. */
     private ?float $feePercent = null;
@@ -465,8 +491,9 @@ class TripController extends Controller
 
     private function formatTrip(Booking $b, $driverProfile = null): array
     {
-        // Phí app chỉ tính trên giá cuốc sau voucher, KHÔNG tính trên tiền thu hộ.
-        $effectivePrice = $b->price - $b->discount;
+        // Phí app chỉ tính trên giá cuốc sau voucher, KHÔNG tính trên tiền thu hộ. Khách dùng điểm thì
+        // app bù: phí thực trừ giảm đúng phần điểm, tiền mặt khách trả cũng giảm đúng chừng đó.
+        $effectivePrice = $b->basePrice();
         $feePercent = $this->feePercent();
         $appFee = (int) round($effectivePrice * $feePercent / 100);
         $netEarning = $effectivePrice - $appFee;
@@ -510,16 +537,18 @@ class TripController extends Controller
             'discount' => $b->discount,
             'surcharge' => $b->surcharge,
             'collection_fee' => (int) ($b->collection_fee ?? 0),
-            'final_price' => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
-            'app_fee' => $appFee,
+            'final_price' => $b->finalPrice(),
+            'app_fee' => $appFee - $b->pointsDiscountVnd(),
             'app_fee_percent' => $feePercent,
-            // Tổng điểm ví bị trừ lúc NHẬN cuốc: phí app + tạm giữ thu hộ + phí phạt huỷ.
-            // Cùng Booking::appFeePoints() với accept() nên khớp thông báo lỗi.
-            // Tách riêng từng khoản để app ghi đúng chữ (cuốc có collection_fee mà không
-            // có CTV thì KHÔNG bị giữ thu hộ — xem Booking::collectionPoints()).
+            'points_used' => (int) $b->points_used,
+            'points_discount' => $b->pointsDiscountVnd(),
+            // Tổng điểm ví bị trừ lúc NHẬN cuốc: phí app (đã trừ phần điểm khách dùng) +
+            // tạm giữ thu hộ + phí phạt huỷ. Cùng Booking::driverFeePoints() với accept()
+            // nên khớp thông báo lỗi. Tách riêng từng khoản để app ghi đúng chữ (cuốc có
+            // collection_fee mà không có CTV thì KHÔNG bị giữ thu hộ — xem Booking::collectionPoints()).
             'collection_points' => $b->collectionPoints(),
             'surcharge_points' => $b->surchargePoints(),
-            'required_points' => $b->appFeePoints($feePercent / 100) + $b->collectionPoints() + $b->surchargePoints(),
+            'required_points' => $b->driverFeePoints($feePercent / 100) + $b->collectionPoints() + $b->surchargePoints(),
             'net_earning' => $netEarning,
             'status' => $statusMap[$b->status] ?? $b->status,
             'cancelled_at' => $b->cancelled_at?->toISOString(),
