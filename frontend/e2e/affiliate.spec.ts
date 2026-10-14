@@ -72,3 +72,18 @@ test('admin xem trang Giới thiệu và chỉnh 3 tỷ lệ điểm', async ({ 
   await expect(page.getByLabel('% hoa hồng giới thiệu')).toBeVisible()
   await expect(page.getByLabel('% tối đa trừ bằng điểm')).toBeVisible()
 })
+
+test('admin thấy trạng thái lỗi + nút Thử lại khi báo cáo Giới thiệu tải thất bại', async ({ page }) => {
+  await page.route('**/api/admin/referrals**', (route) => route.fulfill({
+    status: 500,
+    contentType: 'application/json',
+    body: JSON.stringify({ message: 'Server error' }),
+  }))
+
+  await loginExisting(page, APP.admin, SEEDED.admin)
+  await page.getByRole('button', { name: 'Thêm' }).click()
+  await page.getByRole('link', { name: 'Giới thiệu' }).click()
+
+  await expect(page.getByText('Không tải được báo cáo giới thiệu')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Thử lại' })).toBeVisible()
+})
