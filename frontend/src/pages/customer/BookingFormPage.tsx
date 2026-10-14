@@ -9,6 +9,7 @@ import clsx from 'clsx'
 import dayjs from 'dayjs'
 import { createBooking, getActiveBooking } from '@/api/bookings'
 import { getPriceConfigs } from '@/api/priceConfig'
+import { getRewardWallet, spendablePoints } from '@/api/rewards'
 import { goongDistanceMatrix } from '@/api/goong'
 import type { LatLng } from '@/api/goong'
 import { useUiStore } from '@/stores/ui'
@@ -141,6 +142,7 @@ export default function BookingFormPage() {
   const [discount,      setDiscount]      = useState(0)
   const [, setVoucherIsCapped] = useState(false)
   const [showVouchers,  setShowVouchers]  = useState(false)
+  const [usePoints,     setUsePoints]     = useState(false)
   // Mặc định BẬT: phần lớn khách đặt xe là đi luôn, bắt chọn ngày giờ mỗi lần
   // là thừa. Tắt ô này mới hiện lưới chọn ngày/giờ để đặt trước.
   const [goNow, setGoNow] = useState(true)
@@ -187,7 +189,16 @@ export default function BookingFormPage() {
   // đưa nó vào dependency (cùng lý do với vehicleTypeRef ở trên)
   const detectedServiceRef = useRef(detectedService)
   detectedServiceRef.current = detectedService
-  const total = Math.max(0, price - discount) + collectionFee
+
+  // Ví điểm thưởng — công tắc "Dùng điểm" chỉ hiện khi khách có số dư > 0.
+  const { data: rewardWallet } = useQuery({
+    queryKey: ['reward-wallet'],
+    queryFn: () => getRewardWallet().then((r) => r.data),
+  })
+  const pointsToUse = usePoints && rewardWallet
+    ? spendablePoints(rewardWallet.reward_points, Math.max(0, price - discount), rewardWallet.max_rate_percent)
+    : 0
+  const total = Math.max(0, price - discount) - pointsToUse * 1000 + collectionFee
 
   // Giờ đặt xe hôm nay phải cách ít nhất 30 phút so với hiện tại
   const minTimeForToday = (() => {
@@ -325,9 +336,11 @@ export default function BookingFormPage() {
         note:            data.note || undefined,
         collection_fee:  data.collection_fee && data.collection_fee > 0 ? data.collection_fee : undefined,
         is_vip:          isVip,
+        use_points:      pointsToUse > 0 ? true : undefined,
       }),
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['vouchers-list'] })
+      queryClient.invalidateQueries({ queryKey: ['reward-wallet'] })
       navigate(`/customer/booking/${data.id}`)
     },
     onError: (err) => showToast(apiMessage(err, 'Đặt xe thất bại, vui lòng thử lại'), 'error'),
@@ -681,6 +694,22 @@ export default function BookingFormPage() {
           onSelect={(v, disc, capped) => { setVoucherCode(v.code); setDiscount(disc); setVoucherIsCapped(capped) }}
         />
 
+        {/* ── DÙNG ĐIỂM THƯỞNG (ẩn khi số dư 0) ───────────── */}
+        {rewardWallet && rewardWallet.reward_points > 0 && (
+          <label className="mt-3 bg-white rounded-card shadow-card border border-border-soft px-4 py-3 flex items-center gap-3 cursor-pointer">
+            <span className="material-symbols-outlined text-gold" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-semibold text-navy">Dùng điểm thưởng</span>
+              <span className="block text-[12px] text-neutral-gray">
+                Có {rewardWallet.reward_points.toLocaleString('vi-VN')} điểm · tối đa {rewardWallet.max_rate_percent}% giá chuyến
+              </span>
+            </span>
+            {pointsToUse > 0 && <span className="text-sm font-semibold text-primary whitespace-nowrap">−{(pointsToUse * 1000).toLocaleString('vi-VN')}đ</span>}
+            <input type="checkbox" data-testid="use-points-toggle" className="w-5 h-5 accent-primary"
+              checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
+          </label>
+        )}
+
         {/* ── GHI CHÚ CHO TÀI XẾ ──────────────────────────── */}
         <SectionLabel>Ghi chú cho tài xế</SectionLabel>
         <div className="bg-white rounded-card shadow-card border border-border-soft">
@@ -733,13 +762,16 @@ export default function BookingFormPage() {
             <p className="text-[12px] text-neutral-gray">Tổng thanh toán</p>
             <div className="flex flex-col">
               <div className="flex items-baseline gap-2">
-                <span className="text-[22px] font-bold text-navy tabular-nums">{total.toLocaleString('vi')} đ</span>
+                <span data-testid="booking-total" className="text-[22px] font-bold text-navy tabular-nums">{total.toLocaleString('vi')} đ</span>
                 {discount > 0 && (
                   <span className="text-[12px] font-semibold text-success-green">-{discount.toLocaleString('vi')}đ</span>
                 )}
               </div>
               {discount > 0 && (
                 <span className="text-[11px] text-neutral-gray">Giảm tối đa 10% giá cuốc</span>
+              )}
+              {pointsToUse > 0 && (
+                <span className="text-[11px] text-neutral-gray">Đã trừ {pointsToUse} điểm</span>
               )}
             </div>
           </div>

@@ -37,6 +37,8 @@ declare namespace App {
     note?: string | null
     vehicle_type?: VehicleType
     is_vip?: boolean
+    points_used?: number
+    points_discount?: number
     status: BookingStatus
     driver?: {
       id: number
@@ -74,6 +76,7 @@ declare namespace App {
     voucher_code?: string
     note?: string
     collection_fee?: number
+    use_points?: boolean
   }
 
   interface Trip {
