@@ -11,9 +11,12 @@ use App\Models\DriverHiddenSender;
 use App\Models\DriverProfile;
 use App\Models\FreeRideReport;
 use App\Models\Otp;
+use App\Models\SepayWebhookEvent;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\Wallet;
+use App\Notifications\BookingAcceptedNotification;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -82,7 +85,11 @@ class AccountDeletionService
             $user->tokens()->delete();
             DeviceToken::where('user_id', $user->id)->delete();
             $user->notifications()->delete();
-            Otp::where('phone', $user->phone)->delete();
+            // OTP không ghi vai trò: cùng số còn tài khoản khác (đang đăng ký tài xế…) thì để yên.
+            $phoneShared = User::where('phone', $user->phone)->whereKeyNot($user->id)->exists();
+            if (! $phoneShared) {
+                Otp::where('phone', $user->phone)->delete();
+            }
             DriverFreeRideAlert::where('driver_id', $user->id)->delete();
             DriverHiddenSender::where('driver_id', $user->id)->delete();
             FreeRideReport::where('driver_id', $user->id)->delete();
@@ -92,6 +99,8 @@ class AccountDeletionService
             CampaignGrant::where('user_id', $user->id)->update(['user_id' => null]);
             // Khách hay ghi SĐT/tên vào ghi chú cuốc.
             Booking::where('customer_id', $user->id)->whereNotNull('note')->update(['note' => null]);
+            $this->scrubDriverNameFromCustomerNotifications($user);
+            $this->maskPhoneInBankTransfers($user);
 
             $user->forceFill([
                 'name' => self::DELETED_NAME,
@@ -102,5 +111,51 @@ class AccountDeletionService
                 'deleted_at' => now(),
             ])->save();
         });
+    }
+
+    /** Thông báo "{tên tài xế} đang trên đường đến đón bạn" nằm trong hộp thư của KHÁCH. */
+    private function scrubDriverNameFromCustomerNotifications(User $driver): void
+    {
+        $trips = Booking::where('driver_id', $driver->id)->pluck('customer_id', 'id');
+        if ($trips->isEmpty()) {
+            return;
+        }
+
+        DatabaseNotification::where('type', BookingAcceptedNotification::class)
+            ->where('notifiable_type', User::class)
+            ->whereIn('notifiable_id', $trips->unique()->values())
+            ->get()
+            ->filter(fn ($n) => $trips->has($n->data['booking_id'] ?? 0))
+            ->each(fn ($n) => $n->update(['data' => [...$n->data, 'body' => 'Tài xế đang trên đường đến đón bạn']]));
+    }
+
+    /**
+     * Sao kê SePay giữ làm chứng từ (số tiền, thời gian, mã giao dịch) nhưng che SĐT:
+     * nội dung CK mở khoá Free là `MOKHOA <sđt>`.
+     */
+    private function maskPhoneInBankTransfers(User $user): void
+    {
+        $digits = ltrim(preg_replace('/\D/', '', $user->phone), '0');
+        if (strlen($digits) < 8) {
+            return;
+        }
+        $pattern = '/(?:\+?84|0)?'.$digits.'/';
+        $mask = fn ($v) => is_string($v) ? preg_replace($pattern, '***', $v) : $v;
+
+        SepayWebhookEvent::where('matched_user_id', $user->id)
+            ->orWhere('content', 'like', "%{$digits}%")
+            ->orWhere('description', 'like', "%{$digits}%")
+            ->get()
+            ->each(function (SepayWebhookEvent $e) use ($mask) {
+                $payload = $e->raw_payload ?? [];
+                array_walk_recursive($payload, function (&$v) use ($mask) {
+                    $v = $mask($v);
+                });
+                $e->update([
+                    'content' => $mask($e->content),
+                    'description' => $mask($e->description),
+                    'raw_payload' => $payload,
+                ]);
+            });
     }
 }

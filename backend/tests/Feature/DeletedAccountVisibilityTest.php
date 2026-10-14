@@ -79,4 +79,15 @@ class DeletedAccountVisibilityTest extends TestCase
         $this->assertTrue($customers->pluck('id')->contains($kept->id));
         $this->assertFalse($drivers->pluck('id')->contains($goneDriver->id));
     }
+
+    public function test_dashboard_khong_dem_tai_xe_da_xoa(): void
+    {
+        $this->driver();
+        app(AccountDeletionService::class)->delete($this->driver());
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard')
+            ->assertOk()
+            ->assertJsonPath('drivers_total', 1);
+    }
 }

@@ -18,7 +18,9 @@ class AccountController extends Controller
         if (! in_array($user->role, ['customer', 'driver'], true)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
-        if (! Hash::check($request->input('password'), $user->password)) {
+        // Tài khoản cũ chưa từng đặt PIN (login trả `no_password`) vẫn phải xoá được trong app:
+        // đã có token đăng nhập hợp lệ thì không bắt nhập PIN.
+        if ($user->password && ! Hash::check((string) $request->input('password'), $user->password)) {
             return response()->json(['message' => 'Mã PIN không đúng.'], 422);
         }
 

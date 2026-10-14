@@ -10,10 +10,12 @@ use App\Models\DeviceToken;
 use App\Models\DriverHiddenSender;
 use App\Models\DriverProfile;
 use App\Models\Otp;
+use App\Models\SepayWebhookEvent;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Notifications\BookingAcceptedNotification;
 use App\Services\AccountDeletionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -173,5 +175,60 @@ class AccountDeletionServiceTest extends TestCase
         $this->service()->delete($customer);
 
         $this->assertDatabaseHas('campaign_grants', ['campaign_id' => $campaignId, 'phone' => '0901000222', 'user_id' => null]);
+    }
+
+    public function test_cung_so_con_tai_khoan_khac_thi_giu_otp(): void
+    {
+        $this->driver();
+        $customer = User::factory()->create(['role' => 'customer', 'phone' => '0912000111']);
+        Otp::create(['phone' => '0912000111', 'code' => '123456', 'expires_at' => now()->addMinutes(5)]);
+
+        $this->service()->delete($customer);
+
+        $this->assertDatabaseHas('otps', ['phone' => '0912000111']);
+    }
+
+    public function test_so_khong_con_tai_khoan_nao_thi_xoa_otp(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer', 'phone' => '0912000222']);
+        Otp::create(['phone' => '0912000222', 'code' => '123456', 'expires_at' => now()->addMinutes(5)]);
+
+        $this->service()->delete($customer);
+
+        $this->assertDatabaseMissing('otps', ['phone' => '0912000222']);
+    }
+
+    public function test_xoa_tai_xe_go_ten_khoi_thong_bao_cua_khach(): void
+    {
+        $driver = $this->driver();
+        $driver->update(['name' => 'Nguyễn Văn Tài']);
+        $trip = $this->booking(['driver_id' => $driver->id]);
+        $other = $this->booking(['customer_id' => $trip->customer_id]);
+        $trip->customer->notify(new BookingAcceptedNotification($trip, $driver));
+        $trip->customer->notify(new BookingAcceptedNotification($other, User::factory()->create(['role' => 'driver', 'name' => 'Tài xế khác'])));
+
+        $this->service()->delete($driver);
+
+        $bodies = $trip->customer->notifications()->get()->pluck('data.body', 'data.booking_id');
+        $this->assertSame('Tài xế đang trên đường đến đón bạn', $bodies[$trip->id]);
+        $this->assertSame('Tài xế khác đang trên đường đến đón bạn', $bodies[$other->id]);
+    }
+
+    public function test_che_sdt_trong_sao_ke_sepay_giu_so_tien(): void
+    {
+        $driver = $this->driver();
+        $event = SepayWebhookEvent::create([
+            'sepay_id' => 1, 'gateway' => 'MBBank', 'content' => 'MOKHOA 0912000111', 'description' => 'NGUYEN VAN A MOKHOA 912000111',
+            'transfer_type' => 'in', 'amount' => 300000, 'status' => 'ignored',
+            'raw_payload' => ['content' => 'MOKHOA 0912000111', 'nested' => ['x' => '+84912000111']],
+        ]);
+
+        $this->service()->delete($driver);
+
+        $event->refresh();
+        $this->assertSame('MOKHOA ***', $event->content);
+        $this->assertSame('NGUYEN VAN A MOKHOA ***', $event->description);
+        $this->assertSame(['content' => 'MOKHOA ***', 'nested' => ['x' => '***']], $event->raw_payload);
+        $this->assertSame(300000, $event->amount);
     }
 }

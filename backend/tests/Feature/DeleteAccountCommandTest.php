@@ -59,12 +59,17 @@ class DeleteAccountCommandTest extends TestCase
         $this->getJson('/api/pages/xoa-tai-khoan')->assertOk();
     }
 
-    public function test_seeder_khong_ghi_de_chinh_sach_bao_mat_da_sua(): void
+    /** Seeder chạy ở MỖI lần deploy: không được ghi đè trang admin đã sửa hay bật lại trang đã tắt. */
+    public function test_seeder_khong_ghi_de_trang_admin_da_sua_hoac_da_tat(): void
     {
+        StaticPage::where('slug', 'terms')->update(['content' => '<p>Terms admin sửa</p>', 'is_active' => false]);
         StaticPage::create(['slug' => 'privacy', 'title' => 'Chính sách bảo mật', 'content' => '<p>Bản thật</p>', 'is_active' => true]);
+        StaticPage::create(['slug' => 'xoa-tai-khoan', 'title' => 'Xoá tài khoản', 'content' => '<p>Thêm hotline</p>', 'is_active' => false]);
 
         $this->seed(StaticPageSeeder::class);
 
-        $this->assertSame('<p>Bản thật</p>', StaticPage::where('slug', 'privacy')->value('content'));
+        $this->assertDatabaseHas('static_pages', ['slug' => 'terms', 'content' => '<p>Terms admin sửa</p>', 'is_active' => false]);
+        $this->assertDatabaseHas('static_pages', ['slug' => 'privacy', 'content' => '<p>Bản thật</p>']);
+        $this->assertDatabaseHas('static_pages', ['slug' => 'xoa-tai-khoan', 'content' => '<p>Thêm hotline</p>', 'is_active' => false]);
     }
 }

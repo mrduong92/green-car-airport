@@ -49,7 +49,7 @@ class DashboardController extends Controller
             ->sum('price');
 
         // ── Drivers ───────────────────────────────────────────────────────────
-        $driversTotal  = User::where('role', 'driver')->count();
+        $driversTotal  = User::where('role', 'driver')->whereNull('deleted_at')->count();
         $driversOnline = DriverProfile::where('is_online', true)->count();
 
         // ── Recent trips (last 10, any status) ───────────────────────────────

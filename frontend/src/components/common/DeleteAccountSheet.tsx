@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { deleteAccount } from '@/api/auth'
 import { getContactSettings } from '@/api/settings'
-import { dropLocalPushSubscription } from '@/push'
+import { unregisterPushSubscription } from '@/push'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { apiMessage } from '@/utils/apiError'
@@ -15,18 +15,20 @@ import Button from '@/components/common/Button'
 export default function DeleteAccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const clearAuth = useAuthStore((s) => s.clearAuth)
+  // Tài khoản cũ chưa từng đặt PIN: server không đòi PIN (AccountController::destroy).
+  const needsPin = useAuthStore((s) => s.user?.has_password !== false)
   const showToast = useUiStore((s) => s.showToast)
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const { data: contact } = useQuery({ queryKey: ['contact-settings'], queryFn: getContactSettings, enabled: open })
 
   const mutation = useMutation({
-    mutationFn: () => deleteAccount(pin),
-    onSuccess: async () => {
-      // Server đã xoá token đăng nhập + token push: KHÔNG gọi API nào nữa (401 → interceptor
-      // tải lại trang, mất toast). Chỉ dọn trạng thái trên máy.
-      await dropLocalPushSubscription()
+    mutationFn: () => deleteAccount(needsPin ? pin : undefined),
+    onSuccess: () => {
+      // Server đã thu hồi token: clearAuth NGAY, trước mọi await — query nào chạy kèm token cũ
+      // sẽ 401 → interceptor tải lại trang, mất toast. Dọn push trên máy chạy nền, không chờ.
       clearAuth()
+      void unregisterPushSubscription({ skipServer: true })
       showToast('Tài khoản của bạn đã được xoá', 'success')
       navigate('/login', { replace: true })
     },
@@ -50,6 +52,7 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
           <p><strong>Giữ ẩn danh:</strong> lịch sử cuốc và giao dịch điểm (chứng từ kế toán), không còn gắn với bạn.</p>
           <p className="text-danger-red font-medium">Không thể khôi phục sau khi xoá.</p>
 
+          {needsPin && (<>
           <label className="text-[12px] text-neutral-gray font-medium" htmlFor="delete-account-pin">Nhập mã PIN để xác nhận</label>
           <input
             id="delete-account-pin"
@@ -62,6 +65,7 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
             placeholder="••••••"
             className="border border-border-gray rounded-input px-3 py-2.5 text-sm text-navy outline-none focus:border-danger-red tracking-[0.4em]"
           />
+          </>)}
 
           {error && (
             <div className="bg-danger-red/5 border border-danger-red/30 rounded-input px-3 py-2.5 flex flex-col gap-1">
@@ -77,14 +81,15 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
 
         <div className="px-4 pb-6 pt-3 flex gap-3 border-t border-border-soft">
           <Button fullWidth variant="outline" onClick={onClose}>Huỷ</Button>
-          <button
-            type="button"
-            disabled={pin.length !== 6 || mutation.isPending}
+          <Button
+            fullWidth
+            variant="danger"
+            loading={mutation.isPending}
+            disabled={needsPin && pin.length !== 6}
             onClick={() => mutation.mutate()}
-            className="w-full h-11 rounded-pill bg-danger-red text-white text-sm font-semibold disabled:opacity-50"
           >
-            {mutation.isPending ? 'Đang xoá…' : 'Xoá vĩnh viễn'}
-          </button>
+            Xoá vĩnh viễn
+          </Button>
         </div>
       </div>
     </div>

@@ -104,4 +104,25 @@ class AccountDeletionApiTest extends TestCase
         $this->actingAs($user, 'sanctum')->deleteJson('/api/me', ['password' => '000000'])->assertStatus(429);
         $this->assertFalse($user->fresh()->isDeleted());
     }
+
+    /** Tài khoản cũ chưa đặt PIN (login trả no_password) vẫn phải tự xoá được trong app. */
+    public function test_tai_khoan_chua_dat_pin_xoa_duoc_khong_can_pin(): void
+    {
+        $user = $this->customer(['password' => null]);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/auth/me')->assertJsonPath('has_password', false);
+        $this->actingAs($user, 'sanctum')->deleteJson('/api/me')->assertOk();
+
+        $this->assertTrue($user->fresh()->isDeleted());
+    }
+
+    public function test_tai_khoan_co_pin_van_bat_buoc_nhap_pin(): void
+    {
+        $user = $this->customer();
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/auth/me')->assertJsonPath('has_password', true);
+        $this->actingAs($user, 'sanctum')->deleteJson('/api/me')->assertUnprocessable();
+
+        $this->assertFalse($user->fresh()->isDeleted());
+    }
 }

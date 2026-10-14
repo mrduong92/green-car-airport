@@ -13,7 +13,10 @@ class DeleteAccountRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['password' => 'required|string|size:6|regex:/^\d{6}$/'];
+        // Tài khoản chưa đặt PIN không có gì để nhập (xem AccountController::destroy).
+        $required = $this->user()?->password ? 'required' : 'nullable';
+
+        return ['password' => "{$required}|string|size:6|regex:/^\d{6}$/"];
     }
 
     public function messages(): array
