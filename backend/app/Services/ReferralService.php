@@ -69,9 +69,14 @@ class ReferralService
         }
 
         DB::transaction(function () use ($driver) {
-            $referrer = $driver->referredBy;
+            // Đọc lại có khoá: AccountDeletionService::delete khoá cùng dòng này rồi mới kiểm ví,
+            // nên hoặc xoá chờ thưởng vào ví (rồi bị chặn vì ví > 0), hoặc thưởng thấy đã xoá.
+            $referrer = User::lockForUpdate()->find($driver->referred_by_user_id);
             $points = AppSetting::referralDriverPoints();
-            $this->creditPoints($referrer, $points, "Thưởng giới thiệu tài xế #{$driver->id}");
+            // Người giới thiệu đã xoá tài khoản: không cộng vào ví không còn ai quyết toán.
+            if (! $referrer->isDeleted()) {
+                $this->creditPoints($referrer, $points, "Thưởng giới thiệu tài xế #{$driver->id}");
+            }
             $this->creditPoints($driver, $points, "Thưởng được giới thiệu bởi tài xế #{$referrer->id}");
             $driver->update(['referral_rewarded_at' => now()]);
         });
@@ -88,7 +93,7 @@ class ReferralService
 
         $customer->loadMissing('referredBy');
         $referrer = $customer->referredBy;
-        if ($referrer === null) {
+        if ($referrer === null || $referrer->isDeleted()) {
             return;
         }
 

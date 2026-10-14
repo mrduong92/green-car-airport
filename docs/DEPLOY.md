@@ -313,6 +313,7 @@ git fetch origin && git reset --hard origin/main
 cd backend
 COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
 php artisan migrate --force          # KHÔNG BAO GIỜ migrate:fresh
+php artisan db:seed --class=StaticPageSeeder --force   # trang /pages/xoa-tai-khoan (Google Play) — chỉ tạo trang còn thiếu, không ghi đè/bật lại trang admin đã sửa hoặc tắt
 php artisan config:cache && php artisan route:cache && php artisan event:cache
 chown -R www-data:www-data storage bootstrap/cache   # BẮT BUỘC sau khi chạy artisan bằng root
 systemctl reload php8.5-fpm
@@ -1049,6 +1050,7 @@ git fetch origin && git reset --hard origin/main
 cd backend
 COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction
 php artisan migrate --force          # KHÔNG BAO GIỜ dùng migrate:fresh — DB có dữ liệu thật (24 users, 75 bookings)
+php artisan db:seed --class=StaticPageSeeder --force   # trang /pages/xoa-tai-khoan (Google Play) — chỉ tạo trang còn thiếu, không ghi đè/bật lại trang admin đã sửa hoặc tắt
 php artisan config:cache && php artisan route:cache
 # ⚠️ BẮT BUỘC sau khi chạy artisan bằng root: trả quyền về www-data,
 # nếu không PHP-FPM không ghi được log/cache → mọi request 500 không để lại vết

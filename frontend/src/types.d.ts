@@ -12,6 +12,7 @@ declare namespace App {
     referral_code?: string
     approval_status?: 'pending' | 'active' | 'blocked'
     needs_terms_acceptance?: boolean
+    has_password?: boolean
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
@@ -40,7 +41,8 @@ declare namespace App {
     driver?: {
       id: number
       name: string
-      phone?: string
+      /** null khi tài xế đã xoá tài khoản. */
+      phone?: string | null
       vehicle_make?: string
       vehicle_model?: string
       vehicle_plate?: string

@@ -96,14 +96,32 @@ export async function syncPushSubscription(): Promise<void> {
   }
 }
 
-export async function unregisterPushSubscription(): Promise<void> {
+// `serviceWorker.ready` không bao giờ resolve nếu SW chưa từng đăng ký được (sw.js bị chặn,
+// WebView không có SW…) — không giới hạn thời gian thì người gọi treo luôn.
+const SW_READY_TIMEOUT_MS = 3000
+
+function swReadyWithTimeout(): Promise<ServiceWorkerRegistration> {
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('sw-ready-timeout')), SW_READY_TIMEOUT_MS)),
+  ])
+}
+
+/**
+ * `skipServer`: chỉ huỷ trên máy, không gọi API. Dùng sau khi xoá tài khoản — server đã xoá
+ * token đăng nhập + device_tokens, gọi DELETE /device-token lúc đó trả 401 → interceptor
+ * axios tải lại trang về /login (mất toast "đã xoá").
+ */
+export async function unregisterPushSubscription({ skipServer = false }: { skipServer?: boolean } = {}): Promise<void> {
   if (!('serviceWorker' in navigator)) return
   try {
-    const reg = await navigator.serviceWorker.ready
+    const reg = await swReadyWithTimeout()
     const sub = await reg.pushManager.getSubscription()
     if (sub) {
-      const { removeDeviceToken } = await import('@/api/notifications')
-      await removeDeviceToken(sub.endpoint)
+      if (!skipServer) {
+        const { removeDeviceToken } = await import('@/api/notifications')
+        await removeDeviceToken(sub.endpoint)
+      }
       await sub.unsubscribe()
     }
   } catch {

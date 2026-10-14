@@ -64,3 +64,7 @@ export const getMe = () => api.get<App.User>('/auth/me')
 export const logout = () => api.post('/auth/logout')
 
 export const acceptTermsApi = () => api.post<App.User>('/auth/terms/accept')
+
+/** Tự xoá tài khoản (yêu cầu Google Play) — xác nhận bằng PIN 6 số. */
+export const deleteAccount = (password?: string) =>
+  api.delete<{ message: string }>('/me', { data: { password } })

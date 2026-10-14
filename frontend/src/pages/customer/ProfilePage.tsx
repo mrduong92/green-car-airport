@@ -10,6 +10,7 @@ import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useLogout } from '@/hooks/useLogout'
 import Button from '@/components/common/Button'
 import VoucherSheet from '@/components/common/VoucherSheet'
+import DeleteAccountSheet from '@/components/common/DeleteAccountSheet'
 import { zaloLink } from '@/utils/zalo'
 import { BRAND } from '@/brand'
 
@@ -25,6 +26,7 @@ export default function CustomerProfilePage() {
   const [showContact, setShowContact] = useState(false)
   const [showVouchers, setShowVouchers] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
 
   const { data: profile } = useQuery({
     queryKey: ['customer-profile'],
@@ -194,6 +196,11 @@ export default function CustomerProfilePage() {
         <span className="material-symbols-outlined text-[16px]">logout</span>
         Đăng xuất
       </button>
+      <button type="button" onClick={() => setShowDelete(true)}
+        className="self-center text-[12px] text-danger-red/80 underline underline-offset-2 py-1">
+        Xoá tài khoản
+      </button>
+      <DeleteAccountSheet open={showDelete} onClose={() => setShowDelete(false)} />
 
       {/* Edit name bottom sheet */}
       {showEdit && (

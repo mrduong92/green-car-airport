@@ -362,6 +362,7 @@ class AuthController extends Controller
             'role' => $user->role,
             'referral_code' => $user->referral_code,
             'needs_terms_acceptance' => $user->needsTermsAcceptance(),
+            'has_password' => $user->password !== null,
         ];
 
         if ($user->role === 'customer') {

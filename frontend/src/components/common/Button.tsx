@@ -12,7 +12,7 @@ const VARIANTS = {
   primary: 'bg-primary text-white active:bg-primary-dark disabled:bg-border-gray',
   outline:  'border-2 border-primary text-primary bg-transparent active:bg-light-green',
   ghost:    'text-primary bg-transparent active:bg-light-green',
-  danger:   'bg-danger-red text-white active:opacity-80',
+  danger:   'bg-danger-red text-white active:opacity-80 disabled:opacity-50',
 }
 const SIZES = {
   sm: 'px-4 py-2 text-sm',
