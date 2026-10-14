@@ -1,3 +1,4 @@
+import RoutePoints from './RoutePoints'
 import { zaloProfileHref } from '@/utils/zalo'
 
 const DIRECTION_LABEL: Record<App.FreeRideDirection, string> = {
@@ -46,10 +47,7 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
         {ride.is_raw || !ride.pickup ? (
           <p className="text-[14px] text-navy whitespace-pre-line">{ride.raw_text}</p>
         ) : (
-          <div className="flex flex-col gap-1 text-[14px] text-navy">
-            <p className="flex gap-2"><span className="material-symbols-outlined text-[16px] text-success-green">trip_origin</span>{ride.pickup}</p>
-            <p className="flex gap-2"><span className="material-symbols-outlined text-[16px] text-danger-red">location_on</span>{ride.destination}</p>
-          </div>
+          <RoutePoints pickup={ride.pickup} destination={ride.destination ?? ''} />
         )}
 
         <div className="flex items-center gap-2 flex-wrap text-[12px]">
