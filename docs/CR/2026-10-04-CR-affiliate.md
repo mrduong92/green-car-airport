@@ -34,7 +34,7 @@
 - **Cách dùng điểm hoàn/hoa hồng:** **trừ thẳng điểm vào cuốc khi đặt xe, tối đa 10% giá chuyến** (khách xác nhận lại 04/10/2026, thay cho phương án đổi điểm lấy voucher). Không rút tiền mặt.
 - **Phần trùng báo giá cũ:** hạng mục "Affiliate — link giới thiệu, theo dõi & tính hoa hồng, dashboard affiliate" (2.000.000đ, `docs/Bao_gia_cap_nhat.md`) chưa làm phần dashboard và hoa hồng % → báo giá mới nêu đủ giá kèm dòng ưu đãi -2.000.000đ.
 
-## Quy tắc nghiệp vụ đề xuất (chờ GreenCA xác nhận)
+## Quy tắc nghiệp vụ (GreenCA đã chốt 15/10/2026)
 
 1. 5% tính trên giá chuyến **sau voucher**, không gồm phụ phí phạt huỷ và phí thu hộ (cùng cơ sở với phí app 20%). Làm tròn xuống theo điểm (1 điểm = 1.000đ).
 2. Chỉ cộng khi chuyến **hoàn thành**.

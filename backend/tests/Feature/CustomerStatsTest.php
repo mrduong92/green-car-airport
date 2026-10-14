@@ -54,6 +54,26 @@ class CustomerStatsTest extends TestCase
         $res->assertJsonPath('total_saved', 60_000);
     }
 
+    public function test_totals_subtract_and_count_points_used(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer']);
+        $today = now()->format('Y-m-d');
+
+        // final_price = price - discount - points_used*1000 + surcharge + collection_fee
+        $this->makeBooking($customer, 'completed', $today, [
+            'price' => 500_000, 'discount' => 50_000, 'points_used' => 40,
+        ]);
+
+        $res = $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/customer/stats?period=month')
+            ->assertOk();
+
+        // 500.000 - 50.000 - 40*1.000 = 410.000
+        $res->assertJsonPath('total_spent', 410_000);
+        // tiết kiệm = voucher + điểm đã dùng = 50.000 + 40.000 = 90.000
+        $res->assertJsonPath('total_saved', 90_000);
+    }
+
     public function test_only_counts_own_bookings(): void
     {
         $me = User::factory()->create(['role' => 'customer']);

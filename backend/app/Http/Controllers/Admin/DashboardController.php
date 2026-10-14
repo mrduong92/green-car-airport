@@ -15,29 +15,32 @@ use Illuminate\Support\Facades\Cache;
 class DashboardController extends Controller
 {
     private const CACHE_KEY = 'admin.dashboard';
+
     private const CACHE_TTL = 900; // 15 minutes
 
     public function clearCache(): JsonResponse
     {
         Cache::forget(self::CACHE_KEY);
+
         return response()->json(['message' => 'Cache đã được xoá.']);
     }
 
     public function index(): JsonResponse
     {
         $data = Cache::remember(self::CACHE_KEY, self::CACHE_TTL, fn () => $this->build());
+
         return response()->json($data);
     }
 
     private function build(): array
     {
         // ── Today vs yesterday ────────────────────────────────────────────────
-        $todayStart     = today()->startOfDay();
-        $todayEnd       = today()->endOfDay();
+        $todayStart = today()->startOfDay();
+        $todayEnd = today()->endOfDay();
         $yesterdayStart = today()->subDay()->startOfDay();
-        $yesterdayEnd   = today()->subDay()->endOfDay();
+        $yesterdayEnd = today()->subDay()->endOfDay();
 
-        $tripsToday     = Booking::where('status', 'completed')->whereBetween('created_at', [$todayStart, $todayEnd])->count();
+        $tripsToday = Booking::where('status', 'completed')->whereBetween('created_at', [$todayStart, $todayEnd])->count();
         $tripsYesterday = Booking::where('status', 'completed')->whereBetween('created_at', [$yesterdayStart, $yesterdayEnd])->count();
 
         $tripsTodayChange = $tripsYesterday > 0
@@ -48,8 +51,14 @@ class DashboardController extends Controller
             ->whereBetween('created_at', [$todayStart, $todayEnd])
             ->sum('price');
 
+        // Phí app thực thu = phí theo rate − phần app đã bù cho khách dùng điểm,
+        // cùng phạm vi (completed, hôm nay) với $revenueToday.
+        $pointsUsedTodayVnd = (int) Booking::where('status', 'completed')
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->sum('points_used') * 1000;
+
         // ── Drivers ───────────────────────────────────────────────────────────
-        $driversTotal  = User::where('role', 'driver')->whereNull('deleted_at')->count();
+        $driversTotal = User::where('role', 'driver')->whereNull('deleted_at')->count();
         $driversOnline = DriverProfile::where('is_online', true)->count();
 
         // ── Recent trips (last 10, any status) ───────────────────────────────
@@ -58,24 +67,24 @@ class DashboardController extends Controller
             ->limit(10)
             ->get()
             ->map(fn ($b) => [
-                'id'            => $b->id,
+                'id' => $b->id,
                 'customer_name' => $b->customer?->name ?? '—',
-                'driver_name'   => $b->driver?->name   ?? 'Chưa có',
-                'route'         => "{$b->pickup} → {$b->destination}",
-                'status'        => $b->status,
-                'created_at'    => $b->created_at?->toISOString(),
+                'driver_name' => $b->driver?->name ?? 'Chưa có',
+                'route' => "{$b->pickup} → {$b->destination}",
+                'status' => $b->status,
+                'created_at' => $b->created_at?->toISOString(),
             ])
             ->values()
             ->toArray();
 
         return [
-            'trips_today'                  => $tripsToday,
-            'trips_today_change'           => $tripsTodayChange,
-            'revenue_today'                => $revenueToday,
-            'drivers_online'               => $driversOnline,
-            'drivers_total'                => $driversTotal,
-            'app_fee_today'                => (int) round($revenueToday * AppSetting::appFeeRate()),
-            'recent_trips'                 => $recentTrips,
+            'trips_today' => $tripsToday,
+            'trips_today_change' => $tripsTodayChange,
+            'revenue_today' => $revenueToday,
+            'drivers_online' => $driversOnline,
+            'drivers_total' => $driversTotal,
+            'app_fee_today' => max(0, (int) round($revenueToday * AppSetting::appFeeRate()) - $pointsUsedTodayVnd),
+            'recent_trips' => $recentTrips,
             'driver_referral_points_total' => (int) WalletTransaction::where('type', 'referral')->sum('points') * 1000,
             'customer_referral_vouchers_total' => (int) Voucher::where('code', 'like', config('business.referral_voucher_prefix').'-%')->sum('value'),
         ];

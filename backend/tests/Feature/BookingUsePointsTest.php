@@ -74,6 +74,13 @@ class BookingUsePointsTest extends TestCase
 
         $this->assertSame(1000, $this->reward($c));
         $this->assertNotNull(Booking::find($id)->points_refunded_at);
+
+        // Điểm đã hoàn thì không còn hiển thị như đang giảm giá cuốc đã huỷ nữa —
+        // cột points_used trong DB vẫn giữ nguyên (lịch sử), chỉ số hiển thị đổi.
+        $this->actingAs($c, 'sanctum')->getJson("/api/bookings/{$id}")
+            ->assertOk()
+            ->assertJson(['points_used' => 0, 'points_discount' => 0, 'final_price' => 500_000]);
+        $this->assertSame(50, Booking::find($id)->points_used);
     }
 
     public function test_stale_booking_expiry_refunds_points(): void

@@ -296,10 +296,16 @@ export default function TripListPage() {
                   </div>
                   <span className="material-symbols-outlined text-neutral-dim text-[14px]">arrow_forward</span>
                   <div className="text-right">
-                    <p className="text-[11px] text-neutral-gray">Phí app {trip.app_fee_percent}%</p>
+                    <p className="text-[11px] text-neutral-gray">{(trip.points_used ?? 0) > 0 ? 'Phí app (đã trừ phần app bù)' : `Phí app ${trip.app_fee_percent}%`}</p>
                     <p className="text-[13px] font-semibold text-danger-red tabular-nums">-{trip.app_fee.toLocaleString('vi')}</p>
                   </div>
                 </div>
+                {(trip.points_used ?? 0) > 0 && (
+                  <div className="flex justify-between text-[12px]">
+                    <span className="text-neutral-gray">Khách dùng {trip.points_used} điểm — app bù</span>
+                    <span className="text-navy font-medium tabular-nums">{trip.points_discount!.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                )}
                 {/* Cuốc có thu hộ / phí phạt: ví bị trừ cả khoản tạm giữ ngay lúc nhận,
                     báo trước để tài xế không bất ngờ (và biết cần nạp bao nhiêu).
                     Dựa vào số điểm server tính, KHÔNG suy từ collection_fee: cuốc không

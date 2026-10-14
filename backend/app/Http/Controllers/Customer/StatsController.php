@@ -53,7 +53,10 @@ class StatsController extends Controller
         $completedCount = (clone $scope())->where('status', 'completed')->count();
         $cancelledCount = (clone $scope())->where('status', 'cancelled')->count();
         $totalSpent = (int) (clone $scope())->where('status', 'completed')->sum(DB::raw($finalPrice));
-        $totalSaved = (int) (clone $scope())->sum('discount');
+        // Tổng tiết kiệm = voucher + điểm đã dùng — cùng một khái niệm "giảm giá
+        // cuốc" với khách, không riêng gì voucher (khớp total_spent đã trừ điểm).
+        $totalSaved = (int) (clone $scope())->sum('discount')
+            + (int) (clone $scope())->sum('points_used') * 1000;
 
         // Gom nhóm theo cột `date` — portable cả MySQL lẫn SQLite. Việc dồn ngày
         // thành tháng cho biểu đồ 'all' làm ở PHP trên tối đa ~180 dòng đã gom.

@@ -113,6 +113,23 @@ class AffiliateServiceTest extends TestCase
         $this->assertSame(0, $b->fresh()->commission_points);
     }
 
+    public function test_deleted_referrer_gets_no_commission(): void
+    {
+        // User không dùng SoftDeletes (ẩn danh hoá tại chỗ, hàng vẫn còn) nên
+        // User::find() vẫn thấy referrer đã xoá — settle() phải tự loại trừ.
+        $referrer = User::factory()->create(['role' => 'customer', 'deleted_at' => now()]);
+        $c = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $referrer->id]);
+        $b = $this->booking($c, ['status' => 'completed']);
+
+        $res = DB::transaction(fn () => $this->svc()->settle($b));
+
+        $this->assertSame(22, $res['cashback']);
+        $this->assertSame(0, $res['commission']);
+        $this->assertNull($res['referrer_id']);
+        $this->assertSame(0, $this->reward($referrer));
+        $this->assertSame(0, $b->fresh()->commission_points);
+    }
+
     public function test_settle_uses_current_percentages(): void
     {
         AppSetting::set(AppSetting::AFFILIATE_CASHBACK_PERCENT, '2');

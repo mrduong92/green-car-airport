@@ -74,7 +74,10 @@ class AffiliateService
 
         $customer = User::find($booking->customer_id);
         $referrer = $customer?->referred_by_user_id ? User::find($customer->referred_by_user_id) : null;
-        $commission = $referrer && $referrer->role === 'customer'
+        // Tài khoản người giới thiệu đã bị xoá (ẩn danh hoá, hàng vẫn còn — User
+        // không dùng SoftDeletes) thì không cộng hoa hồng: họ không còn nhận biết
+        // hay rút được điểm, cộng vào chỉ là tiền app mất không.
+        $commission = $referrer && $referrer->role === 'customer' && $referrer->deleted_at === null
             ? self::rewardPoints($base, AppSetting::commissionPercent())
             : 0;
 

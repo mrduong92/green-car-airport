@@ -37,13 +37,17 @@ class RevenueController extends Controller
         // ── Current period ────────────────────────────────────────────────────
         $rows = Booking::where('status', 'completed')
             ->whereBetween('created_at', [$from, $to])
-            ->selectRaw("{$expr} as label, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips")
+            ->selectRaw("{$expr} as label, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips, SUM(COALESCE(points_used, 0)) as points_used")
             ->groupByRaw($expr)
             ->orderByRaw($expr)
             ->get();
 
         $totalRevenue = (int) $rows->sum('revenue');
-        $totalTrips   = (int) $rows->sum('trips');
+        $totalTrips = (int) $rows->sum('trips');
+        // Phí app thực thu = phí tính theo rate − phần app đã bù cho khách dùng
+        // điểm (points_used quy đổi VNĐ) — không thì báo cáo nói phí cao hơn
+        // thực tế tiền app thực sự giữ lại.
+        $totalPointsVnd = (int) $rows->sum('points_used') * 1000;
 
         // ── Previous period for % change ──────────────────────────────────────
         $prev = Booking::where('status', 'completed')
@@ -52,7 +56,7 @@ class RevenueController extends Controller
             ->first();
 
         $prevRevenue = (int) ($prev->revenue ?? 0);
-        $prevTrips   = (int) ($prev->trips   ?? 0);
+        $prevTrips = (int) ($prev->trips ?? 0);
 
         $revenueChange = $prevRevenue > 0
             ? round(($totalRevenue - $prevRevenue) / $prevRevenue * 100, 1)
@@ -93,41 +97,41 @@ class RevenueController extends Controller
             ->limit(10)
             ->get()
             ->map(fn ($b) => [
-                'id'          => $b->id,
-                'pickup'      => $b->pickup,
+                'id' => $b->id,
+                'pickup' => $b->pickup,
                 'destination' => $b->destination,
-                'price'       => $b->price,
-                'vehicle_type'=> $b->vehicle_type,
+                'price' => $b->price,
+                'vehicle_type' => $b->vehicle_type,
                 'driver_name' => $b->driver?->name ?? '—',
                 'customer_name' => $b->customer?->name ?? '—',
-                'date'        => $b->date,
-                'time'        => $b->time,
+                'date' => $b->date,
+                'time' => $b->time,
             ]);
 
         return response()->json([
-            'period'          => $period,
-            'total_revenue'   => $totalRevenue,
+            'period' => $period,
+            'total_revenue' => $totalRevenue,
             'app_fee_percent' => AppSetting::appFeePercent(),
-            'app_fee'         => (int) round($totalRevenue * AppSetting::appFeeRate()),
+            'app_fee' => max(0, (int) round($totalRevenue * AppSetting::appFeeRate()) - $totalPointsVnd),
             'trips_completed' => $totalTrips,
-            'avg_per_trip'    => $totalTrips > 0 ? (int) round($totalRevenue / $totalTrips) : 0,
-            'revenue_change'  => $revenueChange,
-            'trips_change'    => $tripsChange,
-            'chart'           => $rows->map(fn ($r) => [
-                'label'   => $r->label,
+            'avg_per_trip' => $totalTrips > 0 ? (int) round($totalRevenue / $totalTrips) : 0,
+            'revenue_change' => $revenueChange,
+            'trips_change' => $tripsChange,
+            'chart' => $rows->map(fn ($r) => [
+                'label' => $r->label,
                 'revenue' => (int) $r->revenue,
-                'fee'     => (int) round($r->revenue * AppSetting::appFeeRate()),
+                'fee' => max(0, (int) round($r->revenue * AppSetting::appFeeRate()) - (int) $r->points_used * 1000),
             ])->values()->all(),
             'vehicle_breakdown' => $vehicleRows->map(fn ($r) => [
-                'type'    => $r->vehicle_type,
-                'label'   => $vehicleLabels[$r->vehicle_type] ?? $r->vehicle_type,
+                'type' => $r->vehicle_type,
+                'label' => $vehicleLabels[$r->vehicle_type] ?? $r->vehicle_type,
                 'revenue' => (int) $r->revenue,
-                'trips'   => (int) $r->trips,
+                'trips' => (int) $r->trips,
             ])->values()->all(),
             'top_drivers' => $topDrivers->map(fn ($r) => [
-                'name'    => $r->name,
+                'name' => $r->name,
                 'revenue' => (int) $r->revenue,
-                'trips'   => (int) $r->trips,
+                'trips' => (int) $r->trips,
             ])->values()->all(),
             'recent_trips' => $recentTrips,
         ]);

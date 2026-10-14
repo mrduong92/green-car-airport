@@ -84,6 +84,23 @@ class AffiliateTripTest extends TestCase
         $this->assertSame(1000 - 45, $this->points($d2));
     }
 
+    public function test_customer_cancel_accepted_booking_refunds_driver_fee_and_customer_points_once(): void
+    {
+        $c = User::factory()->create(['role' => 'customer']);
+        Wallet::create(['user_id' => $c->id, 'reward_points' => 1000]); // số dư SAU khi đã giữ 45 điểm lúc đặt
+        $b = $this->booking($c, 45);
+        $d = $this->driver(1000);
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$b->id}/accept")->assertOk();
+        $this->assertSame(1000 - (90 - 45), $this->points($d)); // phí trừ lúc nhận = appFee(90) − points_used(45) = 45
+
+        $this->actingAs($c, 'sanctum')->patchJson("/api/bookings/{$b->id}/cancel")->assertOk();
+        $this->actingAs($c, 'sanctum')->patchJson("/api/bookings/{$b->id}/cancel")->assertStatus(422);
+
+        $this->assertSame(1000, $this->points($d)); // tài xế được hoàn đúng charged_fee_points (45) đã trừ, một lần
+        $this->assertSame(1045, $this->points($c, 'reward_points')); // khách được hoàn 45 điểm đã dùng, một lần
+    }
+
     public function test_completion_credits_cashback_and_commission_and_notifies(): void
     {
         Notification::fake();

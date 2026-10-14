@@ -36,7 +36,7 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_name: true, free_show_group_name: true, free_show_raw_text: true, affiliate_cashback_percent: 5, affiliate_commission_percent: 5, points_max_rate_percent: 20 },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_name: true, free_show_group_name: true, free_show_raw_text: true, affiliate_cashback_percent: 5, affiliate_commission_percent: 5, points_max_rate_percent: 10 },
   })
 
   useEffect(() => {

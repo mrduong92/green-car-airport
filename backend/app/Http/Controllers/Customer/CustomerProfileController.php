@@ -18,18 +18,18 @@ class CustomerProfileController extends Controller
                 COUNT(*) as total,
                 SUM(CASE WHEN status = "completed" THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status = "cancelled" THEN 1 ELSE 0 END) as cancelled,
-                SUM(CASE WHEN status = "completed" THEN price - IFNULL(discount, 0) ELSE 0 END) as total_spent
+                SUM(CASE WHEN status = "completed" THEN price - IFNULL(discount, 0) - IFNULL(points_used, 0) * 1000 ELSE 0 END) as total_spent
             ')
             ->first();
 
         return response()->json([
-            'id'           => $user->id,
-            'name'         => $user->name,
-            'phone'        => $user->phone,
-            'total'        => (int) ($stats->total ?? 0),
-            'completed'    => (int) ($stats->completed ?? 0),
-            'cancelled'    => (int) ($stats->cancelled ?? 0),
-            'total_spent'  => (int) ($stats->total_spent ?? 0),
+            'id' => $user->id,
+            'name' => $user->name,
+            'phone' => $user->phone,
+            'total' => (int) ($stats->total ?? 0),
+            'completed' => (int) ($stats->completed ?? 0),
+            'cancelled' => (int) ($stats->cancelled ?? 0),
+            'total_spent' => (int) ($stats->total_spent ?? 0),
             'member_since' => $user->created_at?->format('Y'),
         ]);
     }

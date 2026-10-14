@@ -32,18 +32,18 @@ class AdminRevenueTest extends TestCase
     private function makeCompletedBooking(User $customer, ?User $driver = null): Booking
     {
         return Booking::create([
-            'customer_id'  => $customer->id,
-            'driver_id'    => $driver?->id,
-            'pickup'       => 'Hà Nội',
-            'destination'  => 'Sân bay Nội Bài',
-            'date'         => now()->format('Y-m-d'),
-            'time'         => '08:00',
+            'customer_id' => $customer->id,
+            'driver_id' => $driver?->id,
+            'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài',
+            'date' => now()->format('Y-m-d'),
+            'time' => '08:00',
             'vehicle_type' => 'sedan_4',
-            'distance_km'  => 30,
-            'price'        => 500_000,
-            'discount'     => 50_000,
-            'surcharge'    => 0,
-            'status'       => 'completed',
+            'distance_km' => 30,
+            'price' => 500_000,
+            'discount' => 50_000,
+            'surcharge' => 0,
+            'status' => 'completed',
         ]);
     }
 
@@ -54,9 +54,9 @@ class AdminRevenueTest extends TestCase
      */
     public function test_revenue_page_works_when_bookings_have_drivers(): void
     {
-        $admin    = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create(['role' => 'customer']);
-        $driver   = User::factory()->create(['role' => 'driver', 'name' => 'Tài Xế A']);
+        $driver = User::factory()->create(['role' => 'driver', 'name' => 'Tài Xế A']);
 
         $this->makeCompletedBooking($customer, $driver);
 
@@ -72,9 +72,9 @@ class AdminRevenueTest extends TestCase
 
     public function test_revenue_page_works_for_every_period(): void
     {
-        $admin    = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create(['role' => 'customer']);
-        $driver   = User::factory()->create(['role' => 'driver']);
+        $driver = User::factory()->create(['role' => 'driver']);
 
         $this->makeCompletedBooking($customer, $driver);
 
@@ -83,6 +83,33 @@ class AdminRevenueTest extends TestCase
                 ->getJson("/api/admin/revenue?period={$period}")
                 ->assertOk();
         }
+    }
+
+    /**
+     * Phí app thực thu = phí theo rate − phần app đã bù cho khách dùng điểm,
+     * không thì báo cáo nói phí cao hơn tiền app thực sự giữ lại.
+     */
+    public function test_app_fee_subtracts_points_used(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $driver = User::factory()->create(['role' => 'driver']);
+
+        // effective = 500k - 50k = 450k → phí 20% = 90k. Khách dùng 40 điểm
+        // (app bù 40.000đ) → phí thực thu = 90.000 - 40.000 = 50.000.
+        Booking::create([
+            'customer_id' => $customer->id, 'driver_id' => $driver->id,
+            'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
+            'date' => now()->format('Y-m-d'), 'time' => '08:00', 'vehicle_type' => 'sedan_4',
+            'distance_km' => 30, 'price' => 500_000, 'discount' => 50_000, 'points_used' => 40,
+            'surcharge' => 0, 'status' => 'completed',
+        ]);
+
+        $res = $this->actingAs($admin)->getJson('/api/admin/revenue?period=week');
+
+        $res->assertOk();
+        $res->assertJsonPath('app_fee', 50_000);
+        $res->assertJsonPath('chart.0.fee', 50_000);
     }
 
     public function test_revenue_page_works_with_no_data(): void

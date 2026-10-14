@@ -240,6 +240,16 @@ class BookingController extends Controller
         $driver = $b->driver;
         $profile = $driver?->driverProfile;
 
+        // Điểm đã dùng nhưng đã hoàn lại (huỷ/hết hạn) thì không còn giảm giá cho
+        // khách nữa — hiển thị như chưa từng dùng điểm. Cột points_used lưu trong
+        // DB giữ nguyên (lịch sử), chỉ đổi số hiển thị ra ngoài.
+        $pointsRefunded = $b->points_refunded_at !== null;
+        $pointsUsedDisplay = $pointsRefunded ? 0 : (int) $b->points_used;
+        $pointsDiscountDisplay = $pointsRefunded ? 0 : $b->pointsDiscountVnd();
+        $finalPriceDisplay = $pointsRefunded
+            ? $b->basePrice() + (int) $b->surcharge + (int) ($b->collection_fee ?? 0)
+            : $b->finalPrice();
+
         return [
             'id' => $b->id,
             'pickup' => $b->pickup,
@@ -254,9 +264,9 @@ class BookingController extends Controller
             'price' => $b->price,
             'discount' => $b->discount,
             'surcharge' => $b->surcharge,
-            'final_price' => $b->finalPrice(),
-            'points_used' => (int) $b->points_used,
-            'points_discount' => $b->pointsDiscountVnd(),
+            'final_price' => $finalPriceDisplay,
+            'points_used' => $pointsUsedDisplay,
+            'points_discount' => $pointsDiscountDisplay,
             'voucher_code' => $b->voucher?->code,
             'note' => $b->note,
             'collection_fee' => $b->collection_fee ?? 0,
