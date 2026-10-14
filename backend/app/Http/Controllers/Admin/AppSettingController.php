@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class AppSettingController extends Controller
 {
@@ -45,6 +46,18 @@ class AppSettingController extends Controller
             'affiliate_commission_percent' => 'sometimes|required|numeric|min:0|max:50',
             'points_max_rate_percent' => 'sometimes|required|numeric|min:0|max:50',
         ]);
+
+        // driverFeePoints() (Booking) = max(0, phí app − points_used) chỉ đúng khi trần dùng điểm
+        // ≤ % phí app — nếu không, khách dùng điểm nhiều hơn phí thì tài xế mất phần chênh lệch
+        // (app_fee âm, net_earning sai). Dùng giá trị HIỆU LỰC (gửi lên hoặc đang lưu), không chỉ
+        // giá trị trong request, vì admin có thể chỉ sửa một trong hai trường ở mỗi lần gọi.
+        $fee = $data['app_fee_percent'] ?? AppSetting::appFeePercent();
+        $maxRate = $data['points_max_rate_percent'] ?? AppSetting::pointsMaxRatePercent();
+        if ($maxRate > $fee) {
+            throw ValidationException::withMessages([
+                'points_max_rate_percent' => ['% tối đa trừ bằng điểm không được lớn hơn % phí app (app bù điểm từ phí).'],
+            ]);
+        }
 
         AppSetting::set(AppSetting::CONTACT_HOTLINE, $data['contact_hotline']);
         AppSetting::set(AppSetting::CONTACT_EMAIL, $data['contact_email']);
