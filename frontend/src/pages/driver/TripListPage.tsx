@@ -9,6 +9,7 @@ import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
 import VipBadge from '@/components/common/VipBadge'
 import { PushNudgeBanner } from '@/components/driver/PushNotificationSettings'
+import RoutePoints from '@/components/driver/RoutePoints'
 import { VEHICLE_TYPE_LABELS } from '@/utils/vehicleType'
 import { useDriverCapacity } from '@/hooks/useDriverCapacity'
 import { MAX_ACTIVE_TRIPS } from '@/rules'
@@ -271,25 +272,9 @@ export default function TripListPage() {
                 </div>
               </div>
 
-              {/* Route */}
-              <div className="flex gap-2.5">
-                <div className="flex flex-col items-center pt-1 shrink-0">
-                  <span className="material-symbols-outlined text-primary text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-                  <div className="w-[2px] flex-1 bg-border-gray my-0.5" />
-                  <span className="material-symbols-outlined text-[#C8A24A] text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>flight</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-navy truncate">{trip.pickup}</p>
-                  {/* Chỉ còn quãng đường của chuyến. Bỏ "cách bạn ? km": nó đo
-                      từ vị trí tài xế lúc bật online, vô nghĩa với cuốc đặt cho
-                      ngày mai — và vì vị trí gần như luôn trống nên thực tế chỉ
-                      hiện đúng dấu "?". */}
-                  <p className="text-[11px] text-neutral-gray my-1">
-                    {trip.distance_km} km
-                  </p>
-                  <p className="text-[13px] font-semibold text-navy truncate">{trip.destination}</p>
-                </div>
-              </div>
+              {/* Route — chỉ còn quãng đường của chuyến. Bỏ "cách bạn ? km": nó đo từ vị trí tài xế
+                  lúc bật online, vô nghĩa với cuốc đặt cho ngày mai. */}
+              <RoutePoints pickup={trip.pickup} destination={trip.destination} between={`${trip.distance_km} km`} truncate />
 
               {/* Price breakdown */}
               <div className="flex flex-col gap-1.5 bg-warm-white rounded-[10px] px-3 py-2.5">
