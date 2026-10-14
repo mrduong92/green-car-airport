@@ -203,14 +203,6 @@ export default function DriverProfilePage() {
           <span className="text-sm font-medium">Đăng xuất</span>
         </button>
       </div>
-      <div className="flex justify-center mt-2">
-        <button type="button" onClick={() => setShowDelete(true)}
-          className="text-[12px] text-danger-red/80 underline underline-offset-2 py-1">
-          Xoá tài khoản
-        </button>
-      </div>
-      <DeleteAccountSheet open={showDelete} onClose={() => setShowDelete(false)} />
-
       {/* Referral section */}
       {user?.phone && (
         <div className="bg-white mx-4 mt-3 rounded-card shadow-card p-4">
@@ -252,6 +244,14 @@ export default function DriverProfilePage() {
           </div>
         </div>
       )}
+
+      <div className="flex justify-center mt-3">
+        <button type="button" onClick={() => setShowDelete(true)}
+          className="text-[12px] text-danger-red/80 underline underline-offset-2 py-1">
+          Xoá tài khoản
+        </button>
+      </div>
+      <DeleteAccountSheet open={showDelete} onClose={() => setShowDelete(false)} />
 
       {/* Edit bottom sheet */}
       {editing && (
