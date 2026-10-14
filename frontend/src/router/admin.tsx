@@ -8,6 +8,7 @@ import DriversPage from '@/pages/admin/DriversPage'
 import VouchersPage from '@/pages/admin/VouchersPage'
 import CampaignsPage from '@/pages/admin/CampaignsPage'
 import RevenuePage from '@/pages/admin/RevenuePage'
+import ReferralsPage from '@/pages/admin/ReferralsPage'
 import PriceConfigPage from '@/pages/admin/PriceConfigPage'
 import AdminCustomersPage from '@/pages/admin/CustomersPage'
 import StaticPagesPage from '@/pages/admin/StaticPagesPage'
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
           { path: '/vouchers', element: <VouchersPage /> },
           { path: '/campaigns', element: <CampaignsPage /> },
           { path: '/revenue', element: <RevenuePage /> },
+          { path: '/referrals', element: <ReferralsPage /> },
           { path: '/prices', element: <PriceConfigPage /> },
           { path: '/customers', element: <AdminCustomersPage /> },
           { path: '/pages', element: <StaticPagesPage /> },

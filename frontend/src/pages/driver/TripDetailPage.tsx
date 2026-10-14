@@ -223,6 +223,12 @@ export default function TripDetailPage() {
             <span className="text-sm font-medium text-navy">{value}</span>
           </div>
         ))}
+        {(trip.points_used ?? 0) > 0 && (
+          <div className="col-span-2 flex justify-between text-sm">
+            <span className="text-neutral-gray">Khách dùng {trip.points_used} điểm — app bù</span>
+            <span className="text-navy font-medium">{trip.points_discount!.toLocaleString('vi-VN')}đ</span>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

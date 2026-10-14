@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getAdminSettings, updateAdminSettings } from '@/api/settings'
 import { useUiStore } from '@/stores/ui'
 import Button from '@/components/common/Button'
+import { apiMessage } from '@/utils/apiError'
 
 const schema = z.object({
   contact_hotline:    z.string().min(1, 'Bắt buộc').max(50),
@@ -19,6 +20,9 @@ const schema = z.object({
   free_show_sender_name: z.boolean(),
   free_show_group_name: z.boolean(),
   free_show_raw_text: z.boolean(),
+  affiliate_cashback_percent:   z.coerce.number().min(0, 'Từ 0 đến 50').max(50, 'Từ 0 đến 50'),
+  affiliate_commission_percent: z.coerce.number().min(0, 'Từ 0 đến 50').max(50, 'Từ 0 đến 50'),
+  points_max_rate_percent:      z.coerce.number().min(0, 'Từ 0 đến 50').max(50, 'Từ 0 đến 50'),
 })
 type FormData = z.infer<typeof schema>
 
@@ -30,9 +34,9 @@ export default function AdminSettingsPage() {
     queryFn: getAdminSettings,
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_name: true, free_show_group_name: true, free_show_raw_text: true },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_name: true, free_show_group_name: true, free_show_raw_text: true, affiliate_cashback_percent: 5, affiliate_commission_percent: 5, points_max_rate_percent: 20 },
   })
 
   useEffect(() => {
@@ -42,7 +46,18 @@ export default function AdminSettingsPage() {
   const updateMutation = useMutation({
     mutationFn: (d: FormData) => updateAdminSettings(d),
     onSuccess: () => showToast('Đã lưu cài đặt', 'success'),
-    onError: () => showToast('Lưu cài đặt thất bại', 'error'),
+    onError: (err) => {
+      // 422 của Laravel: { message, errors: { field: [msg] } } — gắn lỗi lên đúng ô thay vì
+      // chỉ hiện toast chung chung (vd points_max_rate_percent > app_fee_percent).
+      const fieldErrors = (err as { response?: { status?: number; data?: { errors?: Record<string, string[]> } } })
+        ?.response?.data?.errors
+      if (fieldErrors) {
+        for (const [field, messages] of Object.entries(fieldErrors)) {
+          setError(field as keyof FormData, { message: messages[0] })
+        }
+      }
+      showToast(apiMessage(err, 'Lưu cài đặt thất bại'), 'error')
+    },
   })
 
   return (
@@ -108,6 +123,31 @@ export default function AdminSettingsPage() {
           {errors.free_unlock_fee_vnd && <p className="text-danger-red text-xs mt-1">{errors.free_unlock_fee_vnd.message}</p>}
         </div>
 
+        <hr className="border-border-gray" />
+        <p className="text-sm font-semibold text-navy">Chương trình điểm thưởng</p>
+
+        <div>
+          <label htmlFor="affiliate_cashback_percent" className="text-xs text-neutral-gray mb-1 block">% hoàn điểm cho khách</label>
+          <input id="affiliate_cashback_percent" type="number" step="0.1" {...register('affiliate_cashback_percent')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.affiliate_cashback_percent && <p className="text-danger-red text-xs mt-1">{errors.affiliate_cashback_percent.message}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="affiliate_commission_percent" className="text-xs text-neutral-gray mb-1 block">% hoa hồng giới thiệu</label>
+          <input id="affiliate_commission_percent" type="number" step="0.1" {...register('affiliate_commission_percent')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.affiliate_commission_percent && <p className="text-danger-red text-xs mt-1">{errors.affiliate_commission_percent.message}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="points_max_rate_percent" className="text-xs text-neutral-gray mb-1 block">% tối đa trừ bằng điểm</label>
+          <input id="points_max_rate_percent" type="number" step="0.1" {...register('points_max_rate_percent')}
+            className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
+          {errors.points_max_rate_percent && <p className="text-danger-red text-xs mt-1">{errors.points_max_rate_percent.message}</p>}
+        </div>
+
+        <hr className="border-border-gray" />
         <p className="text-sm font-semibold text-navy">Tab Cuốc Free — thông tin hiển thị cho tài xế</p>
         <p className="text-xs text-neutral-gray -mt-1">Tắt mục nào, server sẽ không gửi mục đó cho tài xế (bảo mật thông tin cá nhân).</p>
         <label className="flex items-center gap-2 text-sm text-navy cursor-pointer">

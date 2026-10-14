@@ -57,3 +57,18 @@ test('khách có điểm bật "Dùng điểm" → tổng tiền giảm, đơn c
   await page.goto(`${APP.customer}/customer/referrals`)
   await expect(page.getByTestId('referrals-total')).toBeVisible()
 })
+
+test('admin xem trang Giới thiệu và chỉnh 3 tỷ lệ điểm', async ({ page }) => {
+  await loginExisting(page, APP.admin, SEEDED.admin)
+  // Viewport e2e (430px) là mobile: "Giới thiệu" không phải tab chính nên nằm
+  // trong sheet "Thêm" của bottom nav, không hiện trực tiếp như trên sidebar PC.
+  await page.getByRole('button', { name: 'Thêm' }).click()
+  await page.getByRole('link', { name: 'Giới thiệu' }).click()
+  await expect(page.getByTestId('referral-report-top')).toBeVisible()
+  await expect(page.getByTestId('referral-report-chart')).toBeVisible()
+
+  await page.goto(`${APP.admin}/settings`)
+  await expect(page.getByLabel('% hoàn điểm cho khách')).toBeVisible()
+  await expect(page.getByLabel('% hoa hồng giới thiệu')).toBeVisible()
+  await expect(page.getByLabel('% tối đa trừ bằng điểm')).toBeVisible()
+})

@@ -16,6 +16,9 @@ export interface AdminSettings {
   free_show_sender_name: boolean
   free_show_group_name: boolean
   free_show_raw_text: boolean
+  affiliate_cashback_percent: number
+  affiliate_commission_percent: number
+  points_max_rate_percent: number
 }
 
 export const getAdminSettings = () =>
