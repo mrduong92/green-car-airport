@@ -15,4 +15,5 @@ return [
 
     // Phí mở khóa Nhận cuốc tab Free (1 năm), VND — mặc định; admin chỉnh ở trang Cài đặt (app_settings ghi đè).
     'free_unlock_fee_vnd' => 300000,
+    'free_show_sender_info' => true,
 ];

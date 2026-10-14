@@ -382,8 +382,9 @@ declare namespace App {
   interface FreeRide {
     ride_uid: string
     sender_uid: string
-    sender_name: string
-    group_name: string
+    // null khi admin tắt hiển thị thông tin người bắn (Cài đặt).
+    sender_name: string | null
+    group_name: string | null
     direction: FreeRideDirection | null
     pickup: string | null
     destination: string | null
@@ -394,7 +395,7 @@ declare namespace App {
     price: number | null
     is_free: boolean
     is_raw: boolean
-    raw_text: string
+    raw_text: string | null
     group_count: number
     // zalo://qr/p/<mã> khi tài xế đã được mở khóa; null khi chưa mở khóa — cuốc có mã bẩn bị loại ở
     // server (FreeRideController::safe()), không lọt ra tới đây.

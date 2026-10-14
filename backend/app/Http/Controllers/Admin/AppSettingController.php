@@ -19,6 +19,7 @@ class AppSettingController extends Controller
             'referral_voucher_value' => AppSetting::referralVoucherValue(),
             'referral_driver_points' => AppSetting::referralDriverPoints(),
             'free_unlock_fee_vnd' => AppSetting::freeUnlockFeeVnd(),
+            'free_show_sender_info' => AppSetting::freeShowSenderInfo(),
         ]);
     }
 
@@ -32,6 +33,7 @@ class AppSettingController extends Controller
             'referral_voucher_value' => 'sometimes|required|integer|min:1000',
             'referral_driver_points' => 'sometimes|required|integer|min:0',
             'free_unlock_fee_vnd' => 'sometimes|required|integer|min:0',
+            'free_show_sender_info' => 'sometimes|required|boolean',
         ]);
 
         AppSetting::set(AppSetting::CONTACT_HOTLINE, $data['contact_hotline']);
@@ -46,6 +48,10 @@ class AppSettingController extends Controller
             if (array_key_exists($key, $data)) {
                 AppSetting::set($key, (string) $data[$key]);
             }
+        }
+
+        if (array_key_exists('free_show_sender_info', $data)) {
+            AppSetting::set(AppSetting::FREE_SHOW_SENDER_INFO, $data['free_show_sender_info'] ? '1' : '0');
         }
 
         return response()->json($this->index()->getData(true));

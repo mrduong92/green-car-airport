@@ -13,6 +13,7 @@ export interface AdminSettings {
   referral_voucher_value: number
   referral_driver_points: number
   free_unlock_fee_vnd: number
+  free_show_sender_info: boolean
 }
 
 export const getAdminSettings = () =>

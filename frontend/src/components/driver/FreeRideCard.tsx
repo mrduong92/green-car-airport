@@ -26,13 +26,16 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
   return (
     <div data-testid="free-ride-card" className="bg-white rounded-card shadow-card overflow-hidden border-l-[4px] border-l-primary border border-border-soft">
       <div className="p-3.5 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-col min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="material-symbols-outlined text-primary text-[18px]">schedule</span>
             <span className="text-[15px] font-semibold text-navy">{timeText(ride)}</span>
             {ride.direction && (
               <span className="text-[11px] font-medium text-primary bg-light-green rounded-pill px-2 py-0.5 truncate">{DIRECTION_LABEL[ride.direction]}</span>
             )}
+          </div>
+          <p data-testid="free-ride-ago" className="text-[11px] text-neutral-gray pl-[26px]">{ago(ride.posted_at)}</p>
           </div>
           <button type="button" data-testid="free-ride-more" aria-label="Thao tác khác" onClick={() => onMore(ride)}
             className="min-w-touch min-h-touch -mr-2 flex items-center justify-center text-neutral-gray">
@@ -56,17 +59,19 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
           {ride.vehicle_note && <span className="text-neutral-gray uppercase">{ride.vehicle_note}</span>}
         </div>
 
-        {!ride.is_raw && ride.pickup && (
+        {!ride.is_raw && ride.pickup && ride.raw_text && (
           <details className="text-[12px] text-neutral-gray">
             <summary className="cursor-pointer">Tin gốc</summary>
             <p className="mt-1 whitespace-pre-line">{ride.raw_text}</p>
           </details>
         )}
 
-        <p className="text-[11px] text-neutral-gray">
-          {ride.sender_name || 'Người bắn cuốc'} · {ride.group_name || 'Nhóm Zalo'}
-          {ride.group_count > 1 && ` · đăng ở ${ride.group_count} nhóm`} · {ago(ride.posted_at)}
-        </p>
+        {(ride.sender_name !== null || ride.group_name !== null) && (
+          <p className="text-[11px] text-neutral-gray">
+            {ride.sender_name || 'Người bắn cuốc'} · {ride.group_name || 'Nhóm Zalo'}
+            {ride.group_count > 1 && ` · đăng ở ${ride.group_count} nhóm`}
+          </p>
+        )}
 
         {ride.contact_url !== null ? (
           <a data-testid="free-ride-accept" href={zaloProfileHref(ride.contact_url)}

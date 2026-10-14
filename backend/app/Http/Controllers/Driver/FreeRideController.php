@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Driver;
 
 use App\Http\Controllers\Controller;
 use App\Models\DriverFreeRideAlert;
+use App\Models\AppSetting;
 use App\Models\DriverHiddenSender;
 use App\Models\FreeRide;
 use App\Models\FreeRideReport;
@@ -34,6 +35,7 @@ class FreeRideController extends Controller
         ]);
 
         $access = $this->access($request);
+        $showSender = AppSetting::freeShowSenderInfo();
 
         // group_count hiển thị cộng dồn các bản trùng (cùng người qua nick phụ khác, hoặc người khác chuyển tiếp lại) — xem FreeRide::scopeWithMergedGroupCount().
         $query = $this->visibleTo($request->user()->id, $data)->withMergedGroupCount();
@@ -44,7 +46,7 @@ class FreeRideController extends Controller
                 ->orderByDesc('updated_at')->limit(self::SINCE_LIMIT)->get();
 
             return response()->json([
-                'data' => $this->safe($rides)->map(fn (FreeRide $r) => $this->format($r, $access['unlocked']))->values(),
+                'data' => $this->safe($rides)->map(fn (FreeRide $r) => $this->format($r, $access['unlocked'], $showSender))->values(),
                 'next_cursor' => null,
                 'access' => $access,
                 'latest' => $this->latestOf($rides, (int) $data['since']),
@@ -60,7 +62,7 @@ class FreeRideController extends Controller
         $page = $query->orderByDesc('posted_at')->orderByDesc('id')->cursorPaginate(self::PAGE_SIZE);
 
         return response()->json([
-            'data' => $this->safe(collect($page->items()))->map(fn (FreeRide $r) => $this->format($r, $access['unlocked']))->values(),
+            'data' => $this->safe(collect($page->items()))->map(fn (FreeRide $r) => $this->format($r, $access['unlocked'], $showSender))->values(),
             'next_cursor' => $page->nextCursor()?->encode(),
             'access' => $access,
             'latest' => $latestBefore ? Carbon::parse($latestBefore)->getTimestampMs() : null,
@@ -190,13 +192,14 @@ class FreeRideController extends Controller
         ];
     }
 
-    private function format(FreeRide $r, bool $unlocked): array
+    private function format(FreeRide $r, bool $unlocked, bool $showSender): array
     {
         return [
             'ride_uid' => $r->ride_uid,
             'sender_uid' => $r->sender_uid,
-            'sender_name' => $r->sender_name,
-            'group_name' => $r->group_name,
+            // Admin tắt hiển thị thông tin người bắn: tên người bắn / nhóm / tin gốc không rời server.
+            'sender_name' => $showSender ? $r->sender_name : null,
+            'group_name' => $showSender ? $r->group_name : null,
             'direction' => $r->direction,
             'pickup' => $r->pickup,
             'destination' => $r->destination,
@@ -207,7 +210,8 @@ class FreeRideController extends Controller
             'price' => $r->price,
             'is_free' => $r->is_free,
             'is_raw' => $r->is_raw,
-            'raw_text' => $unlocked ? $r->raw_text : FreeRide::maskPhones($r->raw_text),
+            // Cuốc nguyên văn (is_raw) thì tin gốc chính là nội dung cuốc nên vẫn phải gửi.
+            'raw_text' => $showSender || $r->is_raw ? ($unlocked ? $r->raw_text : FreeRide::maskPhones($r->raw_text)) : null,
             'group_count' => $r->displayedGroupCount(),
             // Mã hồ sơ (danh tính thật của người bắn) — tab Free gửi lại khi "Ẩn người bắn".
             // Tài xế chưa mở khóa không nhận mã hồ sơ lẫn link — khóa ở server, không chỉ ẩn nút.

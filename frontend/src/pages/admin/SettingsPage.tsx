@@ -16,6 +16,7 @@ const schema = z.object({
   referral_voucher_value: z.number({ coerce: true }).int('Phải là số nguyên').min(1000, 'Tối thiểu 1.000đ'),
   referral_driver_points: z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
   free_unlock_fee_vnd:    z.number({ coerce: true }).int('Phải là số nguyên').min(0, 'Tối thiểu 0'),
+  free_show_sender_info:  z.boolean(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -29,7 +30,7 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000 },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_info: true },
   })
 
   useEffect(() => {
@@ -104,6 +105,14 @@ export default function AdminSettingsPage() {
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
           {errors.free_unlock_fee_vnd && <p className="text-danger-red text-xs mt-1">{errors.free_unlock_fee_vnd.message}</p>}
         </div>
+
+        <label className="flex items-start gap-2 text-sm text-navy cursor-pointer">
+          <input type="checkbox" data-testid="setting-free-show-sender" {...register('free_show_sender_info')} className="mt-1" />
+          <span>
+            Hiện tên người bắn, tên nhóm và tin gốc ở tab Cuốc Free
+            <span className="block text-xs text-neutral-gray">Tắt để bảo mật thông tin cá nhân: tài xế chỉ thấy nội dung cuốc và thời gian đăng.</span>
+          </span>
+        </label>
 
         <Button type="submit" loading={updateMutation.isPending}>Lưu thay đổi</Button>
       </form>
