@@ -1,0 +1,18 @@
+# Phụ thuộc npm của vỏ ứng dụng — cài lại bằng `npm ci` trong từng thư mục app.
+node_modules/
+
+# Bundle web được copy sang project native ở bước `cap sync` — là build output,
+# nguồn thật nằm ở frontend/dist và frontend/dist-driver.
+*/android/app/src/main/assets/public/
+*/android/app/src/main/assets/capacitor.config.json
+*/ios/App/App/public/
+
+# Đường dẫn SDK theo máy từng người
+*/android/local.properties
+
+# Khoá ký — KHÔNG BAO GIỜ commit
+keystore.properties
+*.jks
+*.keystore
+# Âm báo được Makefile chép từ frontend/public/sounds lúc build
+*/android/app/src/main/res/raw/new_ride.wav

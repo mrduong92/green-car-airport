@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
 use App\Http\Controllers\Admin\ZaloAccountController;
 use App\Http\Controllers\Admin\ZnsController as AdminZnsController;
+use App\Http\Controllers\AppVersionController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Customer\BookingController;
@@ -60,6 +61,7 @@ Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/price-configs', [PriceConfigController::class, 'index']);
 Route::get('/pages/{slug}', [StaticPageController::class, 'show']);
 Route::get('/settings/contact', [SettingsController::class, 'contact']);
+Route::get('/app/version', [AppVersionController::class, 'show']);
 Route::post('/webhooks/sepay', [SepayWebhookController::class, 'handle']);
 
 // Microservice Zalo (Cuốc Free) — xác thực bằng chữ ký HMAC, không dùng Sanctum.

@@ -18,9 +18,24 @@ class AppSetting extends Model
 
     public const REFERRAL_DRIVER_POINTS = 'referral_driver_points';
 
+    public const APP_VERSION_PLATFORMS = ['android'];
+
+    public const APP_VERSION_APPS = ['customer', 'driver'];
+
     public const FREE_UNLOCK_FEE_VND = 'free_unlock_fee_vnd';
 
     protected $fillable = ['key', 'value'];
+
+    /** vd appVersionKey('android', 'driver', 'min') → 'app_version_android_driver_min' */
+    public static function appVersionKey(string $platform, string $app, string $kind): string
+    {
+        return "app_version_{$platform}_{$app}_{$kind}";
+    }
+
+    public static function appVersion(string $platform, string $app, string $kind): string
+    {
+        return static::get(static::appVersionKey($platform, $app, $kind), config('app_versions.default'));
+    }
 
     /** Phí app dạng hệ số (vd 0.2), admin chỉnh được. */
     public static function appFeeRate(): float

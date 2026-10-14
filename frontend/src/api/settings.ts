@@ -12,6 +12,10 @@ export interface AdminSettings {
   app_fee_percent: number
   referral_voucher_value: number
   referral_driver_points: number
+  app_version_android_customer_min: string
+  app_version_android_customer_latest: string
+  app_version_android_driver_min: string
+  app_version_android_driver_latest: string
   free_unlock_fee_vnd: number
 }
 

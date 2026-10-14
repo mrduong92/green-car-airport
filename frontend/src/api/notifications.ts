@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import api from './axios'
 
 export interface AppNotification {
@@ -33,3 +34,10 @@ export const registerDeviceToken = (subscription: PushSubscriptionJSON) =>
 
 export const removeDeviceToken = (endpoint: string) =>
   api.delete('/device-token', { data: { endpoint } }).then((r) => r.data)
+
+// App native (FCM). platform lấy từ Capacitor để iOS sau này không phải sửa.
+export const registerFcmToken = (fcm_token: string) =>
+  api.post('/device-token', { fcm_token, platform: Capacitor.getPlatform() }).then((r) => r.data)
+
+export const removeFcmToken = (fcm_token: string) =>
+  api.delete('/device-token', { data: { fcm_token } }).then((r) => r.data)

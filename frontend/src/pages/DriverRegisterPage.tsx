@@ -157,7 +157,7 @@ export default function DriverRegisterPage() {
   const step6Valid = agreedPrivacy && agreedTerms
 
   return (
-    <div className="min-h-svh bg-white flex flex-col w-full">
+    <div className="min-h-app bg-white flex flex-col w-full">
       <ToastContainer />
       <div className="px-4 pt-14 pb-2 safe-top flex items-center">
         <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center text-navy">

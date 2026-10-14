@@ -2,14 +2,14 @@
 
 namespace App\Notifications;
 
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use App\Models\FreeRide;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
 
-// CHỈ web push, KHÔNG lưu vào bảng notifications — như NewBookingAvailableNotification: nội dung
+// CHỈ push (web + FCM), KHÔNG lưu vào bảng notifications — như NewBookingAvailableNotification: nội dung
 // hết giá trị sau vài phút, tài xế mở tab Free ra là thấy, không cần lưu lịch sử.
 class FreeRideMatchNotification extends Notification implements ShouldQueue
 {
@@ -24,10 +24,10 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return [WebPushChannel::class];
+        return [PushChannel::class];
     }
 
-    public function toWebPush($notifiable, $notification): array
+    public function toPush($notifiable, $notification): array
     {
         return [
             'title' => 'Cuốc Free',
@@ -38,6 +38,10 @@ class FreeRideMatchNotification extends Notification implements ShouldQueue
             // Tag riêng để push Cuốc Free không âm thầm đè push cuốc trả khách (mặc định
             // 'greenca-notification' ở sw.ts) khi cả hai tới gần nhau — xem sw.ts.
             'tag' => 'greenca-free-ride',
+            // App native: kênh "Cuốc mới" (âm báo riêng) như cuốc trả khách; quá 5 phút thì
+            // cuốc thường đã có người nhận → FCM bỏ luôn, không giao trễ cho máy vừa có mạng.
+            'channel' => 'new_ride',
+            'ttl' => 300,
         ];
     }
 

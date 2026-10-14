@@ -44,7 +44,7 @@ export default function AdminLayout() {
   const inMore = MORE_TABS.some((t) => pathname.startsWith(t.to))
 
   return (
-    <div className="min-h-svh bg-warm-white">
+    <div className="min-h-app bg-warm-white">
       {/* PC sidebar — visible only lg+ */}
       <aside className="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 flex-col bg-navy z-50">
         <div className="px-5 py-6 border-b border-white/10">
@@ -87,7 +87,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Content area */}
-      <div className="flex flex-col min-h-svh max-w-[430px] mx-auto lg:ml-64 lg:max-w-none lg:mx-0">
+      <div className="flex flex-col min-h-app max-w-[430px] mx-auto lg:ml-64 lg:max-w-none lg:mx-0">
         {/* Mobile header */}
         <div className="lg:hidden">
           <AppHeader />

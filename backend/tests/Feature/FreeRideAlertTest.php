@@ -338,7 +338,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return $payload['body'] === 'Cuốc Free: Phố cổ → Sân bay Nội Bài · 16:30 · 250.000đ'
                 && $payload['data'] === ['action' => 'open_url', 'url' => '/driver/free'];
@@ -360,7 +360,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return ($payload['tag'] ?? null) === 'greenca-free-ride';
         });
@@ -380,7 +380,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return $payload['body'] === 'Cuốc Free: Phố cổ → Sân bay · Đi luôn · 150.000đ';
         });
@@ -400,7 +400,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return $payload['body'] === '2 cuốc Free mới phù hợp'
                 && $payload['data'] === ['action' => 'open_url', 'url' => '/driver/free'];
@@ -442,7 +442,7 @@ class FreeRideAlertTest extends TestCase
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return $payload['body'] === '2 cuốc Free mới phù hợp';
         });
@@ -472,7 +472,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            return str_starts_with($n->toWebPush($driver, $n)['body'], 'Cuốc Free: Phố cổ');
+            return str_starts_with($n->toPush($driver, $n)['body'], 'Cuốc Free: Phố cổ');
         });
     }
 
@@ -576,7 +576,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return $payload['body'] === 'Cuốc Free: Phố cổ → Sân bay Nội Bài · 16:30 · 300.000đ · Không chiết khấu'
                 && ! str_contains($payload['body'], 'Miễn phí');
@@ -599,7 +599,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return $payload['body'] === 'Cuốc Free: Phố cổ → Sân bay Nội Bài · 16:30';
         });
@@ -624,7 +624,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver, $raw) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
             $expectedSnippet = mb_substr(trim($raw), 0, 80).'…';
 
             return $payload['body'] === "Cuốc Free: {$expectedSnippet} · Đi luôn"
@@ -648,7 +648,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return str_contains($payload['body'], '· 4h chiều') && ! str_contains($payload['body'], 'Đi luôn');
         });
@@ -699,7 +699,7 @@ class FreeRideAlertTest extends TestCase
 
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver, $newRide, $oldRide) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return str_contains($payload['body'], $newRide->pickup) && ! str_contains($payload['body'], $oldRide->pickup);
         });
@@ -727,7 +727,7 @@ class FreeRideAlertTest extends TestCase
 
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver, $r2) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             // Chỉ 1 cuốc (r2) — cuốc của người từng bị ẩn không bị gồm vào.
             return str_contains($payload['body'], $r2->pickup) && ! str_contains($payload['body'], 'cuốc Free mới');
@@ -768,7 +768,7 @@ class FreeRideAlertTest extends TestCase
         $this->assertNotNull($midRunRide, 'listener chèn cuốc giữa chừng phải chạy');
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 1);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return ! str_contains($payload['body'], 'Giữa Chừng');
         });
@@ -778,7 +778,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $payload = $n->toWebPush($driver, $n);
+            $payload = $n->toPush($driver, $n);
 
             return str_contains($payload['body'], 'Giữa Chừng');
         });
@@ -816,7 +816,7 @@ class FreeRideAlertTest extends TestCase
 
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            return str_contains($n->toWebPush($driver, $n)['body'], 'Commit Muộn');
+            return str_contains($n->toPush($driver, $n)['body'], 'Commit Muộn');
         });
     }
 
@@ -885,7 +885,7 @@ class FreeRideAlertTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $body = $n->toWebPush($driver, $n)['body'];
+            $body = $n->toPush($driver, $n)['body'];
 
             return str_contains($body, 'Sau Khi Bật Lại') && ! str_contains($body, 'Lúc Tắt');
         });
@@ -911,7 +911,7 @@ class FreeRideAlertTest extends TestCase
 
         Notification::assertSentToTimes($driver, FreeRideMatchNotification::class, 2);
         Notification::assertSentTo($driver, FreeRideMatchNotification::class, function (FreeRideMatchNotification $n) use ($driver) {
-            $body = $n->toWebPush($driver, $n)['body'];
+            $body = $n->toPush($driver, $n)['body'];
 
             return str_contains($body, 'Hai') && ! str_contains($body, 'Một');
         });
@@ -991,11 +991,21 @@ class FreeRideAlertTest extends TestCase
         $open = $this->driver();
         $ride = $this->ride(['pickup' => null, 'destination' => null, 'is_raw' => true, 'raw_text' => 'Cần xe gấp đi Hạ Long lh 0912345678']);
 
-        $lockedBody = (new FreeRideMatchNotification(collect([$ride])))->toWebPush($locked->fresh(), null)['body'];
-        $openBody = (new FreeRideMatchNotification(collect([$ride])))->toWebPush($open->fresh(), null)['body'];
+        $lockedBody = (new FreeRideMatchNotification(collect([$ride])))->toPush($locked->fresh(), null)['body'];
+        $openBody = (new FreeRideMatchNotification(collect([$ride])))->toPush($open->fresh(), null)['body'];
 
         $this->assertStringNotContainsString('0912345678', $lockedBody);
         $this->assertStringContainsString('Hạ Long', $lockedBody);
         $this->assertStringContainsString('0912345678', $openBody);
+    }
+
+    // App native: Cuốc Free kêu cùng kênh "Cuốc mới" như cuốc trả khách, hết hạn sau 5 phút.
+    public function test_push_cuoc_free_dung_kenh_new_ride_ttl_5_phut(): void
+    {
+        $payload = (new FreeRideMatchNotification(collect([$this->ride()])))->toPush($this->driver(), null);
+
+        $this->assertSame('new_ride', $payload['channel']);
+        $this->assertSame(300, $payload['ttl']);
+        $this->assertSame('greenca-free-ride', $payload['tag']);
     }
 }

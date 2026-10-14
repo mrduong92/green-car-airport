@@ -12,6 +12,8 @@ import Button from '@/components/common/Button'
 import VoucherSheet from '@/components/common/VoucherSheet'
 import { zaloLink } from '@/utils/zalo'
 import { BRAND } from '@/brand'
+import { canShare, shareLink } from '@/share'
+import { webOrigin } from '@/webOrigin'
 
 export default function CustomerProfilePage() {
   const { user, setAuth, token } = useAuthStore()
@@ -135,27 +137,9 @@ export default function CustomerProfilePage() {
         </div>
       )}
 
-      {/* Menu */}
-      <div className="bg-white rounded-card shadow-card border border-border-soft overflow-hidden">
-        {MENU.map((row, i) => (
-          <button
-            key={row.icon}
-            onClick={row.onClick}
-            className={`w-full flex items-center gap-3 px-4 py-4 text-left active:bg-warm-white transition-colors
-              ${i < MENU.length - 1 ? 'border-b border-border-soft' : ''}`}
-          >
-            <div className="w-8 h-8 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-primary text-[16px]">{row.icon}</span>
-            </div>
-            <span className="text-navy text-sm font-medium flex-1">{row.label}</span>
-            <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
-          </button>
-        ))}
-      </div>
-
       {/* Collaborator wallet section */}
       {user?.is_collaborator && (
-        <div className="mx-4 bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-card shadow-card border border-border-soft p-4 flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-gold text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
               account_balance_wallet
@@ -183,6 +167,24 @@ export default function CustomerProfilePage() {
           </p>
         </div>
       )}
+
+      {/* Menu */}
+      <div className="bg-white rounded-card shadow-card border border-border-soft overflow-hidden">
+        {MENU.map((row, i) => (
+          <button
+            key={row.icon}
+            onClick={row.onClick}
+            className={`w-full flex items-center gap-3 px-4 py-4 text-left active:bg-warm-white transition-colors
+              ${i < MENU.length - 1 ? 'border-b border-border-soft' : ''}`}
+          >
+            <div className="w-8 h-8 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-primary text-[16px]">{row.icon}</span>
+            </div>
+            <span className="text-navy text-sm font-medium flex-1">{row.label}</span>
+            <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
+          </button>
+        ))}
+      </div>
 
       {/* Logout */}
       <button
@@ -263,7 +265,7 @@ export default function CustomerProfilePage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/login?ref=${user.phone}`)
+                        navigator.clipboard.writeText(`${webOrigin('customer')}/login?ref=${user.phone}`)
                         showToast('Đã sao chép link giới thiệu', 'success')
                       }}
                       className="flex-1 h-10 rounded-pill border border-primary text-primary text-[13px] font-semibold flex items-center justify-center gap-1"
@@ -271,12 +273,12 @@ export default function CustomerProfilePage() {
                       <span className="material-symbols-outlined text-[15px]">content_copy</span>
                       Sao chép link
                     </button>
-                    {typeof navigator.share === 'function' && (
+                    {canShare() && (
                       <button
-                        onClick={() => navigator.share({
+                        onClick={() => shareLink({
                           title: BRAND.name,
                           text: `Tham gia ${BRAND.name} và nhận voucher ngay!`,
-                          url: `${window.location.origin}/login?ref=${user.phone}`,
+                          url: `${webOrigin('customer')}/login?ref=${user.phone}`,
                         })}
                         className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
                       >

@@ -393,7 +393,7 @@ class FreeRideMergeTest extends TestCase
         (new NotifyFreeRideAlerts)->handle();
 
         Notification::assertSentTo($driver, FreeRideMatchNotification::class,
-            fn (FreeRideMatchNotification $n) => str_starts_with($n->toWebPush($driver, $n)['body'], 'Cuốc Free: Phố Cổ'));
+            fn (FreeRideMatchNotification $n) => str_starts_with($n->toPush($driver, $n)['body'], 'Cuốc Free: Phố Cổ'));
     }
 
     // ---- admin ----

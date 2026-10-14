@@ -1,6 +1,6 @@
 <?php
 namespace App\Notifications;
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use App\Models\Booking;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -10,8 +10,8 @@ class CustomerCancelledNotification extends Notification implements ShouldQueue
 {
     use Queueable;
     public function __construct(private Booking $booking) {}
-    public function via($notifiable): array { return ['database', WebPushChannel::class]; }
-    public function toWebPush($notifiable, $notification): array {
+    public function via($notifiable): array { return ['database', PushChannel::class]; }
+    public function toPush($notifiable, $notification): array {
         return [
             'title' => 'Đã huỷ chuyến',
             'body'  => "Chuyến #{$this->booking->id} đã được huỷ thành công",

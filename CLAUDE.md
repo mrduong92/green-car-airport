@@ -75,6 +75,10 @@ make fe-shell-driver  # sh into driver frontend container
 # Frontend builds (2 app targets)
 docker compose exec frontend npm run build:customer   # → dist/
 docker compose exec frontend npm run build:driver     # → dist-driver/
+
+# Android native (build trên host, cần JDK 21 — xem docs/MOBILE.md)
+make android-customer   # → dist-mobile/*.apk + *.aab
+make android-driver
 ```
 
 **Single test:**

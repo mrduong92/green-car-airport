@@ -4,7 +4,7 @@
 
 namespace Tests\Feature;
 
-use App\Channels\WebPushChannel;
+use App\Channels\PushChannel;
 use App\Jobs\SendNewBookingBroadcastJob;
 use App\Models\Booking;
 use App\Models\User;
@@ -64,7 +64,7 @@ class NewBookingNotificationChannelsTest extends TestCase
         $kenh = (new NewBookingAvailableNotification($this->makeBooking()))
             ->via($this->makeDriver());
 
-        $this->assertEquals([WebPushChannel::class], $kenh);
+        $this->assertEquals([PushChannel::class], $kenh);
         $this->assertNotContains('database', $kenh, 'ghi vào DB là bảng notifications phình theo số tài xế online');
     }
 
@@ -90,6 +90,23 @@ class NewBookingNotificationChannelsTest extends TestCase
         $this->assertDatabaseCount('notifications', 1);
     }
 
+    public function test_cuoc_moi_dung_kenh_new_ride_ttl_5_phut(): void
+    {
+        $payload = (new NewBookingAvailableNotification($this->makeBooking()))
+            ->toPush($this->makeDriver(), null);
+
+        $this->assertSame('new_ride', $payload['channel']);
+        $this->assertSame(300, $payload['ttl']);
+    }
+
+    public function test_notification_khac_khong_dat_kenh(): void
+    {
+        $payload = (new BookingCreatedNotification($this->makeBooking()))
+            ->toPush(User::factory()->create(['role' => 'customer']), null);
+
+        $this->assertArrayNotHasKey('channel', $payload);
+    }
+
     /**
      * Chạm push "Có cuốc mới" phải mở DANH SÁCH cuốc (nơi bấm Nhận), không phải
      * /driver/trips/{id}: trang chi tiết chỉ cho tài xế ĐÃ nhận cuốc xem (403 với
@@ -99,7 +116,7 @@ class NewBookingNotificationChannelsTest extends TestCase
     public function test_cham_push_cuoc_moi_mo_danh_sach_cuoc(): void
     {
         $data = (new NewBookingAvailableNotification($this->makeBooking()))
-            ->toWebPush($this->makeDriver(), null)['data'];
+            ->toPush($this->makeDriver(), null)['data'];
 
         $this->assertSame('open_url', $data['action']);
         $this->assertSame('/driver/trips', $data['url']);

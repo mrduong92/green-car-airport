@@ -42,6 +42,12 @@ return [
      */
     'notify_only_phone' => env('NOTIFY_ONLY_PHONE'),
 
+    // Đường dẫn TUYỆT ĐỐI tới file service account JSON của Firebase, đặt NGOÀI git.
+    // Trống → app native không nhận push (NullFcmSender), Web Push không ảnh hưởng.
+    'firebase' => [
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+    ],
+
     'vapid' => [
         'subject' => env('VAPID_SUBJECT', 'mailto:admin@greenca.vn'),
         'public_key' => env('VAPID_PUBLIC_KEY'),

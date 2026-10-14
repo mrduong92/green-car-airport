@@ -1,3 +1,4 @@
+import { isNativeApp } from '@/platform'
 import { useUiStore } from '@/stores/ui'
 
 export function isStandaloneMode(): boolean {
@@ -24,7 +25,9 @@ export function usePwaInstall() {
   // - Not already running in standalone mode
   // - Not already installed this session
   // - Either a deferred prompt is available (Android/Desktop) or we're on iOS (manual steps)
-  const canInstall = !isStandalone && !isInstalled && (!!deferredInstallPrompt || isIos)
+  // App native đã là app thật — mọi lối "Cài đặt ứng dụng" (Splash, Header,
+  // Profile, Cài đặt thông báo) đều dựa vào cờ này nên tắt ở đây là đủ.
+  const canInstall = !isNativeApp() && !isStandalone && !isInstalled && (!!deferredInstallPrompt || isIos)
 
   async function triggerInstall(): Promise<boolean> {
     if (!deferredInstallPrompt) return false

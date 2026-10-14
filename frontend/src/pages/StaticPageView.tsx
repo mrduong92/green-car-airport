@@ -15,7 +15,7 @@ export default function StaticPageView() {
   })
 
   return (
-    <div className="min-h-svh bg-white flex flex-col w-full">
+    <div className="min-h-app bg-white flex flex-col w-full">
       <div className="px-4 pt-14 pb-2 safe-top flex items-center">
         <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center text-navy">
           <span className="material-symbols-outlined">arrow_back</span>

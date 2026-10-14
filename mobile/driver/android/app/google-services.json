@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "995330157289",
+    "project_id": "green-ca",
+    "storage_bucket": "green-ca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:995330157289:android:64777980fc222c43ba1e78",
+        "android_client_info": {
+          "package_name": "vn.greenca.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATswIvWuZ-Rn954bOZniBpSkZJZJIGTVc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:995330157289:android:7a33acf82956449bba1e78",
+        "android_client_info": {
+          "package_name": "vn.greenca.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATswIvWuZ-Rn954bOZniBpSkZJZJIGTVc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
