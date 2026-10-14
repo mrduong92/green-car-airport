@@ -19,7 +19,7 @@ class AdminReferralReportTest extends TestCase
             'vehicle_type' => 'sedan_4', 'distance_km' => 10, 'price' => $price, 'discount' => 0, 'surcharge' => 0,
             'status' => 'completed', 'cashback_points' => $cashback, 'commission_points' => $commission,
         ]);
-        Booking::whereKey($b->id)->update(['updated_at' => $at]);
+        Booking::whereKey($b->id)->update(['completed_at' => $at]);
     }
 
     public function test_top_referrers_monthly_and_detail(): void
@@ -50,6 +50,31 @@ class AdminReferralReportTest extends TestCase
         $this->assertSame(1_400_000, $detail->json('f1.0.spent'));
 
         $this->actingAs($a, 'sanctum')->getJson('/api/admin/referrals')->assertForbidden();
+    }
+
+    /**
+     * Tháng hoàn thành phải bám `completed_at`, KHÔNG phải `updated_at`: một UPDATE
+     * bất kỳ sau khi cuốc đã completed (vd AccountDeletionService xoá note của F1
+     * đã xoá tài khoản) không được kéo cuốc cũ sang báo cáo tháng hiện tại.
+     */
+    public function test_month_attribution_survives_later_update_bumping_updated_at(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $a = User::factory()->create(['role' => 'customer', 'name' => 'A']);
+        $a1 = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $a->id, 'created_at' => '2026-09-02']);
+        $this->trip($a1, 300_000, '2026-09-10 09:00:00', 15, 15);
+
+        // Mô phỏng AccountDeletionService::delete(): update khác (không phải completed_at)
+        // sau khi cuốc đã hoàn thành — Eloquent mass update tự đẩy updated_at sang "bây giờ".
+        $this->travelTo(Carbon::parse('2026-10-20 10:00:00'));
+        Booking::where('customer_id', $a1->id)->update(['note' => null]);
+
+        $sep = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/referrals?month=2026-09')->assertOk();
+        $oct = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/referrals?month=2026-10')->assertOk();
+
+        $this->assertSame(300_000, $sep->json('top.0.f1_revenue'));
+        $this->assertSame(300_000, collect($sep->json('monthly'))->firstWhere('month', '2026-09')['f1_revenue']);
+        $this->assertSame(0, collect($oct->json('monthly'))->firstWhere('month', '2026-10')['f1_revenue']);
     }
 
     /** Lọc theo tháng không được tràn sang tháng sau khi hôm nay là ngày 29-31 (Carbon::createFromFormat('Y-m', ...) giữ nguyên ngày trong tháng gốc). */

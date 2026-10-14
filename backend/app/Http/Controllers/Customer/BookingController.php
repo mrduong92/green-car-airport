@@ -242,13 +242,11 @@ class BookingController extends Controller
 
         // Điểm đã dùng nhưng đã hoàn lại (huỷ/hết hạn) thì không còn giảm giá cho
         // khách nữa — hiển thị như chưa từng dùng điểm. Cột points_used lưu trong
-        // DB giữ nguyên (lịch sử), chỉ đổi số hiển thị ra ngoài.
-        $pointsRefunded = $b->points_refunded_at !== null;
-        $pointsUsedDisplay = $pointsRefunded ? 0 : (int) $b->points_used;
-        $pointsDiscountDisplay = $pointsRefunded ? 0 : $b->pointsDiscountVnd();
-        $finalPriceDisplay = $pointsRefunded
-            ? $b->basePrice() + (int) $b->surcharge + (int) ($b->collection_fee ?? 0)
-            : $b->finalPrice();
+        // DB giữ nguyên (lịch sử), chỉ đổi số hiển thị ra ngoài. Driver/TripController::formatTrip
+        // dùng chung Booking::effectivePointsUsed() để khớp hành vi này.
+        $pointsUsedDisplay = $b->effectivePointsUsed();
+        $pointsDiscountDisplay = $b->effectivePointsDiscountVnd();
+        $finalPriceDisplay = $b->basePrice() - $pointsDiscountDisplay + (int) $b->surcharge + (int) ($b->collection_fee ?? 0);
 
         return [
             'id' => $b->id,

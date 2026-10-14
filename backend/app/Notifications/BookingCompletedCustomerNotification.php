@@ -12,7 +12,9 @@ class BookingCompletedCustomerNotification extends Notification implements Shoul
     public function __construct(private Booking $booking) {}
     public function via($notifiable): array { return ['database', WebPushChannel::class]; }
     public function toWebPush($notifiable, $notification): array {
-        $price = number_format($this->booking->price - $this->booking->discount + $this->booking->surcharge, 0, ',', '.');
+        // finalPrice() = net của điểm thưởng đã dùng + gồm thu hộ, khớp formatBooking —
+        // price - discount + surcharge thiếu phần trừ điểm thưởng là số tiền SAI khách thấy.
+        $price = number_format($this->booking->finalPrice(), 0, ',', '.');
         return [
             'title' => 'Hoàn thành chuyến',
             'body'  => "Cảm ơn bạn! Chuyến #{$this->booking->id} · {$price}đ",

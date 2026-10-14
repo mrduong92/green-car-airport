@@ -11,19 +11,21 @@ class Booking extends Model
         'destination', 'destination_lat', 'destination_lng',
         'date', 'time', 'distance_km', 'price', 'discount', 'surcharge',
         'collection_fee', 'collaborator_id',
-        'charged_fee_points', 'held_collection_points', 'held_surcharge_points',
+        'charged_fee_points', 'held_collection_points', 'held_surcharge_points', 'held_shortfall_points',
         'points_used', 'cashback_points', 'commission_points', 'points_refunded_at',
         'status', 'vehicle_type', 'is_vip',
-        'cancelled_at', 'cancelled_by', 'cancel_reason', 'accepted_at', 'note',
+        'cancelled_at', 'cancelled_by', 'cancel_reason', 'accepted_at', 'completed_at', 'note',
     ];
 
     protected $casts = [
         'cancelled_at' => 'datetime',
         'accepted_at' => 'datetime',
+        'completed_at' => 'datetime',
         'is_vip' => 'boolean',
         'charged_fee_points' => 'integer',
         'held_collection_points' => 'integer',
         'held_surcharge_points' => 'integer',
+        'held_shortfall_points' => 'integer',
         'points_used' => 'integer',
         'cashback_points' => 'integer',
         'commission_points' => 'integer',
@@ -72,6 +74,24 @@ class Booking extends Model
         return (int) $this->points_used * 1000;
     }
 
+    /**
+     * points_used HIỂN THỊ: cuốc đã bị hoàn điểm (khách/hệ thống huỷ, hết hạn…)
+     * thì coi như chưa từng dùng điểm — khách không còn được giảm giá, tài xế
+     * không còn được app bù. Cột `points_used` trong DB giữ nguyên (lịch sử/đối
+     * soát), hàm này chỉ dùng cho MỌI nơi hiển thị ra ngoài: formatBooking (khách)
+     * và formatTrip (tài xế) đều gọi hàm này thay vì đọc thẳng points_used.
+     */
+    public function effectivePointsUsed(): int
+    {
+        return $this->points_refunded_at !== null ? 0 : (int) $this->points_used;
+    }
+
+    /** VNĐ giảm giá hiển thị tương ứng effectivePointsUsed() — 0 nếu điểm đã được hoàn. */
+    public function effectivePointsDiscountVnd(): int
+    {
+        return $this->effectivePointsUsed() * 1000;
+    }
+
     /** Số tiền khách trả tài xế. Nguồn DUY NHẤT — formatBooking, formatTrip đều gọi. */
     public function finalPrice(): int
     {
@@ -79,8 +99,18 @@ class Booking extends Model
     }
 
     /**
-     * Phí app trừ tài xế lúc nhận cuốc: phí 20% trừ đi số điểm khách dùng (app bù) — tài xế thu ít
-     * tiền mặt hơn đúng chừng đó nên vẫn nhận đủ 80% giá cơ sở. points_used ≤ 10% < phí nên không âm.
+     * Phí app trừ tài xế lúc nhận cuốc: phí trừ đi số điểm khách dùng (app bù) — tài xế thu ít
+     * tiền mặt hơn đúng chừng đó nên vẫn nhận đủ phần trăm giá cơ sở của mình. Khi tỉ lệ phí
+     * còn cao hơn trần dùng điểm (vd phí 20% > trần điểm 10%) thì points_used luôn ≤ phí nên
+     * kết quả không bao giờ âm.
+     *
+     * ⚠️ Nếu ADMIN HẠ tỉ lệ phí (`app_fee_percent`) XUỐNG DƯỚI trần dùng điểm SAU khi khách đã
+     * giữ điểm theo trần cũ, points_used có thể VƯỢT appFeePoints() — hàm này clamp về 0 nên
+     * không âm, nhưng phần vượt (points_used − appFeePoints) không được trừ ở đây: tài xế sẽ bị
+     * thiếu đúng phần đó nếu không bù thêm. Driver/TripController::accept() tính riêng phần vượt
+     * này ("shortfall") và CỘNG thẳng vào ví tài xế (held_shortfall_points) ngay lúc nhận, để tài
+     * xế luôn nhận đủ (100% − feeRate) của basePrice() bất kể phí bị hạ sau khi điểm đã giữ.
+     * refundAcceptCharges() thu hồi đúng số đã cộng này nếu cuốc không hoàn tất.
      */
     public function driverFeePoints(float $feeRate): int
     {
@@ -122,7 +152,10 @@ class Booking extends Model
             return;
         }
 
-        $cleared = ['charged_fee_points' => null, 'held_collection_points' => 0, 'held_surcharge_points' => 0];
+        $cleared = [
+            'charged_fee_points' => null, 'held_collection_points' => 0,
+            'held_surcharge_points' => 0, 'held_shortfall_points' => 0,
+        ];
         $claimed = static::whereKey($this->id)->whereNotNull('charged_fee_points')->update($cleared);
         if ($claimed === 0) {
             return;
@@ -136,6 +169,20 @@ class Booking extends Model
         );
         if ($refundFee) {
             $wallet->credit($this->charged_fee_points, "Hoàn phí app cuốc #{$this->id} ({$cancelledBy} huỷ)", $this->id);
+        }
+        // Thu lại phần app đã bù thêm lúc nhận (xem driverFeePoints()), BẤT KỂ $refundFee:
+        // cuốc không hoàn tất thì khoản bù — vốn chỉ có ý nghĩa nếu tài xế thực sự chạy
+        // xong cuốc đó — không còn lý do tồn tại. Khách huỷ: tài xế về ĐÚNG số dư trước
+        // khi nhận (cùng charged_fee_points/held_* được hoàn ở trên, cộng trừ bằng 0).
+        // Tài xế tự bỏ cuốc: không hoàn phí ĐÃ trừ, nhưng khoản bù vẫn phải thu lại —
+        // nếu không, cuốc quay lại sàn và tài xế SAU nhận lại sẽ được bù một lần nữa
+        // (app trả 2 lần bù cho 1 cuốc).
+        if ($this->held_shortfall_points > 0) {
+            $wallet->debit(
+                $this->held_shortfall_points,
+                "Thu lại phần app bù điểm cuốc #{$this->id} ({$cancelledBy} huỷ, cuốc không hoàn tất)",
+                $this->id,
+            );
         }
 
         $this->forceFill($cleared)->syncOriginal();

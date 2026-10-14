@@ -22,7 +22,7 @@ class CustomerRewardApiTest extends TestCase
             'vehicle_type' => 'sedan_4', 'distance_km' => 10, 'price' => $price, 'discount' => 0, 'surcharge' => 0,
             'status' => 'completed', 'cashback_points' => 0, 'commission_points' => $commission,
         ]);
-        Booking::whereKey($b->id)->update(['updated_at' => $at, 'created_at' => $at]);
+        Booking::whereKey($b->id)->update(['completed_at' => $at, 'created_at' => $at]);
 
         return $b;
     }
@@ -72,6 +72,24 @@ class CustomerRewardApiTest extends TestCase
         $this->assertSame(15, $oct['commission_points']);
 
         $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?month=2026-13')->assertStatus(422);
+    }
+
+    /** Cùng lý do với AdminReferralReportTest — tháng hoàn thành bám completed_at, không phải updated_at. */
+    public function test_referrals_month_attribution_survives_later_update_bumping_updated_at(): void
+    {
+        $me = User::factory()->create(['role' => 'customer']);
+        $f1 = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $me->id]);
+        $this->completed($f1, 300_000, '2026-09-10 09:00:00', 15);
+
+        $this->travelTo(Carbon::parse('2026-10-20 10:00:00'));
+        Booking::where('customer_id', $f1->id)->update(['note' => null]);
+
+        $sep = collect($this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?month=2026-09')->json('items'))->firstWhere('id', $f1->id);
+        $oct = collect($this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?month=2026-10')->json('items'))->firstWhere('id', $f1->id);
+
+        $this->assertSame(1, $sep['trips']);
+        $this->assertSame(300_000, $sep['spent']);
+        $this->assertSame(0, $oct['trips']);
     }
 
     public function test_collaborator_wallet_ignores_reward_transactions(): void

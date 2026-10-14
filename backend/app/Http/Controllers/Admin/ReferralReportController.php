@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\DB;
 
 // Báo cáo giới thiệu (CR affiliate mục 6): top 10 người giới thiệu theo doanh số F1 trong tháng,
 // số F1 đăng ký + doanh số F1 + điểm thưởng đã phát theo 12 tháng, chi tiết một người giới thiệu.
-// Doanh số = Σ(price − discount) chuyến completed, theo tháng hoàn thành (updated_at).
+// Doanh số = Σ(price − discount) chuyến completed, theo tháng hoàn thành (completed_at — KHÔNG
+// dùng updated_at: một UPDATE bất kỳ về sau, vd AccountDeletionService xoá note của một F1 đã xoá
+// tài khoản, sẽ đẩy updated_at và kéo cuốc cũ sang nhầm tháng trong báo cáo).
 class ReferralReportController extends Controller
 {
     public function index(Request $request): JsonResponse
@@ -28,7 +30,7 @@ class ReferralReportController extends Controller
             ->join('users as ref', 'ref.id', '=', 'f1.referred_by_user_id')
             ->where('ref.role', 'customer')
             ->where('bookings.status', 'completed')
-            ->whereBetween('bookings.updated_at', [$start, $end])
+            ->whereBetween('bookings.completed_at', [$start, $end])
             ->groupBy('ref.id')
             ->selectRaw('ref.id AS id, SUM(bookings.price - bookings.discount) AS revenue, SUM(COALESCE(bookings.commission_points, 0)) AS commission')
             ->orderByDesc('revenue')->limit(10)->get();
@@ -49,7 +51,7 @@ class ReferralReportController extends Controller
             $m = $start->copy()->subMonths($ago);
             $mEnd = $m->copy()->endOfMonth();
 
-            $completed = Booking::where('status', 'completed')->whereBetween('updated_at', [$m, $mEnd]);
+            $completed = Booking::where('status', 'completed')->whereBetween('completed_at', [$m, $mEnd]);
             // F1 = khách do một KHÁCH giới thiệu (spec) — khách do tài xế giới thiệu không tính.
             $f1 = fn () => User::where('role', 'customer')->whereHas('referredBy', fn ($q) => $q->where('role', 'customer'));
 

@@ -156,10 +156,18 @@ class TripController extends Controller
             }
 
             // Khách dùng điểm thưởng → app bù cho tài xế bằng cách trừ phí ít đi đúng số điểm đó.
-            $feePoints = $booking->driverFeePoints(AppSetting::appFeeRate());
+            $feeRate = AppSetting::appFeeRate();
+            $appFeePoints = $booking->appFeePoints($feeRate);
+            $feePoints = $booking->driverFeePoints($feeRate);
             $collectionPoints = $booking->collectionPoints();
             $surchargePoints = $booking->surchargePoints();
             $required = $feePoints + $collectionPoints + $surchargePoints;
+
+            // Nếu admin hạ phí xuống dưới trần dùng điểm SAU khi khách đã giữ điểm theo
+            // trần cũ, points_used có thể vượt appFeePoints() — driverFeePoints() clamp
+            // phí về 0 nhưng phần vượt phải app bù thẳng, không thì tài xế bị thiếu tiền
+            // (xem docblock Booking::driverFeePoints()).
+            $shortfall = max(0, (int) $booking->points_used - $appFeePoints);
 
             $wallet = Wallet::lockedFor($driver->id);
 
@@ -185,6 +193,7 @@ class TripController extends Controller
                 'charged_fee_points' => $feePoints,
                 'held_collection_points' => $collectionPoints,
                 'held_surcharge_points' => $surchargePoints,
+                'held_shortfall_points' => $shortfall,
             ]);
 
             $wallet->debit(
@@ -194,6 +203,9 @@ class TripController extends Controller
             );
             $wallet->debit($collectionPoints, "Thu hộ cuốc #{$booking->id}", $booking->id);
             $wallet->debit($surchargePoints, "Phí phạt huỷ khách cuốc #{$booking->id}", $booking->id);
+            if ($shortfall > 0) {
+                $wallet->credit($shortfall, "App bù phần điểm khách dùng vượt phí cuốc #{$booking->id}", $booking->id);
+            }
 
             return null;
         });
@@ -473,7 +485,7 @@ class TripController extends Controller
 
         $this->affiliateResult = app(AffiliateService::class)->settle($booking);
 
-        $booking->update(['status' => 'completed']);
+        $booking->update(['status' => 'completed', 'completed_at' => now()]);
 
         return null;
     }
@@ -497,6 +509,10 @@ class TripController extends Controller
         $feePercent = $this->feePercent();
         $appFee = (int) round($effectivePrice * $feePercent / 100);
         $netEarning = $effectivePrice - $appFee;
+        // Điểm đã dùng nhưng đã hoàn lại (khách huỷ…) thì hiển thị như chưa từng dùng điểm —
+        // khớp Customer/BookingController::formatBooking. Cột points_used trong DB giữ nguyên.
+        $pointsUsedDisplay = $b->effectivePointsUsed();
+        $pointsDiscountDisplay = $b->effectivePointsDiscountVnd();
         $phone = $b->customer?->contactPhone() ?? '';
         $durationMin = (int) round((float) $b->distance_km / 30 * 60);
 
@@ -537,18 +553,18 @@ class TripController extends Controller
             'discount' => $b->discount,
             'surcharge' => $b->surcharge,
             'collection_fee' => (int) ($b->collection_fee ?? 0),
-            'final_price' => $b->finalPrice(),
-            'app_fee' => max(0, $appFee - $b->pointsDiscountVnd()),
+            'final_price' => $b->basePrice() - $pointsDiscountDisplay + (int) $b->surcharge + (int) ($b->collection_fee ?? 0),
+            'app_fee' => max(0, $appFee - $pointsDiscountDisplay),
             'app_fee_percent' => $feePercent,
-            'points_used' => (int) $b->points_used,
-            'points_discount' => $b->pointsDiscountVnd(),
+            'points_used' => $pointsUsedDisplay,
+            'points_discount' => $pointsDiscountDisplay,
             // Tổng điểm ví bị trừ lúc NHẬN cuốc: phí app (đã trừ phần điểm khách dùng) +
             // tạm giữ thu hộ + phí phạt huỷ. Cùng Booking::driverFeePoints() với accept()
             // nên khớp thông báo lỗi. Tách riêng từng khoản để app ghi đúng chữ (cuốc có
             // collection_fee mà không có CTV thì KHÔNG bị giữ thu hộ — xem Booking::collectionPoints()).
             'collection_points' => $b->collectionPoints(),
             'surcharge_points' => $b->surchargePoints(),
-            'required_points' => $b->driverFeePoints($feePercent / 100) + $b->collectionPoints() + $b->surchargePoints(),
+            'required_points' => max(0, $b->appFeePoints($feePercent / 100) - $pointsUsedDisplay) + $b->collectionPoints() + $b->surchargePoints(),
             'net_earning' => $netEarning,
             'status' => $statusMap[$b->status] ?? $b->status,
             'cancelled_at' => $b->cancelled_at?->toISOString(),

@@ -74,6 +74,27 @@ class CustomerStatsTest extends TestCase
         $res->assertJsonPath('total_saved', 90_000);
     }
 
+    public function test_total_saved_excludes_points_already_refunded(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer']);
+        $today = now()->format('Y-m-d');
+
+        // Điểm đã hoàn (huỷ cuốc) không còn là khoản khách tiết kiệm được thật sự.
+        $this->makeBooking($customer, 'completed', $today, [
+            'price' => 500_000, 'discount' => 0, 'points_used' => 30, 'points_refunded_at' => now(),
+        ]);
+        $this->makeBooking($customer, 'completed', $today, [
+            'price' => 500_000, 'discount' => 0, 'points_used' => 20,
+        ]);
+
+        $res = $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/customer/stats?period=month')
+            ->assertOk();
+
+        // Chỉ tính 20 điểm chưa hoàn = 20.000, bỏ 30 điểm đã hoàn.
+        $res->assertJsonPath('total_saved', 20_000);
+    }
+
     public function test_only_counts_own_bookings(): void
     {
         $me = User::factory()->create(['role' => 'customer']);
