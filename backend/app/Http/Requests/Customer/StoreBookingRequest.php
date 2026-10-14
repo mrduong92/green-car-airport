@@ -34,6 +34,7 @@ class StoreBookingRequest extends FormRequest
             'note' => 'nullable|string|max:500',
             'collection_fee' => 'nullable|integer|min:0',
             'is_vip' => 'sometimes|boolean',
+            'use_points' => ['sometimes', 'boolean'],
         ];
     }
 

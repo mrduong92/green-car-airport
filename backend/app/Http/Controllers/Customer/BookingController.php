@@ -12,6 +12,7 @@ use App\Models\Voucher;
 use App\Models\Wallet;
 use App\Notifications\BookingCreatedNotification;
 use App\Notifications\CustomerCancelledNotification;
+use App\Services\AffiliateService;
 use App\Support\AvailableTripsCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -95,28 +96,36 @@ class BookingController extends Controller
             }
         }
 
-        $booking = Booking::create([
-            'customer_id' => $request->user()->id,
-            'pickup' => $data['pickup'],
-            'pickup_lat' => $data['pickup_lat'] ?? null,
-            'pickup_lng' => $data['pickup_lng'] ?? null,
-            'destination' => $data['destination'],
-            'destination_lat' => $data['destination_lat'] ?? null,
-            'destination_lng' => $data['destination_lng'] ?? null,
-            'date' => $data['date'],
-            'time' => $data['time'],
-            'distance_km' => $data['distance_km'],
-            'price' => $data['price'],
-            'discount' => $discount,
-            'surcharge' => $surcharge,
-            'voucher_id' => $voucherId,
-            'status' => 'finding_driver',
-            'vehicle_type' => $data['vehicle_type'],
-            'is_vip' => $request->boolean('is_vip'),
-            'note' => $data['note'] ?? null,
-            'collection_fee' => $collectionFee,
-            'collaborator_id' => $collaboratorId,
-        ]);
+        $booking = DB::transaction(function () use ($request, $data, $discount, $surcharge, $voucherId, $collectionFee, $collaboratorId) {
+            $booking = Booking::create([
+                'customer_id' => $request->user()->id,
+                'pickup' => $data['pickup'],
+                'pickup_lat' => $data['pickup_lat'] ?? null,
+                'pickup_lng' => $data['pickup_lng'] ?? null,
+                'destination' => $data['destination'],
+                'destination_lat' => $data['destination_lat'] ?? null,
+                'destination_lng' => $data['destination_lng'] ?? null,
+                'date' => $data['date'],
+                'time' => $data['time'],
+                'distance_km' => $data['distance_km'],
+                'price' => $data['price'],
+                'discount' => $discount,
+                'surcharge' => $surcharge,
+                'voucher_id' => $voucherId,
+                'status' => 'finding_driver',
+                'vehicle_type' => $data['vehicle_type'],
+                'is_vip' => $request->boolean('is_vip'),
+                'note' => $data['note'] ?? null,
+                'collection_fee' => $collectionFee,
+                'collaborator_id' => $collaboratorId,
+            ]);
+
+            if ($request->boolean('use_points')) {
+                app(AffiliateService::class)->hold($booking);
+            }
+
+            return $booking;
+        });
 
         // Cuốc mới vào sàn — vô hiệu hoá cache danh sách. Bỏ bước này thì tài xế
         // nhận được thông báo "có cuốc mới" rồi mở app ra lại thấy danh sách cũ.
@@ -204,6 +213,8 @@ class BookingController extends Controller
                 'cancel_reason' => $data['cancel_reason'] ?? null,
             ]);
 
+            app(AffiliateService::class)->refund($booking, 'khách huỷ');
+
             return null;
         });
 
@@ -243,7 +254,9 @@ class BookingController extends Controller
             'price' => $b->price,
             'discount' => $b->discount,
             'surcharge' => $b->surcharge,
-            'final_price' => $b->price - $b->discount + $b->surcharge + ($b->collection_fee ?? 0),
+            'final_price' => $b->finalPrice(),
+            'points_used' => (int) $b->points_used,
+            'points_discount' => $b->pointsDiscountVnd(),
             'voucher_code' => $b->voucher?->code,
             'note' => $b->note,
             'collection_fee' => $b->collection_fee ?? 0,

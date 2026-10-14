@@ -47,8 +47,8 @@ class StatsController extends Controller
         $scope = fn () => Booking::where('customer_id', $userId)
             ->when($totalsFrom, fn ($q) => $q->where('date', '>=', $totalsFrom->format('Y-m-d')));
 
-        // final_price = price - discount + surcharge + collection_fee (khớp formatBooking)
-        $finalPrice = 'price - discount + surcharge + COALESCE(collection_fee, 0)';
+        // final_price = price - discount - points_used*1000 + surcharge + collection_fee (khớp formatBooking/Booking::finalPrice)
+        $finalPrice = 'price - discount - points_used * 1000 + surcharge + COALESCE(collection_fee, 0)';
 
         $completedCount = (clone $scope())->where('status', 'completed')->count();
         $cancelledCount = (clone $scope())->where('status', 'cancelled')->count();
