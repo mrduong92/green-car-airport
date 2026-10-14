@@ -49,22 +49,22 @@ class AppSettingsTest extends TestCase
             ->assertJsonFragment(['hotline' => '1900 1234']);
     }
 
-    public function test_admin_can_toggle_free_show_sender_info(): void
+    public function test_admin_can_toggle_each_free_show_setting_independently(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $this->assertTrue(AppSetting::freeShowSenderInfo());
+        $this->assertTrue(AppSetting::freeShow(AppSetting::FREE_SHOW_GROUP_NAME));
 
         $this->actingAs($admin, 'sanctum')
             ->putJson('/api/admin/settings', [
                 'contact_hotline'    => '1900 1234',
                 'contact_email'      => 'help@greenca.vn',
                 'contact_zalo_phone' => '0931919786',
-                'free_show_sender_info' => false,
+                'free_show_group_name' => false,
             ])
             ->assertOk()
-            ->assertJson(['free_show_sender_info' => false]);
+            ->assertJson(['free_show_group_name' => false, 'free_show_sender_name' => true, 'free_show_raw_text' => true]);
 
-        $this->assertFalse(AppSetting::freeShowSenderInfo());
+        $this->assertFalse(AppSetting::freeShow(AppSetting::FREE_SHOW_GROUP_NAME));
     }
 
     public function test_non_admin_cannot_update_contact_settings(): void

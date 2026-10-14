@@ -13,7 +13,9 @@ export interface AdminSettings {
   referral_voucher_value: number
   referral_driver_points: number
   free_unlock_fee_vnd: number
-  free_show_sender_info: boolean
+  free_show_sender_name: boolean
+  free_show_group_name: boolean
+  free_show_raw_text: boolean
 }
 
 export const getAdminSettings = () =>

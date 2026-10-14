@@ -66,10 +66,13 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
           </details>
         )}
 
-        {(ride.sender_name !== null || ride.group_name !== null) && (
+        {(ride.sender_name !== null || ride.group_name !== null || ride.group_count > 1) && (
           <p className="text-[11px] text-neutral-gray">
-            {ride.sender_name || 'Người bắn cuốc'} · {ride.group_name || 'Nhóm Zalo'}
-            {ride.group_count > 1 && ` · đăng ở ${ride.group_count} nhóm`}
+            {[
+              ride.sender_name !== null && (ride.sender_name || 'Người bắn cuốc'),
+              ride.group_name !== null && (ride.group_name || 'Nhóm Zalo'),
+              ride.group_count > 1 && `đăng ở ${ride.group_count} nhóm`,
+            ].filter(Boolean).join(' · ')}
           </p>
         )}
 

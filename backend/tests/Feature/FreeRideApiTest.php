@@ -64,7 +64,7 @@ class FreeRideApiTest extends TestCase
     }
 
     // Cuốc không ghi giờ = "Đi luôn": thuộc "2 giờ tới" và "Hôm nay", không thuộc "Ngày mai".
-    public function test_admin_can_hide_sender_info(): void
+    public function test_admin_can_hide_sender_info_fields_independently(): void
     {
         $this->ride(['raw_text' => 'tin gốc bí mật']);
         $driver = $this->driver();
@@ -72,10 +72,17 @@ class FreeRideApiTest extends TestCase
         $row = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->assertOk()->json('data.0');
         $this->assertSame('Đức', $row['sender_name']);
 
-        \App\Models\AppSetting::set(\App\Models\AppSetting::FREE_SHOW_SENDER_INFO, '0');
+        \App\Models\AppSetting::set(\App\Models\AppSetting::FREE_SHOW_SENDER_NAME, '0');
 
         $row = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->assertOk()->json('data.0');
         $this->assertNull($row['sender_name']);
+        $this->assertSame('Taxi Nội Bài', $row['group_name']);
+        $this->assertSame('tin gốc bí mật', $row['raw_text']);
+
+        \App\Models\AppSetting::set(\App\Models\AppSetting::FREE_SHOW_GROUP_NAME, '0');
+        \App\Models\AppSetting::set(\App\Models\AppSetting::FREE_SHOW_RAW_TEXT, '0');
+
+        $row = $this->actingAs($driver, 'sanctum')->getJson('/api/driver/free-rides')->assertOk()->json('data.0');
         $this->assertNull($row['group_name']);
         $this->assertNull($row['raw_text']);
         $this->assertNotNull($row['posted_at']);

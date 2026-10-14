@@ -20,7 +20,11 @@ class AppSetting extends Model
 
     public const FREE_UNLOCK_FEE_VND = 'free_unlock_fee_vnd';
 
-    public const FREE_SHOW_SENDER_INFO = 'free_show_sender_info';
+    public const FREE_SHOW_SENDER_NAME = 'free_show_sender_name';
+
+    public const FREE_SHOW_GROUP_NAME = 'free_show_group_name';
+
+    public const FREE_SHOW_RAW_TEXT = 'free_show_raw_text';
 
     protected $fillable = ['key', 'value'];
 
@@ -51,13 +55,10 @@ class AppSetting extends Model
         return (int) static::get(self::FREE_UNLOCK_FEE_VND, (string) config('business.free_unlock_fee_vnd'));
     }
 
-    /** Tab Free có hiện tên người bắn, tên nhóm và tin gốc cho tài xế không (lo ngại lộ thông tin cá nhân). */
-    public static function freeShowSenderInfo(): bool
+    /** Tab Free có hiện tên người bắn / tên nhóm / tin gốc cho tài xế không (lo ngại lộ thông tin cá nhân) — mỗi mục một khóa riêng. */
+    public static function freeShow(string $key): bool
     {
-        return filter_var(
-            static::get(self::FREE_SHOW_SENDER_INFO, config('business.free_show_sender_info') ? '1' : '0'),
-            FILTER_VALIDATE_BOOLEAN,
-        );
+        return filter_var(static::get($key, config("business.$key") ? '1' : '0'), FILTER_VALIDATE_BOOLEAN);
     }
 
     public static function get(string $key, ?string $default = null): ?string
