@@ -20,6 +20,8 @@ use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Customer\BookingController;
 use App\Http\Controllers\Customer\CollaboratorWalletController;
 use App\Http\Controllers\Customer\CustomerProfileController;
+use App\Http\Controllers\Customer\ReferralController;
+use App\Http\Controllers\Customer\RewardWalletController;
 use App\Http\Controllers\Customer\StatsController as CustomerStatsController;
 use App\Http\Controllers\Customer\StreamController as CustomerStreamController;
 use App\Http\Controllers\Customer\VoucherController;
@@ -112,6 +114,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/customer/vouchers/apply', [VoucherController::class, 'apply']);
         Route::get('/customer/collaborator/wallet', [CollaboratorWalletController::class, 'show']);
         Route::get('/customer/collaborator/wallet/transactions', [CollaboratorWalletController::class, 'transactions']);
+        Route::get('/customer/reward-wallet', [RewardWalletController::class, 'show']);
+        Route::get('/customer/reward-wallet/transactions', [RewardWalletController::class, 'transactions']);
+        Route::get('/customer/referrals', [ReferralController::class, 'index']);
     });
 
     // Driver
