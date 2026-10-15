@@ -177,12 +177,20 @@ class Booking extends Model
         // Tài xế tự bỏ cuốc: không hoàn phí ĐÃ trừ, nhưng khoản bù vẫn phải thu lại —
         // nếu không, cuốc quay lại sàn và tài xế SAU nhận lại sẽ được bù một lần nữa
         // (app trả 2 lần bù cho 1 cuốc).
+        //
+        // ⚠️ Tài xế có thể đã TIÊU số điểm bù này (vd nhận cuốc khác) trước khi cuốc này
+        // bị bỏ/huỷ — `points` là UNSIGNED nên trừ vượt số dư sẽ nổ SQL (strict mode) và
+        // cuốn theo cả transaction huỷ/bỏ cuốc (tài xế không bỏ được cuốc). Chỉ thu lại
+        // TỐI ĐA số dư hiện có; phần không thu được coi như mất, ghi rõ vào mô tả giao
+        // dịch để đối soát — không truy thu thêm ở nơi khác.
         if ($this->held_shortfall_points > 0) {
-            $wallet->debit(
-                $this->held_shortfall_points,
-                "Thu lại phần app bù điểm cuốc #{$this->id} ({$cancelledBy} huỷ, cuốc không hoàn tất)",
-                $this->id,
-            );
+            $clawback = min($wallet->points, $this->held_shortfall_points);
+            if ($clawback > 0) {
+                $description = $clawback < $this->held_shortfall_points
+                    ? "Thu lại phần app bù cuốc #{$this->id} (thiếu ".($this->held_shortfall_points - $clawback).' điểm, bỏ qua)'
+                    : "Thu lại phần app bù điểm cuốc #{$this->id} ({$cancelledBy} huỷ, cuốc không hoàn tất)";
+                $wallet->debit($clawback, $description, $this->id);
+            }
         }
 
         $this->forceFill($cleared)->syncOriginal();

@@ -233,6 +233,86 @@ class AffiliateTripTest extends TestCase
         Notification::assertSentTo($referrer, RewardPointsEarnedNotification::class);
     }
 
+    /**
+     * Fix PR#40: tài xế đã TIÊU số điểm app bù (shortfall) vào cuốc khác trước khi bỏ
+     * cuốc A — clawback không được debit vượt số dư hiện có (`points` UNSIGNED, debit
+     * quá số dư sẽ nổ SQL ở strict mode và cuộn theo cả transaction bỏ cuốc, tài xế
+     * không bỏ được cuốc). Chỉ thu tối đa số dư hiện có, phần còn lại coi như mất —
+     * ghi rõ vào mô tả giao dịch.
+     */
+    public function test_driver_drop_claws_back_only_available_balance_after_spending_shortfall_points(): void
+    {
+        $d = $this->driver(1000);
+        $c = User::factory()->create(['role' => 'customer']);
+        $tripA = $this->maxPointsBooking($c);
+        AppSetting::set(AppSetting::APP_FEE_PERCENT, '5'); // phí hạ dưới trần điểm → shortfall 25
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$tripA->id}/accept")->assertOk();
+        $this->assertSame(1025, $this->points($d));
+        $this->assertSame(25, $tripA->fresh()->held_shortfall_points);
+
+        // Tài xế nhận cuốc khác, tiêu gần hết số dư (bao gồm cả 25 điểm vừa được bù).
+        $c2 = User::factory()->create(['role' => 'customer']);
+        $tripB = Booking::create([
+            'customer_id' => $c2->id, 'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
+            'date' => now()->addDay()->format('Y-m-d'), 'time' => '09:00', 'vehicle_type' => 'sedan_4',
+            'distance_km' => 30, 'price' => 20_300_000, 'discount' => 0, 'surcharge' => 0,
+            'points_used' => 0, 'status' => 'finding_driver',
+        ]);
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$tripB->id}/accept")->assertOk();
+        $this->assertSame(10, $this->points($d)); // 1025 − 1015 phí cuốc B
+
+        // Bỏ cuốc A: clawback 25 điểm bù sẽ nổ SQL nếu debit thẳng — ví chỉ còn 10.
+        $res = $this->actingAs($d, 'sanctum')
+            ->patchJson("/api/driver/trips/{$tripA->id}/cancel", ['reason' => 'Bận']);
+        $res->assertOk();
+
+        $balance = $this->points($d);
+        $this->assertGreaterThanOrEqual(0, $balance); // ví không bao giờ âm
+        $this->assertSame(0, $balance); // thu tối đa số dư hiện có (10), không truy thu phần thiếu
+        $this->assertSame(0, $tripA->fresh()->held_shortfall_points);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'booking_id' => $tripA->id, 'type' => 'debit', 'points' => 10,
+            'description' => "Thu lại phần app bù cuốc #{$tripA->id} (thiếu 15 điểm, bỏ qua)",
+        ]);
+    }
+
+    /** Như trên, nhưng cuốc A bị KHÁCH huỷ (refundFee: true) thay vì tài xế bỏ. */
+    public function test_customer_cancel_claws_back_only_available_balance_after_driver_spent_shortfall_points(): void
+    {
+        $d = $this->driver(1000);
+        $c = User::factory()->create(['role' => 'customer']);
+        Wallet::create(['user_id' => $c->id, 'reward_points' => 1000]);
+        $tripA = $this->maxPointsBooking($c);
+        AppSetting::set(AppSetting::APP_FEE_PERCENT, '5');
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$tripA->id}/accept")->assertOk();
+        $this->assertSame(1025, $this->points($d));
+
+        $c2 = User::factory()->create(['role' => 'customer']);
+        $tripB = Booking::create([
+            'customer_id' => $c2->id, 'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
+            'date' => now()->addDay()->format('Y-m-d'), 'time' => '09:00', 'vehicle_type' => 'sedan_4',
+            'distance_km' => 30, 'price' => 20_300_000, 'discount' => 0, 'surcharge' => 0,
+            'points_used' => 0, 'status' => 'finding_driver',
+        ]);
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$tripB->id}/accept")->assertOk();
+        $this->assertSame(10, $this->points($d));
+
+        // Khách huỷ cuốc A (refundFee: true) — charged_fee_points đã bị clamp về 0 nên
+        // không hoàn gì thêm, nhưng vẫn phải thu lại shortfall mà không được âm ví.
+        $this->actingAs($c, 'sanctum')->patchJson("/api/bookings/{$tripA->id}/cancel")->assertOk();
+
+        $balance = $this->points($d);
+        $this->assertGreaterThanOrEqual(0, $balance);
+        $this->assertSame(0, $balance);
+        $this->assertSame(0, $tripA->fresh()->held_shortfall_points);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'booking_id' => $tripA->id, 'type' => 'debit', 'points' => 10,
+            'description' => "Thu lại phần app bù cuốc #{$tripA->id} (thiếu 15 điểm, bỏ qua)",
+        ]);
+    }
+
     public function test_legacy_booking_without_charged_fee_completes_and_credits_once(): void
     {
         $c = User::factory()->create(['role' => 'customer']);

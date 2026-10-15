@@ -122,6 +122,13 @@ export default function ReferralsPage() {
     enabled: detailId !== null,
   })
 
+  // Khi khoảng lọc không có dữ liệu, doanh số toàn 0 — Chart.js tự chọn một thang đo
+  // suy biến (nhiều mốc chia nhỏ quanh 0) cho trục phải, mỗi mốc chia cho 1.000 rồi làm
+  // tròn đều ra "0K" nên trục hiển thị "0K" lặp lại ở mọi nấc. Ép thang đo về đúng
+  // 2 mốc [0, 1K] cho trường hợp này để trục có ý nghĩa; có dữ liệu thì để Chart.js tự chọn.
+  const maxF1Revenue = Math.max(0, ...(data?.series.map((s) => s.f1_revenue) ?? [0]))
+  const revenueAxisIsEmpty = maxF1Revenue === 0
+
   const chartData = {
     labels: data?.series.map((s) => s.label) ?? [],
     datasets: [
@@ -273,8 +280,13 @@ export default function ReferralsPage() {
                       type: 'linear',
                       position: 'right',
                       beginAtZero: true,
+                      ...(revenueAxisIsEmpty ? { max: 1000 } : {}),
                       ticks: {
-                        callback: (v) => `${Math.round(Number(v) / 1000).toLocaleString('vi-VN')}K`,
+                        ...(revenueAxisIsEmpty ? { stepSize: 1000 } : { precision: 0 }),
+                        callback: (v) => {
+                          const n = Number(v)
+                          return n === 0 ? '0' : `${Math.round(n / 1000).toLocaleString('vi-VN')}K`
+                        },
                         font: { size: 10 },
                       },
                       grid: { display: false },
