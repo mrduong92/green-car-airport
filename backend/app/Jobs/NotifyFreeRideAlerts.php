@@ -51,6 +51,10 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     public function handle(): void
     {
+        if (! config('zalo.free_rides_enabled')) {
+            return;
+        }
+
         $startedAt = now();
         $maxId = (int) (FreeRide::max('id') ?? 0);
 

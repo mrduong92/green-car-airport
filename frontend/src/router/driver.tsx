@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
-import { RequireDriverActive, RequireDriverPending } from '@/router/guards'
+import { RequireDriverActive, RequireDriverPending, RequireFreeRides } from '@/router/guards'
 import DriverLayout from '@/layouts/DriverLayout'
 import LoginPage from '@/pages/driver/LoginPage'
 import DriverRegisterPage from '@/pages/DriverRegisterPage'
@@ -50,7 +50,7 @@ export const router = createBrowserRouter([
         element: <DriverLayout />,
         children: [
           { path: '/driver/trips', element: <TripListPage /> },
-          { path: '/driver/free', element: <FreeRidesPage /> },
+          { path: '/driver/free', element: <RequireFreeRides><FreeRidesPage /></RequireFreeRides> },
           { path: '/driver/trips/history', element: <TripHistoryPage /> },
           { path: '/driver/trips/:id', element: <TripDetailPage /> },
           { path: '/driver/wallet', element: <WalletPage /> },

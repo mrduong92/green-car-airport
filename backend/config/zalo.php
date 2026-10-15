@@ -6,6 +6,10 @@ return [
     // Công tắc tắt nhanh mọi endpoint /api/internal/zalo/* (trả 503) mà không cần deploy.
     'enabled' => (bool) env('ZALO_SERVICE_ENABLED', false),
 
+    // Tắt tab Free phía tài xế: ẩn tab (cờ free_rides_enabled trong /auth/me), API /driver/free-rides*
+    // trả 404, không push cuốc khớp. Không đụng tới việc nhận cuốc từ service (ZALO_SERVICE_ENABLED).
+    'free_rides_enabled' => (bool) env('ZALO_FREE_RIDES_ENABLED', true),
+
     // Khoá HMAC dùng chung với service. Rỗng = từ chối mọi request.
     'bot_secret' => env('ZALO_BOT_SECRET', ''),
 

@@ -375,6 +375,7 @@ class AuthController extends Controller
         if ($user->role === 'driver') {
             $payload['needs_onboarding'] = ! $user->driverProfile?->vehicle_plate;
             $payload['approval_status'] = $user->driverProfile?->status ?? 'pending';
+            $payload['free_rides_enabled'] = (bool) config('zalo.free_rides_enabled');
         }
 
         return $payload;

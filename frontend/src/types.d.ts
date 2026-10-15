@@ -11,6 +11,8 @@ declare namespace App {
     is_collaborator?: boolean
     referral_code?: string
     approval_status?: 'pending' | 'active' | 'blocked'
+    // Chỉ tài xế. false = tab Free đang tắt (ZALO_FREE_RIDES_ENABLED); thiếu (server cũ) = bật.
+    free_rides_enabled?: boolean
     needs_terms_acceptance?: boolean
     has_password?: boolean
   }
