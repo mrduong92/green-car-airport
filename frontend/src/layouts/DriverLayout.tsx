@@ -6,6 +6,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useAppPresence } from '@/hooks/useAppPresence'
 import { useDriverStream } from '@/hooks/useDriverStream'
 import { useDriverCapacity } from '@/hooks/useDriverCapacity'
+import { useAuthStore } from '@/stores/auth'
 import clsx from 'clsx'
 
 // `primary` = hiện trên bottom nav; còn lại gom vào sheet "Thêm".
@@ -32,6 +33,8 @@ export default function DriverLayout() {
   useDriverStream(true, atCapacity)
   useAppPresence()
   const { pathname } = useLocation()
+  const freeRidesEnabled = useAuthStore((s) => s.user?.free_rides_enabled !== false)
+  const primaryTabs = freeRidesEnabled ? PRIMARY_TABS : PRIMARY_TABS.filter((t) => t.to !== '/driver/free')
   // Lưu path lúc mở sheet: điều hướng đi (kể cả nút back) là sheet tự đóng
   const [moreOpenAt, setMoreOpenAt] = useState<string | null>(null)
   const moreOpen = moreOpenAt === pathname
@@ -59,7 +62,7 @@ export default function DriverLayout() {
       </main>
       <nav className="relative shrink-0 w-full bg-white/[0.96] backdrop-blur-[12px] [-webkit-backdrop-filter:blur(12px)] border-t border-border-soft shadow-card-up safe-bottom z-40">
         <div className="flex pt-2 pb-1">
-          {PRIMARY_TABS.map((tab) => (
+          {primaryTabs.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
