@@ -58,7 +58,14 @@ test('khách có điểm bật "Dùng điểm" → tổng tiền giảm, đơn c
   await expect(page.getByTestId('referrals-total')).toBeVisible()
 })
 
-test('admin xem trang Giới thiệu và chỉnh 3 tỷ lệ điểm', async ({ page }) => {
+function fmtDate(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+test('admin xem trang Giới thiệu, lọc theo preset ngày và chỉnh 3 tỷ lệ điểm', async ({ page }) => {
   await loginExisting(page, APP.admin, SEEDED.admin)
   // Viewport e2e (430px) là mobile: "Giới thiệu" không phải tab chính nên nằm
   // trong sheet "Thêm" của bottom nav, không hiện trực tiếp như trên sidebar PC.
@@ -66,6 +73,20 @@ test('admin xem trang Giới thiệu và chỉnh 3 tỷ lệ điểm', async ({ 
   await page.getByRole('link', { name: 'Giới thiệu' }).click()
   await expect(page.getByTestId('referral-report-top')).toBeVisible()
   await expect(page.getByTestId('referral-report-chart')).toBeVisible()
+  await expect(page.getByTestId('referral-summary-cards')).toBeVisible()
+
+  // Preset "Hôm nay" → from=to=hôm nay, group=day.
+  const today = fmtDate(new Date())
+  await page.getByTestId('referral-preset-today').click()
+  await expect(page).toHaveURL(new RegExp(`from=${today}&to=${today}&group=day`))
+
+  // Preset "Tháng trước" → from/to là ngày đầu/cuối tháng trước.
+  const now = new Date()
+  const lastMonthFirst = fmtDate(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+  const lastMonthLast = fmtDate(new Date(now.getFullYear(), now.getMonth(), 0))
+  await page.getByTestId('referral-preset-last_month').click()
+  await expect(page).toHaveURL(new RegExp(`from=${lastMonthFirst}&to=${lastMonthLast}`))
+  await expect(page.getByTestId('referral-summary-cards')).toBeVisible()
 
   await page.goto(`${APP.admin}/settings`)
   await expect(page.getByLabel('% hoàn điểm cho khách')).toBeVisible()

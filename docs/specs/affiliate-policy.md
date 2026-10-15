@@ -85,14 +85,14 @@ Nếu khách này đồng thời **dùng điểm** để giảm giá chuyến (v
 | `GET` | `/api/customer/reward-wallet` | Số dư `reward_points`, 3 tỷ lệ hiện hành |
 | `GET` | `/api/customer/reward-wallet/transactions` | Lịch sử điểm thưởng (phân trang) |
 | `GET` | `/api/customer/referrals?month=YYYY-MM` | Tổng F1, F1 tháng này, biểu đồ 12 tháng, danh sách F1 (SĐT che, ngày đăng ký, số chuyến, tổng chi tiêu, hoa hồng đã nhận) |
-| `GET` | `/api/admin/referrals?month=YYYY-MM` | Top 10 người giới thiệu theo doanh số F1 trong tháng, biểu đồ F1 đăng ký + doanh số F1 theo 12 tháng |
+| `GET` | `/api/admin/referrals?from=YYYY-MM-DD&to=YYYY-MM-DD&group=day\|week\|month` | Top 10 người giới thiệu theo doanh số F1 trong khoảng ngày lọc (mặc định 30 ngày gần nhất, nhóm theo ngày), biểu đồ F1 đăng ký + doanh số F1 theo bucket ngày/tuần/tháng |
 | `GET` | `/api/admin/referrals/{user}` | Chi tiết một người giới thiệu |
 
 ## Giao diện
 
 - App khách: trang **Ví điểm thưởng** (`/customer/reward-wallet`, lối vào ở Hồ sơ), công tắc "Dùng điểm" ở `BookingFormPage`, dòng "Điểm: −X đ" ở `BookingStatusPage`, trang **Bạn bè đã giới thiệu** (`/customer/referrals`) từ bottom sheet "Giới thiệu bạn bè" ở Hồ sơ.
 - App tài xế: `TripDetailPage` hiển thị dòng "Khách dùng X điểm — app bù" khi `points_used > 0`.
-- Admin: trang **Giới thiệu** (menu mới) — bộ chọn tháng, top 10, biểu đồ; trang **Cài đặt** thêm 3 ô tỷ lệ affiliate.
+- Admin: trang **Giới thiệu** (menu mới) — bộ lọc khoảng ngày (preset + 2 ô ngày + nhóm ngày/tuần/tháng), top 10, biểu đồ; trang **Cài đặt** thêm 3 ô tỷ lệ affiliate.
 
 ## Thông báo
 

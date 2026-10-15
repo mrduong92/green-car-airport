@@ -8,29 +8,53 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
-// Báo cáo giới thiệu (CR affiliate mục 6): top 10 người giới thiệu theo doanh số F1 trong tháng,
-// số F1 đăng ký + doanh số F1 + điểm thưởng đã phát theo 12 tháng, chi tiết một người giới thiệu.
-// Doanh số = Σ(price − discount) chuyến completed, theo tháng hoàn thành (completed_at — KHÔNG
+// Báo cáo giới thiệu (CR affiliate mục 6): top 10 người giới thiệu theo doanh số F1 trong
+// khoảng ngày lọc, số F1 đăng ký + doanh số F1 + điểm thưởng đã phát theo ngày/tuần/tháng,
+// chi tiết một người giới thiệu.
+// Doanh số = Σ(price − discount) chuyến completed, theo ngày hoàn thành (completed_at — KHÔNG
 // dùng updated_at: một UPDATE bất kỳ về sau, vd AccountDeletionService xoá note của một F1 đã xoá
-// tài khoản, sẽ đẩy updated_at và kéo cuốc cũ sang nhầm tháng trong báo cáo).
+// tài khoản, sẽ đẩy updated_at và kéo cuốc cũ sang nhầm bucket trong báo cáo).
 class ReferralReportController extends Controller
 {
+    private const MAX_RANGE_DAYS = 366;
+
     public function index(Request $request): JsonResponse
     {
-        $data = $request->validate(['month' => ['nullable', 'date_format:Y-m']]);
-        // '!' reset modifier: tránh Carbon tràn sang tháng sau khi hôm nay là ngày 29-31
-        // và tháng được chọn có ít ngày hơn (vd hôm nay 31/10, chọn month=2026-02).
-        $start = isset($data['month']) ? Carbon::createFromFormat('!Y-m', $data['month'])->startOfMonth() : now()->startOfMonth();
-        $end = $start->copy()->endOfMonth();
+        $data = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d'],
+            'group' => ['nullable', 'in:day,week,month'],
+        ]);
+
+        $tz = config('app.timezone');
+        $group = $data['group'] ?? 'day';
+
+        // '!' reset modifier: tránh giờ/phút/giây rác lẫn vào mốc được parse từ chuỗi Y-m-d.
+        $to = isset($data['to']) ? Carbon::createFromFormat('!Y-m-d', $data['to'], $tz) : Carbon::today($tz);
+        $from = isset($data['from']) ? Carbon::createFromFormat('!Y-m-d', $data['from'], $tz) : $to->copy()->subDays(29);
+
+        if ($to->lt($from)) {
+            throw ValidationException::withMessages(['to' => ['"Đến ngày" phải sau hoặc bằng "Từ ngày".']]);
+        }
+        // +1 vì khoảng bao gồm cả from lẫn to (vd from=to → 1 ngày).
+        if ($from->diffInDays($to) + 1 > self::MAX_RANGE_DAYS) {
+            throw ValidationException::withMessages(['to' => ['Khoảng thời gian tối đa là 366 ngày.']]);
+        }
+
+        $fromStart = $from->copy()->startOfDay();
+        $toEnd = $to->copy()->endOfDay();
+
+        // F1 = khách do một KHÁCH giới thiệu (spec) — khách do tài xế giới thiệu không tính.
+        $f1Query = fn () => User::where('role', 'customer')->whereHas('referredBy', fn ($q) => $q->where('role', 'customer'));
 
         $f1Revenue = Booking::query()
             ->join('users as f1', 'f1.id', '=', 'bookings.customer_id')
             ->join('users as ref', 'ref.id', '=', 'f1.referred_by_user_id')
             ->where('ref.role', 'customer')
             ->where('bookings.status', 'completed')
-            ->whereBetween('bookings.completed_at', [$start, $end])
+            ->whereBetween('bookings.completed_at', [$fromStart, $toEnd])
             ->groupBy('ref.id')
             ->selectRaw('ref.id AS id, SUM(bookings.price - bookings.discount) AS revenue, SUM(COALESCE(bookings.commission_points, 0)) AS commission')
             ->orderByDesc('revenue')->limit(10)->get();
@@ -47,23 +71,96 @@ class ReferralReportController extends Controller
             'commission_points' => (int) $r->commission,
         ])->values();
 
-        $monthly = collect(range(11, 0))->map(function ($ago) use ($start) {
-            $m = $start->copy()->subMonths($ago);
-            $mEnd = $m->copy()->endOfMonth();
+        // Tổng hợp theo NGÀY trước (groupByRaw('DATE(...)') — portable MySQL + sqlite, an toàn
+        // với ONLY_FULL_GROUP_BY vì SELECT chỉ gồm biểu thức DATE() + các hàm tổng hợp), sau đó
+        // gộp ngày lại thành tuần/tháng ở PHP bên dưới.
+        $dailyRevenue = Booking::query()
+            ->join('users as f1', 'f1.id', '=', 'bookings.customer_id')
+            ->join('users as ref', 'ref.id', '=', 'f1.referred_by_user_id')
+            ->where('ref.role', 'customer')
+            ->where('bookings.status', 'completed')
+            ->whereBetween('bookings.completed_at', [$fromStart, $toEnd])
+            ->groupByRaw('DATE(bookings.completed_at)')
+            ->selectRaw('DATE(bookings.completed_at) AS d, SUM(bookings.price - bookings.discount) AS revenue')
+            ->get()->keyBy('d');
 
-            $completed = Booking::where('status', 'completed')->whereBetween('completed_at', [$m, $mEnd]);
-            // F1 = khách do một KHÁCH giới thiệu (spec) — khách do tài xế giới thiệu không tính.
-            $f1 = fn () => User::where('role', 'customer')->whereHas('referredBy', fn ($q) => $q->where('role', 'customer'));
+        $dailyReward = Booking::where('status', 'completed')
+            ->whereBetween('completed_at', [$fromStart, $toEnd])
+            ->groupByRaw('DATE(completed_at)')
+            ->selectRaw('DATE(completed_at) AS d, SUM(COALESCE(cashback_points, 0) + COALESCE(commission_points, 0)) AS reward')
+            ->get()->keyBy('d');
+
+        $dailyRegistered = $f1Query()
+            ->whereBetween('created_at', [$fromStart, $toEnd])
+            ->groupByRaw('DATE(created_at)')
+            ->selectRaw('DATE(created_at) AS d, COUNT(*) AS c')
+            ->get()->keyBy('d');
+
+        $series = $this->buildSeries($fromStart, $toEnd, $group, $dailyRevenue, $dailyReward, $dailyRegistered);
+
+        $summary = [
+            'f1_registered' => (int) $dailyRegistered->sum('c'),
+            'f1_revenue' => (int) $dailyRevenue->sum('revenue'),
+            'reward_points' => (int) $dailyReward->sum('reward'),
+        ];
+
+        return response()->json([
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d'),
+            'group' => $group,
+            'summary' => $summary,
+            'top' => $top,
+            'series' => $series,
+        ]);
+    }
+
+    private function buildSeries(Carbon $fromStart, Carbon $toEnd, string $group, $dailyRevenue, $dailyReward, $dailyRegistered): array
+    {
+        // buckets ordered: key => ['days' => [Carbon...], 'f1_registered'=>, 'f1_revenue'=>, 'reward_points'=>]
+        $buckets = [];
+
+        $cursor = $fromStart->copy()->startOfDay();
+        $last = $toEnd->copy()->startOfDay();
+
+        while ($cursor->lte($last)) {
+            $d = $cursor->format('Y-m-d');
+
+            $key = match ($group) {
+                'week' => $cursor->copy()->startOfWeek(Carbon::MONDAY)->format('Y-m-d'),
+                'month' => $cursor->format('Y-m'),
+                default => $d,
+            };
+
+            if (! isset($buckets[$key])) {
+                $buckets[$key] = ['days' => [], 'f1_registered' => 0, 'f1_revenue' => 0, 'reward_points' => 0];
+            }
+
+            $buckets[$key]['days'][] = $cursor->copy();
+            $buckets[$key]['f1_registered'] += (int) ($dailyRegistered[$d]->c ?? 0);
+            $buckets[$key]['f1_revenue'] += (int) ($dailyRevenue[$d]->revenue ?? 0);
+            $buckets[$key]['reward_points'] += (int) ($dailyReward[$d]->reward ?? 0);
+
+            $cursor->addDay();
+        }
+
+        return collect($buckets)->map(function ($bucket, $key) use ($group) {
+            $firstDay = $bucket['days'][0];
+            $lastDay = $bucket['days'][count($bucket['days']) - 1];
+
+            $label = match ($group) {
+                'week' => $firstDay->format('d/m').'–'.$lastDay->format('d/m'),
+                'month' => $firstDay->format('m/Y'),
+                default => $firstDay->format('d/m'),
+            };
 
             return [
-                'month' => $m->format('Y-m'),
-                'f1_registered' => $f1()->whereBetween('created_at', [$m, $mEnd])->count(),
-                'f1_revenue' => (int) (clone $completed)->whereIn('customer_id', $f1()->select('id'))->sum(DB::raw('price - discount')),
-                'reward_points' => (int) (clone $completed)->sum(DB::raw('COALESCE(cashback_points, 0) + COALESCE(commission_points, 0)')),
+                'key' => $key,
+                'label' => $label,
+                'f1_registered' => $bucket['f1_registered'],
+                'f1_revenue' => $bucket['f1_revenue'],
+                'reward_points' => $bucket['reward_points'],
             ];
-        })->values();
-
-        return response()->json(['month' => $start->format('Y-m'), 'top' => $top, 'monthly' => $monthly]);
+        })->values()->all();
     }
 
     public function show(User $user): JsonResponse
