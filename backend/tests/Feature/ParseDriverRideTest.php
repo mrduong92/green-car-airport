@@ -123,6 +123,16 @@ class ParseDriverRideTest extends TestCase
         $this->assertSame('failed', $ride->refresh()->parse_status);
     }
 
+    public function test_failed_job_still_schedules_alerts(): void
+    {
+        $ride = $this->ride();
+
+        (new ParseDriverRide($ride->id))->failed();
+
+        $this->assertSame('failed', $ride->refresh()->parse_status);
+        Bus::assertDispatched(NotifyFreeRideAlerts::class);
+    }
+
     public function test_closed_or_already_parsed_ride_skipped(): void
     {
         $closed = $this->ride(['closed_at' => now()]);

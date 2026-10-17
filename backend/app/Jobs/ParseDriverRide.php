@@ -69,6 +69,8 @@ class ParseDriverRide implements ShouldQueue
     public function failed(): void
     {
         FreeRide::whereKey($this->rideId)->where('parse_status', 'pending')->update(['parse_status' => 'failed']);
+        // Cuốc thôi giữ mốc cảnh báo đẩy → cho các cuốc phía sau được push ngay.
+        NotifyFreeRideAlerts::dispatch()->delay(now()->addSeconds(2));
     }
 
     /** pickup + 30', không sớm hơn posted + 30' (AI đọc nhầm giờ đã qua), không quá posted + 7 ngày. */

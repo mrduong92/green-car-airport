@@ -64,7 +64,10 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
         $startedAt = now();
         $maxId = (int) (FreeRide::max('id') ?? 0);
-        $pendingId = FreeRide::where('parse_status', 'pending')
+        // Cuốc đã đóng/xoá không còn được push nên không giữ mốc (job tách bỏ qua nó → mãi pending).
+        // Không cần tự hẹn chạy lại khi đang giữ mốc: cuốc pending nào rồi cũng xếp job này khi tách
+        // xong / hỏng (ParseDriverRide::handle + failed()).
+        $pendingId = FreeRide::where('parse_status', 'pending')->whereNull('closed_at')
             ->where('posted_at', '>', now()->subMinutes(self::PENDING_HOLD_MINUTES))
             ->min('id');
         if ($pendingId !== null) {

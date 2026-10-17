@@ -88,4 +88,17 @@ class DriverRideAlertTest extends TestCase
 
         Notification::assertSentTo($alertDriver, FreeRideMatchNotification::class);
     }
+
+    public function test_closed_pending_ride_does_not_hold_floor(): void
+    {
+        // Đăng rồi xoá ngay (job tách bỏ qua cuốc đã đóng → mãi pending): cuốc sau vẫn phải được push.
+        $alertDriver = $this->driverWithAlert();
+        $poster = $this->driverWithAlert();
+        $this->ride($poster, ['closed_at' => now()]);
+        $this->ride($poster, ['parse_status' => 'done', 'direction' => 'to_airport']);
+
+        (new NotifyFreeRideAlerts)->handle();
+
+        Notification::assertSentTo($alertDriver, FreeRideMatchNotification::class);
+    }
 }
