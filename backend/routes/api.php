@@ -142,9 +142,11 @@ Route::middleware('auth:sanctum')->group(function () {
             // Bộ lọc lưu lại để nhận thông báo đẩy khi có cuốc Free mới khớp (giai đoạn 5).
             Route::get('/driver/free-rides/alert', [FreeRideController::class, 'alert']);
             Route::put('/driver/free-rides/alert', [FreeRideController::class, 'saveAlert']);
-            Route::post('/driver/free-rides', [RidePostController::class, 'store'])->middleware('throttle:10,1');
+            // Tiền tố thứ 3 của throttle tách bộ đếm riêng — không có thì mọi route throttle dùng chung một khoá
+            // theo user (ping app-presence 45 giây/lần cũng ăn vào giới hạn đăng cuốc / xin mở khoá).
+            Route::post('/driver/free-rides', [RidePostController::class, 'store'])->middleware('throttle:10,1,ride-post');
             Route::get('/driver/free-rides/mine', [RidePostController::class, 'mine']);
-            Route::post('/driver/free-rides/unlock-request', [FreeRideController::class, 'requestUnlock'])->middleware('throttle:5,1');
+            Route::post('/driver/free-rides/unlock-request', [FreeRideController::class, 'requestUnlock'])->middleware('throttle:5,1,free-unlock');
             // POST giới hạn 20/phút/tài xế — broken-link kéo theo một lần getQR trên tài khoản Zalo của bot.
             Route::middleware('throttle:20,1')->group(function () {
                 Route::post('/driver/free-rides/terms', [RidePostController::class, 'acceptTerms']);

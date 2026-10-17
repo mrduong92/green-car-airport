@@ -113,6 +113,19 @@ class DriverRidePostTest extends TestCase
         $this->postRide($u, ['text' => 'cuốc 21'])->assertStatus(429)->assertJsonPath('code', 'daily_post_limit');
     }
 
+    public function test_post_limit_not_eaten_by_other_throttled_routes(): void
+    {
+        // throttle:N,M không có tiền tố dùng chung một khoá theo user cho mọi route — ping app-presence
+        // (45 giây/lần) + thao tác khác từng ăn vào giới hạn đăng cuốc.
+        $u = $this->driver();
+        for ($i = 0; $i < 12; $i++) {
+            $this->actingAs($u, 'sanctum')->postJson('/api/driver/app-presence', ['active' => true]);
+        }
+
+        $this->postRide($u, ['text' => 'tiễn 15h'])->assertCreated();
+        $this->actingAs($u, 'sanctum')->postJson('/api/driver/free-rides/unlock-request')->assertOk();
+    }
+
     public function test_pending_or_blocked_driver_cannot_post(): void
     {
         $this->postRide($this->driver(status: 'pending'), ['text' => 'tiễn 15h'])->assertForbidden();
