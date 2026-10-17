@@ -87,6 +87,7 @@ export function useFreeRides(filters: App.FreeRideFilters) {
       return
     }
 
+    const removed = new Set(data.removed ?? [])
     const nextLatest = data.latest !== null ? Math.max(since, data.latest) : since
 
     queryClient.setQueryData<Pages>(queryKey, (old) => {
@@ -138,7 +139,7 @@ export function useFreeRides(filters: App.FreeRideFilters) {
         pages = pages.map((p, i) => ({ ...p, data: i === 0 ? merged : [] }))
       }
 
-      return { ...old, pages }
+      return { ...old, pages: removed.size === 0 ? pages : pages.map((p) => ({ ...p, data: p.data.filter((r) => !removed.has(r.ride_uid)) })) }
     })
   }, [apiFilters, queryClient, queryKey, trimToFirstPage])
 
@@ -207,6 +208,22 @@ export function useFreeRides(filters: App.FreeRideFilters) {
     }))
   }, [queryClient])
 
+  // Cuốc vừa đăng hiện ngay đầu danh sách mọi bộ lọc đang có trong cache (tín hiệu realtime tới sau sẽ gộp trùng theo ride_uid).
+  const addOwnRide = useCallback((ride: App.FreeRide) => {
+    queryClient.setQueriesData<Pages>({ queryKey: ['free-rides'] }, (old) => old && ({
+      ...old,
+      pages: old.pages.map((p, i) => (i === 0 ? { ...p, data: [ride, ...p.data.filter((r) => r.ride_uid !== ride.ride_uid)] } : p)),
+    }))
+  }, [queryClient])
+
+  // Đã có xe / Xoá: bỏ ngay khỏi danh sách.
+  const dropRide = useCallback((rideUid: string) => {
+    queryClient.setQueriesData<Pages>({ queryKey: ['free-rides'] }, (old) => old && ({
+      ...old,
+      pages: old.pages.map((p) => ({ ...p, data: p.data.filter((r) => r.ride_uid !== rideUid) })),
+    }))
+  }, [queryClient])
+
   return {
     rides,
     isLoading: query.isLoading,
@@ -216,6 +233,8 @@ export function useFreeRides(filters: App.FreeRideFilters) {
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     removeSender,
+    addOwnRide,
+    dropRide,
     access: query.data?.pages[0]?.access ?? null,
   }
 }

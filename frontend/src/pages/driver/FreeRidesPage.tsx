@@ -56,7 +56,7 @@ export default function FreeRidesPage() {
       <FreeRideFilters value={filters} onChange={changeFilters} />
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <p className="text-[12px] text-neutral-gray flex-1">
-          Cuốc tổng hợp từ các nhóm Zalo. GreenCA chỉ kết nối — bạn trao đổi trực tiếp với người bắn cuốc.
+          Cuốc do tài xế đăng. GreenCA chỉ kết nối — bạn trao đổi trực tiếp với người đăng cuốc.
         </p>
         <button
           type="button"
@@ -98,7 +98,7 @@ export default function FreeRidesPage() {
       )}
 
       {selected && <FreeRideActionsSheet ride={selected} onClose={() => setSelected(null)} onSenderHidden={removeSender} />}
-      {unlockOpen && <FreeRideUnlockSheet payment={access?.payment ?? null} onClose={() => setUnlockOpen(false)} />}
+      {unlockOpen && <FreeRideUnlockSheet access={access} onClose={() => setUnlockOpen(false)} />}
       {alertOpen && <FreeRideAlertSheet filters={filters} onClose={() => setAlertOpen(false)} />}
     </div>
   )

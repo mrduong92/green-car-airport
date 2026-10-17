@@ -1,5 +1,6 @@
 import RoutePoints from './RoutePoints'
-import { zaloProfileHref } from '@/utils/zalo'
+import type { ReactNode } from 'react'
+import { zaloLink, zaloProfileHref } from '@/utils/zalo'
 
 const DIRECTION_LABEL: Record<App.FreeRideDirection, string> = {
   to_airport: 'Tiễn sân bay',
@@ -21,9 +22,11 @@ interface Props {
   ride: App.FreeRide
   onMore: (ride: App.FreeRide) => void
   onLocked: () => void
+  // Nút quản lý cuốc của chính mình (Chia sẻ / Đã có xe / Xoá) — thay cho nút liên hệ.
+  ownActions?: ReactNode
 }
 
-export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
+export default function FreeRideCard({ ride, onMore, onLocked, ownActions }: Props) {
   return (
     <div data-testid="free-ride-card" className="bg-white rounded-card shadow-card overflow-hidden border-l-[4px] border-l-primary border border-border-soft">
       <div className="p-3.5 flex flex-col gap-2.5">
@@ -38,10 +41,12 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
           </div>
           <p data-testid="free-ride-ago" className="text-[11px] text-neutral-gray pl-[26px]">{ago(ride.posted_at)}</p>
           </div>
-          <button type="button" data-testid="free-ride-more" aria-label="Thao tác khác" onClick={() => onMore(ride)}
-            className="min-w-touch min-h-touch -mr-2 flex items-center justify-center text-neutral-gray">
-            <span className="material-symbols-outlined text-[20px]">more_vert</span>
-          </button>
+          {!ride.is_mine && (
+            <button type="button" data-testid="free-ride-more" aria-label="Thao tác khác" onClick={() => onMore(ride)}
+              className="min-w-touch min-h-touch -mr-2 flex items-center justify-center text-neutral-gray">
+              <span className="material-symbols-outlined text-[20px]">more_vert</span>
+            </button>
+          )}
         </div>
 
         {ride.is_raw || !ride.pickup ? (
@@ -64,7 +69,12 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
           </details>
         )}
 
-        {(ride.sender_name !== null || ride.group_name !== null) && (
+        {ride.source === 'driver' ? (
+          <p className="text-[11px] text-neutral-gray flex items-center gap-1.5">
+            <span className="font-medium text-primary bg-light-green rounded-pill px-2 py-0.5">{ride.is_mine ? 'Cuốc của bạn' : 'Tài xế đăng'}</span>
+            {!ride.is_mine && ride.sender_name}
+          </p>
+        ) : (ride.sender_name !== null || ride.group_name !== null) && (
           <p className="text-[11px] text-neutral-gray">
             {[
               ride.sender_name !== null && (ride.sender_name || 'Người bắn cuốc'),
@@ -73,7 +83,22 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
           </p>
         )}
 
-        {ride.contact_url !== null ? (
+        {ride.is_mine ? (
+          ownActions
+        ) : ride.contact !== null ? (
+          <div className="flex gap-2">
+            <a data-testid="free-ride-call" href={`tel:${ride.contact.phone}`}
+              className="flex-1 min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
+              <span className="material-symbols-outlined text-[18px]">call</span>Gọi
+            </a>
+            {ride.contact.zalo && (
+              <a data-testid="free-ride-zalo" href={zaloLink(ride.contact.phone)} target="_blank" rel="noreferrer"
+                className="flex-1 min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-light-green text-primary flex items-center justify-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">chat</span>Zalo
+              </a>
+            )}
+          </div>
+        ) : ride.contact_url !== null ? (
           <a data-testid="free-ride-accept" href={zaloProfileHref(ride.contact_url)}
             className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">chat</span>
@@ -83,7 +108,7 @@ export default function FreeRideCard({ ride, onMore, onLocked }: Props) {
           <button type="button" data-testid="free-ride-locked" onClick={onLocked}
             className="w-full min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">lock</span>
-            Nhận cuốc
+            Mở khoá liên hệ
           </button>
         )}
       </div>
