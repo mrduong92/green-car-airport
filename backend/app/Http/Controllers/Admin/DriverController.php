@@ -19,6 +19,12 @@ class DriverController extends Controller
             $query->whereHas('driverProfile', fn ($q) => $q->where('status', $request->status));
         }
 
+        // Tài xế xin mở khoá liên hệ tab Free, chưa được mở — admin liên hệ kiểm tra xe rồi duyệt tay.
+        if ($request->boolean('free_unlock_requested')) {
+            $query->whereHas('driverProfile', fn ($q) => $q->whereNotNull('free_unlock_requested_at')
+                ->where(fn ($w) => $w->whereNull('free_unlocked_until')->orWhere('free_unlocked_until', '<=', now())));
+        }
+
         if ($request->search) {
             $s = '%' . $request->search . '%';
             $query->where(fn ($q) => $q
@@ -28,7 +34,12 @@ class DriverController extends Controller
             );
         }
 
-        $drivers = $query->latest()->get()->map(fn ($u) => $this->formatDriver($u));
+        $drivers = $query->latest()->get();
+        if ($request->boolean('free_unlock_requested')) {
+            // Ai xin trước được duyệt trước.
+            $drivers = $drivers->sortBy(fn (User $u) => $u->driverProfile->free_unlock_requested_at)->values();
+        }
+        $drivers = $drivers->map(fn ($u) => $this->formatDriver($u));
 
         return response()->json($drivers);
     }
@@ -72,7 +83,7 @@ class DriverController extends Controller
         }
 
         $base = $profile->hasFreeAccess() ? $profile->free_unlocked_until->copy() : now();
-        $profile->update(['free_unlocked_until' => $base->addYear()]);
+        $profile->update(['free_unlocked_until' => $base->addYear(), 'free_unlock_requested_at' => null]);
 
         return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
     }
@@ -165,6 +176,7 @@ class DriverController extends Controller
             'points'                    => $u->wallet?->points ?? 0,
             'free_unlocked'       => (bool) $p?->hasFreeAccess(),
             'free_unlocked_until' => $p?->hasFreeAccess() ? $p->free_unlocked_until->getTimestampMs() : null,
+            'free_unlock_requested_at' => $p?->free_unlock_requested_at?->getTimestampMs(),
             'cccd_number'               => $p?->cccd_number,
             'gplx_number'               => $p?->gplx_number,
             'vehicle_reg_number'        => $p?->vehicle_reg_number,

@@ -144,6 +144,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/driver/free-rides/alert', [FreeRideController::class, 'saveAlert']);
             Route::post('/driver/free-rides', [RidePostController::class, 'store'])->middleware('throttle:10,1');
             Route::get('/driver/free-rides/mine', [RidePostController::class, 'mine']);
+            Route::post('/driver/free-rides/unlock-request', [FreeRideController::class, 'requestUnlock'])->middleware('throttle:5,1');
             // POST giới hạn 20/phút/tài xế — broken-link kéo theo một lần getQR trên tài khoản Zalo của bot.
             Route::middleware('throttle:20,1')->group(function () {
                 Route::post('/driver/free-rides/terms', [RidePostController::class, 'acceptTerms']);

@@ -130,6 +130,19 @@ class FreeRideController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    // Thay cho chuyển khoản 300k: tài xế xin mở khoá, admin liên hệ kiểm tra xe + hướng dẫn rồi bấm "Mở khóa Free".
+    public function requestUnlock(Request $request): JsonResponse
+    {
+        $profile = $request->user()->driverProfile;
+        if ($profile->hasFreeAccess()) {
+            return response()->json(['message' => 'Bạn đã được mở khoá liên hệ.', 'code' => 'already_unlocked'], 409);
+        }
+
+        $profile->update(['free_unlock_requested_at' => now()]);
+
+        return response()->json($this->access($request));
+    }
+
     // Bộ lọc đã lưu để nhận thông báo đẩy (NotifyFreeRideAlerts) khi có cuốc Free mới khớp.
     public function alert(Request $request): JsonResponse
     {
@@ -183,7 +196,7 @@ class FreeRideController extends Controller
         return FreeRide::filterSafe($rides);
     }
 
-    /** @return array{unlocked: bool, expires_at: int|null, payment: array|null} */
+    /** @return array{unlocked: bool, expires_at: int|null, payment: array|null, requested_at: int|null} */
     private function access(Request $request): array
     {
         $profile = $request->user()->driverProfile;
@@ -194,6 +207,8 @@ class FreeRideController extends Controller
             'expires_at' => $unlocked ? $profile->free_unlocked_until->getTimestampMs() : null,
             // Thông tin chuyển khoản mở khóa (QR VietQR) — chỉ khi đang khóa.
             'payment' => $unlocked ? null : FreeUnlockPayment::forDriver($request->user()),
+            // Tài xế đã bấm "Gửi yêu cầu mở khoá" — app hiện "Đã gửi, chờ admin".
+            'requested_at' => $unlocked ? null : $profile?->free_unlock_requested_at?->getTimestampMs(),
         ];
     }
 
