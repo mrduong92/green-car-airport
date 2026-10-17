@@ -16,6 +16,8 @@ const FILTERS = [
   { key: 'active',  label: 'Đang hoạt động' },
   { key: 'pending', label: 'Chờ duyệt' },
   { key: 'blocked', label: 'Đã block' },
+  // Không phải trạng thái tài xế: lọc theo yêu cầu mở khoá liên hệ tab Free đang chờ duyệt.
+  { key: 'free_unlock', label: 'Xin mở khoá' },
 ]
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
@@ -66,7 +68,14 @@ export default function DriversPage() {
 
   const { data: drivers = [] } = useQuery({
     queryKey: ['drivers', filter, search],
-    queryFn: () => getDrivers({ status: filter || undefined, search: search || undefined }).then((r) => r.data),
+    queryFn: () => getDrivers(filter === 'free_unlock'
+      ? { free_unlock_requested: 1, search: search || undefined }
+      : { status: filter || undefined, search: search || undefined }).then((r) => r.data),
+  })
+  // Số yêu cầu mở khoá đang chờ — hiện trên chip, dù đang xem bộ lọc nào. Mở khoá xong invalidate ['drivers'] là cập nhật.
+  const { data: unlockRequests = [] } = useQuery({
+    queryKey: ['drivers', 'free_unlock_count'],
+    queryFn: () => getDrivers({ free_unlock_requested: 1 }).then((r) => r.data),
   })
 
   const openEdit = (d: App.DriverProfile) => {
@@ -206,6 +215,9 @@ export default function DriversPage() {
               className={clsx('rounded-pill px-4 py-1.5 text-sm font-medium whitespace-nowrap',
                 filter === f.key ? 'bg-primary text-white' : 'bg-light-green text-primary')}>
               {f.label}
+              {f.key === 'free_unlock' && unlockRequests.length > 0 && (
+                <span className="ml-1.5 rounded-pill bg-danger-red text-white text-[11px] px-1.5">{unlockRequests.length}</span>
+              )}
             </button>
           ))}
         </div>
@@ -233,6 +245,9 @@ export default function DriversPage() {
                 <p className="text-caption text-neutral-gray">{d.phone}</p>
                 <p className="text-caption text-neutral-gray">
                   Free: {d.free_unlocked && d.free_unlocked_until ? `mở khóa đến ${new Date(d.free_unlocked_until).toLocaleDateString('vi-VN')}` : 'đang khóa'}
+                  {!d.free_unlocked && d.free_unlock_requested_at && (
+                    <span className="text-alert-orange"> · xin mở khoá lúc {new Date(d.free_unlock_requested_at).toLocaleString('vi-VN')}</span>
+                  )}
                 </p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <StatusBadge status={d.status} />

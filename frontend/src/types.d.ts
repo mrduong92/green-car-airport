@@ -168,6 +168,8 @@ declare namespace App {
     // Quyền Nhận cuốc ở tab Free (admin duyệt tay, 1 năm); *_until là mốc hết hạn (ms).
     free_unlocked?: boolean
     free_unlocked_until?: number | null
+    // Tài xế bấm xin mở khoá liên hệ tab Free (ms); xoá khi admin mở khoá.
+    free_unlock_requested_at?: number | null
     trips_count: number
     rating: number
     months_active: number
