@@ -44,7 +44,8 @@ Thành công khi:
 | Cột | Thay đổi |
 |---|---|
 | `posted_by_user_id` | MỚI, `foreignId` nullable → `users`, `nullOnDelete`, index |
-| `closed_at` | MỚI, timestamp nullable — "Đã có xe" |
+| `closed_at` | MỚI, timestamp nullable — "Đã có xe" hoặc Xoá (cuốc rời danh sách) |
+| `deleted_at` | MỚI, timestamp nullable — người đăng bấm Xoá (ẩn khỏi "Cuốc tôi đăng"); không dùng trait SoftDeletes |
 | `contact_zalo` | MỚI, boolean default `true` |
 | `parse_status` | MỚI, string(16) nullable: `null` (cuốc Zalo), `pending`, `done`, `failed` |
 | `qr_code` | → nullable |
@@ -93,7 +94,7 @@ Nội dung quy định (ngắn, hiển thị trong popup; chuỗi đặt ở fro
 
 Thêm cho mọi cuốc: `source` (`zalo` | `driver`), `is_mine`.
 Cuốc `driver`:
-- `contact` = `{ phone, zalo_url }` — `zalo_url` = `https://zalo.me/<sđt dạng 0…>` khi `contact_zalo`, ngược lại null.
+- `contact` = `{ phone, zalo }` — `zalo` = bool theo `contact_zalo`; app dựng link bằng `zaloLink()` sẵn có (`https://zalo.me/84…`).
   **Chỉ trả khi người xem đã mở khoá** (khoá ở server, giống cuốc Zalo). Chưa mở khoá hoặc cuốc của chính mình:
   `contact` = null.
 - `raw_text` trả nguyên (đã che SĐT lúc lưu); `sender_name` luôn trả (tên tài khoản người đăng, không phụ
@@ -122,7 +123,7 @@ nên chưa so được bộ lọc; nếu job chạy qua nó thì mốc vượt v
 | `POST /driver/free-rides/unlock-request` | Ghi `free_unlock_requested_at = now` (gửi lại thì cập nhật mốc). Đã mở khoá → 409 | `throttle:5,1` |
 | `GET /driver/free-rides/mine` | Cuốc tôi đăng: đang mở + đã đóng/hết hạn trong 7 ngày | – |
 | `PATCH /driver/free-rides/{uid}/close` | Đã có xe (`closed_at = now`) | chủ cuốc, 403 nếu không |
-| `DELETE /driver/free-rides/{uid}` | Xoá hẳn | chủ cuốc, 403 nếu không |
+| `DELETE /driver/free-rides/{uid}` | Xoá: `closed_at = deleted_at = now` (xoá mềm để các máy khác biết mà gỡ; dọn thật bởi `free-rides:prune` sau 8 ngày) | chủ cuốc, 403 nếu không |
 
 `POST /driver/free-rides`:
 1. Validate; kiểm đồng ý quy định; kiểm giới hạn ngày.
@@ -131,7 +132,8 @@ nên chưa so được bộ lọc; nếu job chạy qua nó thì mốc vượt v
 4. `BroadcastFreeRidesSignal` (realtime) + `ParseDriverRide` (job nền).
 5. Người đăng lấy từ `$request->user()`; không nhận `user_id` từ client.
 
-Close/Delete: thêm `BroadcastFreeRidesSignal` để danh sách các máy khác cập nhật.
+Close/Delete: thêm `BroadcastFreeRidesSignal`. Gộp `since` hiện không báo được cuốc bị gỡ → nhánh `since` của
+`GET /driver/free-rides` trả thêm `removed: string[]` (ride_uid có `closed_at >= since`, tối đa 200); app bỏ các cuốc này khỏi cache.
 
 ## 7. AI tách cuốc (job nền)
 
