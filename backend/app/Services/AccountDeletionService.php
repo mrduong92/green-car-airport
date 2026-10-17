@@ -9,6 +9,7 @@ use App\Models\DeviceToken;
 use App\Models\DriverFreeRideAlert;
 use App\Models\DriverHiddenSender;
 use App\Models\DriverProfile;
+use App\Models\FreeRide;
 use App\Models\FreeRideReport;
 use App\Models\Otp;
 use App\Models\SepayWebhookEvent;
@@ -93,6 +94,9 @@ class AccountDeletionService
             DriverFreeRideAlert::where('driver_id', $user->id)->delete();
             DriverHiddenSender::where('driver_id', $user->id)->delete();
             FreeRideReport::where('driver_id', $user->id)->delete();
+            // Cuốc đã đăng ở tab Free: gỡ khỏi danh sách và bỏ tên thật.
+            FreeRide::where('posted_by_user_id', $user->id)->whereNull('closed_at')->update(['closed_at' => now()]);
+            FreeRide::where('posted_by_user_id', $user->id)->update(['sender_name' => self::DELETED_NAME]);
             Voucher::where('user_id', $user->id)->doesntHave('bookings')->delete();
             // Giữ SĐT trong khuyến mãi đã nhận (chặn đăng ký lại để nhận lại ưu đãi người mới)
             // nhưng cắt liên kết với id — nếu không, ghép id là ra SĐT thật của tài khoản đã xoá.
