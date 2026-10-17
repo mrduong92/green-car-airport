@@ -177,6 +177,46 @@ class FreeRideAdminTest extends TestCase
         $this->assertSame(['B1'], $blockedOnly->json('data.0.sender_uids'));
     }
 
+    private function driverRide(User $poster, array $overrides = []): FreeRide
+    {
+        return $this->ride(array_merge([
+            'sender_uid' => FreeRide::driverSenderUid($poster->id), 'sender_name' => 'Tài xế Đăng', 'qr_code' => null,
+            'zalo_group_id' => null, 'group_name' => '', 'posted_by_user_id' => $poster->id, 'is_raw' => true,
+            'parse_status' => 'done',
+        ], $overrides));
+    }
+
+    public function test_driver_poster_listed_by_uid_with_reports_and_can_be_blocked_and_unblocked(): void
+    {
+        $poster = $this->driver();
+        $uid = FreeRide::driverSenderUid($poster->id);
+        $ride = $this->driverRide($poster);
+        $this->ride(['sender_uid' => 'A1']);
+        FreeRideReport::create(['free_ride_uid' => $ride->ride_uid, 'sender_uid' => $uid, 'driver_id' => $this->driver()->id, 'reason' => 'spam']);
+        $admin = $this->admin();
+
+        $rows = collect($this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders')->assertOk()->json('data'));
+        // Không có dòng ma (qr_code và sender_uid đều null) gom mọi cuốc tài xế.
+        $this->assertCount(0, $rows->filter(fn ($r) => $r['qr_code'] === null && $r['sender_uid'] === null));
+        $row = $rows->firstWhere('sender_uid', $uid);
+        $this->assertNotNull($row);
+        $this->assertNull($row['qr_code']);
+        $this->assertSame('Tài xế Đăng', $row['sender_name']);
+        $this->assertSame(1, $row['active_rides']);
+        $this->assertSame(1, $row['reports']);
+        $this->assertFalse($row['blocked']);
+
+        $this->actingAs($admin, 'sanctum')->postJson("/api/admin/free-rides/senders/$uid/block")->assertOk();
+        $blocked = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/free-rides/senders?blocked=1')->assertOk()->json('data');
+        $this->assertSame([$uid], array_column($blocked, 'sender_uid'));
+        $this->assertTrue($blocked[0]['blocked']);
+        // Chặn có hiệu lực ở tab Free.
+        $this->assertNotContains($ride->ride_uid, array_column($this->actingAs($this->driver(), 'sanctum')->getJson('/api/driver/free-rides')->json('data'), 'ride_uid'));
+
+        $this->actingAs($admin, 'sanctum')->deleteJson("/api/admin/free-rides/senders/$uid/block")->assertOk()->assertJson(['blocked' => false]);
+        $this->assertDatabaseMissing('zalo_sender_blocks', ['sender_uid' => $uid]);
+    }
+
     public function test_block_and_unblock_sender(): void
     {
         $admin = $this->admin();

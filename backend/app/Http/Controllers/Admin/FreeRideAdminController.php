@@ -110,9 +110,10 @@ class FreeRideAdminController extends Controller
 
         $rows = collect($page->items());
         $details = $this->profileDetails($rows->pluck('qr_code')->filter()->values()->all());
+        $uidNames = $this->uidNames($rows->whereNull('qr_code')->pluck('legacy_uid')->filter()->values()->all());
 
         return response()->json([
-            'data' => $rows->map(fn ($row) => $this->formatSender($row, $details))->values(),
+            'data' => $rows->map(fn ($row) => $this->formatSender($row, $details, $uidNames))->values(),
             'meta' => $this->meta($page),
         ]);
     }
@@ -156,7 +157,8 @@ class FreeRideAdminController extends Controller
     public function unblock(string $senderUid): JsonResponse
     {
         ZaloSenderBlock::where('sender_uid', $senderUid)->delete();
-        FreeRide::where('sender_uid', $senderUid)->distinct()->pluck('qr_code')
+        // Cuốc tài xế đăng (gca_<id>) không có qr_code.
+        FreeRide::where('sender_uid', $senderUid)->whereNotNull('qr_code')->distinct()->pluck('qr_code')
             ->each(fn (string $qrCode) => $this->deleteProfileBlocks($qrCode));
 
         return response()->json(['blocked' => false]);
@@ -193,10 +195,12 @@ class FreeRideAdminController extends Controller
     /**
      * Truy vấn danh sách — an toàn với ONLY_FULL_GROUP_BY: mọi GROUP BY nằm trong subquery (mỗi
      * subquery 1 hàng/khoá), truy vấn ngoài chỉ LEFT JOIN nên không nhân dòng, phân trang đếm đúng.
-     *  k  : khoá hàng — (qr_code, legacy_uid). Mặc định: mọi qr_code có cuốc. blocked=1: qr_code bị
-     *       chặn (theo mã, hoặc suy từ uid bị chặn kiểu cũ) + uid chặn kiểu cũ không còn cuốc nào.
-     *  rs : số cuốc theo qr_code; rq: báo cáo của mọi uid thuộc qr_code; ru: báo cáo theo legacy_uid.
-     *  bq : qr_code đang bị chặn (cờ blocked ở danh sách mặc định).
+     *  k  : khoá hàng — (qr_code, legacy_uid). Mặc định: mọi qr_code có cuốc + uid của cuốc không có qr_code
+     *       (cuốc tài xế đăng, gca_<id>). blocked=1: qr_code bị chặn (theo mã, hoặc suy từ uid bị chặn kiểu
+     *       cũ) + uid bị chặn không có cuốc nào mang qr_code (chặn kiểu cũ hết cuốc, hoặc tài xế đăng).
+     *  rs : số cuốc theo qr_code; ru2: số cuốc theo uid (cuốc không có qr_code); rq: báo cáo của mọi uid
+     *       thuộc qr_code; ru: báo cáo theo legacy_uid.
+     *  bq : qr_code đang bị chặn; bu: uid đang bị chặn (cờ blocked).
      */
     private function sendersQuery(Carbon $now, Carbon $weekAgo, ?string $like, bool $blockedOnly): QueryBuilder
     {
@@ -209,8 +213,16 @@ class FreeRideAdminController extends Controller
             ->selectRaw('COUNT(CASE WHEN free_rides.expires_at > ? AND (c.id IS NULL OR c.expires_at <= ?) THEN 1 END) as active_rides', [$now, $now])
             ->selectRaw('COUNT(CASE WHEN free_rides.posted_at >= ? AND c.id IS NULL THEN 1 END) as rides_7d', [$weekAgo])
             ->groupBy('free_rides.qr_code');
+        $uidRideStats = FreeRide::query()->toBase()
+            ->leftJoin('free_rides as c', 'c.id', '=', 'free_rides.duplicate_of_id')
+            ->whereNull('free_rides.qr_code')
+            ->select('free_rides.sender_uid')
+            ->selectRaw('COUNT(CASE WHEN free_rides.expires_at > ? AND free_rides.closed_at IS NULL AND (c.id IS NULL OR c.expires_at <= ?) THEN 1 END) as active_rides', [$now, $now])
+            ->selectRaw('COUNT(CASE WHEN free_rides.posted_at >= ? AND c.id IS NULL THEN 1 END) as rides_7d', [$weekAgo])
+            ->groupBy('free_rides.sender_uid');
+        $blockedUids = ZaloSenderBlock::query()->toBase()->whereNotNull('sender_uid')->select('sender_uid')->distinct();
 
-        $uidProfiles = FreeRide::query()->toBase()->select('sender_uid', 'qr_code')->distinct();
+        $uidProfiles = FreeRide::query()->toBase()->whereNotNull('qr_code')->select('sender_uid', 'qr_code')->distinct();
         $reportsByQr = FreeRideReport::query()->toBase()
             ->joinSub($uidProfiles, 'up', 'up.sender_uid', '=', 'free_ride_reports.sender_uid')
             ->selectRaw('up.qr_code as qr_code, COUNT(*) as reports')
@@ -222,25 +234,28 @@ class FreeRideAdminController extends Controller
         if ($blockedOnly) {
             $orphanLegacyBlocks = ZaloSenderBlock::query()->toBase()
                 ->whereNull('qr_code')->whereNotNull('sender_uid')
-                ->whereNotIn('sender_uid', FreeRide::query()->toBase()->select('sender_uid'))
+                ->whereNotIn('sender_uid', FreeRide::query()->toBase()->whereNotNull('qr_code')->select('sender_uid'))
                 ->selectRaw('NULL as qr_code, sender_uid as legacy_uid');
             $keys = DB::query()->fromSub($this->blockedQrCodesQuery(), 'b')
                 ->select('b.qr_code')->selectRaw('NULL as legacy_uid')
                 ->unionAll($orphanLegacyBlocks);
         } else {
-            $keys = FreeRide::query()->toBase()->select('qr_code')->selectRaw('NULL as legacy_uid')->distinct();
+            $keys = FreeRide::query()->toBase()->whereNotNull('qr_code')->select('qr_code')->selectRaw('NULL as legacy_uid')->distinct()
+                ->union(FreeRide::query()->toBase()->whereNull('qr_code')->selectRaw('NULL as qr_code, sender_uid as legacy_uid')->distinct());
         }
 
         $query = DB::query()->fromSub($keys, 'k')
             ->leftJoinSub($rideStats, 'rs', 'rs.qr_code', '=', 'k.qr_code')
+            ->leftJoinSub($uidRideStats, 'ru2', 'ru2.sender_uid', '=', 'k.legacy_uid')
             ->leftJoinSub($reportsByQr, 'rq', 'rq.qr_code', '=', 'k.qr_code')
             ->leftJoinSub($reportsByUid, 'ru', 'ru.sender_uid', '=', 'k.legacy_uid')
             ->leftJoinSub($this->blockedQrCodesQuery(), 'bq', 'bq.qr_code', '=', 'k.qr_code')
+            ->leftJoinSub($blockedUids, 'bu', 'bu.sender_uid', '=', 'k.legacy_uid')
             ->select('k.qr_code', 'k.legacy_uid')
-            ->selectRaw('COALESCE(rs.active_rides, 0) as active_rides')
-            ->selectRaw('COALESCE(rs.rides_7d, 0) as rides_7d')
+            ->selectRaw('COALESCE(rs.active_rides, ru2.active_rides, 0) as active_rides')
+            ->selectRaw('COALESCE(rs.rides_7d, ru2.rides_7d, 0) as rides_7d')
             ->selectRaw('COALESCE(rq.reports, ru.reports, 0) as reports')
-            ->selectRaw('CASE WHEN k.legacy_uid IS NOT NULL OR bq.qr_code IS NOT NULL THEN 1 ELSE 0 END as blocked')
+            ->selectRaw('CASE WHEN bu.sender_uid IS NOT NULL OR bq.qr_code IS NOT NULL THEN 1 ELSE 0 END as blocked')
             ->orderByDesc('active_rides')
             ->orderByDesc('rides_7d')
             // Tie-breaker để thứ tự ổn định giữa các trang.
@@ -256,7 +271,11 @@ class FreeRideAdminController extends Controller
                     ->orWhere('sender_uid', 'like', $like)
                     ->orWhere('qr_code', 'like', $like))
                 ->select('qr_code');
+            $matchingUid = FreeRide::query()->toBase()->whereNull('qr_code')
+                ->where(fn (QueryBuilder $w) => $w->where('sender_name', 'like', $like)->orWhere('sender_uid', 'like', $like))
+                ->select('sender_uid');
             $query->where(fn (QueryBuilder $w) => $w->whereIn('k.qr_code', $matchingQr)
+                ->orWhereIn('k.legacy_uid', $matchingUid)
                 // Hồ sơ bị chặn đã hết cuốc / chặn kiểu cũ: vẫn tìm được theo mã hoặc uid.
                 ->orWhere('k.qr_code', 'like', $like)
                 ->orWhere('k.legacy_uid', 'like', $like));
@@ -270,6 +289,7 @@ class FreeRideAdminController extends Controller
     {
         $fromLegacyUid = FreeRide::query()->toBase()
             ->join('zalo_sender_blocks', 'zalo_sender_blocks.sender_uid', '=', 'free_rides.sender_uid')
+            ->whereNotNull('free_rides.qr_code')
             ->select('free_rides.qr_code');
 
         return ZaloSenderBlock::query()->toBase()->whereNotNull('qr_code')->select('qr_code')->union($fromLegacyUid);
@@ -313,6 +333,23 @@ class FreeRideAdminController extends Controller
         return $details;
     }
 
+    /**
+     * Tên hiển thị cho hàng khoá theo uid (cuốc tài xế đăng / chặn kiểu cũ): tên không rỗng gần nhất.
+     *
+     * @param  list<string>  $uids
+     * @return array<string, string>
+     */
+    private function uidNames(array $uids): array
+    {
+        if ($uids === []) {
+            return [];
+        }
+
+        return FreeRide::whereIn('sender_uid', $uids)->where('sender_name', '!=', '')
+            ->orderByDesc('posted_at')->get(['sender_uid', 'sender_name'])
+            ->unique('sender_uid')->pluck('sender_name', 'sender_uid')->all();
+    }
+
     private function meta(LengthAwarePaginator $page): array
     {
         return [
@@ -339,7 +376,7 @@ class FreeRideAdminController extends Controller
         ];
     }
 
-    private function formatSender($row, array $details): array
+    private function formatSender($row, array $details, array $uidNames = []): array
     {
         $d = $row->qr_code !== null ? ($details[$row->qr_code] ?? null) : null;
         $legacyUids = $row->legacy_uid !== null ? [$row->legacy_uid] : [];
@@ -347,7 +384,7 @@ class FreeRideAdminController extends Controller
         return [
             'qr_code' => $row->qr_code,
             'contact_url' => $row->qr_code !== null ? "zalo://qr/p/{$row->qr_code}" : null,
-            'sender_name' => $d['sender_name'] ?? '',
+            'sender_name' => $d['sender_name'] ?? ($row->legacy_uid !== null ? ($uidNames[$row->legacy_uid] ?? '') : ''),
             // uid của cuốc gần nhất (hoặc uid chặn kiểu cũ) — giữ cho client cũ.
             'sender_uid' => $d['sender_uid'] ?? $row->legacy_uid,
             'sender_uids' => $d['sender_uids'] ?? $legacyUids,
