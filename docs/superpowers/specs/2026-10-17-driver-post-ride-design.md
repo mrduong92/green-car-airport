@@ -24,7 +24,7 @@ Thành công khi:
 | 1 | Mọi tài xế đã duyệt (`driver.active`) được đăng, kể cả người điều phối/chủ lịch đăng hộ khách. |
 | 2 | Liên hệ trên cuốc **luôn là SĐT người đăng** (đã xác minh OTP lúc đăng ký). Không có trường nhập SĐT người khác. |
 | 3 | Nút liên hệ: **Gọi** (`tel:`) + **Zalo** (`https://zalo.me/<sđt>`, ẩn nếu người đăng tắt). |
-| 4 | Cuốc tài xế đăng **không bị khoá 300k** (khoá chỉ còn áp cho cuốc Zalo cũ, sẽ gỡ ở bước 3). |
+| 4 | **Khoá xem liên hệ, mở bằng xin admin duyệt — không thu tiền.** Ai cũng đăng và đọc nội dung cuốc; nút Gọi/Zalo chỉ mở khi tài xế được mở khoá (`free_unlocked_until`, cơ chế sẵn có). Tài xế bấm ổ khoá → gửi yêu cầu → admin liên hệ kiểm tra xe, hướng dẫn rồi duyệt tay. Popup QR 300k bị thay bằng popup xin mở khoá (áp cho mọi cuốc, cả Zalo cũ). |
 | 5 | AI: **chỉ OpenAI**, model cấu hình qua env. |
 | 6 | Người đăng quản lý: **Đã có xe** + **Xoá**. Không sửa. |
 | 7 | Dữ liệu: **dùng chung bảng `free_rides`** (phương án A). |
@@ -33,7 +33,7 @@ Thành công khi:
 ## 3. Ngoài phạm vi
 
 - Trang công khai cho link chia sẻ + ảnh xem trước (thẻ OG) trên Zalo — bước 2.
-- Gỡ khoá 300k, gỡ admin nhóm/nick Zalo, tắt `zalo-service`, xoá dữ liệu Zalo — bước 3.
+- Gỡ hẳn code thanh toán 300k (`FreeUnlockPayment`, cài đặt phí, `access.payment`), gỡ admin nhóm/nick Zalo, tắt `zalo-service`, xoá dữ liệu Zalo — bước 3.
 - Sửa cuốc đã đăng; "chủ cuốc" khác người đăng (làm sau nếu cần: chủ cuốc phải là tài khoản GreenCA và bấm đồng ý).
 - Plugin share native (`@capacitor/share`) — nằm ở nhánh `feat/android-native`; bước này dùng Web Share + sao chép.
 
@@ -59,7 +59,13 @@ Cuốc tài xế đăng:
 - `posted_at` = now; `expires_at` = now + 3h (sửa lại sau khi AI tách được giờ đón).
 - `parse_status` = `pending`.
 
-### 4.2 Đồng ý quy định đăng cuốc
+### 4.2 Yêu cầu mở khoá liên hệ
+
+Migration `driver_profiles.free_unlock_requested_at` (timestamp nullable). Mở khoá vẫn là `free_unlocked_until`
+(admin bấm "Mở khoá" sẵn có ở trang Tài xế = +1 năm); duyệt xong thì xoá `free_unlock_requested_at`.
+Thu hồi không đụng cột yêu cầu.
+
+### 4.3 Đồng ý quy định đăng cuốc
 
 Migration `driver_profiles.ride_post_terms_accepted_at` (timestamp nullable). Đăng khi cột này null → 409
 `code: ride_post_terms_required`; app hiện popup quy định, bấm Đồng ý gọi endpoint ghi mốc rồi gửi lại.
@@ -88,11 +94,15 @@ Nội dung quy định (ngắn, hiển thị trong popup; chuỗi đặt ở fro
 Thêm cho mọi cuốc: `source` (`zalo` | `driver`), `is_mine`.
 Cuốc `driver`:
 - `contact` = `{ phone, zalo_url }` — `zalo_url` = `https://zalo.me/<sđt dạng 0…>` khi `contact_zalo`, ngược lại null.
-  **Không phụ thuộc khoá 300k.** Cuốc của chính mình: `contact` = null.
+  **Chỉ trả khi người xem đã mở khoá** (khoá ở server, giống cuốc Zalo). Chưa mở khoá hoặc cuốc của chính mình:
+  `contact` = null.
 - `raw_text` trả nguyên (đã che SĐT lúc lưu); `sender_name` luôn trả (tên tài khoản người đăng, không phụ
   thuộc cài đặt `free_show_sender_name` — đó là cài đặt cho tên Zalo).
 - `qr_code`, `contact_url` = null.
 Cuốc `zalo`: giữ nguyên hành vi hiện tại.
+
+`access` thêm `requested_at` (ms | null) — app hiện "Đã gửi yêu cầu, chờ admin". `access.payment` giữ nguyên trong
+API (gỡ ở bước 3) nhưng app không dùng nữa.
 
 ### 5.3 Cảnh báo đẩy (`NotifyFreeRideAlerts`)
 
@@ -109,6 +119,7 @@ nên chưa so được bộ lọc; nếu job chạy qua nó thì mốc vượt v
 |---|---|---|
 | `POST /driver/free-rides` | `{ text (1–1000 ký tự), contact_zalo? }` → lưu, trả cuốc đã format | `throttle:10,1`; **20 cuốc/ngày/tài xế** (đếm theo `posted_by_user_id` + ngày VN) → 429 `code: daily_post_limit` |
 | `POST /driver/free-rides/terms` | Ghi `ride_post_terms_accepted_at` | – |
+| `POST /driver/free-rides/unlock-request` | Ghi `free_unlock_requested_at = now` (gửi lại thì cập nhật mốc). Đã mở khoá → 409 | `throttle:5,1` |
 | `GET /driver/free-rides/mine` | Cuốc tôi đăng: đang mở + đã đóng/hết hạn trong 7 ngày | – |
 | `PATCH /driver/free-rides/{uid}/close` | Đã có xe (`closed_at = now`) | chủ cuốc, 403 nếu không |
 | `DELETE /driver/free-rides/{uid}` | Xoá hẳn | chủ cuốc, 403 nếu không |
@@ -154,9 +165,22 @@ trường hợp xoá cứng.
   lỗi mạng → toast, **giữ nguyên nội dung ô**.
 - Lối vào **"Cuốc tôi đăng"** ở đầu trang.
 
+### 9.0 Xin mở khoá liên hệ
+- Tài xế chưa mở khoá: chỗ nút liên hệ (mọi cuốc) là nút **🔒 Mở khoá liên hệ**. Bấm → popup:
+  "Liên hệ admin để được kiểm tra xe và hướng dẫn, admin sẽ mở khoá cho bạn." + nút **Gửi yêu cầu mở khoá** +
+  nút **Nhắn Zalo admin** (số hỗ trợ từ `/settings/contact`, sẵn có).
+- Đã gửi: popup/nút hiện "Đã gửi yêu cầu lúc HH:mm, admin sẽ liên hệ bạn" (vẫn có nút Nhắn Zalo admin).
+- Popup QR 300k (`FreeRideUnlockSheet`) thay bằng popup này.
+
+### 9.0b Admin (trang Tài xế)
+- Bộ lọc **"Xin mở khoá"** (tài xế có `free_unlock_requested_at`, chưa mở khoá), sắp theo thời điểm xin; số lượng
+  hiện dạng badge cạnh bộ lọc.
+- Mỗi dòng hiện "Xin mở khoá lúc …"; admin bấm nút **Mở khoá** sẵn có → duyệt (xoá cờ yêu cầu).
+- `GET /admin/drivers` nhận `free_unlock_requested=1` và trả `free_unlock_requested_at`.
+
 ### 9.2 Thẻ cuốc (`FreeRideCard`) — cuốc `source = driver`
 - Nhãn "Tài xế đăng", tên người đăng, giờ đăng, nội dung tin nguyên văn.
-- Nút **Gọi** + **Zalo** (nếu có) thay cho "Nhận cuốc"; không popup QR 300k.
+- Đã mở khoá: nút **Gọi** + **Zalo** (nếu có) thay cho "Nhận cuốc". Chưa mở khoá: nút ổ khoá (mục 9.0).
 - Cuốc của mình: nhãn "Cuốc của bạn", thay nút liên hệ bằng **Chia sẻ** · **Đã có xe** · **Xoá**.
 - Menu "…" (báo cáo / ẩn người đăng) giữ như cuốc Zalo.
 
@@ -175,13 +199,15 @@ Backend (PHPUnit, OpenAI giả lập bằng `Http::fake`):
 - Đăng: validate độ dài; chưa đồng ý quy định → 409; đồng ý xong đăng được; che SĐT; người đăng lấy từ token
   (bỏ qua `user_id` gửi kèm); giới hạn 20/ngày; tài xế chưa duyệt/tab tắt → bị chặn.
 - Hiển thị: **cuốc tài xế đăng hiện trong danh sách dù `qr_code`/`zalo_group_id` null**; `contact` đúng, không phụ
-  thuộc khoá 300k; `contact_zalo=false` → không có `zalo_url`; cuốc của mình không có `contact`, `is_mine=true`;
+  `contact` chỉ có khi người xem đã mở khoá; `contact_zalo=false` → không có `zalo_url`; cuốc của mình không có `contact`, `is_mine=true`;
   đã đóng / người đăng bị khoá → không hiện; ẩn người đăng `gca_…` và admin chặn `gca_…` chạy.
 - Chủ cuốc: close/delete được; người khác → 403; `/mine` chỉ trả cuốc của mình.
 - Job tách: thành công điền cột + `expires_at`; `is_ride=false`, HTTP 429/500, timeout, JSON sai, vượt trần → `failed`,
   cuốc vẫn hiện; tin chứa câu chèn lệnh không đổi schema kết quả.
 - Cảnh báo: cuốc `pending` chặn mốc; tách xong được push đúng bộ lọc; không push cho chính người đăng; `pending`
   quá 2 phút không chặn mốc.
+- Xin mở khoá: ghi mốc; đã mở khoá → 409; admin lọc `free_unlock_requested=1` đúng danh sách; admin mở khoá xoá
+  cờ yêu cầu; thu hồi không tạo lại yêu cầu.
 - Xoá tài khoản đóng cuốc đang mở.
 - Toàn bộ test Cuốc Free cũ vẫn xanh.
 
