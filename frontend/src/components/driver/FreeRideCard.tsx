@@ -85,7 +85,7 @@ export default function FreeRideCard({ ride, onMore, onLocked, ownActions }: Pro
 
         {ride.is_mine ? (
           ownActions
-        ) : ride.contact !== null ? (
+        ) : ride.contact ? (
           <div className="flex gap-2">
             <a data-testid="free-ride-call" href={`tel:${ride.contact.phone}`}
               className="flex-1 min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
