@@ -20,7 +20,7 @@ class DriverRideVisibilityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->travelTo(Carbon::parse('2026-10-17 03:00:00')); // 10:00 giờ VN
+        $this->travelTo(Carbon::parse('2026-10-17 10:00:00')); // app timezone = Asia/Ho_Chi_Minh
     }
 
     private function driver(bool $unlocked = true, string $status = 'active'): User

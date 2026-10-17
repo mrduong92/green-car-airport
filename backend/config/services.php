@@ -77,4 +77,13 @@ return [
         'brand_name' => env('ABENLA_BRAND_NAME'),
     ],
 
+    // AI tách cuốc tài xế đăng ở tab Free (App\Services\RideParser\OpenAiRideParser).
+    'openai' => [
+        'key' => env('OPENAI_API_KEY', ''),
+        'ride_model' => env('OPENAI_RIDE_MODEL', 'gpt-5-mini'),
+        // Trần số lần gọi AI toàn hệ thống / ngày (giờ VN) — chặn hoá đơn vọt khi bị spam.
+        'ride_daily_limit' => (int) env('OPENAI_RIDE_DAILY_LIMIT', 2000),
+        'timeout' => 15,
+    ],
+
 ];
