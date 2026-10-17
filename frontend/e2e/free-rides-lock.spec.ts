@@ -3,8 +3,8 @@ import { APP, SEEDED } from './fixtures/testData'
 import { loginExisting } from './fixtures/auth'
 import { pushFreeRides } from './fixtures/freeRides'
 
-// Tài xế chưa mở khóa vẫn thấy cuốc nhưng không có nút Nhận cuốc; admin mở khóa thì có.
-test('tài xế khóa thấy nút Mở khóa, admin mở khóa xong thì Nhận cuốc dùng được', async ({ page, browser }) => {
+// Tài xế chưa mở khóa vẫn thấy cuốc nhưng không có nút Nhận cuốc — bấm thì xin admin mở khoá; admin mở khóa thì có.
+test('tài xế khóa xin mở khoá, admin mở khóa xong thì Nhận cuốc dùng được', async ({ page, browser }) => {
   const tag = Date.now().toString(36)
   const qrCode = `e2el${tag}`
   await pushFreeRides([{ pickup: `Điểm khóa ${tag}`, senderUid: `e2e-l-${tag}`, qrCode }])
@@ -23,14 +23,15 @@ test('tài xế khóa thấy nút Mở khóa, admin mở khóa xong thì Nhận 
   const card = page.getByTestId('free-ride-card').filter({ hasText: `Điểm khóa ${tag}` })
   await expect(card).toBeVisible()
   await expect(card.getByTestId('free-ride-accept')).toHaveCount(0)
-  // Nút vẫn ghi "Nhận cuốc" (tài xế chỉ thấy khác biệt khi bấm): popup có nội dung chuyển khoản + số tiền.
-  await expect(card.getByTestId('free-ride-locked')).toContainText('Nhận cuốc')
-  await expect(page.getByTestId('free-locked-banner')).toHaveCount(0)
+  // Popup xin mở khoá (thay QR 300k): gửi yêu cầu → hiện "Đã gửi yêu cầu".
+  await expect(card.getByTestId('free-ride-locked')).toContainText('Mở khoá liên hệ')
   await card.getByTestId('free-ride-locked').click()
   await expect(page.getByTestId('free-unlock-sheet')).toBeVisible()
-  await expect(page.getByTestId('free-unlock-content')).toHaveText(`MOKHOA ${SEEDED.lockedDriver}`)
-  await expect(page.getByTestId('free-unlock-amount')).toBeVisible()
-  await page.getByRole('button', { name: 'Đã hiểu' }).click()
+  await page.getByTestId('free-unlock-request').click()
+  await expect(page.getByTestId('free-unlock-sheet')).toHaveCount(0)
+  await card.getByTestId('free-ride-locked').click()
+  await expect(page.getByTestId('free-unlock-requested')).toBeVisible()
+  await page.getByRole('button', { name: 'Đóng' }).click()
 
   // Khóa ở server: gọi thẳng API bằng token của tài xế khóa vẫn không lấy được mã QR.
   const token = await page.evaluate(() => localStorage.getItem('token'))
