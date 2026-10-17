@@ -27,6 +27,7 @@ use App\Http\Controllers\DeviceTokenController;
 use App\Http\Controllers\Driver\AppPresenceController;
 use App\Http\Controllers\Driver\FreeRideController;
 use App\Http\Controllers\Driver\ProfileController;
+use App\Http\Controllers\Driver\RidePostController;
 use App\Http\Controllers\Driver\StatusController;
 use App\Http\Controllers\Driver\StreamController;
 use App\Http\Controllers\Driver\TripController;
@@ -135,14 +136,16 @@ Route::middleware('auth:sanctum')->group(function () {
         // Nhịp "đang mở app" (45 giây/lần khi hiển thị) — không push cuốc Free khi tài xế đang mở app.
         Route::post('/driver/app-presence', [AppPresenceController::class, 'update'])->middleware('throttle:30,1');
 
-        // Tab Free (cuốc từ nhóm Zalo) — chỉ tài xế đã duyệt.
+        // Tab Free (cuốc từ nhóm Zalo + cuốc tài xế đăng) — chỉ tài xế đã duyệt.
         Route::middleware(['driver.active', 'free-rides.enabled'])->group(function () {
             Route::get('/driver/free-rides', [FreeRideController::class, 'index']);
             // Bộ lọc lưu lại để nhận thông báo đẩy khi có cuốc Free mới khớp (giai đoạn 5).
             Route::get('/driver/free-rides/alert', [FreeRideController::class, 'alert']);
             Route::put('/driver/free-rides/alert', [FreeRideController::class, 'saveAlert']);
+            Route::post('/driver/free-rides', [RidePostController::class, 'store'])->middleware('throttle:10,1');
             // POST giới hạn 20/phút/tài xế — broken-link kéo theo một lần getQR trên tài khoản Zalo của bot.
             Route::middleware('throttle:20,1')->group(function () {
+                Route::post('/driver/free-rides/terms', [RidePostController::class, 'acceptTerms']);
                 Route::post('/driver/free-rides/hidden-senders', [FreeRideController::class, 'hideSender']);
                 Route::post('/driver/free-rides/{rideUid}/report', [FreeRideController::class, 'report']);
                 Route::post('/driver/free-rides/{rideUid}/broken-link', [FreeRideController::class, 'brokenLink']);
