@@ -87,4 +87,52 @@ class RidePostController extends Controller
             201,
         );
     }
+
+    public function mine(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $unlocked = (bool) $user->driverProfile?->hasFreeAccess();
+        $show = FreeRidePresenter::showSettings();
+
+        $rides = FreeRide::where('posted_by_user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->where('posted_at', '>=', now()->subDays(7))
+            ->orderByDesc('posted_at')->orderByDesc('id')
+            ->limit(100)->get();
+
+        return response()->json([
+            'data' => $rides->map(fn (FreeRide $r) => FreeRidePresenter::present($r, $unlocked, $show, $user->id))->values(),
+        ]);
+    }
+
+    public function close(Request $request, string $rideUid): JsonResponse
+    {
+        $ride = $this->ownRide($request, $rideUid);
+        if ($ride->closed_at === null) {
+            $ride->update(['closed_at' => now()]);
+            BroadcastFreeRidesSignal::dispatch()->delay(now()->addSeconds(2));
+        }
+
+        return response()->json(FreeRidePresenter::present($ride, (bool) $request->user()->driverProfile?->hasFreeAccess(),
+            FreeRidePresenter::showSettings(), $request->user()->id));
+    }
+
+    // Xoá mềm: closed_at để các máy khác nhận `removed` qua gộp since; deleted_at để ẩn khỏi "Cuốc tôi đăng".
+    // Dòng thật do free-rides:prune dọn sau khi hết hạn 8 ngày.
+    public function destroy(Request $request, string $rideUid): JsonResponse
+    {
+        $ride = $this->ownRide($request, $rideUid);
+        $ride->update(['closed_at' => $ride->closed_at ?? now(), 'deleted_at' => now()]);
+        BroadcastFreeRidesSignal::dispatch()->delay(now()->addSeconds(2));
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function ownRide(Request $request, string $rideUid): FreeRide
+    {
+        $ride = FreeRide::where('ride_uid', $rideUid)->whereNull('deleted_at')->firstOrFail();
+        abort_unless($ride->posted_by_user_id === $request->user()->id, 403, 'Bạn chỉ quản lý được cuốc mình đăng.');
+
+        return $ride;
+    }
 }

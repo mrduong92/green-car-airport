@@ -45,12 +45,16 @@ class FreeRideController extends Controller
             // >= vì updated_at chỉ chính xác tới giây; client gộp theo ride_uid nên trả trùng không sao.
             $rides = $query->where('updated_at', '>=', Carbon::createFromTimestampMs($data['since'], config('app.timezone')))
                 ->orderByDesc('updated_at')->limit(self::SINCE_LIMIT)->get();
+            // Gộp since chỉ thấy cuốc còn hiển thị — cuốc vừa Đã có xe / Xoá phải báo riêng để app gỡ khỏi cache.
+            $removed = FreeRide::where('closed_at', '>=', Carbon::createFromTimestampMs($data['since'], config('app.timezone')))
+                ->orderByDesc('closed_at')->limit(self::SINCE_LIMIT)->pluck('ride_uid');
 
             return response()->json([
                 'data' => $this->safe($rides)->map(fn (FreeRide $r) => FreeRidePresenter::present($r, $access['unlocked'], $show, $viewerId))->values(),
                 'next_cursor' => null,
                 'access' => $access,
                 'latest' => $this->latestOf($rides, (int) $data['since']),
+                'removed' => $removed->values(),
                 // Chạm giới hạn SINCE_LIMIT nghĩa là còn cuốc cũ hơn bị bỏ sót (sắp xếp mới nhất
                 // trước rồi cắt) — báo client nạp lại trang 1 thay vì coi since là đã đủ.
                 'reset' => $rides->count() >= self::SINCE_LIMIT,
