@@ -29,8 +29,11 @@ class PickupTime
         }
 
         $candidate = Carbon::create($year, $m, $d, $hour, $minute, 0, self::TZ);
-        if ($day === null && $candidate->lt($local->copy()->subMinutes(30))) {
-            $candidate->addDay(); // giờ đã qua → hôm sau
+        // Giờ đã qua → hôm sau. Cả khi ngày ghi đúng bằng ngày đăng: AI hay tự điền pickup_date = hôm nay
+        // dù tin không ghi ngày ("đón T2 9h" đăng lúc 10:00 là 9h sáng mai).
+        $sameDay = $day === null || $local->isSameDay($candidate);
+        if ($sameDay && $candidate->lt($local->copy()->subMinutes(30))) {
+            $candidate->addDay();
         }
 
         return $candidate->utc();

@@ -89,6 +89,17 @@ class ParseDriverRideTest extends TestCase
         $this->assertTrue($ride->refresh()->expires_at->eq(now()->addMinutes(30)));
     }
 
+    public function test_late_queue_keeps_ride_alive_30_minutes_after_parse(): void
+    {
+        $ride = $this->ride();
+        $this->travel(45)->minutes(); // queue trễ
+        $this->parserReturns($this->draft(now()->subMinutes(10)));
+
+        ParseDriverRide::dispatchSync($ride->id);
+
+        $this->assertTrue($ride->refresh()->expires_at->eq(now()->addMinutes(30)));
+    }
+
     public function test_far_future_capped_at_7_days(): void
     {
         $ride = $this->ride();

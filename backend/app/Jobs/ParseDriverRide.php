@@ -73,7 +73,7 @@ class ParseDriverRide implements ShouldQueue
         NotifyFreeRideAlerts::dispatch()->delay(now()->addSeconds(2));
     }
 
-    /** pickup + 30', không sớm hơn posted + 30' (AI đọc nhầm giờ đã qua), không quá posted + 7 ngày. */
+    /** pickup + 30', không sớm hơn 30' sau khi tách (AI đọc nhầm giờ đã qua / queue trễ), không quá posted + 7 ngày. */
     public static function expiresAt(FreeRide $ride, ?Carbon $pickupAt): Carbon
     {
         if ($pickupAt === null) {
@@ -81,6 +81,8 @@ class ParseDriverRide implements ShouldQueue
         }
         $posted = $ride->posted_at->copy();
 
-        return $pickupAt->copy()->addMinutes(30)->max($posted->copy()->addMinutes(30))->min($posted->copy()->addDays(7));
+        $floor = $posted->copy()->addMinutes(30)->max(now()->addMinutes(30));
+
+        return $pickupAt->copy()->addMinutes(30)->max($floor)->min($posted->copy()->addDays(7));
     }
 }

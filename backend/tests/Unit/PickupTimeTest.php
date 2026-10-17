@@ -34,6 +34,12 @@ class PickupTimeTest extends TestCase
         $this->assertTrue(PickupTime::resolve($this->at('2026-10-17 10:00'), 6, 30, 20, 10)->eq($this->at('2026-10-20 06:30')));
     }
 
+    public function test_passed_time_with_posting_date_rolls_to_tomorrow(): void
+    {
+        // AI hay tự điền pickup_date = ngày đăng: "đón T2 9h" đăng lúc 10:00 là 9h sáng mai.
+        $this->assertTrue(PickupTime::resolve($this->at('2026-10-17 10:00'), 9, 0, 17, 10)->eq($this->at('2026-10-18 09:00')));
+    }
+
     public function test_year_wrap(): void
     {
         $this->assertTrue(PickupTime::resolve($this->at('2026-12-31 22:00'), 5, 0, 2, 1)->eq($this->at('2027-01-02 05:00')));
