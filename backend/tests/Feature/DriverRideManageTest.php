@@ -69,6 +69,18 @@ class DriverRideManageTest extends TestCase
         $this->assertNotNull($ride->deleted_at);
     }
 
+    public function test_presence_pings_do_not_eat_manage_limit(): void
+    {
+        // Ping app-presence (throttle 30/phút) không được ăn vào giới hạn 20/phút của nhóm thao tác tab Free.
+        $u = $this->driver();
+        $uid = $this->postRide($u);
+        for ($i = 0; $i < 25; $i++) {
+            $this->actingAs($u, 'sanctum')->postJson('/api/driver/app-presence', ['active' => true])->assertNoContent();
+        }
+
+        $this->actingAs($u, 'sanctum')->patchJson("/api/driver/free-rides/$uid/close")->assertOk();
+    }
+
     public function test_others_cannot_close_or_delete(): void
     {
         $uid = $this->postRide($this->driver());

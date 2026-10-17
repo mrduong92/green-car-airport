@@ -134,7 +134,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/driver/profile', [ProfileController::class, 'update']);
         Route::patch('/driver/status', [StatusController::class, 'update']);
         // Nhịp "đang mở app" (45 giây/lần khi hiển thị) — không push cuốc Free khi tài xế đang mở app.
-        Route::post('/driver/app-presence', [AppPresenceController::class, 'update'])->middleware('throttle:30,1');
+        Route::post('/driver/app-presence', [AppPresenceController::class, 'update'])->middleware('throttle:30,1,app-presence');
 
         // Tab Free (cuốc từ nhóm Zalo + cuốc tài xế đăng) — chỉ tài xế đã duyệt.
         Route::middleware(['driver.active', 'free-rides.enabled'])->group(function () {
@@ -148,7 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/driver/free-rides/mine', [RidePostController::class, 'mine']);
             Route::post('/driver/free-rides/unlock-request', [FreeRideController::class, 'requestUnlock'])->middleware('throttle:5,1,free-unlock');
             // POST giới hạn 20/phút/tài xế — broken-link kéo theo một lần getQR trên tài khoản Zalo của bot.
-            Route::middleware('throttle:20,1')->group(function () {
+            Route::middleware('throttle:20,1,free-rides')->group(function () {
                 Route::post('/driver/free-rides/terms', [RidePostController::class, 'acceptTerms']);
                 Route::patch('/driver/free-rides/{rideUid}/close', [RidePostController::class, 'close']);
                 Route::delete('/driver/free-rides/{rideUid}', [RidePostController::class, 'destroy']);
