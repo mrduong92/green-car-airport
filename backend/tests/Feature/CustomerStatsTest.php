@@ -50,8 +50,8 @@ class CustomerStatsTest extends TestCase
         $res->assertJsonPath('cancelled', 1);
         // 500.000 - 50.000 + 20.000 + 30.000 = 500.000
         $res->assertJsonPath('total_spent', 500_000);
-        // giảm giá cộng trên MỌI chuyến trong kỳ, không chỉ chuyến hoàn thành
-        $res->assertJsonPath('total_saved', 60_000);
+        // chỉ tính giảm giá của chuyến HOÀN THÀNH — voucher của đơn đã huỷ không phải tiền khách tiết kiệm
+        $res->assertJsonPath('total_saved', 50_000);
     }
 
     public function test_totals_subtract_and_count_points_used(): void
