@@ -5,9 +5,9 @@ import { getAvailableTrips, getTripHistory, getWallet, toggleOnline, acceptTrip,
 import dayjs from 'dayjs'
 import { fmtDateTime } from '@/utils/date'
 import { apiMessage } from '@/utils/apiError'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import EmptyState from '@/components/common/EmptyState'
-import VipBadge from '@/components/common/VipBadge'
 import { PushNudgeBanner } from '@/components/driver/PushNotificationSettings'
 import RoutePoints from '@/components/driver/RoutePoints'
 import { VEHICLE_TYPE_LABELS } from '@/utils/vehicleType'
@@ -108,8 +108,19 @@ export default function TripListPage() {
     onError: (err) => showToast(apiMessage(err, 'Nhận cuốc thất bại'), 'error'),
   })
 
+  // Xe biển trắng bị chặn nhận cuốc ở server (danh sách luôn trống) — nói rõ lý do thay vì "Chưa có cuốc".
+  const whitePlate = useAuthStore((s) => s.user?.white_plate === true)
+
   return (
     <div className="w-full flex flex-col">
+      {whitePlate && (
+        <div data-testid="white-plate-banner" className="mx-4 mt-3.5 rounded-card border border-danger-red/30 bg-danger-red/5 px-4 py-3 flex items-start gap-2.5">
+          <span className="material-symbols-outlined text-danger-red text-[20px]">block</span>
+          <p className="text-[13px] leading-[19px] text-navy">
+            Xe biển trắng (xe cá nhân) không được nhận cuốc chở khách. Liên hệ admin khi xe đã chuyển sang biển vàng.
+          </p>
+        </div>
+      )}
       {/* Online toggle card */}
       <div className="mx-4 mt-3.5 bg-white rounded-card shadow-card border border-border-soft flex items-center gap-3 px-4 py-3.5">
         <div
@@ -248,7 +259,7 @@ export default function TripListPage() {
           <EmptyState icon="toggle_off" title="Bạn đang offline"
             description="Bật sẵn sàng nhận cuốc để thấy danh sách chuyến" />
         )}
-        {isOnline && trips.length === 0 && (
+        {isOnline && trips.length === 0 && !whitePlate && (
           <EmptyState icon="directions_car" title="Chưa có cuốc xe nào"
             description="Hãy chờ khách đặt!" />
         )}
@@ -265,7 +276,6 @@ export default function TripListPage() {
                   <span className="text-[10px] font-bold text-neutral-gray border border-border-gray rounded-pill px-1.5 py-0.5">
                     {VEHICLE_TYPE_LABELS[trip.vehicle_type]}
                   </span>
-                  {trip.is_vip && <VipBadge />}
                   {trip.is_new && (
                     <span className="text-[10px] font-bold bg-[#C8A24A] text-white px-2 py-0.5 rounded-pill">MỚI</span>
                   )}

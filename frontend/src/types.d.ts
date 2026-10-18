@@ -13,6 +13,8 @@ declare namespace App {
     approval_status?: 'pending' | 'active' | 'blocked'
     // Chỉ tài xế. false = tab Free đang tắt (ZALO_FREE_RIDES_ENABLED); thiếu (server cũ) = bật.
     free_rides_enabled?: boolean
+    // Tài xế xe biển trắng — bị chặn nhận cuốc, app hiện lý do ở danh sách cuốc.
+    white_plate?: boolean
     needs_terms_acceptance?: boolean
     has_password?: boolean
   }
@@ -38,7 +40,6 @@ declare namespace App {
     voucher_code?: string | null
     note?: string | null
     vehicle_type?: VehicleType
-    is_vip?: boolean
     status: BookingStatus
     driver?: {
       id: number
@@ -70,7 +71,6 @@ declare namespace App {
     distance_km: number
     price: number
     vehicle_type: VehicleType
-    is_vip?: boolean
     /** Đi ngay: backend lấy giờ server làm giờ đón, bỏ quy tắc hẹn trước 30 phút. */
     go_now?: boolean
     voucher_code?: string
@@ -91,7 +91,6 @@ declare namespace App {
     time: string
     distance_km: number
     vehicle_type: VehicleType
-    is_vip?: boolean
     duration_min: number
     price: number
     discount: number
@@ -164,7 +163,8 @@ declare namespace App {
     vehicle_year: number
     vehicle_color: string
     vehicle_type?: VehicleType | null
-    is_vip?: boolean
+    // Xe biển trắng (xe cá nhân): bị chặn nhận cuốc; admin bỏ cờ khi xe đã đổi sang biển vàng.
+    white_plate?: boolean
     // Quyền Nhận cuốc ở tab Free (admin duyệt tay, 1 năm); *_until là mốc hết hạn (ms).
     free_unlocked?: boolean
     free_unlocked_until?: number | null
@@ -300,7 +300,6 @@ declare namespace App {
     service_type: 'airport' | 'provincial'
     trip_type: 'one_way' | 'round_trip'
     vehicle_type: VehicleType
-    is_vip: boolean
     price_type: 'range' | 'per_km'
     min_price: number
     max_price: number

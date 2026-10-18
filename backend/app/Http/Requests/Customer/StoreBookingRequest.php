@@ -33,7 +33,6 @@ class StoreBookingRequest extends FormRequest
             'voucher_code' => 'nullable|string',
             'note' => 'nullable|string|max:500',
             'collection_fee' => 'nullable|integer|min:0',
-            'is_vip' => 'sometimes|boolean',
         ];
     }
 
