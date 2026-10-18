@@ -245,7 +245,6 @@ class BookingController extends Controller
         // dùng chung Booking::effectivePointsUsed() để khớp hành vi này.
         $pointsUsedDisplay = $b->effectivePointsUsed();
         $pointsDiscountDisplay = $b->effectivePointsDiscountVnd();
-        $finalPriceDisplay = $b->basePrice() - $pointsDiscountDisplay + (int) $b->surcharge + (int) ($b->collection_fee ?? 0);
 
         return [
             'id' => $b->id,
@@ -261,7 +260,7 @@ class BookingController extends Controller
             'price' => $b->price,
             'discount' => $b->discount,
             'surcharge' => $b->surcharge,
-            'final_price' => $finalPriceDisplay,
+            'final_price' => $b->finalPrice(),
             'points_used' => $pointsUsedDisplay,
             'points_discount' => $pointsDiscountDisplay,
             'voucher_code' => $b->voucher?->code,

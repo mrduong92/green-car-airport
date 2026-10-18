@@ -92,11 +92,25 @@ class Booking extends Model
         return $this->effectivePointsUsed() * 1000;
     }
 
-    /** Số tiền khách trả tài xế. Nguồn DUY NHẤT — formatBooking, formatTrip đều gọi. */
+    /**
+     * Số tiền khách trả tài xế: giá sau voucher − điểm thưởng CHƯA hoàn + phụ phí phạt + thu hộ.
+     * Điểm đã hoàn (khách/hệ thống huỷ, hết hạn) không còn giảm giá — dùng
+     * effectivePointsDiscountVnd(). Nguồn DUY NHẤT phía PHP — Customer/BookingController::formatBooking,
+     * Driver/TripController::formatTrip và thông báo hoàn thành đều gọi hàm này. Phía SQL
+     * (tổng chi tiêu) dùng FINAL_PRICE_SQL — cùng công thức.
+     */
     public function finalPrice(): int
     {
-        return $this->basePrice() - $this->pointsDiscountVnd() + (int) $this->surcharge + (int) ($this->collection_fee ?? 0);
+        return $this->basePrice() - $this->effectivePointsDiscountVnd() + (int) $this->surcharge + (int) ($this->collection_fee ?? 0);
     }
+
+    /**
+     * Bản SQL của finalPrice() cho aggregate (SUM) — portable MySQL/SQLite. Customer/StatsController
+     * và CustomerProfileController (total_spent) đều dùng hằng này để hai màn hình luôn khớp.
+     */
+    public const FINAL_PRICE_SQL = 'price - COALESCE(discount, 0)'
+        .' - (CASE WHEN points_refunded_at IS NULL THEN COALESCE(points_used, 0) ELSE 0 END) * 1000'
+        .' + COALESCE(surcharge, 0) + COALESCE(collection_fee, 0)';
 
     /**
      * Phí app trừ tài xế lúc nhận cuốc: phí trừ đi số điểm khách dùng (app bù) — tài xế thu ít
