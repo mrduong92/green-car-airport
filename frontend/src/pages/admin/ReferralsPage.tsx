@@ -26,9 +26,9 @@ export default function ReferralsPage() {
   })
 
   const { data: detail, isLoading: detailLoading, isError: detailIsError, refetch: refetchDetail } = useQuery({
-    queryKey: ['admin-referral-detail', detailId],
-    queryFn: () => getReferrerDetail(detailId!).then((r) => r.data),
-    enabled: detailId !== null,
+    queryKey: ['admin-referral-detail', detailId, from, to],
+    queryFn: () => getReferrerDetail(detailId!, { from, to }).then((r) => r.data),
+    enabled: detailId !== null && !rangeError,
   })
 
   // Khi khoảng lọc không có dữ liệu, doanh số toàn 0 — Chart.js tự chọn một thang đo
@@ -207,7 +207,12 @@ export default function ReferralsPage() {
             <div className="flex items-center justify-between px-4 py-4 border-b border-border-gray">
               <div>
                 <p className="text-[15px] font-semibold text-navy">{detail?.name || 'Người giới thiệu'}</p>
-                <p className="text-[12px] text-neutral-gray">{detail?.phone}</p>
+                <p className="text-[12px] text-neutral-gray">{detail ? detail.phone || '—' : ''}</p>
+                {detail?.from && detail?.to && (
+                  <p className="text-[11px] text-neutral-gray">
+                    Số liệu từ {dayjs(detail.from).format('DD/MM/YYYY')} đến {dayjs(detail.to).format('DD/MM/YYYY')}
+                  </p>
+                )}
               </div>
               <button onClick={() => setDetailId(null)}>
                 <span className="material-symbols-outlined text-neutral-gray text-[20px]">close</span>
@@ -230,7 +235,7 @@ export default function ReferralsPage() {
                 <div key={f.id} className="flex items-start justify-between gap-3 py-3 border-b border-border-gray last:border-0">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-navy truncate">{f.name || 'Khách hàng'}</p>
-                    <p className="text-[12px] text-neutral-gray">{f.phone}</p>
+                    <p className="text-[12px] text-neutral-gray">{f.phone || '—'}</p>
                     <p className="text-[12px] text-neutral-gray mt-0.5">
                       Đăng ký {dayjs(f.registered_at).format('DD/MM/YYYY')} · {f.trips} chuyến · {f.spent.toLocaleString('vi-VN')}đ
                     </p>

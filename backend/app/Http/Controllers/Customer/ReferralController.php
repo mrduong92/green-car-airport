@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\User;
+use App\Services\AccountDeletionService;
 use App\Support\DateBuckets;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,8 +39,11 @@ class ReferralController extends Controller
 
         $me = $request->user();
 
+        // F1 đã xoá tài khoản (ẩn danh hoá, deleted_at) VẪN đếm vào tổng/doanh số — đó là lượt
+        // giới thiệu thật đã phát sinh chuyến/hoa hồng; trong danh sách chỉ hiện "Người dùng đã xoá"
+        // và "—" thay vì SĐT giả "deleted-<id>".
         $f1 = User::where('referred_by_user_id', $me->id)->where('role', 'customer')->orderByDesc('id')
-            ->get(['id', 'name', 'phone', 'created_at']);
+            ->get(['id', 'name', 'phone', 'created_at', 'deleted_at']);
         $f1Ids = $f1->pluck('id');
 
         $inRange = fn () => Booking::whereIn('customer_id', $f1Ids)->where('status', 'completed')
@@ -95,8 +99,8 @@ class ReferralController extends Controller
             'monthly' => $monthly,
             'items' => $f1->map(fn ($u) => [
                 'id' => $u->id,
-                'name' => $u->name,
-                'phone_masked' => self::mask($u->phone),
+                'name' => $u->isDeleted() ? AccountDeletionService::DELETED_NAME : $u->name,
+                'phone_masked' => $u->isDeleted() ? '—' : self::mask($u->phone),
                 'registered_at' => $u->created_at?->toISOString(),
                 'trips' => (int) ($trips[$u->id]->trips ?? 0),
                 'spent' => (int) ($trips[$u->id]->spent ?? 0),

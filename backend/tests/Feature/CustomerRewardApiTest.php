@@ -238,4 +238,22 @@ class CustomerRewardApiTest extends TestCase
         $this->assertCount(30, $res->json('series'));
         $this->assertSame(1, $res->json('items.0.trips'));
     }
+
+    public function test_referrals_deleted_f1_shows_deleted_name_and_no_fake_phone_but_still_counts(): void
+    {
+        $me = User::factory()->create(['role' => 'customer']);
+        $gone = $this->f1($me, '2026-10-02 09:00:00');
+        $this->completed($gone, 400_000, '2026-10-03 10:00:00', 20);
+        // Ẩn danh hoá như AccountDeletionService.
+        $gone->forceFill(['name' => 'Người dùng đã xoá', 'phone' => "deleted-{$gone->id}", 'deleted_at' => now()])->save();
+
+        $res = $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?from=2026-10-01&to=2026-10-05')->assertOk();
+
+        $item = collect($res->json('items'))->firstWhere('id', $gone->id);
+        $this->assertSame('Người dùng đã xoá', $item['name']);
+        $this->assertSame('—', $item['phone_masked']);
+        $this->assertSame(1, $item['trips']);
+        $this->assertSame(1, $res->json('summary.total_f1'));          // vẫn là giới thiệu thật
+        $this->assertSame(400_000, $res->json('summary.f1_revenue'));
+    }
 }

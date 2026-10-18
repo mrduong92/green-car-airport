@@ -239,4 +239,55 @@ class AdminReferralReportTest extends TestCase
 
         $this->assertSame(100_000, $res->json('top.0.f1_revenue'));
     }
+
+    public function test_detail_with_range_matches_top_row_for_that_range(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $a = User::factory()->create(['role' => 'customer', 'name' => 'A']);
+        $a1 = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $a->id, 'created_at' => '2026-09-01']);
+        $a2 = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $a->id, 'created_at' => '2026-09-01']);
+        $this->trip($a1, 300_000, '2026-10-10 09:00:00', 15, 15);
+        $this->trip($a1, 500_000, '2026-09-10 09:00:00', 25, 25); // ngoài khoảng
+        $this->trip($a2, 200_000, '2026-10-20 09:00:00', 10, 10);
+
+        $q = 'from=2026-10-01&to=2026-10-31';
+        $row = $this->actingAs($admin, 'sanctum')->getJson("/api/admin/referrals?{$q}")->assertOk()->json('top.0');
+        $detail = $this->actingAs($admin, 'sanctum')->getJson("/api/admin/referrals/{$a->id}?{$q}")->assertOk();
+
+        $f1 = collect($detail->json('f1'));
+        $this->assertSame($row['f1_revenue'], $f1->sum('spent'));
+        $this->assertSame($row['commission_points'], $f1->sum('commission_points'));
+        $this->assertSame(500_000, $f1->sum('spent'));
+        $this->assertSame(1, $f1->firstWhere('id', $a1->id)['trips']);
+
+        // Không gửi from/to → trọn đời như cũ.
+        $life = collect($this->actingAs($admin, 'sanctum')->getJson("/api/admin/referrals/{$a->id}")->assertOk()->json('f1'));
+        $this->assertSame(1_000_000, $life->sum('spent'));
+
+        // Khoảng sai → 422 (cùng validate DateBuckets).
+        $this->actingAs($admin, 'sanctum')->getJson("/api/admin/referrals/{$a->id}?from=2026-10-31&to=2026-10-01")->assertStatus(422);
+    }
+
+    public function test_deleted_accounts_show_null_phone_and_still_count(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $a = User::factory()->create(['role' => 'customer', 'name' => 'A']);
+        $a1 = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $a->id, 'created_at' => '2026-10-02']);
+        $this->trip($a1, 300_000, '2026-10-10 09:00:00', 15, 15);
+        foreach ([$a, $a1] as $u) {
+            $u->forceFill(['name' => 'Người dùng đã xoá', 'phone' => "deleted-{$u->id}", 'deleted_at' => now()])->save();
+        }
+
+        $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/referrals?from=2026-10-01&to=2026-10-31')->assertOk();
+        $this->assertSame($a->id, $res->json('top.0.id'));
+        $this->assertNull($res->json('top.0.phone'));
+        $this->assertSame(300_000, $res->json('top.0.f1_revenue'));
+        $this->assertSame(1, $res->json('summary.f1_registered'));
+
+        $detail = $this->actingAs($admin, 'sanctum')->getJson("/api/admin/referrals/{$a->id}")->assertOk();
+        $this->assertNull($detail->json('phone'));
+        $this->assertNull($detail->json('f1.0.phone'));
+        $this->assertSame('Người dùng đã xoá', $detail->json('f1.0.name'));
+        $this->assertSame(1, $detail->json('f1.0.trips'));
+    }
 }

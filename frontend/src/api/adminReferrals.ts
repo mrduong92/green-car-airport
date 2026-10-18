@@ -12,11 +12,14 @@ export interface ReferralReport {
   series: ReferralSeriesPoint[]
 }
 export interface ReferrerDetail {
-  id: number; name: string | null; phone: string
-  f1: { id: number; name: string | null; phone: string; registered_at: string; trips: number; spent: number; commission_points: number }[]
+  // phone null = tài khoản đã xoá (UI hiện "—"). from/to null = số liệu trọn đời.
+  id: number; name: string | null; phone: string | null; from: string | null; to: string | null
+  f1: { id: number; name: string | null; phone: string | null; registered_at: string; trips: number; spent: number; commission_points: number }[]
 }
 
 export interface ReferralReportParams { from: string; to: string; group: ReferralGroup }
 
 export const getReferralReport = (params: ReferralReportParams) => api.get<ReferralReport>('/admin/referrals', { params })
-export const getReferrerDetail = (id: number) => api.get<ReferrerDetail>(`/admin/referrals/${id}`)
+// Gửi cùng from/to với bảng top 10 để số liệu chi tiết khớp đúng dòng đang xem.
+export const getReferrerDetail = (id: number, params: { from: string; to: string }) =>
+  api.get<ReferrerDetail>(`/admin/referrals/${id}`, { params })

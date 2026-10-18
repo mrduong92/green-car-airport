@@ -39,13 +39,15 @@ class ReferralReportController extends Controller
             ->selectRaw('ref.id AS id, SUM(bookings.price - bookings.discount) AS revenue, SUM(COALESCE(bookings.commission_points, 0)) AS commission')
             ->orderByDesc('revenue')->limit(10)->get();
 
+        // Người giới thiệu / F1 đã xoá tài khoản vẫn tính (lượt giới thiệu thật), chỉ ẩn SĐT.
         $referrers = User::whereIn('id', $f1Revenue->pluck('id'))->withCount(['referrals as f1_total' => fn ($q) => $q->where('role', 'customer')])
-            ->get(['id', 'name', 'phone'])->keyBy('id');
+            ->get(['id', 'name', 'phone', 'deleted_at'])->keyBy('id');
 
         $top = $f1Revenue->map(fn ($r) => [
             'id' => (int) $r->id,
             'name' => $referrers[$r->id]->name ?? null,
-            'phone' => $referrers[$r->id]->phone ?? null,
+            // Tài khoản đã xoá (ẩn danh hoá) → phone null, UI hiện "—" thay vì số giả "deleted-<id>".
+            'phone' => self::phone($referrers[$r->id] ?? null),
             'f1_total' => (int) ($referrers[$r->id]->f1_total ?? 0),
             'f1_revenue' => (int) $r->revenue,
             'commission_points' => (int) $r->commission,
@@ -104,20 +106,38 @@ class ReferralReportController extends Controller
         ]);
     }
 
-    public function show(User $user): JsonResponse
+    /**
+     * Chi tiết một người giới thiệu. Có from/to (cùng validate DateBuckets) thì số chuyến /
+     * chi tiêu / hoa hồng tính trong khoảng đó — khớp đúng dòng top 10 admin đang xem; không gửi
+     * from/to thì trọn đời như bản cũ.
+     *
+     * F1 đã xoá tài khoản (ẩn danh hoá, deleted_at) VẪN liệt kê và VẪN tính vào số liệu — đó là
+     * lượt giới thiệu thật đã phát sinh doanh số/hoa hồng; chỉ ẩn SĐT (null).
+     */
+    public function show(Request $request, User $user): JsonResponse
     {
-        $f1 = User::where('referred_by_user_id', $user->id)->where('role', 'customer')->orderByDesc('id')->get(['id', 'name', 'phone', 'created_at']);
+        $range = $request->hasAny(['from', 'to']) ? DateBuckets::fromRequest($request) : null;
+
+        $f1 = User::where('referred_by_user_id', $user->id)->where('role', 'customer')->orderByDesc('id')->get(['id', 'name', 'phone', 'created_at', 'deleted_at']);
         $trips = Booking::whereIn('customer_id', $f1->pluck('id'))->where('status', 'completed')
+            ->when($range, fn ($q) => $q->whereBetween('completed_at', [$range->fromStart(), $range->toEnd()]))
             ->selectRaw('customer_id, COUNT(*) AS trips, SUM(price - discount) AS spent, SUM(COALESCE(commission_points, 0)) AS commission')
             ->groupBy('customer_id')->get()->keyBy('customer_id');
 
         return response()->json([
-            'id' => $user->id, 'name' => $user->name, 'phone' => $user->phone,
+            'id' => $user->id, 'name' => $user->name, 'phone' => self::phone($user),
+            'from' => $range?->from->format('Y-m-d'), 'to' => $range?->to->format('Y-m-d'),
             'f1' => $f1->map(fn ($u) => [
-                'id' => $u->id, 'name' => $u->name, 'phone' => $u->phone, 'registered_at' => $u->created_at?->toISOString(),
+                'id' => $u->id, 'name' => $u->name, 'phone' => self::phone($u), 'registered_at' => $u->created_at?->toISOString(),
                 'trips' => (int) ($trips[$u->id]->trips ?? 0), 'spent' => (int) ($trips[$u->id]->spent ?? 0),
                 'commission_points' => (int) ($trips[$u->id]->commission ?? 0),
             ])->values(),
         ]);
+    }
+
+    /** SĐT hiển thị cho admin: null nếu tài khoản đã xoá (phone đã thành "deleted-<id>"). */
+    private static function phone(?User $u): ?string
+    {
+        return $u && ! $u->isDeleted() ? $u->phone : null;
     }
 }
