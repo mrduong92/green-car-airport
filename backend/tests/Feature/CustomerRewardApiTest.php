@@ -127,4 +127,115 @@ class CustomerRewardApiTest extends TestCase
         $this->assertSame(200_000, $sep['spent']);
         $this->assertSame(10, $sep['commission_points']);
     }
+
+    private function f1(User $me, string $createdAt, array $attrs = []): User
+    {
+        $u = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $me->id] + $attrs);
+        User::whereKey($u->id)->update(['created_at' => $createdAt]);
+
+        return $u;
+    }
+
+    public function test_referrals_range_buckets_are_zero_filled_and_summarised(): void
+    {
+        $me = User::factory()->create(['role' => 'customer']);
+        $a = $this->f1($me, '2026-10-02 09:00:00', ['name' => 'An']);
+        $this->f1($me, '2026-09-20 09:00:00'); // đăng ký trước khoảng lọc
+        $this->completed($a, 500_000, '2026-10-03 10:00:00', 25);
+        $this->completed($a, 300_000, '2026-10-03 18:00:00', 15);
+        $this->completed($a, 200_000, '2026-09-30 10:00:00', 10); // ngoài khoảng
+
+        $res = $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?from=2026-10-01&to=2026-10-05&group=day')->assertOk();
+        $res->assertJson([
+            'from' => '2026-10-01', 'to' => '2026-10-05', 'group' => 'day',
+            'summary' => ['total_f1' => 2, 'new_f1' => 1, 'f1_trips' => 2, 'f1_revenue' => 800_000, 'commission_points' => 40],
+        ]);
+        $series = collect($res->json('series'));
+        $this->assertCount(5, $series);
+        $this->assertSame(['key' => '2026-10-03', 'label' => '03/10', 'new_f1' => 0, 'f1_revenue' => 800_000, 'commission_points' => 40], $series[2]);
+        $this->assertSame(1, $series[1]['new_f1']);
+        $this->assertSame(0, $series[4]['f1_revenue']);
+
+        // items: mọi F1 (kể cả không có chuyến trong khoảng), số liệu theo khoảng.
+        $items = collect($res->json('items'));
+        $this->assertCount(2, $items);
+        $an = $items->firstWhere('name', 'An');
+        $this->assertSame(2, $an['trips']);
+        $this->assertSame(800_000, $an['spent']);
+        $this->assertSame(40, $an['commission_points']);
+
+        $week = $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?from=2026-10-01&to=2026-10-11&group=week')->assertOk()->json('series');
+        $this->assertSame(['2026-09-28', '2026-10-05'], array_column($week, 'key'));
+    }
+
+    public function test_referrals_range_boundaries_are_inclusive(): void
+    {
+        $me = User::factory()->create(['role' => 'customer']);
+        $f = $this->f1($me, '2026-10-01 00:00:00');
+        $this->completed($f, 100_000, '2026-10-01 00:00:00', 5);
+        $this->completed($f, 100_000, '2026-10-05 23:59:59', 5);
+        $this->completed($f, 100_000, '2026-10-06 00:00:00', 5);
+        $this->completed($f, 100_000, '2026-09-30 23:59:59', 5);
+
+        $s = $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?from=2026-10-01&to=2026-10-05')->assertOk()->json('summary');
+        $this->assertSame(2, $s['f1_trips']);
+        $this->assertSame(1, $s['new_f1']);
+    }
+
+    public function test_referrals_range_validation(): void
+    {
+        $me = User::factory()->create(['role' => 'customer']);
+        $get = fn (string $q) => $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?'.$q);
+
+        $get('from=2026-10-05&to=2026-10-01')->assertStatus(422);
+        $get('from=2025-01-01&to=2026-10-01')->assertStatus(422);
+        $get('from=2026-10-01&to=2026-10-05&group=year')->assertStatus(422);
+        $get('from=10/01/2026')->assertStatus(422);
+    }
+
+    public function test_referrals_default_range_is_current_month_with_series(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-18 10:00:00'));
+        $me = User::factory()->create(['role' => 'customer']);
+        $f = $this->f1($me, '2026-10-10 10:00:00');
+        $this->completed($f, 100_000, '2026-10-12 10:00:00', 5);
+        $this->completed($f, 100_000, '2026-09-12 10:00:00', 5);
+
+        $res = $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals')->assertOk();
+        $res->assertJson(['from' => '2026-10-01', 'to' => '2026-10-18', 'group' => 'day', 'summary' => ['f1_trips' => 1, 'new_f1' => 1]]);
+        $this->assertCount(18, $res->json('series'));
+    }
+
+    public function test_referrals_only_count_my_customer_f1(): void
+    {
+        $me = User::factory()->create(['role' => 'customer']);
+        $other = User::factory()->create(['role' => 'customer']);
+        $driver = User::factory()->create(['role' => 'driver']);
+        $mine = $this->f1($me, '2026-10-02 10:00:00');
+        $theirs = $this->f1($other, '2026-10-02 10:00:00');
+        $viaDriver = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $driver->id]);
+        User::whereKey($viaDriver->id)->update(['created_at' => '2026-10-02 10:00:00']);
+        $this->completed($mine, 100_000, '2026-10-03 10:00:00', 5);
+        $this->completed($theirs, 900_000, '2026-10-03 10:00:00', 45);
+        $this->completed($viaDriver, 700_000, '2026-10-03 10:00:00', 35);
+
+        $res = $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?from=2026-10-01&to=2026-10-05')->assertOk();
+        $res->assertJson(['summary' => ['total_f1' => 1, 'new_f1' => 1, 'f1_trips' => 1, 'f1_revenue' => 100_000, 'commission_points' => 5]]);
+        $this->assertSame([$mine->id], array_column($res->json('items'), 'id'));
+    }
+
+    public function test_referrals_legacy_month_param_keeps_legacy_keys_and_maps_to_whole_month(): void
+    {
+        $me = User::factory()->create(['role' => 'customer']);
+        $f = $this->f1($me, '2026-09-10 10:00:00');
+        $this->completed($f, 100_000, '2026-09-30 23:00:00', 5);
+        $this->completed($f, 100_000, '2026-10-01 00:00:00', 5);
+
+        $res = $this->actingAs($me, 'sanctum')->getJson('/api/customer/referrals?month=2026-09')->assertOk();
+        $res->assertJson(['from' => '2026-09-01', 'to' => '2026-09-30', 'group' => 'day', 'total_f1' => 1, 'summary' => ['f1_trips' => 1, 'new_f1' => 1]]);
+        $this->assertArrayHasKey('f1_this_month', $res->json());
+        $this->assertCount(12, $res->json('monthly'));
+        $this->assertCount(30, $res->json('series'));
+        $this->assertSame(1, $res->json('items.0.trips'));
+    }
 }

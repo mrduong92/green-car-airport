@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import dayjs from 'dayjs'
 import { execSync } from 'node:child_process'
 import { APP, SEEDED } from './fixtures/testData'
 import { loginExisting } from './fixtures/auth'
@@ -59,6 +60,18 @@ test('khách có điểm bật "Dùng điểm" → tổng tiền giảm, đơn c
   await page.getByTestId('stats-referrals-link').click()
   await expect(page).toHaveURL(/\/customer\/referrals/)
   await expect(page.getByTestId('referrals-total')).toBeVisible()
+
+  // Bộ lọc khoảng ngày + 3 biểu đồ
+  for (const id of ['new', 'revenue', 'commission']) {
+    await expect(page.getByTestId(`referrals-chart-${id}`)).toBeVisible()
+  }
+  const lastMonth = dayjs().subtract(1, 'month')
+  await page.getByTestId('referrals-preset-last_month').click()
+  await expect(page).toHaveURL(new RegExp(`from=${lastMonth.startOf('month').format('YYYY-MM-DD')}`))
+  await expect(page).toHaveURL(new RegExp(`to=${lastMonth.endOf('month').format('YYYY-MM-DD')}`))
+  await page.getByTestId('referrals-group-week').click()
+  await expect(page).toHaveURL(/group=week/)
+  await expect(page.getByTestId('referrals-chart-new')).toBeVisible()
 })
 
 function fmtDate(d: Date) {

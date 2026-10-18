@@ -27,18 +27,38 @@ export interface ReferralItem {
   commission_points: number
 }
 
+export interface ReferralSeriesPoint {
+  key: string
+  label: string
+  new_f1: number
+  f1_revenue: number
+  commission_points: number
+}
+
 export interface ReferralSummary {
+  from: string
+  to: string
+  group: 'day' | 'week' | 'month'
+  summary: {
+    total_f1: number
+    new_f1: number
+    f1_trips: number
+    f1_revenue: number
+    commission_points: number
+  }
+  series: ReferralSeriesPoint[]
+  items: ReferralItem[]
+  /** Khoá cũ — chỉ để bản PWA đang cache còn chạy, trang mới không dùng. */
   total_f1: number
   f1_this_month: number
   monthly: { month: string; count: number }[]
-  items: ReferralItem[]
 }
 
 export const getRewardWallet = () => api.get<RewardWallet>('/customer/reward-wallet')
 export const getRewardTransactions = (page = 1) =>
   api.get<{ data: RewardTransaction[]; next_page: number | null }>('/customer/reward-wallet/transactions', { params: { page } })
-export const getReferrals = (month?: string) =>
-  api.get<ReferralSummary>('/customer/referrals', { params: month ? { month } : {} })
+export const getReferrals = (params?: { from: string; to: string; group: 'day' | 'week' | 'month' }) =>
+  api.get<ReferralSummary>('/customer/referrals', { params })
 
 /** Trần điểm dùng được cho một chuyến — cùng công thức với AffiliateService::spendable (làm tròn xuống). */
 export const spendablePoints = (balance: number, basePrice: number, maxRatePercent: number) =>
