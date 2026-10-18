@@ -115,20 +115,6 @@ class DriverTripDetailTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_trip_payload_exposes_vip_flag(): void
-    {
-        $driver = $this->makeDriver();
-        $driver->driverProfile->update(['is_vip' => true]);
-
-        $booking = $this->makeBooking('in_progress', $driver->id);
-        $booking->update(['is_vip' => true]);
-
-        $this->actingAs($driver, 'sanctum')
-            ->getJson("/api/driver/trips/{$booking->id}")
-            ->assertOk()
-            ->assertJsonPath('is_vip', true);
-    }
-
     public function test_trip_payload_exposes_vehicle_type(): void
     {
         $driver = $this->makeDriver();

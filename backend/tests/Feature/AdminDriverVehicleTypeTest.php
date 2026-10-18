@@ -24,7 +24,7 @@ class AdminDriverVehicleTypeTest extends TestCase
         return User::factory()->create(['role' => 'admin']);
     }
 
-    private function driver(string $vehicleType, bool $isVip = false): User
+    private function driver(string $vehicleType, bool $whitePlate = false): User
     {
         $driver = User::factory()->create(['role' => 'driver']);
         $driver->driverProfile()->create([
@@ -34,7 +34,7 @@ class AdminDriverVehicleTypeTest extends TestCase
             'vehicle_year' => 2020,
             'vehicle_color' => 'Bạc',
             'vehicle_type' => $vehicleType,
-            'is_vip' => $isVip,
+            'white_plate' => $whitePlate,
             'status' => 'active',
         ]);
 
@@ -100,12 +100,12 @@ class AdminDriverVehicleTypeTest extends TestCase
 
     public function test_admin_can_switch_white_plate_driver_to_yellow_plate(): void
     {
-        $driver = $this->driver('sedan_4', isVip: true);
+        $driver = $this->driver('sedan_4', whitePlate: true);
 
         $this->actingAs($this->admin(), 'sanctum')
-            ->putJson("/api/admin/drivers/{$driver->id}", ['is_vip' => false])
+            ->putJson("/api/admin/drivers/{$driver->id}", ['white_plate' => false])
             ->assertOk()
-            ->assertJsonPath('is_vip', false);
+            ->assertJsonPath('white_plate', false);
     }
 
     public function test_change_takes_effect_on_driver_trip_list_immediately(): void

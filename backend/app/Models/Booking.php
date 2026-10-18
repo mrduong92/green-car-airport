@@ -10,13 +10,12 @@ class Booking extends Model
         'date','time','distance_km','price','discount','surcharge',
         'collection_fee','collaborator_id',
         'charged_fee_points','held_collection_points','held_surcharge_points',
-        'status','vehicle_type','is_vip',
+        'status','vehicle_type',
         'cancelled_at','cancelled_by','cancel_reason','accepted_at','note',
     ];
     protected $casts = [
         'cancelled_at' => 'datetime',
         'accepted_at'  => 'datetime',
-        'is_vip'       => 'boolean',
         'charged_fee_points'     => 'integer',
         'held_collection_points' => 'integer',
         'held_surcharge_points'  => 'integer',

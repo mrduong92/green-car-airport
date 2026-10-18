@@ -37,6 +37,8 @@ class TripController extends Controller
      */
     private const AVAILABLE_TRIPS_LIMIT = 50;
 
+    public const WHITE_PLATE_MESSAGE = 'Xe biển trắng (xe cá nhân) không được nhận cuốc chở khách. Liên hệ admin khi xe đã chuyển sang biển vàng.';
+
     public function index(Request $request): JsonResponse
     {
         $profile = $request->user()->driverProfile;
@@ -47,22 +49,24 @@ class TripController extends Controller
         //
         // Cache theo LOẠI XE chứ không theo tài xế — cùng loại xe thì cùng danh
         // sách, nên 5.000 tài xế chỉ còn vài query mỗi 5 giây.
+        // Xe biển trắng (xe cá nhân) không được nhận cuốc chở khách — danh sách trống, app hiện lý do
+        // theo cờ white_plate trong /auth/me. Chặn TRƯỚC cache vì cache dùng chung theo loại xe.
+        if ($profile?->white_plate) {
+            return response()->json([]);
+        }
+
         $allowed = VehicleCapacity::bookingTypesFittingDriver($profile?->vehicle_type);
-        $driverIsVip = (bool) $profile?->is_vip;
 
         // ⚠️ Cache MẢNG ĐÃ FORMAT, tuyệt đối không cache Eloquent Collection:
         // collection/model serialize xuống Redis rồi unserialize lên sẽ thành
         // __PHP_Incomplete_Class và nổ ngay ở lần ĐỌC cache đầu tiên (lần ghi
         // vẫn chạy ngon, nên lỗi chỉ hiện ở request thứ hai trở đi).
-        $trips = AvailableTripsCache::remember($allowed, $driverIsVip, fn () => Booking::with('customer')
+        $trips = AvailableTripsCache::remember($allowed, fn () => Booking::with('customer')
             ->where('status', 'finding_driver')
             // `bookings.vehicle_type` là enum('sedan_4','suv_5','mpv_7') NOT NULL
             // default 'sedan_4', nên whereIn là đủ — không cần nhánh phòng thủ cho
             // null/giá trị lạ vì DB không cho phép tồn tại (xem test parity bên dưới).
             ->whereIn('vehicle_type', $allowed)
-            // Tài xế thường không thấy cuốc VIP. Tài xế VIP thấy cả hai — xe
-            // biển trắng chạy cuốc thường được, không có lý do chặn.
-            ->when(! $driverIsVip, fn ($q) => $q->where('is_vip', false))
             ->latest()
             ->limit(self::AVAILABLE_TRIPS_LIMIT)
             ->get()
@@ -108,25 +112,21 @@ class TripController extends Controller
             return response()->json(['message' => $message], 403);
         }
 
+        $profile = $request->user()->driverProfile;
+
+        if ($profile?->white_plate) {
+            return response()->json([
+                'message' => self::WHITE_PLATE_MESSAGE,
+                'code' => 'white_plate',
+            ], 403);
+        }
+
         if ($booking->status !== 'finding_driver') {
             return response()->json(['message' => 'Chuyến này đã được nhận hoặc không còn khả dụng.'], 422);
         }
 
-        $profile = $request->user()->driverProfile;
-
-        if (! VehicleCapacity::fits(
-            $booking->vehicle_type,
-            $profile?->vehicle_type,
-            (bool) $booking->is_vip,
-            (bool) $profile?->is_vip,
-        )) {
-            // Chọn thông báo theo lý do THẬT: báo nhầm "cần xe lớn hơn" cho một
-            // tài xế bị chặn vì không phải xe cá nhân sẽ khiến họ đi đổi xe.
-            return response()->json([
-                'message' => $booking->is_vip && ! $profile?->is_vip
-                    ? 'Cuốc VIP chỉ dành cho tài xế xe cá nhân (biển trắng).'
-                    : 'Cuốc này cần xe lớn hơn, không phù hợp với xe của bạn.',
-            ], 422);
+        if (! VehicleCapacity::fits($booking->vehicle_type, $profile?->vehicle_type)) {
+            return response()->json(['message' => 'Cuốc này cần xe lớn hơn, không phù hợp với xe của bạn.'], 422);
         }
 
         $activeCount = Booking::where('driver_id', $request->user()->id)
@@ -504,7 +504,6 @@ class TripController extends Controller
             'time' => $b->time,
             'distance_km' => (float) $b->distance_km,
             'vehicle_type' => $b->vehicle_type,
-            'is_vip' => (bool) $b->is_vip,
             'duration_min' => $durationMin,
             'price' => $b->price,
             'discount' => $b->discount,

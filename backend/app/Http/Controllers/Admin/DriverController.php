@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DriverProfile;
 use App\Models\User;
 use App\Services\ReferralService;
+use App\Services\WhitePlateRetirement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -108,17 +109,24 @@ class DriverController extends Controller
             'vehicle_year'  => 'sometimes|integer|min:1990|max:2030',
             'vehicle_color' => 'sometimes|string|max:30',
             'vehicle_type'  => 'sometimes|in:sedan_4,suv_5,mpv_7',
-            'is_vip'        => 'sometimes|boolean',
+            // Xe biển trắng (xe cá nhân): bị chặn nhận mọi cuốc. Admin bỏ cờ khi xe đã đổi sang biển vàng.
+            'white_plate'   => 'sometimes|boolean',
         ]);
 
         if (isset($data['name'])) {
             $user->update(['name' => $data['name']]);
         }
 
+        $wasWhitePlate = (bool) $user->driverProfile?->white_plate;
         $user->driverProfile()->updateOrCreate(
             ['user_id' => $user->id],
             collect($data)->except('name')->toArray(),
         );
+
+        // Vừa đánh dấu xe biển trắng: cuốc đã nhận nhưng chưa chạy phải trả về sàn (hoàn phí app).
+        if (! $wasWhitePlate && ($data['white_plate'] ?? false)) {
+            app(WhitePlateRetirement::class)->releaseDriverTrips($user->id);
+        }
 
         return response()->json($this->formatDriver($user->load(['driverProfile', 'wallet'])));
     }
@@ -155,7 +163,7 @@ class DriverController extends Controller
             'vehicle_year'   => $p?->vehicle_year,
             'vehicle_color'  => $p?->vehicle_color,
             'vehicle_type'   => $p?->vehicle_type,
-            'is_vip' => (bool) $p?->is_vip,
+            'white_plate'    => (bool) $p?->white_plate,
             'status'         => $p?->status ?? 'pending',
             'blocked_reason' => $p?->blocked_reason,
             'is_verified'    => (bool) ($p?->is_verified),

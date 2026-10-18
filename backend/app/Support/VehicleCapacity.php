@@ -56,25 +56,9 @@ class VehicleCapacity
         return array_keys(array_filter(self::RANK, fn (int $rank) => $rank >= $bookingRank));
     }
 
-    /**
-     * Tài xế có nhận được cuốc này không — vị từ ĐẦY ĐỦ, gồm cả sức chứa lẫn VIP.
-     *
-     * @param  bool  $bookingIsVip  Khách yêu cầu xe cá nhân (biển trắng)
-     * @param  bool  $driverIsVip  Xe của tài xế là xe cá nhân
-     */
-    public static function fits(
-        ?string $bookingType,
-        ?string $driverType,
-        bool $bookingIsVip = false,
-        bool $driverIsVip = false,
-    ): bool {
-        // Kiểm VIP TRƯỚC nhánh "xe không rõ loại thì cho phép tất cả" bên dưới.
-        // Đảo thứ tự thì tài xế chưa khai vehicle_type sẽ lọt qua cả cuốc VIP —
-        // đúng nhóm dễ lọt nhất, vì cột đó nullable và có tài xế cũ bỏ trống.
-        if ($bookingIsVip && ! $driverIsVip) {
-            return false;
-        }
-
+    /** Xe của tài xế có đủ chỗ cho cuốc này không. */
+    public static function fits(?string $bookingType, ?string $driverType): bool
+    {
         if (! $driverType || ! isset(self::RANK[$driverType])) {
             return true;
         }
