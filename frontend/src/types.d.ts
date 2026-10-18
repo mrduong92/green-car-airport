@@ -168,6 +168,8 @@ declare namespace App {
     // Quyền Nhận cuốc ở tab Free (admin duyệt tay, 1 năm); *_until là mốc hết hạn (ms).
     free_unlocked?: boolean
     free_unlocked_until?: number | null
+    // Tài xế bấm xin mở khoá liên hệ tab Free (ms); xoá khi admin mở khoá.
+    free_unlock_requested_at?: number | null
     trips_count: number
     rating: number
     months_active: number
@@ -409,8 +411,24 @@ declare namespace App {
     // tuỳ nick phụ nhìn thấy); "Ẩn người bắn" gửi lại mã này để ẩn mọi uid của họ.
     // null khi tài xế chưa được mở khóa — khi đó ẩn theo sender_uid, server tự suy ra hồ sơ.
     qr_code: string | null
+    // 'driver' = tài xế đăng trong app; 'zalo' = cuốc cũ đọc từ nhóm Zalo.
+    source: 'zalo' | 'driver'
+    // Cuốc do chính người đang xem đăng.
+    is_mine: boolean
+    // Liên hệ người đăng (chỉ cuốc tài xế đăng, chỉ khi người xem đã được mở khoá và không phải chủ cuốc).
+    contact: FreeRideContact | null
+    // Mốc Đã có xe / Xoá (ms) — chỉ khác null ở "Cuốc tôi đăng".
+    closed_at: number | null
+    // Trạng thái AI tách cuốc ở nền — chỉ trả cho chủ cuốc; null với người khác.
+    parse_status: 'pending' | 'done' | 'failed' | null
     posted_at: number
     expires_at: number
+  }
+
+  interface FreeRideContact {
+    phone: string
+    // Người đăng cho phép hiện nút Zalo (zalo.me/<sđt>).
+    zalo: boolean
   }
 
   interface FreeUnlockPayment {
@@ -429,6 +447,8 @@ declare namespace App {
     expires_at: number | null
     // Thông tin chuyển khoản mở khóa (QR VietQR); null khi đã mở khóa.
     payment: FreeUnlockPayment | null
+    // Mốc tài xế bấm Gửi yêu cầu mở khoá (ms); null khi chưa gửi hoặc đã mở khoá.
+    requested_at: number | null
   }
 
   interface FreeRidePage {
@@ -439,6 +459,8 @@ declare namespace App {
     // true khi server chạm trần SINCE_LIMIT (200 dòng): nghĩa là còn cuốc cũ
     // hơn bị bỏ sót, client phải nạp lại trang 1 thay vì gộp theo since.
     reset?: boolean
+    // Chỉ có ở gộp since: ride_uid vừa Đã có xe / Xoá — gỡ khỏi cache.
+    removed?: string[]
   }
 
   interface FreeRideFilters {

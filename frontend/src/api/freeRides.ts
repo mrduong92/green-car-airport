@@ -54,3 +54,21 @@ export function summarizeAlertFilters(c: AlertCriteria): string {
 
 // Lựa chọn "Số chỗ" ở Lọc thêm (bỏ 16 chỗ theo yêu cầu GreenCA 11/10).
 export const FREE_RIDE_SEATS: readonly number[] = [4, 5, 7]
+
+// Tài xế đăng cuốc (gõ như tin Zalo). 409 code=ride_post_terms_required → hiện Quy định đăng cuốc rồi gửi lại.
+export const postFreeRide = (text: string, contactZalo: boolean) =>
+  api.post<App.FreeRide>('/driver/free-rides', { text, contact_zalo: contactZalo })
+
+export const acceptRidePostTerms = () => api.post<{ ok: true }>('/driver/free-rides/terms')
+
+export const MY_FREE_RIDES_QUERY_KEY = ['driver-my-free-rides'] as const
+
+export const getMyFreeRides = () => api.get<{ data: App.FreeRide[] }>('/driver/free-rides/mine')
+
+export const closeFreeRide = (rideUid: string) =>
+  api.patch<App.FreeRide>(`/driver/free-rides/${encodeURIComponent(rideUid)}/close`)
+
+export const deleteFreeRide = (rideUid: string) =>
+  api.delete<{ ok: true }>(`/driver/free-rides/${encodeURIComponent(rideUid)}`)
+
+export const requestFreeUnlock = () => api.post<App.FreeRideAccess>('/driver/free-rides/unlock-request')

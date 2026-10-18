@@ -37,7 +37,9 @@ use Illuminate\Support\Facades\Cache;
  * Mốc id chỉ đúng khi id hiện ra (commit) theo thứ tự tăng dần: hai lô ingest song song có thể
  * commit lệch (id nhỏ hiện ra sau khi job đã vượt qua nó). ZaloRideIngestService chặn điều đó bằng
  * khoá Cache::lock('zalo:ingest') — các lô ghi tuần tự, chờ khoá quá lâu thì trả 503 để service gửi
- * lại, không bao giờ ghi song song.
+ * lại, không bao giờ ghi song song. Cuốc tài xế đăng (RidePostController) ghi dưới cùng khoá.
+ *
+ * Cuốc tài xế đăng: mốc dừng trước cuốc đang chờ AI tách (PENDING_HOLD_MINUTES).
  */
 class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
@@ -49,6 +51,11 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     private const QUIET_MINUTES = 2;
 
+    // Cuốc tài xế đăng chưa tách xong (parse_status=pending) chưa có chiều/số chỗ để so bộ lọc. Mốc id không
+    // được vượt qua nó — nếu không, tách xong cũng không bao giờ được push. Quá chừng này phút thì coi như
+    // hỏng, thôi giữ mốc.
+    public const PENDING_HOLD_MINUTES = 2;
+
     public function handle(): void
     {
         if (! config('zalo.free_rides_enabled')) {
@@ -57,6 +64,15 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
         $startedAt = now();
         $maxId = (int) (FreeRide::max('id') ?? 0);
+        // Cuốc đã đóng/xoá không còn được push nên không giữ mốc (job tách bỏ qua nó → mãi pending).
+        // Không cần tự hẹn chạy lại khi đang giữ mốc: cuốc pending nào rồi cũng xếp job này khi tách
+        // xong / hỏng (ParseDriverRide::handle + failed()).
+        $pendingId = FreeRide::where('parse_status', 'pending')->whereNull('closed_at')
+            ->where('posted_at', '>', now()->subMinutes(self::PENDING_HOLD_MINUTES))
+            ->min('id');
+        if ($pendingId !== null) {
+            $maxId = min($maxId, (int) $pendingId - 1);
+        }
 
         $cached = Cache::get(self::CACHE_KEY);
         $previousMaxId = is_numeric($cached) ? (int) $cached : null;
@@ -120,6 +136,8 @@ class NotifyFreeRideAlerts implements ShouldBeUniqueUntilProcessing, ShouldQueue
             // list, FreeRideController::index) vẫn dùng visibleTo() nguyên vẹn nên giữ nguyên hành vi hiện
             // lại cuốc khi gốc hết hạn.
             ->whereNull('duplicate_of_id')
+            // Không báo tài xế về cuốc chính mình đăng.
+            ->where(fn ($w) => $w->whereNull('posted_by_user_id')->orWhere('posted_by_user_id', '!=', $alert->driver_id))
             ->where('id', '>', $floorId)
             ->where('id', '<=', $maxId)
             ->orderBy('posted_at')

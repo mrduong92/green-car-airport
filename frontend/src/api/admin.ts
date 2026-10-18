@@ -4,7 +4,7 @@ export const getDashboard = () => api.get<App.AdminDashboard>('/admin/dashboard'
 
 export const clearDashboardCache = () => api.post('/admin/dashboard/clear-cache')
 
-export const getDrivers = (params?: { status?: string; search?: string }) =>
+export const getDrivers = (params?: { status?: string; search?: string; free_unlock_requested?: 1 }) =>
   api.get<App.DriverProfile[]>('/admin/drivers', { params })
 
 export const getCustomers = (params?: { search?: string }) =>

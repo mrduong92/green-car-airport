@@ -173,6 +173,17 @@ export default function DriverProfilePage() {
       {/* Actions */}
       <div className="bg-white mx-4 mt-3 rounded-card shadow-card divide-y divide-border-gray">
         <PushSettingsRow />
+        {user?.free_rides_enabled !== false && (
+          <button
+            data-testid="my-rides-link"
+            onClick={() => navigate('/driver/free/mine')}
+            className="w-full flex items-center gap-3 px-4 py-4 text-navy"
+          >
+            <span className="material-symbols-outlined text-primary">edit_note</span>
+            <span className="text-sm font-medium flex-1 text-left">Cuốc tôi đăng</span>
+            <span className="material-symbols-outlined text-neutral-gray text-[16px]">chevron_right</span>
+          </button>
+        )}
         {contact && (
           <a
             href={zaloLink(contact.zalo_phone)}

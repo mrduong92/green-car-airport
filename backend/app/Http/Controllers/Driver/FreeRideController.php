@@ -4,19 +4,19 @@ namespace App\Http\Controllers\Driver;
 
 use App\Http\Controllers\Controller;
 use App\Models\DriverFreeRideAlert;
-use App\Models\AppSetting;
 use App\Models\DriverHiddenSender;
 use App\Models\FreeRide;
 use App\Models\FreeRideReport;
 use App\Models\ZaloQrRefreshRequest;
 use App\Services\FreeUnlockPayment;
+use App\Support\FreeRidePresenter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
-// Tab Free: cuốc lấy từ nhóm Zalo. GreenCA chỉ là trung gian — "Nhận cuốc" mở Zalo người bắn.
+// Tab Free: cuốc từ nhóm Zalo (cũ) và cuốc tài xế đăng. GreenCA chỉ là trung gian — tài xế liên hệ thẳng người đăng.
 class FreeRideController extends Controller
 {
     private const PAGE_SIZE = 30;
@@ -35,25 +35,26 @@ class FreeRideController extends Controller
         ]);
 
         $access = $this->access($request);
-        $show = [
-            'sender_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_SENDER_NAME),
-            'group_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_GROUP_NAME),
-            'raw_text' => AppSetting::freeShow(AppSetting::FREE_SHOW_RAW_TEXT),
-        ];
+        $show = FreeRidePresenter::showSettings();
+        $viewerId = $request->user()->id;
 
         // group_count hiển thị cộng dồn các bản trùng (cùng người qua nick phụ khác, hoặc người khác chuyển tiếp lại) — xem FreeRide::scopeWithMergedGroupCount().
-        $query = $this->visibleTo($request->user()->id, $data)->withMergedGroupCount();
+        $query = $this->visibleTo($viewerId, $data)->withMergedGroupCount()->with('poster:id,phone');
 
         if (isset($data['since'])) {
             // >= vì updated_at chỉ chính xác tới giây; client gộp theo ride_uid nên trả trùng không sao.
             $rides = $query->where('updated_at', '>=', Carbon::createFromTimestampMs($data['since'], config('app.timezone')))
                 ->orderByDesc('updated_at')->limit(self::SINCE_LIMIT)->get();
+            // Gộp since chỉ thấy cuốc còn hiển thị — cuốc vừa Đã có xe / Xoá phải báo riêng để app gỡ khỏi cache.
+            $removed = FreeRide::where('closed_at', '>=', Carbon::createFromTimestampMs($data['since'], config('app.timezone')))
+                ->orderByDesc('closed_at')->limit(self::SINCE_LIMIT)->pluck('ride_uid');
 
             return response()->json([
-                'data' => $this->safe($rides)->map(fn (FreeRide $r) => $this->format($r, $access['unlocked'], $show))->values(),
+                'data' => $this->safe($rides)->map(fn (FreeRide $r) => FreeRidePresenter::present($r, $access['unlocked'], $show, $viewerId))->values(),
                 'next_cursor' => null,
                 'access' => $access,
                 'latest' => $this->latestOf($rides, (int) $data['since']),
+                'removed' => $removed->values(),
                 // Chạm giới hạn SINCE_LIMIT nghĩa là còn cuốc cũ hơn bị bỏ sót (sắp xếp mới nhất
                 // trước rồi cắt) — báo client nạp lại trang 1 thay vì coi since là đã đủ.
                 'reset' => $rides->count() >= self::SINCE_LIMIT,
@@ -66,7 +67,7 @@ class FreeRideController extends Controller
         $page = $query->orderByDesc('posted_at')->orderByDesc('id')->cursorPaginate(self::PAGE_SIZE);
 
         return response()->json([
-            'data' => $this->safe(collect($page->items()))->map(fn (FreeRide $r) => $this->format($r, $access['unlocked'], $show))->values(),
+            'data' => $this->safe(collect($page->items()))->map(fn (FreeRide $r) => FreeRidePresenter::present($r, $access['unlocked'], $show, $viewerId))->values(),
             'next_cursor' => $page->nextCursor()?->encode(),
             'access' => $access,
             'latest' => $latestBefore ? Carbon::parse($latestBefore)->getTimestampMs() : null,
@@ -119,6 +120,10 @@ class FreeRideController extends Controller
         }
 
         $ride = FreeRide::where('ride_uid', $rideUid)->firstOrFail();
+        // Cuốc tài xế đăng không có mã QR Zalo (liên hệ là SĐT người đăng) — không có gì để bot lấy lại.
+        if ($ride->posted_by_user_id !== null) {
+            return response()->json(['ok' => true]);
+        }
 
         // Một yêu cầu chưa giao cho mỗi người bắn là đủ — service lấy lại mã một lần.
         $pending = ZaloQrRefreshRequest::where('sender_uid', $ride->sender_uid)->whereNull('delivered_at')->exists();
@@ -127,6 +132,19 @@ class FreeRideController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    // Thay cho chuyển khoản 300k: tài xế xin mở khoá, admin liên hệ kiểm tra xe + hướng dẫn rồi bấm "Mở khóa Free".
+    public function requestUnlock(Request $request): JsonResponse
+    {
+        $profile = $request->user()->driverProfile;
+        if ($profile->hasFreeAccess()) {
+            return response()->json(['message' => 'Bạn đã được mở khoá liên hệ.', 'code' => 'already_unlocked'], 409);
+        }
+
+        $profile->update(['free_unlock_requested_at' => now()]);
+
+        return response()->json($this->access($request));
     }
 
     // Bộ lọc đã lưu để nhận thông báo đẩy (NotifyFreeRideAlerts) khi có cuốc Free mới khớp.
@@ -182,7 +200,7 @@ class FreeRideController extends Controller
         return FreeRide::filterSafe($rides);
     }
 
-    /** @return array{unlocked: bool, expires_at: int|null, payment: array|null} */
+    /** @return array{unlocked: bool, expires_at: int|null, payment: array|null, requested_at: int|null} */
     private function access(Request $request): array
     {
         $profile = $request->user()->driverProfile;
@@ -193,36 +211,8 @@ class FreeRideController extends Controller
             'expires_at' => $unlocked ? $profile->free_unlocked_until->getTimestampMs() : null,
             // Thông tin chuyển khoản mở khóa (QR VietQR) — chỉ khi đang khóa.
             'payment' => $unlocked ? null : FreeUnlockPayment::forDriver($request->user()),
-        ];
-    }
-
-    private function format(FreeRide $r, bool $unlocked, array $show): array
-    {
-        return [
-            'ride_uid' => $r->ride_uid,
-            'sender_uid' => $r->sender_uid,
-            // Admin tắt từng mục (Cài đặt): tên người bắn / nhóm / tin gốc bị tắt thì không rời server.
-            'sender_name' => $show['sender_name'] ? $r->sender_name : null,
-            'group_name' => $show['group_name'] ? $r->group_name : null,
-            'direction' => $r->direction,
-            'pickup' => $r->pickup,
-            'destination' => $r->destination,
-            'pickup_at' => $r->pickup_at?->getTimestampMs(),
-            'pickup_time_text' => $r->pickup_time_text,
-            'seats' => $r->seats,
-            'vehicle_note' => $r->vehicle_note,
-            'price' => $r->price,
-            'is_free' => $r->is_free,
-            'is_raw' => $r->is_raw,
-            // Cuốc nguyên văn (is_raw) thì tin gốc chính là nội dung cuốc nên vẫn phải gửi.
-            'raw_text' => $show['raw_text'] || $r->is_raw ? ($unlocked ? $r->raw_text : FreeRide::maskPhones($r->raw_text)) : null,
-            'group_count' => $r->displayedGroupCount(),
-            // Mã hồ sơ (danh tính thật của người bắn) — tab Free gửi lại khi "Ẩn người bắn".
-            // Tài xế chưa mở khóa không nhận mã hồ sơ lẫn link — khóa ở server, không chỉ ẩn nút.
-            'qr_code' => $unlocked ? $r->qr_code : null,
-            'contact_url' => $unlocked ? "zalo://qr/p/{$r->qr_code}" : null,
-            'posted_at' => $r->posted_at->getTimestampMs(),
-            'expires_at' => $r->expires_at->getTimestampMs(),
+            // Tài xế đã bấm "Gửi yêu cầu mở khoá" — app hiện "Đã gửi, chờ admin".
+            'requested_at' => $unlocked ? null : $profile?->free_unlock_requested_at?->getTimestampMs(),
         ];
     }
 

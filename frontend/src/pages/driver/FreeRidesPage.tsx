@@ -6,6 +6,8 @@ import FreeRideFilters from '@/components/driver/FreeRideFilters'
 import FreeRideActionsSheet from '@/components/driver/FreeRideActionsSheet'
 import FreeRideAlertSheet from '@/components/driver/FreeRideAlertSheet'
 import FreeRideUnlockSheet from '@/components/driver/FreeRideUnlockSheet'
+import OwnRideActions from '@/components/driver/OwnRideActions'
+import { BRAND } from '@/brand'
 import { FREE_ALERT_QUERY_KEY, FREE_RIDE_SEATS, getFreeRideAlert, summarizeAlertFilters } from '@/api/freeRides'
 import { useFreeRides } from '@/hooks/useFreeRides'
 
@@ -37,7 +39,7 @@ export default function FreeRidesPage() {
   const [selected, setSelected] = useState<App.FreeRide | null>(null)
   const [alertOpen, setAlertOpen] = useState(false)
   const [unlockOpen, setUnlockOpen] = useState(false)
-  const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender, access } = useFreeRides(filters)
+  const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender, dropRide, access } = useFreeRides(filters)
 
   // Cùng khoá query với FreeRideAlertSheet — trạng thái hiện ngay trên nút chuông, sheet đọc lại
   // từ cache thay vì gọi API lần nữa khi mở.
@@ -52,11 +54,11 @@ export default function FreeRidesPage() {
   }, [])
 
   return (
-    <div className="w-full flex flex-col">
+    <div className="w-full flex-1 flex flex-col">
       <FreeRideFilters value={filters} onChange={changeFilters} />
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <p className="text-[12px] text-neutral-gray flex-1">
-          Cuốc tổng hợp từ các nhóm Zalo. GreenCA chỉ kết nối — bạn trao đổi trực tiếp với người bắn cuốc.
+          Cuốc do tài xế đăng. {BRAND.name} chỉ kết nối — bạn trao đổi trực tiếp với người đăng cuốc.
         </p>
         <button
           type="button"
@@ -78,16 +80,20 @@ export default function FreeRidesPage() {
         </button>
       </div>
 
+      <div className="flex-1">
       {isLoading ? (
         <p className="text-center text-sm text-neutral-gray py-10">Đang tải cuốc…</p>
       ) : isError && rides.length === 0 ? (
         <EmptyState icon="cloud_off" title="Không tải được cuốc Free" description="Kiểm tra kết nối mạng rồi thử lại."
           action={{ label: 'Thử lại', onClick: () => { void refetch() } }} />
       ) : rides.length === 0 ? (
-        <EmptyState icon="local_taxi" title="Chưa có cuốc Free phù hợp" description="Thử đổi bộ lọc hoặc quay lại sau ít phút." />
+        <EmptyState icon="local_taxi" title="Chưa có cuốc Free phù hợp" description="Có cuốc thì bấm nút + giữa thanh menu để đăng nhé." />
       ) : (
         <div className="flex flex-col px-4 gap-2.5 pb-4">
-          {rides.map((ride) => <FreeRideCard key={ride.ride_uid} ride={ride} onMore={setSelected} onLocked={() => setUnlockOpen(true)} />)}
+          {rides.map((ride) => (
+            <FreeRideCard key={ride.ride_uid} ride={ride} onMore={setSelected} onLocked={() => setUnlockOpen(true)}
+              ownActions={<OwnRideActions ride={ride} onRemoved={dropRide} />} />
+          ))}
           {hasNextPage && (
             <button type="button" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}
               className="w-full min-h-touch text-sm text-primary font-medium">
@@ -96,9 +102,10 @@ export default function FreeRidesPage() {
           )}
         </div>
       )}
+      </div>
 
       {selected && <FreeRideActionsSheet ride={selected} onClose={() => setSelected(null)} onSenderHidden={removeSender} />}
-      {unlockOpen && <FreeRideUnlockSheet payment={access?.payment ?? null} onClose={() => setUnlockOpen(false)} />}
+      {unlockOpen && <FreeRideUnlockSheet access={access} onClose={() => setUnlockOpen(false)} />}
       {alertOpen && <FreeRideAlertSheet filters={filters} onClose={() => setAlertOpen(false)} />}
     </div>
   )
