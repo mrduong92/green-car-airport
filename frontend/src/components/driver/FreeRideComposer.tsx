@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { acceptRidePostTerms, postFreeRide } from '@/api/freeRides'
+import { BRAND } from '@/brand'
 import ZaloIcon from '@/components/common/ZaloIcon'
 import RidePostTermsSheet from '@/components/driver/RidePostTermsSheet'
 import { useUiStore } from '@/stores/ui'
@@ -99,7 +100,7 @@ export default function FreeRideComposer({ onPosted }: Props) {
           <span className="material-symbols-outlined text-[20px]">{post.isPending ? 'hourglass_top' : 'send'}</span>
           {post.isPending ? 'Đang đăng…' : 'Đăng cuốc'}
         </button>
-        <p className="text-center text-[12px] text-neutral-gray">Cuốc hiện ngay cho mọi tài xế GreenCA.</p>
+        <p className="text-center text-[12px] text-neutral-gray">Cuốc hiện ngay cho mọi tài xế {BRAND.name}.</p>
       </div>
       {termsOpen && <RidePostTermsSheet loading={agree.isPending || post.isPending} onAgree={() => agree.mutate()} onClose={() => setTermsOpen(false)} />}
     </>

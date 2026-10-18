@@ -7,6 +7,7 @@ import FreeRideActionsSheet from '@/components/driver/FreeRideActionsSheet'
 import FreeRideAlertSheet from '@/components/driver/FreeRideAlertSheet'
 import FreeRideUnlockSheet from '@/components/driver/FreeRideUnlockSheet'
 import OwnRideActions from '@/components/driver/OwnRideActions'
+import { BRAND } from '@/brand'
 import { FREE_ALERT_QUERY_KEY, FREE_RIDE_SEATS, getFreeRideAlert, summarizeAlertFilters } from '@/api/freeRides'
 import { useFreeRides } from '@/hooks/useFreeRides'
 
@@ -57,7 +58,7 @@ export default function FreeRidesPage() {
       <FreeRideFilters value={filters} onChange={changeFilters} />
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <p className="text-[12px] text-neutral-gray flex-1">
-          Cuốc do tài xế đăng. GreenCA chỉ kết nối — bạn trao đổi trực tiếp với người đăng cuốc.
+          Cuốc do tài xế đăng. {BRAND.name} chỉ kết nối — bạn trao đổi trực tiếp với người đăng cuốc.
         </p>
         <button
           type="button"

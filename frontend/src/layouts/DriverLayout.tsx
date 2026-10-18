@@ -42,7 +42,7 @@ export default function DriverLayout() {
   const freeRidesEnabled = useAuthStore((s) => s.user?.free_rides_enabled !== false)
   const primaryTabs = freeRidesEnabled ? FREE_PRIMARY_TABS : PRIMARY_TABS.filter((t) => t.to !== '/driver/free')
   const moreTabs = freeRidesEnabled ? FREE_MORE_TABS : MORE_TABS
-  // Màn đăng cuốc là khung chat: ẩn thanh menu cho ô soạn tin nằm sát đáy (như màn chat Zalo).
+  // Màn đăng cuốc chỉ để gõ và đăng một cuốc: ẩn thanh menu cho tài xế tập trung vào ô nhập tin.
   const hideNav = pathname === POST_RIDE_PATH
   // Lưu path lúc mở sheet: điều hướng đi (kể cả nút back) là sheet tự đóng
   const [moreOpenAt, setMoreOpenAt] = useState<string | null>(null)

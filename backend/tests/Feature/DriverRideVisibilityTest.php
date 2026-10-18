@@ -135,6 +135,16 @@ class DriverRideVisibilityTest extends TestCase
         $this->assertSame([], $this->list($viewer));
     }
 
+    public function test_broken_link_on_driver_ride_does_not_queue_zalo_qr_refresh(): void
+    {
+        // Cuốc tài xế đăng không có mã QR Zalo — yêu cầu lấy lại mã cho gca_<id> chỉ làm bot gọi getQR vô ích.
+        $ride = $this->driverRide($this->driver());
+
+        $this->actingAs($this->driver(), 'sanctum')->postJson("/api/driver/free-rides/{$ride->ride_uid}/broken-link")->assertOk();
+
+        $this->assertDatabaseCount('zalo_qr_refresh_requests', 0);
+    }
+
     public function test_zalo_ride_payload_unchanged_plus_source(): void
     {
         $this->zaloRide();

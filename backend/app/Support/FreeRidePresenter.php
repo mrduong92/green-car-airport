@@ -47,7 +47,7 @@ class FreeRidePresenter
             return $base + [
                 'source' => 'driver',
                 'is_mine' => $mine,
-                // Màn đăng cuốc hiện "Đang đọc cuốc…" khi AI chưa tách xong — chỉ chủ cuốc cần.
+                // Trạng thái AI tách cuốc — chỉ chủ cuốc cần biết.
                 'parse_status' => $mine ? $r->parse_status : null,
                 // Tên tài khoản người đăng — cài đặt free_show_sender_name chỉ áp cho tên Zalo.
                 'sender_name' => $r->sender_name,

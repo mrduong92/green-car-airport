@@ -20,7 +20,7 @@ export default function MyFreeRidesPage() {
 
   if (isLoading) return <p className="text-center text-sm text-neutral-gray py-10">Đang tải…</p>
   if (rides.length === 0) {
-    return <EmptyState icon="edit_note" title="Bạn chưa đăng cuốc nào" description="Gõ cuốc vào ô dưới cùng tab Free để đăng." />
+    return <EmptyState icon="edit_note" title="Bạn chưa đăng cuốc nào" description="Bấm nút + giữa thanh menu để đăng cuốc." />
   }
 
   return (

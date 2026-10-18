@@ -120,6 +120,10 @@ class FreeRideController extends Controller
         }
 
         $ride = FreeRide::where('ride_uid', $rideUid)->firstOrFail();
+        // Cuốc tài xế đăng không có mã QR Zalo (liên hệ là SĐT người đăng) — không có gì để bot lấy lại.
+        if ($ride->posted_by_user_id !== null) {
+            return response()->json(['ok' => true]);
+        }
 
         // Một yêu cầu chưa giao cho mỗi người bắn là đủ — service lấy lại mã một lần.
         $pending = ZaloQrRefreshRequest::where('sender_uid', $ride->sender_uid)->whereNull('delivered_at')->exists();

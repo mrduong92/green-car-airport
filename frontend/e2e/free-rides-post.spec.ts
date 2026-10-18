@@ -84,6 +84,11 @@ test('người đăng tắt Zalo thì chỉ có nút Gọi, bật thì có nút 
   await expect(callOnly.getByTestId('free-ride-zalo')).toHaveCount(0)
   const withZalo = viewer.getByTestId('free-ride-card').filter({ hasText: `Nhắn ${tag}` })
   await expect(withZalo.getByTestId('free-ride-zalo')).toHaveAttribute('href', /zalo\.me\//)
+
+  // Cuốc tài xế đăng không có link hồ sơ Zalo → menu "…" không có mục báo link hỏng.
+  await withZalo.getByTestId('free-ride-more').click()
+  await expect(viewer.getByTestId('free-ride-hide-sender')).toBeVisible()
+  await expect(viewer.getByText('Nút Nhận cuốc mở sai trang')).toHaveCount(0)
 })
 
 // Backend cũ (chưa có trường contact) trong lúc phát hành lệch nhau: tab Free không được sập.

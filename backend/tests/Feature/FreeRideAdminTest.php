@@ -217,6 +217,16 @@ class FreeRideAdminTest extends TestCase
         $this->assertDatabaseMissing('zalo_sender_blocks', ['sender_uid' => $uid]);
     }
 
+    public function test_status_active_rides_excludes_closed_driver_rides(): void
+    {
+        $poster = $this->driver();
+        $this->driverRide($poster);
+        $this->driverRide($poster, ['closed_at' => now()]);
+
+        $this->actingAs($this->admin(), 'sanctum')->getJson('/api/admin/free-rides/status')
+            ->assertOk()->assertJsonPath('active_rides', 1);
+    }
+
     public function test_block_and_unblock_sender(): void
     {
         $admin = $this->admin();

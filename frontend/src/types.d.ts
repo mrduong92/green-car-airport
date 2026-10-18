@@ -420,7 +420,7 @@ declare namespace App {
     contact: FreeRideContact | null
     // Mốc Đã có xe / Xoá (ms) — chỉ khác null ở "Cuốc tôi đăng".
     closed_at: number | null
-    // AI tách cuốc ở nền — chỉ trả cho chủ cuốc (màn đăng cuốc hiện "Đang đọc cuốc…"); null với người khác.
+    // Trạng thái AI tách cuốc ở nền — chỉ trả cho chủ cuốc; null với người khác.
     parse_status: 'pending' | 'done' | 'failed' | null
     posted_at: number
     expires_at: number
