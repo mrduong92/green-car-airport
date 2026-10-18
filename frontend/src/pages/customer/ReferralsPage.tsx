@@ -63,17 +63,20 @@ export default function ReferralsPage() {
         {/* Monthly chart */}
         <div className="bg-white rounded-card shadow-card p-4">
           <p className="text-[13px] font-semibold text-navy mb-3">Bạn bè mới theo tháng</p>
-          <Bar
-            data={chartData}
-            options={{
-              responsive: true,
-              plugins: { legend: { display: false } },
-              scales: {
-                y: { ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: '#f0f0f0' } },
-                x: { ticks: { font: { size: 10 } } },
-              },
-            }}
-          />
+          <div className="h-[180px]">
+            <Bar
+              data={chartData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  y: { ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: '#f0f0f0' } },
+                  x: { ticks: { font: { size: 10 } } },
+                },
+              }}
+            />
+          </div>
         </div>
 
         {/* Month filter */}

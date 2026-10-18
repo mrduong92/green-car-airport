@@ -254,47 +254,52 @@ export default function ReferralsPage() {
                 <span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span>
               </div>
             ) : (
-              <Bar
-                data={chartData}
-                options={{
-                  responsive: true,
-                  plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } },
-                    tooltip: {
-                      callbacks: {
-                        label: (ctx) => ctx.dataset.yAxisID === 'y1'
-                          ? ` ${(ctx.raw as number).toLocaleString('vi-VN')}đ`
-                          : ` ${ctx.raw} F1`,
-                      },
-                    },
-                  },
-                  scales: {
-                    y: {
-                      type: 'linear',
-                      position: 'left',
-                      beginAtZero: true,
-                      ticks: { precision: 0, font: { size: 10 } },
-                      grid: { color: '#f0f0f0' },
-                    },
-                    y1: {
-                      type: 'linear',
-                      position: 'right',
-                      beginAtZero: true,
-                      ...(revenueAxisIsEmpty ? { max: 1000 } : {}),
-                      ticks: {
-                        ...(revenueAxisIsEmpty ? { stepSize: 1000 } : { precision: 0 }),
-                        callback: (v) => {
-                          const n = Number(v)
-                          return n === 0 ? '0' : `${Math.round(n / 1000).toLocaleString('vi-VN')}K`
+              <div className="h-[240px] sm:h-[300px]">
+                {/* key: vẽ lại từ đầu khi đổi khoảng/kiểu gom — tránh cột cũ "trượt" sang số mốc mới */}
+                <Bar
+                  key={`${data?.from}-${data?.to}-${data?.group}`}
+                  data={chartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } },
+                      tooltip: {
+                        callbacks: {
+                          label: (ctx) => ctx.dataset.yAxisID === 'y1'
+                            ? ` ${(ctx.raw as number).toLocaleString('vi-VN')}đ`
+                            : ` ${ctx.raw} F1`,
                         },
-                        font: { size: 10 },
                       },
-                      grid: { display: false },
                     },
-                    x: { ticks: { font: { size: 10 } } },
-                  },
-                }}
-              />
+                    scales: {
+                      y: {
+                        type: 'linear',
+                        position: 'left',
+                        beginAtZero: true,
+                        ticks: { precision: 0, font: { size: 10 } },
+                        grid: { color: '#f0f0f0' },
+                      },
+                      y1: {
+                        type: 'linear',
+                        position: 'right',
+                        beginAtZero: true,
+                        ...(revenueAxisIsEmpty ? { max: 1000 } : {}),
+                        ticks: {
+                          ...(revenueAxisIsEmpty ? { stepSize: 1000 } : { precision: 0 }),
+                          callback: (v) => {
+                            const n = Number(v)
+                            return n === 0 ? '0' : `${Math.round(n / 1000).toLocaleString('vi-VN')}K`
+                          },
+                          font: { size: 10 },
+                        },
+                        grid: { display: false },
+                      },
+                      x: { ticks: { font: { size: 10 } } },
+                    },
+                  }}
+                />
+              </div>
             )}
           </div>
 
