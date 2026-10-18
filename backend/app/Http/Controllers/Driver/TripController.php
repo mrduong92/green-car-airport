@@ -194,6 +194,9 @@ class TripController extends Controller
                 'held_collection_points' => $collectionPoints,
                 'held_surcharge_points' => $surchargePoints,
                 'held_shortfall_points' => $shortfall,
+                // Phần phí được miễn nhờ điểm khách dùng — tài xế tự bỏ cuốc thì bị trừ lại
+                // (mất đủ phí), xem Booking::refundAcceptCharges().
+                'waived_fee_points' => $appFeePoints - $feePoints,
             ]);
 
             $wallet->debit(

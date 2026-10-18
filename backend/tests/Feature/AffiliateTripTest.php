@@ -207,8 +207,9 @@ class AffiliateTripTest extends TestCase
         $this->assertSame(1025, $this->points($d1));
 
         $this->actingAs($d1, 'sanctum')->patchJson("/api/driver/trips/{$b->id}/cancel", ['reason' => 'Bận'])->assertOk();
-        // Bỏ cuốc: không được giữ phần app đã bù — cuốc chưa chạy xong.
-        $this->assertSame(1000, $this->points($d1));
+        // Bỏ cuốc: không được giữ phần app đã bù — cuốc chưa chạy xong — và mất ĐỦ phí app
+        // tại tỉ lệ lúc nhận (5% × 500k = 25 điểm, phần đã được miễn nhờ điểm khách dùng).
+        $this->assertSame(1000 - 25, $this->points($d1));
         $this->assertSame(0, $b->fresh()->held_shortfall_points);
 
         $this->actingAs($d2, 'sanctum')->postJson("/api/driver/trips/{$b->id}/accept")->assertOk();
@@ -311,6 +312,99 @@ class AffiliateTripTest extends TestCase
             'booking_id' => $tripA->id, 'type' => 'debit', 'points' => 10,
             'description' => "Thu lại phần app bù cuốc #{$tripA->id} (thiếu 15 điểm, bỏ qua)",
         ]);
+    }
+
+    /** Base 500k, không voucher, rate 20% → phí 100 điểm; khách dùng 50 điểm → trừ lúc nhận 50. */
+    private function fullFeeBooking(User $customer): Booking
+    {
+        return Booking::create([
+            'customer_id' => $customer->id, 'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
+            'date' => now()->addDay()->format('Y-m-d'), 'time' => '08:00', 'vehicle_type' => 'sedan_4', 'distance_km' => 30,
+            'price' => 500_000, 'discount' => 0, 'surcharge' => 0, 'points_used' => 50, 'status' => 'finding_driver',
+        ]);
+    }
+
+    public function test_driver_drop_of_points_booking_forfeits_full_app_fee(): void
+    {
+        $d = $this->driver(1000);
+        $b = $this->fullFeeBooking(User::factory()->create(['role' => 'customer']));
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$b->id}/accept")->assertOk();
+        $this->assertSame(950, $this->points($d)); // trừ 100 − 50 điểm khách dùng
+        $this->assertSame(50, $b->fresh()->waived_fee_points);
+
+        $this->actingAs($d, 'sanctum')->patchJson("/api/driver/trips/{$b->id}/cancel", ['reason' => 'Bận'])->assertOk();
+
+        $this->assertSame(1000 - 100, $this->points($d)); // mất đủ 20%
+        $this->assertSame(0, $b->fresh()->waived_fee_points);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'booking_id' => $b->id, 'type' => 'debit', 'points' => 50,
+            'description' => "Thu phần phí app đã miễn nhờ điểm khách dùng cuốc #{$b->id} (tài xế bỏ cuốc, mất đủ phí app)",
+        ]);
+
+        // Bấm bỏ lần 2 không trừ thêm.
+        $this->actingAs($d, 'sanctum')->patchJson("/api/driver/trips/{$b->id}/cancel", ['reason' => 'Bận'])->assertStatus(403);
+        $this->assertSame(900, $this->points($d));
+    }
+
+    public function test_driver_drop_forfeit_debits_only_available_balance(): void
+    {
+        $d = $this->driver(1000);
+        $b = $this->fullFeeBooking(User::factory()->create(['role' => 'customer']));
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$b->id}/accept")->assertOk();
+        $this->assertSame(950, $this->points($d));
+
+        // Tài xế tiêu gần hết ví vào cuốc khác: phí 20% × 4.700.000 = 940 điểm → còn 10.
+        $tripB = Booking::create([
+            'customer_id' => User::factory()->create(['role' => 'customer'])->id, 'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài', 'date' => now()->addDay()->format('Y-m-d'), 'time' => '09:00',
+            'vehicle_type' => 'sedan_4', 'distance_km' => 30, 'price' => 4_700_000, 'discount' => 0, 'surcharge' => 0,
+            'points_used' => 0, 'status' => 'finding_driver',
+        ]);
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$tripB->id}/accept")->assertOk();
+        $this->assertSame(10, $this->points($d));
+
+        $this->actingAs($d, 'sanctum')->patchJson("/api/driver/trips/{$b->id}/cancel", ['reason' => 'Bận'])->assertOk();
+
+        $this->assertSame(0, $this->points($d)); // không âm ví
+        $this->assertDatabaseHas('wallet_transactions', [
+            'booking_id' => $b->id, 'type' => 'debit', 'points' => 10,
+            'description' => "Thu phần phí app đã miễn nhờ điểm khách dùng cuốc #{$b->id} (thiếu 40 điểm, bỏ qua)",
+        ]);
+    }
+
+    public function test_customer_cancel_of_points_booking_restores_driver_to_pre_accept_balance(): void
+    {
+        $d = $this->driver(1000);
+        $c = User::factory()->create(['role' => 'customer']);
+        Wallet::create(['user_id' => $c->id, 'reward_points' => 0]);
+        $b = $this->fullFeeBooking($c);
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$b->id}/accept")->assertOk();
+        $this->actingAs($c, 'sanctum')->patchJson("/api/bookings/{$b->id}/cancel")->assertOk();
+
+        $this->assertSame(1000, $this->points($d));
+        $this->assertSame(0, $b->fresh()->waived_fee_points);
+    }
+
+    public function test_reaccept_after_drop_charges_reduced_fee_and_second_drop_forfeits_full_fee(): void
+    {
+        $d1 = $this->driver(1000);
+        $d2 = $this->driver(1000);
+        $b = $this->fullFeeBooking(User::factory()->create(['role' => 'customer']));
+
+        $this->actingAs($d1, 'sanctum')->postJson("/api/driver/trips/{$b->id}/accept")->assertOk();
+        $this->actingAs($d1, 'sanctum')->patchJson("/api/driver/trips/{$b->id}/cancel", ['reason' => 'Bận'])->assertOk();
+        $this->assertSame(900, $this->points($d1));
+
+        $this->actingAs($d2, 'sanctum')->postJson("/api/driver/trips/{$b->id}/accept")->assertOk();
+        $this->assertSame(950, $this->points($d2)); // trừ bình thường 50
+        $this->assertSame(50, $b->fresh()->charged_fee_points);
+        $this->assertSame(50, $b->fresh()->waived_fee_points);
+
+        $this->actingAs($d2, 'sanctum')->patchJson("/api/driver/trips/{$b->id}/cancel", ['reason' => 'Bận'])->assertOk();
+        $this->assertSame(900, $this->points($d2));
+        $this->assertSame(900, $this->points($d1)); // tài xế 1 không bị trừ thêm
     }
 
     public function test_legacy_booking_without_charged_fee_completes_and_credits_once(): void

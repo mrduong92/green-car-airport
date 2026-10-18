@@ -11,7 +11,7 @@ class Booking extends Model
         'destination', 'destination_lat', 'destination_lng',
         'date', 'time', 'distance_km', 'price', 'discount', 'surcharge',
         'collection_fee', 'collaborator_id',
-        'charged_fee_points', 'held_collection_points', 'held_surcharge_points', 'held_shortfall_points',
+        'charged_fee_points', 'held_collection_points', 'held_surcharge_points', 'held_shortfall_points', 'waived_fee_points',
         'points_used', 'cashback_points', 'commission_points', 'points_refunded_at',
         'status', 'vehicle_type',
         'cancelled_at', 'cancelled_by', 'cancel_reason', 'accepted_at', 'completed_at', 'note',
@@ -25,6 +25,7 @@ class Booking extends Model
         'held_collection_points' => 'integer',
         'held_surcharge_points' => 'integer',
         'held_shortfall_points' => 'integer',
+        'waived_fee_points' => 'integer',
         'points_used' => 'integer',
         'cashback_points' => 'integer',
         'commission_points' => 'integer',
@@ -138,7 +139,9 @@ class Booking extends Model
 
     /**
      * Hoàn cho tài xế các khoản ĐÃ trừ lúc nhận (theo đúng số đã ghi, không tính lại):
-     * luôn hoàn thu hộ + phí phạt tạm giữ; phí app chỉ hoàn khi $refundFee.
+     * luôn hoàn thu hộ + phí phạt tạm giữ; phí app chỉ hoàn khi $refundFee. Khi KHÔNG hoàn
+     * phí (tài xế tự bỏ cuốc) thì trừ thêm phần phí đã miễn nhờ điểm khách (waived_fee_points)
+     * để tài xế mất đủ phí app lúc nhận.
      *
      * ⚠️ Gọi trên bản ghi vừa `lockForUpdate()` trong transaction của luồng huỷ.
      * Ngoài khoá dòng còn một chốt nữa: chỉ lời gọi nào xoá được dấu "đã trừ"
@@ -153,7 +156,7 @@ class Booking extends Model
 
         $cleared = [
             'charged_fee_points' => null, 'held_collection_points' => 0,
-            'held_surcharge_points' => 0, 'held_shortfall_points' => 0,
+            'held_surcharge_points' => 0, 'held_shortfall_points' => 0, 'waived_fee_points' => 0,
         ];
         $claimed = static::whereKey($this->id)->whereNotNull('charged_fee_points')->update($cleared);
         if ($claimed === 0) {
@@ -189,6 +192,23 @@ class Booking extends Model
                     ? "Thu lại phần app bù cuốc #{$this->id} (thiếu ".($this->held_shortfall_points - $clawback).' điểm, bỏ qua)'
                     : "Thu lại phần app bù điểm cuốc #{$this->id} ({$cancelledBy} huỷ, cuốc không hoàn tất)";
                 $wallet->debit($clawback, $description, $this->id);
+            }
+        }
+
+        // Tài xế TỰ BỎ cuốc mất ĐỦ phí app tại tỉ lệ lúc nhận (quyết định "mất đủ 20%"):
+        // lúc nhận chỉ trừ charged_fee_points = phí − điểm khách dùng, nên trừ thêm phần
+        // đã miễn (waived_fee_points = min(phí, điểm)). Cộng với shortfall đã thu lại ở
+        // trên, tổng tài xế mất = charged + waived = đúng phí lúc nhận, không hơn. Khách /
+        // hệ thống huỷ ($refundFee) thì không trừ — tài xế được hoàn hết.
+        // Như shortfall: chỉ trừ TỐI ĐA số dư hiện có (`points` UNSIGNED), phần thiếu bỏ qua
+        // và ghi vào mô tả để đối soát.
+        if (! $refundFee && $this->waived_fee_points > 0) {
+            $forfeit = min($wallet->points, $this->waived_fee_points);
+            if ($forfeit > 0) {
+                $description = $forfeit < $this->waived_fee_points
+                    ? "Thu phần phí app đã miễn nhờ điểm khách dùng cuốc #{$this->id} (thiếu ".($this->waived_fee_points - $forfeit).' điểm, bỏ qua)'
+                    : "Thu phần phí app đã miễn nhờ điểm khách dùng cuốc #{$this->id} ({$cancelledBy} bỏ cuốc, mất đủ phí app)";
+                $wallet->debit($forfeit, $description, $this->id);
             }
         }
 
