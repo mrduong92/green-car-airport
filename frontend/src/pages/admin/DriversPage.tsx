@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, grantDriverFreeAccess, revokeDriverFreeAccess, topupDriver, deductDriverPoints } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
-import VipBadge from '@/components/common/VipBadge'
 import DriverPointsHistoryModal from '@/components/admin/DriverPointsHistoryModal'
 import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
@@ -29,13 +28,13 @@ interface EditForm {
   vehicle_plate: string; vehicle_year: string; vehicle_color: string
   // '' = tài xế cũ chưa khai loại xe; giữ nguyên nếu admin không chọn
   vehicle_type: App.VehicleType | ''
-  is_vip: boolean
+  white_plate: boolean
 }
 
 const emptyForm = (): EditForm => ({
   name: '', vehicle_make: '', vehicle_model: '',
   vehicle_plate: '', vehicle_year: '', vehicle_color: '',
-  vehicle_type: '', is_vip: false,
+  vehicle_type: '', white_plate: false,
 })
 
 // Hạn mới sau khi mở khóa/gia hạn: còn hạn thì cộng dồn từ hạn hiện tại, hết hạn/chưa mở thì từ hôm nay (khớp backend).
@@ -79,7 +78,7 @@ export default function DriversPage() {
       vehicle_year:  d.vehicle_year?.toString() ?? '',
       vehicle_color: d.vehicle_color ?? '',
       vehicle_type:  d.vehicle_type ?? '',
-      is_vip:        d.is_vip ?? false,
+      white_plate:   d.white_plate ?? false,
     })
   }
 
@@ -92,7 +91,7 @@ export default function DriversPage() {
       vehicle_year:  form.vehicle_year ? Number(form.vehicle_year) : undefined,
       vehicle_color: form.vehicle_color || undefined,
       vehicle_type:  form.vehicle_type || undefined,
-      is_vip:        form.is_vip,
+      white_plate:   form.white_plate,
     }),
     onSuccess: () => {
       showToast('Đã cập nhật thông tin', 'success')
@@ -224,9 +223,9 @@ export default function DriversPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-navy">{d.name} <span className="text-caption font-normal text-neutral-gray">#{d.id}</span>
-                  {d.is_vip && (
-                    <span className="ml-1.5 inline-flex align-middle">
-                      <VipBadge />
+                  {d.white_plate && (
+                    <span className="ml-1.5 inline-flex align-middle rounded-pill bg-danger-red/10 px-2 py-0.5 text-[11px] font-semibold text-danger-red">
+                      Biển trắng – bị chặn nhận cuốc
                     </span>
                   )}
                 </p>
@@ -398,15 +397,15 @@ export default function DriversPage() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[12px] text-neutral-gray font-medium">Loại biển</label>
-                  <select className={inputCls} value={form.is_vip ? 'white' : 'yellow'}
-                    onChange={(e) => setForm((f) => ({ ...f, is_vip: e.target.value === 'white' }))}>
+                  <select className={inputCls} value={form.white_plate ? 'white' : 'yellow'}
+                    onChange={(e) => setForm((f) => ({ ...f, white_plate: e.target.value === 'white' }))}>
                     <option value="yellow">Biển vàng (xe dịch vụ)</option>
-                    <option value="white">Biển trắng (xe cá nhân, VIP)</option>
+                    <option value="white">Biển trắng (xe cá nhân) – chặn nhận cuốc</option>
                   </select>
                 </div>
               </div>
               <p className="text-[12px] text-neutral-gray -mt-1">
-                Biển trắng nhận được cả cuốc VIP lẫn cuốc thường. Đổi xong có hiệu lực ngay với danh sách cuốc của tài xế.
+                Xe biển trắng không được nhận cuốc chở khách. Chọn biển trắng thì cuốc tài xế đã nhận nhưng chưa chạy được chuyển cho tài xế khác và hoàn phí app.
               </p>
             </div>
             <div className="px-4 pb-6 pt-3 flex gap-3 shrink-0 border-t border-border-soft">
