@@ -47,6 +47,8 @@ class FreeRidePresenter
             return $base + [
                 'source' => 'driver',
                 'is_mine' => $mine,
+                // Màn đăng cuốc hiện "Đang đọc cuốc…" khi AI chưa tách xong — chỉ chủ cuốc cần.
+                'parse_status' => $mine ? $r->parse_status : null,
                 // Tên tài khoản người đăng — cài đặt free_show_sender_name chỉ áp cho tên Zalo.
                 'sender_name' => $r->sender_name,
                 'group_name' => null,
@@ -64,6 +66,7 @@ class FreeRidePresenter
         return $base + [
             'source' => 'zalo',
             'is_mine' => false,
+            'parse_status' => null,
             // Admin tắt từng mục (Cài đặt): tên người bắn / nhóm / tin gốc bị tắt thì không rời server.
             'sender_name' => $show['sender_name'] ? $r->sender_name : null,
             'group_name' => $show['group_name'] ? $r->group_name : null,

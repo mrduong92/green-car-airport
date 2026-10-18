@@ -100,6 +100,15 @@ class DriverRideVisibilityTest extends TestCase
         $this->assertNull($own['contact']);
     }
 
+    public function test_parse_status_only_for_own_ride(): void
+    {
+        $poster = $this->driver();
+        $this->driverRide($poster);
+
+        $this->assertSame('pending', $this->list($poster)[0]['parse_status']);
+        $this->assertNull($this->list($this->driver())[0]['parse_status']);
+    }
+
     public function test_contact_zalo_flag(): void
     {
         $this->driverRide($this->driver(), ['contact_zalo' => false]);
