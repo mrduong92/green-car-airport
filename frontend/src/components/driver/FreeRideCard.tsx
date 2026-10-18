@@ -87,15 +87,16 @@ export default function FreeRideCard({ ride, onMore, onLocked, ownActions }: Pro
         {ride.is_mine ? (
           ownActions
         ) : ride.contact ? (
+          // Nút vừa tay (40px) canh trái, không kéo dài hết thẻ — nội dung cuốc mới là phần chính.
           <div className="flex gap-2">
             <a data-testid="free-ride-call" href={`tel:${ride.contact.phone}`}
-              className="flex-1 min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
-              <span className="material-symbols-outlined text-[18px]">call</span>Gọi
+              className="h-10 min-w-[96px] rounded-pill px-4 text-[13px] font-semibold bg-primary text-white flex items-center justify-center gap-1.5">
+              <span className="material-symbols-outlined text-[17px]">call</span>Gọi
             </a>
             {ride.contact.zalo && (
               <a data-testid="free-ride-zalo" href={zaloLink(ride.contact.phone)} target="_blank" rel="noreferrer"
-                className="flex-1 min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-zalo text-white flex items-center justify-center gap-1.5">
-                <ZaloIcon size={20} />Zalo
+                className="h-10 min-w-[96px] rounded-pill px-4 text-[13px] font-semibold bg-zalo text-white flex items-center justify-center gap-1.5">
+                <ZaloIcon size={18} />Zalo
               </a>
             )}
           </div>
