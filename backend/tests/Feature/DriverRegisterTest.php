@@ -166,28 +166,18 @@ class DriverRegisterTest extends TestCase
         ]);
     }
 
-    public function test_driver_can_declare_private_plate_vehicle(): void
+    public function test_register_cannot_declare_private_plate(): void
     {
+        // Không còn lựa chọn xe cá nhân (biển trắng) khi đăng ký — client cũ gửi is_vip/white_plate cũng bỏ qua.
         $payload = $this->validDriverPayload();
         $payload['is_vip'] = true;
+        $payload['white_plate'] = true;
 
         $this->postJson('/api/auth/register/driver', $payload)->assertCreated();
 
         $this->assertDatabaseHas('driver_profiles', [
             'vehicle_plate' => $payload['vehicle_plate'],
-            'is_vip' => true,
-        ]);
-    }
-
-    public function test_driver_defaults_to_non_vip(): void
-    {
-        $payload = $this->validDriverPayload();
-
-        $this->postJson('/api/auth/register/driver', $payload)->assertCreated();
-
-        $this->assertDatabaseHas('driver_profiles', [
-            'vehicle_plate' => $payload['vehicle_plate'],
-            'is_vip' => false,
+            'white_plate' => false,
         ]);
     }
 }

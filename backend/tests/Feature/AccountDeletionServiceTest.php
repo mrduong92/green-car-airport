@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\DeviceToken;
 use App\Models\DriverHiddenSender;
 use App\Models\DriverProfile;
+use App\Models\FreeRide;
 use App\Models\Otp;
 use App\Models\SepayWebhookEvent;
 use App\Models\User;
@@ -120,6 +121,22 @@ class AccountDeletionServiceTest extends TestCase
         $this->assertDatabaseHas('wallets', ['id' => $wallet->id]);
         $this->assertDatabaseHas('wallet_transactions', ['wallet_id' => $wallet->id, 'points' => 100]);
         $this->assertDatabaseHas('bookings', ['id' => $trip->id, 'driver_id' => $driver->id]);
+    }
+
+    public function test_xoa_tai_xe_dong_cuoc_da_dang_o_tab_free(): void
+    {
+        $driver = $this->driver();
+        $ride = FreeRide::create([
+            'ride_uid' => 'gca-del', 'sender_uid' => FreeRide::driverSenderUid($driver->id), 'sender_name' => $driver->name,
+            'group_name' => '', 'posted_by_user_id' => $driver->id, 'is_raw' => true, 'is_free' => false, 'raw_text' => 'tiễn',
+            'group_count' => 1, 'posted_at' => now(), 'expires_at' => now()->addHours(3), 'parse_status' => 'done',
+        ]);
+
+        $this->service()->delete($driver);
+
+        $ride->refresh();
+        $this->assertNotNull($ride->closed_at);
+        $this->assertSame(AccountDeletionService::DELETED_NAME, $ride->sender_name);
     }
 
     public function test_cung_so_co_tai_khoan_tai_xe_thi_khong_dung_toi(): void

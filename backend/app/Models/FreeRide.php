@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 
@@ -20,6 +21,10 @@ class FreeRide extends Model
         'seats' => 'integer',
         'price' => 'integer',
         'group_count' => 'integer',
+        'closed_at' => 'datetime',
+        'deleted_at' => 'datetime',
+        'contact_zalo' => 'boolean',
+        'posted_by_user_id' => 'integer',
     ];
 
     // Mã QR chỉ gồm chữ/số — giai đoạn 2 đã lọc lúc ingest, đây là lớp phòng thủ cuối (xem filterSafe()).
@@ -29,6 +34,20 @@ class FreeRide extends Model
 
     // Hai bản được coi là một cuốc khi giờ đón lệch nhau không quá chừng này.
     public const MERGE_WINDOW_MINUTES = 30;
+
+    // Cuốc tài xế đăng mang sender_uid = gca_<user id> — để Ẩn người đăng / báo cáo / admin chặn (đều khoá theo
+    // sender_uid, regex route admin [A-Za-z0-9_-]) chạy nguyên trạng, không cần đường riêng.
+    public const DRIVER_SENDER_PREFIX = 'gca_';
+
+    public static function driverSenderUid(int $userId): string
+    {
+        return self::DRIVER_SENDER_PREFIX.$userId;
+    }
+
+    public function poster(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'posted_by_user_id');
+    }
 
     // Bản trùng (cùng nội dung — của cùng người qua nick phụ khác, hoặc người khác chuyển tiếp lại) trỏ về
     // cuốc gốc (bản đăng sớm nhất) qua duplicate_of_id.
@@ -103,13 +122,14 @@ class FreeRide extends Model
     {
         return $query->where(fn (Builder $w) => $w->whereNull('duplicate_of_id')
             ->orWhereNotIn('duplicate_of_id', self::query()->where('expires_at', '>', now())
-                ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
+                ->where(fn (Builder $g) => $g->whereNull('zalo_group_id')
+                    ->orWhereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id')))
                 ->select('id')));
     }
 
     /**
      * Điều kiện hiển thị dùng chung cho tab Free (FreeRideController::index) VÀ job cảnh báo đẩy
-     * (NotifyFreeRideAlerts): còn hạn, không bị chặn/ẩn người bắn (theo qr_code hoặc sender_uid), nhóm chưa bị admin tắt, cùng các
+     * (NotifyFreeRideAlerts): còn hạn, chưa đóng, người đăng (cuốc tài xế đăng) còn hoạt động, không bị chặn/ẩn người bắn (theo qr_code hoặc sender_uid), nhóm chưa bị admin tắt, cùng các
      * bộ lọc tuỳ chọn direction/seats/q (q khớp LIKE trên pickup/destination/raw_text) và window.
      */
     public function scopeVisibleTo(Builder $query, int $driverId, array $data = []): Builder
@@ -118,13 +138,20 @@ class FreeRide extends Model
         // nhau tuỳ nick phụ) HOẶC theo sender_uid (hàng cũ). whereNotNull bắt buộc: NOT IN gặp NULL
         // trong subquery sẽ cho UNKNOWN và loại sạch mọi cuốc.
         $hidden = DriverHiddenSender::where('driver_id', $driverId);
+        // Cột null (cuốc tài xế đăng không có qr_code/zalo_group_id): `NULL NOT IN (…)` = UNKNOWN → loại sạch
+        // cuốc. Mọi NOT IN trên cột nullable phải đi kèm whereNull.
+        $notIn = fn (string $col, $sub) => fn (Builder $w) => $w->whereNull($col)->orWhereNotIn($col, $sub);
         $query->where('expires_at', '>', now())
-            ->whereNotIn('qr_code', ZaloSenderBlock::whereNotNull('qr_code')->select('qr_code'))
+            ->whereNull('closed_at')
+            ->where($notIn('qr_code', ZaloSenderBlock::whereNotNull('qr_code')->select('qr_code')))
             ->whereNotIn('sender_uid', ZaloSenderBlock::whereNotNull('sender_uid')->select('sender_uid'))
             // Nhóm admin đã tắt: ẩn cả cuốc đã đồng bộ trước khi tắt / lúc service chưa lấy được cấu hình.
-            ->whereNotIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id'))
-            ->whereNotIn('qr_code', (clone $hidden)->whereNotNull('qr_code')->select('qr_code'))
+            ->where($notIn('zalo_group_id', ZaloGroup::where('enabled', false)->select('zalo_group_id')))
+            ->where($notIn('qr_code', (clone $hidden)->whereNotNull('qr_code')->select('qr_code')))
             ->whereNotIn('sender_uid', (clone $hidden)->whereNotNull('sender_uid')->select('sender_uid'))
+            // Cuốc tài xế đăng chỉ hiện khi người đăng còn là tài xế đang hoạt động (bị khoá / xoá tài khoản → ẩn).
+            ->where(fn (Builder $w) => $w->whereNull('posted_by_user_id')
+                ->orWhereIn('posted_by_user_id', DriverProfile::where('status', 'active')->select('user_id')))
             ->excludingLiveDuplicates()
             ->when($data['direction'] ?? null, fn (Builder $q, string $d) => $q->where('direction', $d))
             ->when($data['seats'] ?? null, fn (Builder $q, $s) => $q->where('seats', (int) $s));
@@ -153,6 +180,7 @@ class FreeRide extends Model
     // giống nhau trên mọi driver, kể cả SQLite (test) không có REGEXP.
     public static function filterSafe(Collection $rides): Collection
     {
-        return $rides->filter(fn (FreeRide $r) => preg_match(self::SAFE_CODE_REGEX, $r->qr_code) === 1);
+        return $rides->filter(fn (FreeRide $r) => $r->posted_by_user_id !== null
+            || preg_match(self::SAFE_CODE_REGEX, (string) $r->qr_code) === 1);
     }
 }

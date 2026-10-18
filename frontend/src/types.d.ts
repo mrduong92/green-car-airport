@@ -11,6 +11,10 @@ declare namespace App {
     is_collaborator?: boolean
     referral_code?: string
     approval_status?: 'pending' | 'active' | 'blocked'
+    // Chỉ tài xế. false = tab Free đang tắt (ZALO_FREE_RIDES_ENABLED); thiếu (server cũ) = bật.
+    free_rides_enabled?: boolean
+    // Tài xế xe biển trắng — bị chặn nhận cuốc, app hiện lý do ở danh sách cuốc.
+    white_plate?: boolean
     needs_terms_acceptance?: boolean
     has_password?: boolean
   }
@@ -36,7 +40,6 @@ declare namespace App {
     voucher_code?: string | null
     note?: string | null
     vehicle_type?: VehicleType
-    is_vip?: boolean
     points_used?: number
     points_discount?: number
     status: BookingStatus
@@ -70,7 +73,6 @@ declare namespace App {
     distance_km: number
     price: number
     vehicle_type: VehicleType
-    is_vip?: boolean
     /** Đi ngay: backend lấy giờ server làm giờ đón, bỏ quy tắc hẹn trước 30 phút. */
     go_now?: boolean
     voucher_code?: string
@@ -92,7 +94,6 @@ declare namespace App {
     time: string
     distance_km: number
     vehicle_type: VehicleType
-    is_vip?: boolean
     duration_min: number
     price: number
     discount: number
@@ -169,10 +170,13 @@ declare namespace App {
     vehicle_year: number
     vehicle_color: string
     vehicle_type?: VehicleType | null
-    is_vip?: boolean
+    // Xe biển trắng (xe cá nhân): bị chặn nhận cuốc; admin bỏ cờ khi xe đã đổi sang biển vàng.
+    white_plate?: boolean
     // Quyền Nhận cuốc ở tab Free (admin duyệt tay, 1 năm); *_until là mốc hết hạn (ms).
     free_unlocked?: boolean
     free_unlocked_until?: number | null
+    // Tài xế bấm xin mở khoá liên hệ tab Free (ms); xoá khi admin mở khoá.
+    free_unlock_requested_at?: number | null
     trips_count: number
     rating: number
     months_active: number
@@ -305,7 +309,6 @@ declare namespace App {
     service_type: 'airport' | 'provincial'
     trip_type: 'one_way' | 'round_trip'
     vehicle_type: VehicleType
-    is_vip: boolean
     price_type: 'range' | 'per_km'
     min_price: number
     max_price: number
@@ -415,8 +418,24 @@ declare namespace App {
     // tuỳ nick phụ nhìn thấy); "Ẩn người bắn" gửi lại mã này để ẩn mọi uid của họ.
     // null khi tài xế chưa được mở khóa — khi đó ẩn theo sender_uid, server tự suy ra hồ sơ.
     qr_code: string | null
+    // 'driver' = tài xế đăng trong app; 'zalo' = cuốc cũ đọc từ nhóm Zalo.
+    source: 'zalo' | 'driver'
+    // Cuốc do chính người đang xem đăng.
+    is_mine: boolean
+    // Liên hệ người đăng (chỉ cuốc tài xế đăng, chỉ khi người xem đã được mở khoá và không phải chủ cuốc).
+    contact: FreeRideContact | null
+    // Mốc Đã có xe / Xoá (ms) — chỉ khác null ở "Cuốc tôi đăng".
+    closed_at: number | null
+    // Trạng thái AI tách cuốc ở nền — chỉ trả cho chủ cuốc; null với người khác.
+    parse_status: 'pending' | 'done' | 'failed' | null
     posted_at: number
     expires_at: number
+  }
+
+  interface FreeRideContact {
+    phone: string
+    // Người đăng cho phép hiện nút Zalo (zalo.me/<sđt>).
+    zalo: boolean
   }
 
   interface FreeUnlockPayment {
@@ -435,6 +454,8 @@ declare namespace App {
     expires_at: number | null
     // Thông tin chuyển khoản mở khóa (QR VietQR); null khi đã mở khóa.
     payment: FreeUnlockPayment | null
+    // Mốc tài xế bấm Gửi yêu cầu mở khoá (ms); null khi chưa gửi hoặc đã mở khoá.
+    requested_at: number | null
   }
 
   interface FreeRidePage {
@@ -445,6 +466,8 @@ declare namespace App {
     // true khi server chạm trần SINCE_LIMIT (200 dòng): nghĩa là còn cuốc cũ
     // hơn bị bỏ sót, client phải nạp lại trang 1 thay vì gộp theo since.
     reset?: boolean
+    // Chỉ có ở gộp since: ride_uid vừa Đã có xe / Xoá — gỡ khỏi cache.
+    removed?: string[]
   }
 
   interface FreeRideFilters {

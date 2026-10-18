@@ -6,17 +6,19 @@ class DriverProfile extends Model
 {
     protected $fillable = [
         'user_id','vehicle_make','vehicle_model','vehicle_plate','vehicle_year',
-        'vehicle_color','vehicle_type','is_vip','status','blocked_reason','is_verified','is_online',
+        'vehicle_color','vehicle_type','white_plate','status','blocked_reason','is_verified','is_online',
         'latitude','longitude','payment_code','months_active','rating','trips_count',
         'cccd_number','gplx_number','vehicle_reg_number',
         'vehicle_inspection_number','vehicle_inspection_expiry',
-        'insurance_number','insurance_expiry','free_unlocked_until',
+        'insurance_number','insurance_expiry','free_unlocked_until','free_unlock_requested_at','ride_post_terms_accepted_at',
     ];
     protected $casts = [
         'is_verified'               => 'boolean',
         'is_online'                 => 'boolean',
-        'is_vip'                    => 'boolean',
+        'white_plate'               => 'boolean',
         'free_unlocked_until'       => 'datetime',
+        'free_unlock_requested_at'  => 'datetime',
+        'ride_post_terms_accepted_at' => 'datetime',
         'vehicle_inspection_expiry' => 'date',
         'insurance_expiry'          => 'date',
     ];

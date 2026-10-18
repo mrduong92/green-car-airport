@@ -114,7 +114,6 @@ class BookingController extends Controller
                 'voucher_id' => $voucherId,
                 'status' => 'finding_driver',
                 'vehicle_type' => $data['vehicle_type'],
-                'is_vip' => $request->boolean('is_vip'),
                 'note' => $data['note'] ?? null,
                 'collection_fee' => $collectionFee,
                 'collaborator_id' => $collaboratorId,
@@ -271,7 +270,6 @@ class BookingController extends Controller
             'status' => $b->status,
             'cancel_reason' => $b->cancel_reason,
             'vehicle_type' => $b->vehicle_type,
-            'is_vip' => (bool) $b->is_vip,
             'created_at' => $b->created_at?->toISOString(),
             'accepted_at' => $b->accepted_at?->toISOString(),
             'driver' => $driver ? [

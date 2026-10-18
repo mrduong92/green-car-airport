@@ -48,9 +48,12 @@ export default function FreeRideActionsSheet({ ride, onClose, onSenderHidden }: 
     <>
       <div className="fixed inset-0 z-50 bg-black/40 flex items-end" onClick={onClose}>
         <div className="bg-white w-full rounded-t-2xl pb-6 pt-2" onClick={(e) => e.stopPropagation()}>
-          <button type="button" className={item} onClick={() => broken.mutate()} disabled={broken.isPending}>
-            <span className="material-symbols-outlined text-[20px] text-neutral-gray">link_off</span>Nút Nhận cuốc mở sai trang
-          </button>
+          {/* Chỉ cuốc từ nhóm Zalo mới có link hồ sơ Zalo để báo hỏng; cuốc tài xế đăng liên hệ qua SĐT. */}
+          {ride.source !== 'driver' && (
+            <button type="button" data-testid="free-ride-broken-link" className={item} onClick={() => broken.mutate()} disabled={broken.isPending}>
+              <span className="material-symbols-outlined text-[20px] text-neutral-gray">link_off</span>Nút Nhận cuốc mở sai trang
+            </button>
+          )}
           <button type="button" data-testid="free-ride-hide-sender" className={item} onClick={() => setConfirmHide(true)} disabled={hide.isPending}>
             <span className="material-symbols-outlined text-[20px] text-neutral-gray">visibility_off</span>Ẩn mọi cuốc của {ride.sender_name || 'người này'}
           </button>

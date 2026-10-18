@@ -1,67 +1,61 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestFreeUnlock } from '@/api/freeRides'
+import { getContactSettings } from '@/api/settings'
 import { useUiStore } from '@/stores/ui'
+import { apiMessage } from '@/utils/apiError'
+import { zaloLink } from '@/utils/zalo'
 
 interface Props {
-  payment: App.FreeUnlockPayment | null
+  access: App.FreeRideAccess | null
   onClose: () => void
 }
 
-export default function FreeRideUnlockSheet({ payment, onClose }: Props) {
+// Thay cho chuyển khoản 300k: tài xế gửi yêu cầu, admin liên hệ kiểm tra xe + hướng dẫn rồi mở khoá tay.
+export default function FreeRideUnlockSheet({ access, onClose }: Props) {
+  const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
+  const { data: contact } = useQuery({ queryKey: ['contact-settings'], queryFn: getContactSettings })
 
-  const copy = async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value)
-      showToast(`Đã sao chép ${label}`, 'success')
-    } catch {
-      showToast('Không sao chép được', 'error')
-    }
-  }
+  const request = useMutation({
+    mutationFn: () => requestFreeUnlock().then((r) => r.data),
+    onSuccess: () => {
+      showToast('Đã gửi yêu cầu, admin sẽ liên hệ bạn', 'success')
+      void qc.invalidateQueries({ queryKey: ['free-rides'] })
+      onClose()
+    },
+    onError: (err) => showToast(apiMessage(err, 'Không gửi được yêu cầu, thử lại sau'), 'error'),
+  })
 
-  const row = (label: string, value: string, testId?: string) => (
-    <div className="flex items-center justify-between gap-3 py-2 border-b border-border-soft last:border-b-0">
-      <div className="min-w-0">
-        <p className="text-[11px] text-neutral-gray">{label}</p>
-        <p data-testid={testId} className="text-[14px] font-semibold text-navy break-all">{value}</p>
-      </div>
-      <button type="button" aria-label={`Sao chép ${label}`} onClick={() => copy(value, label.toLowerCase())}
-        className="shrink-0 min-w-touch min-h-touch flex items-center justify-center text-primary">
-        <span className="material-symbols-outlined text-[20px]">content_copy</span>
-      </button>
-    </div>
-  )
+  const requestedAt = access?.requested_at ?? null
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end" onClick={onClose}>
       <div data-testid="free-unlock-sheet" className="bg-white w-full max-h-[90vh] overflow-y-auto rounded-t-2xl pb-6 pt-5 px-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 mb-1">
           <span className="material-symbols-outlined text-primary text-[22px]">lock</span>
-          <h2 className="text-[16px] font-semibold text-navy">Mở khóa Nhận cuốc</h2>
+          <h2 className="text-[16px] font-semibold text-navy">Mở khoá liên hệ</h2>
         </div>
         <p className="text-[13px] text-neutral-gray">
-          Chuyển khoản phí mở khóa 1 năm bằng QR dưới đây. Admin xác nhận thủ công sau khi nhận tiền, rồi nút Nhận cuốc dùng được.
+          Liên hệ admin để được kiểm tra xe và hướng dẫn, admin sẽ mở khoá cho bạn. Sau khi mở khoá, bạn gọi/nhắn Zalo thẳng cho người đăng cuốc.
         </p>
 
-        {payment ? (
-          <>
-            {payment.qr_url && (
-              <img data-testid="free-unlock-qr" src={payment.qr_url} alt="Mã QR chuyển khoản mở khóa" className="mx-auto my-3 w-56 max-w-full rounded-card border border-border-gray" />
-            )}
-            <div className="rounded-card bg-light-green px-3">
-              {payment.bank.name && row('Ngân hàng', payment.bank.name)}
-              {payment.bank.account_number && row('Số tài khoản', payment.bank.account_number)}
-              {payment.bank.account_holder && row('Chủ tài khoản', payment.bank.account_holder)}
-              {payment.amount_vnd !== null && row('Số tiền', `${payment.amount_vnd.toLocaleString('vi-VN')}đ`, 'free-unlock-amount')}
-              {row('Nội dung chuyển khoản', payment.transfer_content, 'free-unlock-content')}
-            </div>
-            <p className="mt-2 text-[12px] text-neutral-gray">Giữ nguyên nội dung chuyển khoản để admin nhận ra bạn.</p>
-          </>
-        ) : (
-          <p className="mt-3 rounded-card bg-light-green p-3 text-[13px] text-navy">Chưa có thông tin chuyển khoản. Vui lòng liên hệ admin GreenCA để được mở khóa.</p>
+        {requestedAt !== null && (
+          <p data-testid="free-unlock-requested" className="mt-3 rounded-card bg-light-green p-3 text-[13px] text-navy">
+            Đã gửi yêu cầu lúc {new Date(requestedAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}, admin sẽ liên hệ bạn.
+          </p>
         )}
 
-        <button type="button" onClick={onClose} className="mt-4 w-full min-h-touch rounded-pill bg-primary text-white text-[14px] font-semibold">
-          Đã hiểu
+        <button type="button" data-testid="free-unlock-request" onClick={() => request.mutate()} disabled={request.isPending}
+          className="mt-4 w-full min-h-touch rounded-pill bg-primary text-white text-[14px] font-semibold disabled:opacity-60">
+          {request.isPending ? 'Đang gửi…' : requestedAt !== null ? 'Gửi lại yêu cầu' : 'Gửi yêu cầu mở khoá'}
         </button>
+        {contact?.zalo_phone && (
+          <a href={zaloLink(contact.zalo_phone)} target="_blank" rel="noreferrer"
+            className="mt-2 w-full min-h-touch rounded-pill bg-light-green text-primary text-[14px] font-semibold flex items-center justify-center gap-1.5">
+            <span className="material-symbols-outlined text-[18px]">chat</span>Nhắn Zalo admin
+          </a>
+        )}
+        <button type="button" onClick={onClose} className="mt-2 w-full min-h-touch text-[14px] text-neutral-gray">Đóng</button>
       </div>
     </div>
   )

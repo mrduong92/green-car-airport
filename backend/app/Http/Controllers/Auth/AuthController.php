@@ -154,7 +154,6 @@ class AuthController extends Controller
             'vehicle_year' => 'required|integer|min:2000|max:'.now()->year,
             'vehicle_color' => 'required|string|max:30',
             'vehicle_type' => 'required|in:sedan_4,suv_5,mpv_7',
-            'is_vip' => 'sometimes|boolean',
             'cccd_number' => 'required|string|max:20',
             'gplx_number' => 'required|string|max:20',
             'vehicle_reg_number' => 'required|string|max:30',
@@ -195,7 +194,6 @@ class AuthController extends Controller
             'vehicle_year' => $request->vehicle_year,
             'vehicle_color' => $request->vehicle_color,
             'vehicle_type' => $request->vehicle_type,
-            'is_vip' => $request->boolean('is_vip'),
             'is_online' => false,
             'cccd_number' => $request->cccd_number,
             'gplx_number' => $request->gplx_number,
@@ -375,6 +373,9 @@ class AuthController extends Controller
         if ($user->role === 'driver') {
             $payload['needs_onboarding'] = ! $user->driverProfile?->vehicle_plate;
             $payload['approval_status'] = $user->driverProfile?->status ?? 'pending';
+            $payload['free_rides_enabled'] = (bool) config('zalo.free_rides_enabled');
+            // Xe biển trắng bị chặn nhận cuốc — app hiện lý do thay vì danh sách cuốc trống không giải thích.
+            $payload['white_plate'] = (bool) $user->driverProfile?->white_plate;
         }
 
         return $payload;

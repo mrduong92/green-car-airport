@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureDriverActive;
+use App\Http\Middleware\EnsureFreeRidesEnabled;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\VerifyZaloBotSignature;
 use Illuminate\Foundation\Application;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'zalo.bot' => VerifyZaloBotSignature::class,
             'driver.active' => EnsureDriverActive::class,
+            'free-rides.enabled' => EnsureFreeRidesEnabled::class,
         ]);
 
         $middleware->statefulApi();

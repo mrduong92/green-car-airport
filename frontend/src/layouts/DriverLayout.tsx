@@ -6,6 +6,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useAppPresence } from '@/hooks/useAppPresence'
 import { useDriverStream } from '@/hooks/useDriverStream'
 import { useDriverCapacity } from '@/hooks/useDriverCapacity'
+import { useAuthStore } from '@/stores/auth'
 import clsx from 'clsx'
 
 // `primary` = hiện trên bottom nav; còn lại gom vào sheet "Thêm".
@@ -22,6 +23,12 @@ const TABS = [
 const PRIMARY_TABS = TABS.filter((t) => t.primary)
 const MORE_TABS = TABS.filter((t) => !t.primary)
 
+// Có tab Free: nút (+) đăng cuốc to nhất, nằm chính giữa thanh menu — 2 ô mỗi bên, Ví điểm vào "Thêm".
+const POST_RIDE_PATH = '/driver/free/create'
+const FREE_NAV = ['/driver/trips', '/driver/free', '/driver/notifications']
+const FREE_PRIMARY_TABS = TABS.filter((t) => FREE_NAV.includes(t.to))
+const FREE_MORE_TABS = TABS.filter((t) => !FREE_NAV.includes(t.to))
+
 const iconStyle = (active: boolean) => ({
   fontVariationSettings: active ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400",
 })
@@ -32,11 +39,16 @@ export default function DriverLayout() {
   useDriverStream(true, atCapacity)
   useAppPresence()
   const { pathname } = useLocation()
+  const freeRidesEnabled = useAuthStore((s) => s.user?.free_rides_enabled !== false)
+  const primaryTabs = freeRidesEnabled ? FREE_PRIMARY_TABS : PRIMARY_TABS.filter((t) => t.to !== '/driver/free')
+  const moreTabs = freeRidesEnabled ? FREE_MORE_TABS : MORE_TABS
+  // Màn đăng cuốc chỉ để gõ và đăng một cuốc: ẩn thanh menu cho tài xế tập trung vào ô nhập tin.
+  const hideNav = pathname === POST_RIDE_PATH
   // Lưu path lúc mở sheet: điều hướng đi (kể cả nút back) là sheet tự đóng
   const [moreOpenAt, setMoreOpenAt] = useState<string | null>(null)
   const moreOpen = moreOpenAt === pathname
   const setMoreOpen = (open: boolean) => setMoreOpenAt(open ? pathname : null)
-  const inMore = MORE_TABS.some((t) => pathname.startsWith(t.to))
+  const inMore = moreTabs.some((t) => pathname.startsWith(t.to))
 
   useEffect(() => {
     if (!moreOpen) return
@@ -57,9 +69,24 @@ export default function DriverLayout() {
       <main className="flex-1 min-h-0 w-full overflow-y-auto flex flex-col">
         <Outlet />
       </main>
-      <nav className="relative shrink-0 w-full bg-white/[0.96] backdrop-blur-[12px] [-webkit-backdrop-filter:blur(12px)] border-t border-border-soft shadow-card-up safe-bottom z-40">
+      {!hideNav && <nav className="relative shrink-0 w-full bg-white/[0.96] backdrop-blur-[12px] [-webkit-backdrop-filter:blur(12px)] border-t border-border-soft shadow-card-up safe-bottom z-40">
         <div className="flex pt-2 pb-1">
-          {PRIMARY_TABS.map((tab) => (
+          {primaryTabs.flatMap((tab, i) => [
+            freeRidesEnabled && i === 2 && (
+              <div key="post-ride" className="flex-1 min-w-0 flex justify-center">
+                <NavLink
+                  to={POST_RIDE_PATH}
+                  data-testid="nav-post-ride"
+                  className="group -mt-7 flex flex-col items-center gap-[3px] text-neutral-dim hover:text-primary focus-visible:text-primary outline-none transition-colors"
+                >
+                  {/* Hover/focus: nút nhấc lên, bóng xanh đậm hơn, dấu + phóng to; tắt khi máy bật giảm chuyển động. */}
+                  <span className="w-[60px] h-[60px] rounded-full bg-primary text-white flex items-center justify-center shadow-card-up ring-[5px] ring-white transition-all duration-200 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_10px_24px_-6px_rgba(0,106,54,0.55)] group-focus-visible:-translate-y-1 group-focus-visible:ring-light-green group-active:translate-y-0 group-active:scale-95 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
+                    <span className="material-symbols-outlined text-[34px] transition-transform duration-200 ease-out group-hover:scale-110 group-focus-visible:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100" style={{ fontVariationSettings: "'wght' 600" }}>add</span>
+                  </span>
+                  <span className="text-[9px] font-medium whitespace-nowrap">Đăng cuốc</span>
+                </NavLink>
+              </div>
+            ),
             <NavLink
               key={tab.to}
               to={tab.to}
@@ -84,8 +111,8 @@ export default function DriverLayout() {
                   <span className={clsx('text-[9px] max-w-full whitespace-nowrap truncate px-px', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
                 </>
               )}
-            </NavLink>
-          ))}
+            </NavLink>,
+          ])}
           <button
             type="button"
             onClick={() => setMoreOpen(!moreOpen)}
@@ -99,7 +126,7 @@ export default function DriverLayout() {
             <span className={clsx('text-[9px] whitespace-nowrap px-px', inMore || moreOpen ? 'font-semibold' : 'font-medium')}>Thêm</span>
           </button>
         </div>
-      </nav>
+      </nav>}
 
       {/* Sheet "Thêm" — nằm dưới bottom nav để nút Thêm vẫn bấm được để đóng */}
       {moreOpen && (
@@ -110,7 +137,7 @@ export default function DriverLayout() {
           >
             <p className="text-[12px] font-semibold text-neutral-gray uppercase tracking-wide mb-3 px-1">Thêm</p>
             <div className="grid grid-cols-3 gap-2 pb-4">
-              {MORE_TABS.map((tab) => (
+              {moreTabs.map((tab) => (
                 <NavLink
                   key={tab.to}
                   to={tab.to}

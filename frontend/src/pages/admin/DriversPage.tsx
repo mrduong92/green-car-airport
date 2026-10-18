@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getDrivers, updateDriver, blockDriver, unblockDriver, approveDriver, grantDriverFreeAccess, revokeDriverFreeAccess, topupDriver, deductDriverPoints } from '@/api/admin'
 import { useUiStore } from '@/stores/ui'
 import StatusBadge from '@/components/common/StatusBadge'
-import VipBadge from '@/components/common/VipBadge'
 import DriverPointsHistoryModal from '@/components/admin/DriverPointsHistoryModal'
 import Button from '@/components/common/Button'
 import ConfirmDialog from '@/components/common/ConfirmDialog'
@@ -16,6 +15,8 @@ const FILTERS = [
   { key: 'active',  label: 'Đang hoạt động' },
   { key: 'pending', label: 'Chờ duyệt' },
   { key: 'blocked', label: 'Đã block' },
+  // Không phải trạng thái tài xế: lọc theo yêu cầu mở khoá liên hệ tab Free đang chờ duyệt.
+  { key: 'free_unlock', label: 'Xin mở khoá' },
 ]
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
@@ -29,13 +30,13 @@ interface EditForm {
   vehicle_plate: string; vehicle_year: string; vehicle_color: string
   // '' = tài xế cũ chưa khai loại xe; giữ nguyên nếu admin không chọn
   vehicle_type: App.VehicleType | ''
-  is_vip: boolean
+  white_plate: boolean
 }
 
 const emptyForm = (): EditForm => ({
   name: '', vehicle_make: '', vehicle_model: '',
   vehicle_plate: '', vehicle_year: '', vehicle_color: '',
-  vehicle_type: '', is_vip: false,
+  vehicle_type: '', white_plate: false,
 })
 
 // Hạn mới sau khi mở khóa/gia hạn: còn hạn thì cộng dồn từ hạn hiện tại, hết hạn/chưa mở thì từ hôm nay (khớp backend).
@@ -66,7 +67,14 @@ export default function DriversPage() {
 
   const { data: drivers = [] } = useQuery({
     queryKey: ['drivers', filter, search],
-    queryFn: () => getDrivers({ status: filter || undefined, search: search || undefined }).then((r) => r.data),
+    queryFn: () => getDrivers(filter === 'free_unlock'
+      ? { free_unlock_requested: 1, search: search || undefined }
+      : { status: filter || undefined, search: search || undefined }).then((r) => r.data),
+  })
+  // Số yêu cầu mở khoá đang chờ — hiện trên chip, dù đang xem bộ lọc nào. Mở khoá xong invalidate ['drivers'] là cập nhật.
+  const { data: unlockRequests = [] } = useQuery({
+    queryKey: ['drivers', 'free_unlock_count'],
+    queryFn: () => getDrivers({ free_unlock_requested: 1 }).then((r) => r.data),
   })
 
   const openEdit = (d: App.DriverProfile) => {
@@ -79,7 +87,7 @@ export default function DriversPage() {
       vehicle_year:  d.vehicle_year?.toString() ?? '',
       vehicle_color: d.vehicle_color ?? '',
       vehicle_type:  d.vehicle_type ?? '',
-      is_vip:        d.is_vip ?? false,
+      white_plate:   d.white_plate ?? false,
     })
   }
 
@@ -92,7 +100,7 @@ export default function DriversPage() {
       vehicle_year:  form.vehicle_year ? Number(form.vehicle_year) : undefined,
       vehicle_color: form.vehicle_color || undefined,
       vehicle_type:  form.vehicle_type || undefined,
-      is_vip:        form.is_vip,
+      white_plate:   form.white_plate,
     }),
     onSuccess: () => {
       showToast('Đã cập nhật thông tin', 'success')
@@ -206,6 +214,9 @@ export default function DriversPage() {
               className={clsx('rounded-pill px-4 py-1.5 text-sm font-medium whitespace-nowrap',
                 filter === f.key ? 'bg-primary text-white' : 'bg-light-green text-primary')}>
               {f.label}
+              {f.key === 'free_unlock' && unlockRequests.length > 0 && (
+                <span className="ml-1.5 rounded-pill bg-danger-red text-white text-[11px] px-1.5">{unlockRequests.length}</span>
+              )}
             </button>
           ))}
         </div>
@@ -224,15 +235,18 @@ export default function DriversPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-navy">{d.name} <span className="text-caption font-normal text-neutral-gray">#{d.id}</span>
-                  {d.is_vip && (
-                    <span className="ml-1.5 inline-flex align-middle">
-                      <VipBadge />
+                  {d.white_plate && (
+                    <span className="ml-1.5 inline-flex align-middle rounded-pill bg-danger-red/10 px-2 py-0.5 text-[11px] font-semibold text-danger-red">
+                      Biển trắng – bị chặn nhận cuốc
                     </span>
                   )}
                 </p>
                 <p className="text-caption text-neutral-gray">{d.phone}</p>
                 <p className="text-caption text-neutral-gray">
                   Free: {d.free_unlocked && d.free_unlocked_until ? `mở khóa đến ${new Date(d.free_unlocked_until).toLocaleDateString('vi-VN')}` : 'đang khóa'}
+                  {!d.free_unlocked && d.free_unlock_requested_at && (
+                    <span className="text-alert-orange"> · xin mở khoá lúc {new Date(d.free_unlock_requested_at).toLocaleString('vi-VN')}</span>
+                  )}
                 </p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <StatusBadge status={d.status} />
@@ -247,55 +261,6 @@ export default function DriversPage() {
                     <span className="text-caption font-semibold text-gold">{d.points.toLocaleString('vi-VN')} đ.</span>
                   )}
                 </div>
-              </div>
-              {/* Action buttons */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <button onClick={() => openEdit(d)}
-                  className="text-xs bg-primary/10 text-primary rounded-pill px-3 py-1.5 font-medium">
-                  Sửa
-                </button>
-                <button onClick={() => openTopup(d)}
-                  className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
-                  Nạp điểm
-                </button>
-                <button onClick={() => setFreeAction({ kind: 'grant', driver: d })}
-                  className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
-                  {d.free_unlocked ? 'Gia hạn Free' : 'Mở khóa Free'}
-                </button>
-                {d.free_unlocked && (
-                  <button onClick={() => setFreeAction({ kind: 'revoke', driver: d })}
-                    className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
-                    Thu hồi Free
-                  </button>
-                )}
-                <button onClick={() => setHistoryTarget(d)}
-                  className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
-                  Lịch sử điểm
-                </button>
-                {d.points != null && d.points > 0 && (
-                  <button onClick={() => openDeduct(d)}
-                    className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
-                    Trừ điểm
-                  </button>
-                )}
-                {d.status === 'pending' && (
-                  <button onClick={() => approveMutation.mutate(d.id)}
-                    className="text-xs bg-success-green text-white rounded-pill px-3 py-1.5 font-medium">
-                    Duyệt
-                  </button>
-                )}
-                {d.status === 'blocked' && (
-                  <button onClick={() => unblockMutation.mutate(d.id)}
-                    className="text-xs bg-success-green/10 text-success-green rounded-pill px-3 py-1.5 font-medium">
-                    Bỏ chặn
-                  </button>
-                )}
-                {d.status !== 'blocked' && (
-                  <button onClick={() => { setBlockTarget(d); setBlockReason('') }}
-                    className="text-xs bg-danger-red text-white rounded-pill px-3 py-1.5 font-medium">
-                    Block
-                  </button>
-                )}
               </div>
             </div>
             {/* Vehicle info row */}
@@ -335,6 +300,55 @@ export default function DriversPage() {
                 </div>
               </div>
             )}
+            {/* Thao tác: một hàng ngang, tự xuống dòng khi hẹp — không chồng dọc làm thẻ cao vống */}
+            <div className="mt-3 pt-3 border-t border-border-soft flex flex-wrap gap-1.5">
+              <button onClick={() => openEdit(d)}
+                className="text-xs bg-primary/10 text-primary rounded-pill px-3 py-1.5 font-medium">
+                Sửa
+              </button>
+              <button onClick={() => openTopup(d)}
+                className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
+                Nạp điểm
+              </button>
+              <button onClick={() => setFreeAction({ kind: 'grant', driver: d })}
+                className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
+                {d.free_unlocked ? 'Gia hạn Free' : 'Mở khóa Free'}
+              </button>
+              {d.free_unlocked && (
+                <button onClick={() => setFreeAction({ kind: 'revoke', driver: d })}
+                  className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
+                  Thu hồi Free
+                </button>
+              )}
+              <button onClick={() => setHistoryTarget(d)}
+                className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
+                Lịch sử điểm
+              </button>
+              {d.points != null && d.points > 0 && (
+                <button onClick={() => openDeduct(d)}
+                  className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
+                  Trừ điểm
+                </button>
+              )}
+              {d.status === 'pending' && (
+                <button onClick={() => approveMutation.mutate(d.id)}
+                  className="text-xs bg-success-green text-white rounded-pill px-3 py-1.5 font-medium">
+                  Duyệt
+                </button>
+              )}
+              {d.status === 'blocked' && (
+                <button onClick={() => unblockMutation.mutate(d.id)}
+                  className="text-xs bg-success-green/10 text-success-green rounded-pill px-3 py-1.5 font-medium">
+                  Bỏ chặn
+                </button>
+              )}
+              {d.status !== 'blocked' && (
+                <button onClick={() => { setBlockTarget(d); setBlockReason('') }}
+                  className="text-xs bg-danger-red text-white rounded-pill px-3 py-1.5 font-medium">
+                  Block
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -398,15 +412,15 @@ export default function DriversPage() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[12px] text-neutral-gray font-medium">Loại biển</label>
-                  <select className={inputCls} value={form.is_vip ? 'white' : 'yellow'}
-                    onChange={(e) => setForm((f) => ({ ...f, is_vip: e.target.value === 'white' }))}>
+                  <select className={inputCls} value={form.white_plate ? 'white' : 'yellow'}
+                    onChange={(e) => setForm((f) => ({ ...f, white_plate: e.target.value === 'white' }))}>
                     <option value="yellow">Biển vàng (xe dịch vụ)</option>
-                    <option value="white">Biển trắng (xe cá nhân, VIP)</option>
+                    <option value="white">Biển trắng (xe cá nhân) – chặn nhận cuốc</option>
                   </select>
                 </div>
               </div>
               <p className="text-[12px] text-neutral-gray -mt-1">
-                Biển trắng nhận được cả cuốc VIP lẫn cuốc thường. Đổi xong có hiệu lực ngay với danh sách cuốc của tài xế.
+                Xe biển trắng không được nhận cuốc chở khách. Chọn biển trắng thì cuốc tài xế đã nhận nhưng chưa chạy được chuyển cho tài xế khác và hoàn phí app.
               </p>
             </div>
             <div className="px-4 pb-6 pt-3 flex gap-3 shrink-0 border-t border-border-soft">

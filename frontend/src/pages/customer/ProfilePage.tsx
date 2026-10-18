@@ -161,27 +161,9 @@ export default function CustomerProfilePage() {
         <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
       </Link>
 
-      {/* Menu */}
-      <div className="bg-white rounded-card shadow-card border border-border-soft overflow-hidden">
-        {MENU.map((row, i) => (
-          <button
-            key={row.icon}
-            onClick={row.onClick}
-            className={`w-full flex items-center gap-3 px-4 py-4 text-left active:bg-warm-white transition-colors
-              ${i < MENU.length - 1 ? 'border-b border-border-soft' : ''}`}
-          >
-            <div className="w-8 h-8 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-primary text-[16px]">{row.icon}</span>
-            </div>
-            <span className="text-navy text-sm font-medium flex-1">{row.label}</span>
-            <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
-          </button>
-        ))}
-      </div>
-
       {/* Collaborator wallet section */}
       {user?.is_collaborator && (
-        <div className="mx-4 bg-white rounded-card shadow-card p-4 flex flex-col gap-3">
+        <div className="bg-white rounded-card shadow-card border border-border-soft p-4 flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-gold text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
               account_balance_wallet
@@ -209,6 +191,24 @@ export default function CustomerProfilePage() {
           </p>
         </div>
       )}
+
+      {/* Menu */}
+      <div className="bg-white rounded-card shadow-card border border-border-soft overflow-hidden">
+        {MENU.map((row, i) => (
+          <button
+            key={row.icon}
+            onClick={row.onClick}
+            className={`w-full flex items-center gap-3 px-4 py-4 text-left active:bg-warm-white transition-colors
+              ${i < MENU.length - 1 ? 'border-b border-border-soft' : ''}`}
+          >
+            <div className="w-8 h-8 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-primary text-[16px]">{row.icon}</span>
+            </div>
+            <span className="text-navy text-sm font-medium flex-1">{row.label}</span>
+            <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
+          </button>
+        ))}
+      </div>
 
       {/* Logout */}
       <button

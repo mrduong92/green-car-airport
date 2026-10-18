@@ -4,7 +4,7 @@ export const getDashboard = () => api.get<App.AdminDashboard>('/admin/dashboard'
 
 export const clearDashboardCache = () => api.post('/admin/dashboard/clear-cache')
 
-export const getDrivers = (params?: { status?: string; search?: string }) =>
+export const getDrivers = (params?: { status?: string; search?: string; free_unlock_requested?: 1 }) =>
   api.get<App.DriverProfile[]>('/admin/drivers', { params })
 
 export const getCustomers = (params?: { search?: string }) =>
@@ -13,7 +13,7 @@ export const getCustomers = (params?: { search?: string }) =>
 export const updateDriver = (id: number, data: {
   name?: string; vehicle_make?: string; vehicle_model?: string
   vehicle_plate?: string; vehicle_year?: number; vehicle_color?: string
-  vehicle_type?: App.VehicleType; is_vip?: boolean
+  vehicle_type?: App.VehicleType; white_plate?: boolean
 }) => api.put(`/admin/drivers/${id}`, data)
 
 export const blockDriver = (id: number, reason: string) =>

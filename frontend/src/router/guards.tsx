@@ -27,3 +27,9 @@ export function RequireDriverPending() {
   if (user.approval_status === 'active') return <Navigate to="/driver/trips" replace />
   return <TermsGate><Outlet /></TermsGate>
 }
+
+// Tab Free đang tắt phía server (free_rides_enabled=false) → về Cuốc xe, kể cả mở từ link/thông báo cũ
+export function RequireFreeRides({ children }: { children: React.ReactNode }) {
+  const enabled = useAuthStore((s) => s.user?.free_rides_enabled !== false)
+  return enabled ? children : <Navigate to="/driver/trips" replace />
+}

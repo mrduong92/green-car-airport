@@ -13,7 +13,7 @@ class Booking extends Model
         'collection_fee', 'collaborator_id',
         'charged_fee_points', 'held_collection_points', 'held_surcharge_points', 'held_shortfall_points',
         'points_used', 'cashback_points', 'commission_points', 'points_refunded_at',
-        'status', 'vehicle_type', 'is_vip',
+        'status', 'vehicle_type',
         'cancelled_at', 'cancelled_by', 'cancel_reason', 'accepted_at', 'completed_at', 'note',
     ];
 
@@ -21,7 +21,6 @@ class Booking extends Model
         'cancelled_at' => 'datetime',
         'accepted_at' => 'datetime',
         'completed_at' => 'datetime',
-        'is_vip' => 'boolean',
         'charged_fee_points' => 'integer',
         'held_collection_points' => 'integer',
         'held_surcharge_points' => 'integer',

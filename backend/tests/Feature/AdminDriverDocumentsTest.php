@@ -61,7 +61,7 @@ class AdminDriverDocumentsTest extends TestCase
         $this->assertNotNull($driverData['insurance_expiry']);
     }
 
-    public function test_admin_can_toggle_driver_vip_flag(): void
+    public function test_admin_can_mark_driver_white_plate(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $driver = User::factory()->create(['role' => 'driver']);
@@ -76,10 +76,10 @@ class AdminDriverDocumentsTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'sanctum')
-            ->putJson("/api/admin/drivers/{$driver->id}", ['is_vip' => true])
+            ->putJson("/api/admin/drivers/{$driver->id}", ['white_plate' => true])
             ->assertOk()
-            ->assertJsonPath('is_vip', true);
+            ->assertJsonPath('white_plate', true);
 
-        $this->assertTrue($driver->driverProfile->fresh()->is_vip);
+        $this->assertTrue($driver->driverProfile->fresh()->white_plate);
     }
 }
