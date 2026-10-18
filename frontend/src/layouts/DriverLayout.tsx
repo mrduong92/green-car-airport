@@ -77,10 +77,13 @@ export default function DriverLayout() {
                 <NavLink
                   to={POST_RIDE_PATH}
                   data-testid="nav-post-ride"
-                  aria-label="Đăng cuốc"
-                  className="-mt-7 w-[60px] h-[60px] rounded-full bg-primary text-white flex items-center justify-center shadow-card-up ring-[5px] ring-white active:scale-95 transition-transform"
+                  className="group -mt-7 flex flex-col items-center gap-[3px] text-neutral-dim hover:text-primary focus-visible:text-primary outline-none transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[34px]" style={{ fontVariationSettings: "'wght' 600" }}>add</span>
+                  {/* Hover/focus: nút nhấc lên, bóng xanh đậm hơn, dấu + phóng to; tắt khi máy bật giảm chuyển động. */}
+                  <span className="w-[60px] h-[60px] rounded-full bg-primary text-white flex items-center justify-center shadow-card-up ring-[5px] ring-white transition-all duration-200 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_10px_24px_-6px_rgba(0,106,54,0.55)] group-focus-visible:-translate-y-1 group-focus-visible:ring-light-green group-active:translate-y-0 group-active:scale-95 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0">
+                    <span className="material-symbols-outlined text-[34px] transition-transform duration-200 ease-out group-hover:scale-110 group-focus-visible:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100" style={{ fontVariationSettings: "'wght' 600" }}>add</span>
+                  </span>
+                  <span className="text-[9px] font-medium whitespace-nowrap">Đăng cuốc</span>
                 </NavLink>
               </div>
             ),
