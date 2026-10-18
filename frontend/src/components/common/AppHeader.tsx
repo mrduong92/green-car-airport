@@ -23,6 +23,7 @@ const ROUTE_TITLES: [string, string, boolean][] = [
   ['/customer/history',         'Lịch sử',         true],
   ['/customer/notifications',   'Thông báo',       true],
   ['/customer/profile',         'Hồ sơ',           true],
+  ['/driver/free/create',       'Đăng cuốc',       false],
   ['/driver/free/mine',         'Cuốc tôi đăng',   false],
   ['/driver/trips/history',     'Lịch sử cuốc xe', true],
   ['/driver/stats',             'Thống kê',        true],

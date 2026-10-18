@@ -1,9 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import EmptyState from '@/components/common/EmptyState'
 import FreeRideCard from '@/components/driver/FreeRideCard'
-import FreeRideComposer from '@/components/driver/FreeRideComposer'
 import FreeRideFilters from '@/components/driver/FreeRideFilters'
 import FreeRideActionsSheet from '@/components/driver/FreeRideActionsSheet'
 import FreeRideAlertSheet from '@/components/driver/FreeRideAlertSheet'
@@ -40,7 +38,7 @@ export default function FreeRidesPage() {
   const [selected, setSelected] = useState<App.FreeRide | null>(null)
   const [alertOpen, setAlertOpen] = useState(false)
   const [unlockOpen, setUnlockOpen] = useState(false)
-  const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender, addOwnRide, dropRide, access } = useFreeRides(filters)
+  const { rides, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage, removeSender, dropRide, access } = useFreeRides(filters)
 
   // Cùng khoá query với FreeRideAlertSheet — trạng thái hiện ngay trên nút chuông, sheet đọc lại
   // từ cache thay vì gọi API lần nữa khi mở.
@@ -57,11 +55,6 @@ export default function FreeRidesPage() {
   return (
     <div className="w-full flex-1 flex flex-col">
       <FreeRideFilters value={filters} onChange={changeFilters} />
-      <Link to="/driver/free/mine" data-testid="my-rides-link"
-        className="mx-4 mt-3 flex items-center justify-between rounded-card bg-white border border-border-gray px-3 py-2 text-[13px] text-navy">
-        <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[18px] text-primary">edit_note</span>Cuốc tôi đăng</span>
-        <span className="material-symbols-outlined text-[18px] text-neutral-gray">chevron_right</span>
-      </Link>
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <p className="text-[12px] text-neutral-gray flex-1">
           Cuốc do tài xế đăng. GreenCA chỉ kết nối — bạn trao đổi trực tiếp với người đăng cuốc.
@@ -93,7 +86,7 @@ export default function FreeRidesPage() {
         <EmptyState icon="cloud_off" title="Không tải được cuốc Free" description="Kiểm tra kết nối mạng rồi thử lại."
           action={{ label: 'Thử lại', onClick: () => { void refetch() } }} />
       ) : rides.length === 0 ? (
-        <EmptyState icon="local_taxi" title="Chưa có cuốc Free phù hợp" description="Chưa có cuốc phù hợp. Có cuốc thì gõ vào ô bên dưới để đăng nhé." />
+        <EmptyState icon="local_taxi" title="Chưa có cuốc Free phù hợp" description="Có cuốc thì bấm nút + giữa thanh menu để đăng nhé." />
       ) : (
         <div className="flex flex-col px-4 gap-2.5 pb-4">
           {rides.map((ride) => (
@@ -109,8 +102,6 @@ export default function FreeRidesPage() {
         </div>
       )}
       </div>
-
-      <FreeRideComposer onPosted={addOwnRide} />
 
       {selected && <FreeRideActionsSheet ride={selected} onClose={() => setSelected(null)} onSenderHidden={removeSender} />}
       {unlockOpen && <FreeRideUnlockSheet access={access} onClose={() => setUnlockOpen(false)} />}

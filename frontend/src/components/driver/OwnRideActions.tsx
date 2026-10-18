@@ -12,9 +12,11 @@ interface Props {
   // Mốc giờ hiện tại do trang truyền xuống (react-hooks/purity cấm Date.now() khi render). Tab Free đã
   // tự bỏ cuốc hết hạn nên không cần truyền; "Cuốc tôi đăng" truyền để ẩn "Đã có xe" ở cuốc hết hạn.
   now?: number | null
+  // Hàng nút nhỏ canh phải dưới bong bóng tin ở màn đăng cuốc (kiểu chat); mặc định là hàng nút to trên thẻ cuốc.
+  compact?: boolean
 }
 
-export default function OwnRideActions({ ride, onRemoved, now = null }: Props) {
+export default function OwnRideActions({ ride, onRemoved, now = null, compact = false }: Props) {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -34,12 +36,14 @@ export default function OwnRideActions({ ride, onRemoved, now = null }: Props) {
     if (result === 'failed') showToast('Không chia sẻ được trên máy này', 'error')
   }
 
-  const btn = 'flex-1 min-h-touch rounded-pill py-2 text-[13px] font-semibold flex items-center justify-center gap-1'
+  const btn = compact
+    ? 'min-h-[36px] rounded-pill px-3 text-[12px] font-semibold flex items-center justify-center gap-1'
+    : 'flex-1 min-h-touch rounded-pill py-2 text-[13px] font-semibold flex items-center justify-center gap-1'
   const open = ride.closed_at === null && (now === null || ride.expires_at > now)
 
   return (
     <>
-      <div className="flex gap-2">
+      <div className={compact ? 'flex gap-1.5 justify-end flex-wrap' : 'flex gap-2'}>
         <button type="button" data-testid="own-ride-share" onClick={() => { void share() }} className={`${btn} bg-primary text-white`}>
           <span className="material-symbols-outlined text-[18px]">share</span>Chia sẻ
         </button>
