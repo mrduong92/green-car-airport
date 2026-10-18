@@ -54,7 +54,10 @@ test('khách có điểm bật "Dùng điểm" → tổng tiền giảm, đơn c
   // mode violation here. Any match proves the spend transaction was recorded.
   await expect(page.getByText('Dùng điểm cuốc').first()).toBeVisible()
 
-  await page.goto(`${APP.customer}/customer/referrals`)
+  // Lối vào trang F1 từ tab Thống kê
+  await page.goto(`${APP.customer}/customer/stats`)
+  await page.getByTestId('stats-referrals-link').click()
+  await expect(page).toHaveURL(/\/customer\/referrals/)
   await expect(page.getByTestId('referrals-total')).toBeVisible()
 })
 
