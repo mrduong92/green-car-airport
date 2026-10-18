@@ -112,6 +112,27 @@ class Booking extends Model
         .' - (CASE WHEN points_refunded_at IS NULL THEN COALESCE(points_used, 0) ELSE 0 END) * 1000'
         .' + COALESCE(surcharge, 0) + COALESCE(collection_fee, 0)';
 
+    /** Ngày HOÀN THÀNH cho báo cáo: completed_at, cuốc cũ chưa có cột này thì dùng created_at. */
+    public static function completedAtSql(string $table = 'bookings'): string
+    {
+        return "COALESCE({$table}.completed_at, {$table}.created_at)";
+    }
+
+    /**
+     * VNĐ phí app app THỰC giữ lại của một cuốc đã hoàn thành (SQL, dùng trong SUM):
+     * (charged_fee_points − held_shortfall_points) × 1000 — đúng số đã trừ/bù lúc nhận, không
+     * tính lại theo tỉ lệ hiện tại. Cuốc cũ (charged_fee_points NULL) thì dùng công thức cũ
+     * appFeePoints() − points_used theo $feePercent. Portable MySQL/SQLite.
+     */
+    public static function keptAppFeeVndSql(float $feePercent, string $table = 'bookings'): string
+    {
+        $pct = (string) $feePercent; // float từ app_settings — không phải input người dùng
+
+        return "(CASE WHEN {$table}.charged_fee_points IS NULL"
+            ." THEN ROUND(({$table}.price - COALESCE({$table}.discount, 0)) * {$pct} / 100000) - COALESCE({$table}.points_used, 0)"
+            ." ELSE {$table}.charged_fee_points - COALESCE({$table}.held_shortfall_points, 0) END) * 1000";
+    }
+
     /**
      * Phí app trừ tài xế lúc nhận cuốc: phí trừ đi số điểm khách dùng (app bù) — tài xế thu ít
      * tiền mặt hơn đúng chừng đó nên vẫn nhận đủ phần trăm giá cơ sở của mình. Khi tỉ lệ phí

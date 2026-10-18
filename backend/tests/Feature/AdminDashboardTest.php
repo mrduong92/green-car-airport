@@ -4,16 +4,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-/**
- * DashboardController, khác RevenueController, không dùng DATE_FORMAT nên chạy
- * được trên sqlite — đặt test điểm trừ phí app ở đây (AdminRevenueTest bị skip
- * toàn bộ trên sqlite vì cần MySQL).
- */
 class AdminDashboardTest extends TestCase
 {
     use RefreshDatabase;
@@ -23,9 +19,8 @@ class AdminDashboardTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $customer = User::factory()->create(['role' => 'customer']);
 
-        // revenue_today (DashboardController) dùng `price` thô (chưa trừ discount) →
-        // phí 20% × 500.000 = 100.000. Khách dùng 40 điểm (app bù 40.000đ) →
-        // phí thực thu = 100.000 - 40.000 = 60.000.
+        // Cuốc cũ (charged_fee_points NULL): phí = appFeePoints − points_used =
+        // 20% × (500.000 − 50.000) = 90 điểm − 40 điểm khách dùng = 50.000đ.
         Booking::create([
             'customer_id' => $customer->id, 'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
             'date' => now()->format('Y-m-d'), 'time' => '08:00', 'vehicle_type' => 'sedan_4',
@@ -35,6 +30,35 @@ class AdminDashboardTest extends TestCase
 
         $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard')->assertOk();
 
-        $res->assertJsonPath('app_fee_today', 60_000);
+        $res->assertJsonPath('app_fee_today', 50_000);
+    }
+
+    public function test_app_fee_today_uses_fee_kept_and_completed_at(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $base = [
+            'customer_id' => $customer->id, 'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
+            'date' => now()->format('Y-m-d'), 'time' => '08:00', 'vehicle_type' => 'sedan_4',
+            'distance_km' => 30, 'surcharge' => 0, 'status' => 'completed',
+        ];
+        // Tạo 3 ngày trước, hoàn thành hôm nay; nhận ở 20% (trừ 100 − 50 điểm = 50).
+        $a = Booking::create($base + [
+            'price' => 500_000, 'discount' => 0, 'points_used' => 50,
+            'charged_fee_points' => 50, 'held_shortfall_points' => 0, 'completed_at' => now(),
+        ]);
+        Booking::whereKey($a->id)->update(['created_at' => now()->subDays(3)]);
+        // Tạo hôm nay nhưng hoàn thành hôm qua — không tính hôm nay.
+        Booking::create($base + [
+            'price' => 900_000, 'discount' => 0, 'points_used' => 0,
+            'charged_fee_points' => 180, 'held_shortfall_points' => 0, 'completed_at' => now()->subDay(),
+        ]);
+
+        AppSetting::set(AppSetting::APP_FEE_PERCENT, '10'); // đổi tỉ lệ sau khi nhận — không ảnh hưởng
+
+        $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard')->assertOk();
+
+        $res->assertJsonPath('trips_today', 1);
+        $res->assertJsonPath('app_fee_today', 50_000);
     }
 }

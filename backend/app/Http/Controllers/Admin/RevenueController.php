@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\Booking;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class RevenueController extends Controller
 {
@@ -32,26 +33,29 @@ class RevenueController extends Controller
             ],
         };
 
-        $expr = "DATE_FORMAT(created_at, '{$groupFmt}')";
+        // Cuốc hoàn thành lọc/gom theo NGÀY HOÀN THÀNH (completed_at, cuốc cũ thì
+        // created_at) — cuốc đặt trước nhiều ngày phải tính vào ngày chạy xong.
+        $doneAt = Booking::completedAtSql();
+        $expr = $this->dateLabel($doneAt, $groupFmt);
+        $inRange = fn ($q, $a, $b) => $q->whereRaw("{$doneAt} BETWEEN ? AND ?", [$a, $b]);
 
         // ── Current period ────────────────────────────────────────────────────
-        $rows = Booking::where('status', 'completed')
-            ->whereBetween('created_at', [$from, $to])
-            ->selectRaw("{$expr} as label, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips, SUM(COALESCE(points_used, 0)) as points_used")
+        // Phí app = phí THỰC app giữ lại từng cuốc (charged_fee_points − held_shortfall_points,
+        // ghi lúc nhận) — không phải doanh thu × tỉ lệ HIỆN TẠI, vốn sai khi admin đổi tỉ lệ
+        // sau khi cuốc đã nhận. Xem Booking::keptAppFeeVndSql().
+        $feeSql = Booking::keptAppFeeVndSql(AppSetting::appFeePercent());
+        $rows = $inRange(Booking::where('status', 'completed'), $from, $to)
+            ->selectRaw("{$expr} as label, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips, SUM({$feeSql}) as fee")
             ->groupByRaw($expr)
             ->orderByRaw($expr)
             ->get();
 
         $totalRevenue = (int) $rows->sum('revenue');
         $totalTrips = (int) $rows->sum('trips');
-        // Phí app thực thu = phí tính theo rate − phần app đã bù cho khách dùng
-        // điểm (points_used quy đổi VNĐ) — không thì báo cáo nói phí cao hơn
-        // thực tế tiền app thực sự giữ lại.
-        $totalPointsVnd = (int) $rows->sum('points_used') * 1000;
+        $totalFee = (int) round($rows->sum('fee'));
 
         // ── Previous period for % change ──────────────────────────────────────
-        $prev = Booking::where('status', 'completed')
-            ->whereBetween('created_at', [$prevFrom, $prevTo])
+        $prev = $inRange(Booking::where('status', 'completed'), $prevFrom, $prevTo)
             ->selectRaw('SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips')
             ->first();
 
@@ -67,8 +71,7 @@ class RevenueController extends Controller
             : ($totalTrips > 0 ? 100.0 : 0.0);
 
         // ── Vehicle breakdown ─────────────────────────────────────────────────
-        $vehicleRows = Booking::where('status', 'completed')
-            ->whereBetween('created_at', [$from, $to])
+        $vehicleRows = $inRange(Booking::where('status', 'completed'), $from, $to)
             ->selectRaw('vehicle_type, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips')
             ->groupBy('vehicle_type')
             ->orderByRaw('revenue DESC')
@@ -81,7 +84,7 @@ class RevenueController extends Controller
         // `created_at` / `id` / `updated_at` — PHẢI qualify tên bảng, nếu không
         // MySQL báo "Column 'created_at' in where clause is ambiguous" (500).
         $topDrivers = Booking::where('bookings.status', 'completed')
-            ->whereBetween('bookings.created_at', [$from, $to])
+            ->whereRaw(Booking::completedAtSql('bookings').' BETWEEN ? AND ?', [$from, $to])
             ->whereNotNull('bookings.driver_id')
             ->join('users', 'bookings.driver_id', '=', 'users.id')
             ->selectRaw('users.name, SUM(bookings.price - COALESCE(bookings.discount, 0)) as revenue, COUNT(*) as trips')
@@ -112,7 +115,7 @@ class RevenueController extends Controller
             'period' => $period,
             'total_revenue' => $totalRevenue,
             'app_fee_percent' => AppSetting::appFeePercent(),
-            'app_fee' => max(0, (int) round($totalRevenue * AppSetting::appFeeRate()) - $totalPointsVnd),
+            'app_fee' => $totalFee,
             'trips_completed' => $totalTrips,
             'avg_per_trip' => $totalTrips > 0 ? (int) round($totalRevenue / $totalTrips) : 0,
             'revenue_change' => $revenueChange,
@@ -120,7 +123,7 @@ class RevenueController extends Controller
             'chart' => $rows->map(fn ($r) => [
                 'label' => $r->label,
                 'revenue' => (int) $r->revenue,
-                'fee' => max(0, (int) round($r->revenue * AppSetting::appFeeRate()) - (int) $r->points_used * 1000),
+                'fee' => (int) round($r->fee),
             ])->values()->all(),
             'vehicle_breakdown' => $vehicleRows->map(fn ($r) => [
                 'type' => $r->vehicle_type,
@@ -135,5 +138,17 @@ class RevenueController extends Controller
             ])->values()->all(),
             'recent_trips' => $recentTrips,
         ]);
+    }
+
+    /**
+     * Nhãn ngày/giờ cho biểu đồ: DATE_FORMAT trên MySQL (production), strftime trên sqlite
+     * (test suite) — cùng mã định dạng %H/%d/%m. Gom bằng groupByRaw() trên đúng biểu thức
+     * này nên vẫn an toàn với ONLY_FULL_GROUP_BY.
+     */
+    private function dateLabel(string $column, string $fmt): string
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? "strftime('{$fmt}', {$column})"
+            : "DATE_FORMAT({$column}, '{$fmt}')";
     }
 }

@@ -11,6 +11,7 @@ use App\Models\Voucher;
 use App\Models\WalletTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -40,22 +41,24 @@ class DashboardController extends Controller
         $yesterdayStart = today()->subDay()->startOfDay();
         $yesterdayEnd = today()->subDay()->endOfDay();
 
-        $tripsToday = Booking::where('status', 'completed')->whereBetween('created_at', [$todayStart, $todayEnd])->count();
-        $tripsYesterday = Booking::where('status', 'completed')->whereBetween('created_at', [$yesterdayStart, $yesterdayEnd])->count();
+        // Cuốc hoàn thành tính theo NGÀY HOÀN THÀNH (completed_at, cuốc cũ thì created_at).
+        $doneAt = Booking::completedAtSql();
+        $completedBetween = fn ($from, $to) => Booking::where('status', 'completed')
+            ->whereRaw("{$doneAt} BETWEEN ? AND ?", [$from, $to]);
+
+        $tripsToday = $completedBetween($todayStart, $todayEnd)->count();
+        $tripsYesterday = $completedBetween($yesterdayStart, $yesterdayEnd)->count();
 
         $tripsTodayChange = $tripsYesterday > 0
             ? (int) round(($tripsToday - $tripsYesterday) / $tripsYesterday * 100)
             : ($tripsToday > 0 ? 100 : 0);
 
-        $revenueToday = (int) Booking::where('status', 'completed')
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->sum('price');
+        $revenueToday = (int) $completedBetween($todayStart, $todayEnd)->sum('price');
 
-        // Phí app thực thu = phí theo rate − phần app đã bù cho khách dùng điểm,
-        // cùng phạm vi (completed, hôm nay) với $revenueToday.
-        $pointsUsedTodayVnd = (int) Booking::where('status', 'completed')
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->sum('points_used') * 1000;
+        // Phí app = phí THỰC app giữ lại từng cuốc (ghi lúc nhận), không phải doanh thu ×
+        // tỉ lệ hiện tại — xem Booking::keptAppFeeVndSql().
+        $appFeeToday = (int) round($completedBetween($todayStart, $todayEnd)
+            ->sum(DB::raw(Booking::keptAppFeeVndSql(AppSetting::appFeePercent()))));
 
         // ── Drivers ───────────────────────────────────────────────────────────
         $driversTotal = User::where('role', 'driver')->whereNull('deleted_at')->count();
@@ -83,7 +86,7 @@ class DashboardController extends Controller
             'revenue_today' => $revenueToday,
             'drivers_online' => $driversOnline,
             'drivers_total' => $driversTotal,
-            'app_fee_today' => max(0, (int) round($revenueToday * AppSetting::appFeeRate()) - $pointsUsedTodayVnd),
+            'app_fee_today' => $appFeeToday,
             'recent_trips' => $recentTrips,
             'driver_referral_points_total' => (int) WalletTransaction::where('type', 'referral')->sum('points') * 1000,
             'customer_referral_vouchers_total' => (int) Voucher::where('code', 'like', config('business.referral_voucher_prefix').'-%')->sum('value'),
