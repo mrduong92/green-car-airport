@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { deleteAccount } from '@/api/auth'
+import { deleteAccount, getMe } from '@/api/auth'
 import { getContactSettings } from '@/api/settings'
 import { unregisterPushSubscription } from '@/push'
 import { useAuthStore } from '@/stores/auth'
@@ -21,6 +21,14 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const { data: contact } = useQuery({ queryKey: ['contact-settings'], queryFn: getContactSettings, enabled: open })
+  // Điểm thưởng KHÔNG chặn xoá (AccountDeletionService), chỉ cảnh báo — lấy số dư mới nhất lúc mở
+  // sheet thay vì user trong store (persist, có thể cũ). Tài xế không có reward_points → không cảnh báo.
+  const { data: rewardPoints = 0 } = useQuery({
+    queryKey: ['delete-account-reward-points'],
+    queryFn: () => getMe().then((r) => r.data.reward_points ?? 0),
+    enabled: open,
+    staleTime: 0,
+  })
 
   const mutation = useMutation({
     mutationFn: () => deleteAccount(needsPin ? pin : undefined),
@@ -50,6 +58,11 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
         <div className="px-4 py-4 flex flex-col gap-3 text-[13px] text-navy">
           <p><strong>Xoá ngay:</strong> họ tên, số điện thoại, mã PIN, giấy tờ và thông tin xe, thông báo, voucher chưa dùng.</p>
           <p><strong>Giữ ẩn danh:</strong> lịch sử cuốc và giao dịch điểm (chứng từ kế toán), không còn gắn với bạn.</p>
+          {rewardPoints > 0 && (
+            <p className="bg-alert-orange/10 border border-alert-orange/30 rounded-input px-3 py-2.5 text-navy">
+              Bạn còn <strong>{rewardPoints.toLocaleString('vi-VN')}</strong> điểm thưởng — điểm sẽ mất khi xoá tài khoản.
+            </p>
+          )}
           <p className="text-danger-red font-medium">Không thể khôi phục sau khi xoá.</p>
 
           {needsPin && (<>

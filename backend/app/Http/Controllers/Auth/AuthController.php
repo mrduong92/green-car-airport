@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Otp;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Services\CampaignService;
 use App\Services\ReferralService;
 use App\Support\PhoneNumber;
@@ -365,6 +366,9 @@ class AuthController extends Controller
 
         if ($user->role === 'customer') {
             $payload['is_collaborator'] = (bool) $user->is_collaborator;
+            // Số dư điểm thưởng affiliate — điểm KHÔNG chặn xoá tài khoản, nhưng màn hình xoá tài
+            // khoản cảnh báo "điểm sẽ mất" dựa vào số này.
+            $payload['reward_points'] = (int) Wallet::where('user_id', $user->id)->value('reward_points');
             if ($user->pending_penalty > 0) {
                 $payload['pending_penalty'] = (int) $user->pending_penalty;
             }
