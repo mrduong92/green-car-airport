@@ -88,7 +88,7 @@ export default function FreeRideComposer({ onPosted }: Props) {
               {allowZalo ? 'Hiện nút Gọi và nút Zalo tới số của bạn' : 'Chỉ hiện nút Gọi tới số của bạn'}
             </span>
           </span>
-          <span aria-hidden className={clsx('relative shrink-0 w-11 h-6 rounded-full transition-colors', allowZalo ? 'bg-zalo' : 'bg-border-gray')}>
+          <span aria-hidden className={clsx('relative shrink-0 w-11 h-6 rounded-full transition-colors', allowZalo ? 'bg-primary' : 'bg-border-gray')}>
             <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform', allowZalo && 'translate-x-5')} />
           </span>
         </button>
