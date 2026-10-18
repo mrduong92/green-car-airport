@@ -262,55 +262,6 @@ export default function DriversPage() {
                   )}
                 </div>
               </div>
-              {/* Action buttons */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <button onClick={() => openEdit(d)}
-                  className="text-xs bg-primary/10 text-primary rounded-pill px-3 py-1.5 font-medium">
-                  Sửa
-                </button>
-                <button onClick={() => openTopup(d)}
-                  className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
-                  Nạp điểm
-                </button>
-                <button onClick={() => setFreeAction({ kind: 'grant', driver: d })}
-                  className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
-                  {d.free_unlocked ? 'Gia hạn Free' : 'Mở khóa Free'}
-                </button>
-                {d.free_unlocked && (
-                  <button onClick={() => setFreeAction({ kind: 'revoke', driver: d })}
-                    className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
-                    Thu hồi Free
-                  </button>
-                )}
-                <button onClick={() => setHistoryTarget(d)}
-                  className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
-                  Lịch sử điểm
-                </button>
-                {d.points != null && d.points > 0 && (
-                  <button onClick={() => openDeduct(d)}
-                    className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
-                    Trừ điểm
-                  </button>
-                )}
-                {d.status === 'pending' && (
-                  <button onClick={() => approveMutation.mutate(d.id)}
-                    className="text-xs bg-success-green text-white rounded-pill px-3 py-1.5 font-medium">
-                    Duyệt
-                  </button>
-                )}
-                {d.status === 'blocked' && (
-                  <button onClick={() => unblockMutation.mutate(d.id)}
-                    className="text-xs bg-success-green/10 text-success-green rounded-pill px-3 py-1.5 font-medium">
-                    Bỏ chặn
-                  </button>
-                )}
-                {d.status !== 'blocked' && (
-                  <button onClick={() => { setBlockTarget(d); setBlockReason('') }}
-                    className="text-xs bg-danger-red text-white rounded-pill px-3 py-1.5 font-medium">
-                    Block
-                  </button>
-                )}
-              </div>
             </div>
             {/* Vehicle info row */}
             {(d.vehicle_make || d.vehicle_plate) && (
@@ -349,6 +300,55 @@ export default function DriversPage() {
                 </div>
               </div>
             )}
+            {/* Thao tác: một hàng ngang, tự xuống dòng khi hẹp — không chồng dọc làm thẻ cao vống */}
+            <div className="mt-3 pt-3 border-t border-border-soft flex flex-wrap gap-1.5">
+              <button onClick={() => openEdit(d)}
+                className="text-xs bg-primary/10 text-primary rounded-pill px-3 py-1.5 font-medium">
+                Sửa
+              </button>
+              <button onClick={() => openTopup(d)}
+                className="text-xs bg-amber-50 text-gold rounded-pill px-3 py-1.5 font-medium">
+                Nạp điểm
+              </button>
+              <button onClick={() => setFreeAction({ kind: 'grant', driver: d })}
+                className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
+                {d.free_unlocked ? 'Gia hạn Free' : 'Mở khóa Free'}
+              </button>
+              {d.free_unlocked && (
+                <button onClick={() => setFreeAction({ kind: 'revoke', driver: d })}
+                  className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
+                  Thu hồi Free
+                </button>
+              )}
+              <button onClick={() => setHistoryTarget(d)}
+                className="text-xs bg-light-green text-primary rounded-pill px-3 py-1.5 font-medium">
+                Lịch sử điểm
+              </button>
+              {d.points != null && d.points > 0 && (
+                <button onClick={() => openDeduct(d)}
+                  className="text-xs bg-danger-red/10 text-danger-red rounded-pill px-3 py-1.5 font-medium">
+                  Trừ điểm
+                </button>
+              )}
+              {d.status === 'pending' && (
+                <button onClick={() => approveMutation.mutate(d.id)}
+                  className="text-xs bg-success-green text-white rounded-pill px-3 py-1.5 font-medium">
+                  Duyệt
+                </button>
+              )}
+              {d.status === 'blocked' && (
+                <button onClick={() => unblockMutation.mutate(d.id)}
+                  className="text-xs bg-success-green/10 text-success-green rounded-pill px-3 py-1.5 font-medium">
+                  Bỏ chặn
+                </button>
+              )}
+              {d.status !== 'blocked' && (
+                <button onClick={() => { setBlockTarget(d); setBlockReason('') }}
+                  className="text-xs bg-danger-red text-white rounded-pill px-3 py-1.5 font-medium">
+                  Block
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
