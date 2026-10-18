@@ -259,10 +259,13 @@ class TripController extends Controller
             // Đổi trạng thái + toàn bộ tiền trong CÙNG một transaction: lỗi ở bất kỳ
             // bước nào thì cuốc vẫn `in_progress`, không còn cảnh "hoàn thành nhưng
             // không trừ/cộng điểm" như trước.
-            $error = DB::transaction(fn () => $this->settleCompletion($booking, $request->user()));
-            if ($error) {
-                return response()->json(['message' => $error], 422);
+            // settleCompletion() trả chuỗi lỗi (rollback) hoặc kết quả AffiliateService::settle()
+            // để bắn thông báo điểm thưởng SAU khi transaction đã commit.
+            $result = DB::transaction(fn () => $this->settleCompletion($booking, $request->user()));
+            if (is_string($result)) {
+                return response()->json(['message' => $result], 422);
             }
+            $affiliateResult = $result;
             $booking->refresh();
         } else {
             $booking->update(['status' => $newStatus]);
@@ -286,12 +289,12 @@ class TripController extends Controller
             // T4 — notify driver of earnings
             $request->user()->notify(new TripCompletedDriverNotification($booking));
 
-            if ($this->affiliateResult['cashback'] > 0) {
-                $booking->customer?->notify(new RewardPointsEarnedNotification($booking, $this->affiliateResult['cashback'], 'cashback'));
+            if ($affiliateResult['cashback'] > 0) {
+                $booking->customer?->notify(new RewardPointsEarnedNotification($booking, $affiliateResult['cashback'], 'cashback'));
             }
-            if ($this->affiliateResult['referrer_id']) {
-                User::find($this->affiliateResult['referrer_id'])
-                    ?->notify(new RewardPointsEarnedNotification($booking, $this->affiliateResult['commission'], 'commission'));
+            if ($affiliateResult['referrer_id']) {
+                User::find($affiliateResult['referrer_id'])
+                    ?->notify(new RewardPointsEarnedNotification($booking, $affiliateResult['commission'], 'commission'));
             }
         }
 
@@ -442,14 +445,18 @@ class TripController extends Controller
 
     /**
      * Quyết toán khi hoàn thành cuốc. Chạy TRONG transaction; trả về thông báo lỗi
-     * (rollback, cuốc giữ nguyên `in_progress`) hoặc null nếu thành công.
+     * (chuỗi — rollback, cuốc giữ nguyên `in_progress`) hoặc, nếu thành công, kết quả
+     * AffiliateService::settle() (['cashback','commission','referrer_id']) để updateStatus()
+     * bắn thông báo sau transaction.
+     *
+     * @return string|array{cashback: int, commission: int, referrer_id: ?int}
      *
      * Cuốc nhận từ bản này đã tạm giữ thu hộ + phí phạt trong ví lúc nhận
      * (`charged_fee_points` có giá trị), nên ở đây chỉ còn cộng điểm cho CTV. Cuốc
      * nhận TRƯỚC bản này (`charged_fee_points` NULL) vẫn trừ tài xế tại đây như cũ — ví không đủ thì
      * chặn hoàn thành, báo nạp thêm, thay vì để SQL nổ giữa chừng.
      */
-    private function settleCompletion(Booking $booking, $driver): ?string
+    private function settleCompletion(Booking $booking, $driver): string|array
     {
         $booking = Booking::lockForUpdate()->find($booking->id);
         if ($booking->status !== 'in_progress' || $booking->driver_id !== $driver->id) {
@@ -486,15 +493,12 @@ class TripController extends Controller
 
         $driver->driverProfile?->increment('trips_count');
 
-        $this->affiliateResult = app(AffiliateService::class)->settle($booking);
+        $affiliateResult = app(AffiliateService::class)->settle($booking);
 
         $booking->update(['status' => 'completed', 'completed_at' => now()]);
 
-        return null;
+        return $affiliateResult;
     }
-
-    /** Kết quả AffiliateService::settle() của lần hoàn thành vừa chạy trong settleCompletion(), để updateStatus() bắn thông báo sau transaction. */
-    private array $affiliateResult = ['cashback' => 0, 'commission' => 0, 'referrer_id' => null];
 
     /** Memo theo request: formatTrip chạy cho từng cuốc trong danh sách, tránh query app_settings N lần. */
     private ?float $feePercent = null;

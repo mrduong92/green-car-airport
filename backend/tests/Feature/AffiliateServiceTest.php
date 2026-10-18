@@ -43,15 +43,11 @@ class AffiliateServiceTest extends TestCase
         $this->assertSame(0, AffiliateService::rewardPoints(-1000, 5));
     }
 
-    public function test_spendable_is_min_of_balance_and_cap(): void
+    public function test_cap_is_min_of_balance_and_max_rate(): void
     {
-        $c = User::factory()->create(['role' => 'customer']);
-        Wallet::create(['user_id' => $c->id, 'reward_points' => 100]);
-        $this->assertSame(45, $this->svc()->spendable($c, 450_000));   // trần 10% × 450k = 45 điểm
-        Wallet::where('user_id', $c->id)->update(['reward_points' => 7]);
-        $this->assertSame(7, $this->svc()->spendable($c, 450_000));
-        $other = User::factory()->create(['role' => 'customer']);       // chưa có ví
-        $this->assertSame(0, $this->svc()->spendable($other, 450_000));
+        $this->assertSame(45, AffiliateService::cap(100, 450_000));   // trần 10% × 450k = 45 điểm
+        $this->assertSame(7, AffiliateService::cap(7, 450_000));
+        $this->assertSame(0, AffiliateService::cap(0, 450_000));       // chưa có ví / hết điểm
     }
 
     public function test_hold_uses_current_balance_and_never_goes_negative(): void

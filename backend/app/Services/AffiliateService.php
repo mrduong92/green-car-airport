@@ -27,17 +27,16 @@ class AffiliateService
         return (int) floor($basePrice * $percent / 100 / 1000);
     }
 
-    public function spendable(User $customer, int $basePrice): int
+    /** Điểm được dùng cho một cuốc: min(số dư điểm thưởng, trần max_rate% giá cơ sở). Nguồn DUY NHẤT — hold() gọi trên số dư đã khoá. */
+    public static function cap(int $balance, int $basePrice): int
     {
-        $balance = (int) Wallet::where('user_id', $customer->id)->value('reward_points');
-
-        return min($balance, self::rewardPoints($basePrice, AppSetting::pointsMaxRatePercent()));
+        return max(0, min($balance, self::rewardPoints($basePrice, AppSetting::pointsMaxRatePercent())));
     }
 
     public function hold(Booking $booking): int
     {
         $wallet = Wallet::lockedFor($booking->customer_id);
-        $points = min((int) $wallet->reward_points, self::rewardPoints($booking->basePrice(), AppSetting::pointsMaxRatePercent()));
+        $points = self::cap((int) $wallet->reward_points, $booking->basePrice());
         if ($points <= 0) {
             return 0;
         }
