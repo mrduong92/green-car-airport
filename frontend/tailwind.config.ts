@@ -28,6 +28,8 @@ export default {
         'success-green':   '#10B981',
         'danger-red':      '#EF4444',
         info:              '#0EA5E9',
+        // Màu thương hiệu Zalo — chỉ cho nút mở Zalo (người dùng nhận ra ngay đó là Zalo).
+        zalo:              '#0068FF',
       },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'system-ui', 'sans-serif'],

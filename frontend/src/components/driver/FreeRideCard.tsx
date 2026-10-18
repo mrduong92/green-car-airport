@@ -1,5 +1,6 @@
 import RoutePoints from './RoutePoints'
 import type { ReactNode } from 'react'
+import ZaloIcon from '@/components/common/ZaloIcon'
 import { zaloLink, zaloProfileHref } from '@/utils/zalo'
 
 const DIRECTION_LABEL: Record<App.FreeRideDirection, string> = {
@@ -93,8 +94,8 @@ export default function FreeRideCard({ ride, onMore, onLocked, ownActions }: Pro
             </a>
             {ride.contact.zalo && (
               <a data-testid="free-ride-zalo" href={zaloLink(ride.contact.phone)} target="_blank" rel="noreferrer"
-                className="flex-1 min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-light-green text-primary flex items-center justify-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px]">chat</span>Zalo
+                className="flex-1 min-h-touch rounded-pill py-2.5 text-[14px] font-semibold bg-zalo text-white flex items-center justify-center gap-1.5">
+                <ZaloIcon size={20} />Zalo
               </a>
             )}
           </div>

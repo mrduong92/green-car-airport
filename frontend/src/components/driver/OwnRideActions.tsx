@@ -12,11 +12,9 @@ interface Props {
   // Mốc giờ hiện tại do trang truyền xuống (react-hooks/purity cấm Date.now() khi render). Tab Free đã
   // tự bỏ cuốc hết hạn nên không cần truyền; "Cuốc tôi đăng" truyền để ẩn "Đã có xe" ở cuốc hết hạn.
   now?: number | null
-  // Hàng nút nhỏ canh phải dưới bong bóng tin ở màn đăng cuốc (kiểu chat); mặc định là hàng nút to trên thẻ cuốc.
-  compact?: boolean
 }
 
-export default function OwnRideActions({ ride, onRemoved, now = null, compact = false }: Props) {
+export default function OwnRideActions({ ride, onRemoved, now = null }: Props) {
   const qc = useQueryClient()
   const showToast = useUiStore((s) => s.showToast)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -36,24 +34,23 @@ export default function OwnRideActions({ ride, onRemoved, now = null, compact = 
     if (result === 'failed') showToast('Không chia sẻ được trên máy này', 'error')
   }
 
-  const btn = compact
-    ? 'min-h-[36px] rounded-pill px-3 text-[12px] font-semibold flex items-center justify-center gap-1'
-    : 'flex-1 min-h-touch rounded-pill py-2 text-[13px] font-semibold flex items-center justify-center gap-1'
+  // Nút nhỏ dạng viên thuốc — quản lý cuốc của mình là thao tác phụ, không lấn át nội dung cuốc.
+  const btn = 'h-9 rounded-pill px-3.5 text-[12px] font-semibold flex items-center justify-center gap-1'
   const open = ride.closed_at === null && (now === null || ride.expires_at > now)
 
   return (
     <>
-      <div className={compact ? 'flex gap-1.5 justify-end flex-wrap' : 'flex gap-2'}>
+      <div className="flex gap-1.5 flex-wrap">
         <button type="button" data-testid="own-ride-share" onClick={() => { void share() }} className={`${btn} bg-primary text-white`}>
-          <span className="material-symbols-outlined text-[18px]">share</span>Chia sẻ
+          <span className="material-symbols-outlined text-[16px]">share</span>Chia sẻ
         </button>
         {open && (
           <button type="button" data-testid="own-ride-close" onClick={() => close.mutate()} disabled={close.isPending} className={`${btn} bg-light-green text-primary`}>
-            <span className="material-symbols-outlined text-[18px]">task_alt</span>Đã có xe
+            <span className="material-symbols-outlined text-[16px]">task_alt</span>Đã có xe
           </button>
         )}
         <button type="button" data-testid="own-ride-delete" onClick={() => setConfirmDelete(true)} className={`${btn} bg-white border border-border-gray text-danger-red`}>
-          <span className="material-symbols-outlined text-[18px]">delete</span>Xoá
+          <span className="material-symbols-outlined text-[16px]">delete</span>Xoá
         </button>
       </div>
       <ConfirmDialog open={confirmDelete} title="Xoá cuốc này?" description="Cuốc sẽ biến mất khỏi tab Free của mọi tài xế."
