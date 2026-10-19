@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Booking;
+use App\Models\BookingDriverCancellation;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,6 +96,32 @@ class DriverCancellationHistoryTest extends TestCase
         $this->assertSame('driver', $entry['cancelled_by']);
         $this->assertSame('Xe hư dọc đường', $entry['cancel_reason']);
         $this->assertSame(0, $entry['net_earning']);
+    }
+
+    /** Lịch sử bỏ cuốc hiện ĐÚNG phí tài xế đã mất (300k × 20% = 60 điểm = 60.000đ), không phải 0. */
+    public function test_driver_drop_history_shows_fee_actually_lost(): void
+    {
+        $driver = $this->makeDriver();
+        $booking = $this->makeBooking('finding_driver', null);
+
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/trips/{$booking->id}/accept")->assertOk();
+        $this->actingAs($driver, 'sanctum')
+            ->patchJson("/api/driver/trips/{$booking->id}/cancel", ['reason' => 'Bận'])
+            ->assertOk();
+
+        $entry = collect($this->actingAs($driver, 'sanctum')->getJson('/api/driver/trips/history')->assertOk()->json())
+            ->firstWhere('id', $booking->id);
+        $this->assertSame(60_000, $entry['app_fee']);
+        $this->assertSame(0, $entry['net_earning']);
+
+        $this->actingAs($driver, 'sanctum')->getJson("/api/driver/trips/{$booking->id}")->assertOk()
+            ->assertJsonPath('app_fee', 60_000);
+
+        // App lỗ (phần bù không thu lại được, forfeited âm) thì hiển thị 0 — không âm.
+        BookingDriverCancellation::where('booking_id', $booking->id)->update(['forfeited_fee_points' => -15]);
+        $entry = collect($this->actingAs($driver, 'sanctum')->getJson('/api/driver/trips/history')->json())
+            ->firstWhere('id', $booking->id);
+        $this->assertSame(0, $entry['app_fee']);
     }
 
     public function test_driver_drop_still_shows_in_history_after_another_driver_completes_it(): void

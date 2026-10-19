@@ -20,6 +20,7 @@ use App\Notifications\TripStartedNotification;
 use App\Services\AffiliateService;
 use App\Services\ReferralService;
 use App\Support\AvailableTripsCache;
+use App\Support\CancelledTripFees;
 use App\Support\VehicleCapacity;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -604,7 +605,8 @@ class TripController extends Controller
             'cancelled_at' => $log->cancelled_at->toISOString(),
             'cancelled_by' => 'driver',
             'cancel_reason' => $log->reason,
-            'app_fee' => 0,
+            // Phí tài xế THỰC mất khi bỏ (ghi lúc bỏ, xem refundAcceptCharges()); không âm.
+            'app_fee' => CancelledTripFees::driverLossVnd($log),
             'net_earning' => 0,
         ]);
     }
