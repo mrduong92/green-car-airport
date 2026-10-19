@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\User;
-use App\Services\AccountDeletionService;
 use App\Support\DateBuckets;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -99,7 +98,7 @@ class ReferralController extends Controller
             'monthly' => $monthly,
             'items' => $f1->map(fn ($u) => [
                 'id' => $u->id,
-                'name' => $u->isDeleted() ? AccountDeletionService::DELETED_NAME : $u->name,
+                'name' => $u->name, // tài khoản đã xoá: AccountDeletionService đã đổi tên thành "Người dùng đã xoá"
                 'phone_masked' => $u->isDeleted() ? '—' : self::mask($u->phone),
                 'registered_at' => $u->created_at?->toISOString(),
                 'trips' => (int) ($trips[$u->id]->trips ?? 0),
