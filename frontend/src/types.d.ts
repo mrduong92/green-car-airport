@@ -17,8 +17,6 @@ declare namespace App {
     white_plate?: boolean
     needs_terms_acceptance?: boolean
     has_password?: boolean
-    // Chỉ khách: số dư điểm thưởng affiliate — màn hình xoá tài khoản cảnh báo điểm sẽ mất.
-    reward_points?: number
   }
 
   type BookingStatus = 'pending' | 'finding_driver' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { deleteAccount, getMe } from '@/api/auth'
+import { deleteAccount } from '@/api/auth'
+import { getRewardWallet } from '@/api/rewards'
 import { getContactSettings } from '@/api/settings'
 import { unregisterPushSubscription } from '@/push'
 import { useAuthStore } from '@/stores/auth'
@@ -21,14 +22,19 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const { data: contact } = useQuery({ queryKey: ['contact-settings'], queryFn: getContactSettings, enabled: open })
-  // Điểm thưởng KHÔNG chặn xoá (AccountDeletionService), chỉ cảnh báo — lấy số dư mới nhất lúc mở
-  // sheet thay vì user trong store (persist, có thể cũ). Tài xế không có reward_points → không cảnh báo.
-  const { data: rewardPoints = 0 } = useQuery({
-    queryKey: ['delete-account-reward-points'],
-    queryFn: () => getMe().then((r) => r.data.reward_points ?? 0),
-    enabled: open,
-    staleTime: 0,
+  // Điểm thưởng KHÔNG chặn xoá (AccountDeletionService), chỉ cảnh báo — chỉ khách có ví điểm thưởng,
+  // tài xế không gọi. Lấy số dư mới nhất mỗi lần mở sheet (refetch kể cả khi đã có cache). Đang tải thì
+  // khoá nút xoá để không bỏ lỡ cảnh báo; lỗi thì cảnh báo chung và vẫn cho xoá.
+  const isCustomer = useAuthStore((s) => s.user?.role === 'customer')
+  const reward = useQuery({
+    queryKey: ['reward-wallet'],
+    queryFn: () => getRewardWallet().then((r) => r.data),
+    enabled: open && isCustomer,
+    refetchOnMount: 'always',
+    retry: false,
   })
+  const rewardPoints = reward.data?.reward_points ?? 0
+  const rewardLoading = isCustomer && reward.isFetching
 
   const mutation = useMutation({
     mutationFn: () => deleteAccount(needsPin ? pin : undefined),
@@ -58,8 +64,12 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
         <div className="px-4 py-4 flex flex-col gap-3 text-[13px] text-navy">
           <p><strong>Xoá ngay:</strong> họ tên, số điện thoại, mã PIN, giấy tờ và thông tin xe, thông báo, voucher chưa dùng.</p>
           <p><strong>Giữ ẩn danh:</strong> lịch sử cuốc và giao dịch điểm (chứng từ kế toán), không còn gắn với bạn.</p>
-          {rewardPoints > 0 && (
-            <p className="bg-alert-orange/10 border border-alert-orange/30 rounded-input px-3 py-2.5 text-navy">
+          {isCustomer && reward.isError && !reward.isFetching ? (
+            <p className="bg-alert-orange/10 border border-alert-orange/30 rounded-input px-3 py-2.5 text-navy" data-testid="delete-account-reward-warning">
+              Bạn có thể còn điểm thưởng — điểm sẽ mất khi xoá tài khoản.
+            </p>
+          ) : rewardPoints > 0 && (
+            <p className="bg-alert-orange/10 border border-alert-orange/30 rounded-input px-3 py-2.5 text-navy" data-testid="delete-account-reward-warning">
               Bạn còn <strong>{rewardPoints.toLocaleString('vi-VN')}</strong> điểm thưởng — điểm sẽ mất khi xoá tài khoản.
             </p>
           )}
@@ -97,7 +107,7 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
           <Button
             fullWidth
             variant="danger"
-            loading={mutation.isPending}
+            loading={mutation.isPending || rewardLoading}
             disabled={needsPin && pin.length !== 6}
             onClick={() => mutation.mutate()}
           >

@@ -60,6 +60,6 @@ export const getRewardTransactions = (page = 1) =>
 export const getReferrals = (params?: { from: string; to: string; group: 'day' | 'week' | 'month' }) =>
   api.get<ReferralSummary>('/customer/referrals', { params })
 
-/** Trần điểm dùng được cho một chuyến — cùng công thức với AffiliateService::spendable (làm tròn xuống). */
+/** Trần điểm dùng được cho một chuyến — cùng công thức với AffiliateService::cap() (làm tròn xuống). */
 export const spendablePoints = (balance: number, basePrice: number, maxRatePercent: number) =>
   Math.max(0, Math.min(balance, Math.floor((basePrice * maxRatePercent) / 100 / 1000)))
