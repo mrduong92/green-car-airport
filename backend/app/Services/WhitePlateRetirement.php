@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\CustomerBookingUpdated;
 use App\Events\DriverTripsUpdated;
 use App\Models\Booking;
+use App\Models\BookingCancellationFee;
 use App\Models\User;
 use App\Notifications\BookingMovedToStandardCarNotification;
 use App\Notifications\DriverCancelledNotification;
@@ -63,7 +64,10 @@ class WhitePlateRetirement
             }
 
             // Nền tảng gỡ cuốc chứ không phải tài xế tự bỏ → hoàn cả phí app.
-            $booking->refundAcceptCharges('hệ thống', refundFee: true);
+            BookingCancellationFee::record(
+                $booking, $driverId, 'system',
+                $booking->refundAcceptCharges('hệ thống', refundFee: true),
+            );
             $booking->update(['driver_id' => null, 'status' => 'finding_driver', 'accepted_at' => null]);
             $wasVip = DB::table('bookings')->where('id', $booking->id)->where('is_vip', true)->update(['is_vip' => false]) > 0;
 

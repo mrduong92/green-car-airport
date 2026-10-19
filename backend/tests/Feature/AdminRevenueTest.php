@@ -7,7 +7,9 @@ use App\Models\Booking;
 use App\Models\BookingDriverCancellation;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\WhitePlateRetirement;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AdminRevenueTest extends TestCase
@@ -223,6 +225,75 @@ class AdminRevenueTest extends TestCase
         // Bỏ cuốc ngoài kỳ thì không tính.
         BookingDriverCancellation::where('booking_id', $trip->id)->update(['cancelled_at' => now()->subDays(20)]);
         $this->actingAs($admin)->getJson('/api/admin/revenue?period=week')->assertOk()->assertJsonPath('app_fee', 0);
+    }
+
+    /**
+     * Khách huỷ cuốc mà tài xế đã TIÊU phần app bù (shortfall 25 điểm, ví còn 10): app chỉ thu
+     * lại được 10 → mất 15 điểm. Khoản lỗ này tính vào phí app theo NGÀY HUỶ (refundAcceptCharges()
+     * đã xoá charged/held trên booking, nên phải lấy từ log booking_cancellation_fees).
+     */
+    public function test_customer_cancel_with_unrecoverable_shortfall_reduces_app_fee_that_day(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $d = $this->activeDriver();
+        $c = User::factory()->create(['role' => 'customer']);
+        Wallet::create(['user_id' => $c->id, 'reward_points' => 1000]);
+        $trip = $this->pointsBooking($c);
+        AppSetting::set(AppSetting::APP_FEE_PERCENT, '5'); // phí 25 < 50 điểm khách dùng → app bù 25
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$trip->id}/accept")->assertOk();
+        Wallet::where('user_id', $d->id)->update(['points' => 10]); // tài xế đã tiêu phần bù
+        $this->actingAs($c, 'sanctum')->patchJson("/api/bookings/{$trip->id}/cancel")->assertOk();
+
+        $this->assertDatabaseHas('booking_cancellation_fees', [
+            'booking_id' => $trip->id, 'driver_id' => $d->id, 'cancelled_by' => 'customer', 'kept_fee_points' => -15,
+        ]);
+        foreach (['today', 'week', 'month'] as $period) {
+            $res = $this->actingAs($admin)->getJson("/api/admin/revenue?period={$period}")->assertOk();
+            $res->assertJsonPath('trips_completed', 0);
+            $res->assertJsonPath('app_fee', -15_000);
+            $this->assertSame(-15_000, array_sum(array_column($res->json('chart'), 'fee')));
+        }
+
+        // Huỷ ngoài kỳ thì không tính.
+        DB::table('booking_cancellation_fees')->update(['cancelled_at' => now()->subDays(20)]);
+        $this->actingAs($admin)->getJson('/api/admin/revenue?period=week')->assertOk()->assertJsonPath('app_fee', 0);
+    }
+
+    /** Khách huỷ bình thường: tài xế được hoàn đủ, app không giữ gì → không ghi log, phí app 0. */
+    public function test_normal_customer_cancel_has_no_app_fee_effect(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $d = $this->activeDriver();
+        $c = User::factory()->create(['role' => 'customer']);
+        Wallet::create(['user_id' => $c->id, 'reward_points' => 1000]);
+        $trip = $this->pointsBooking($c);
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$trip->id}/accept")->assertOk();
+        $this->actingAs($c, 'sanctum')->patchJson("/api/bookings/{$trip->id}/cancel")->assertOk();
+
+        $this->assertDatabaseCount('booking_cancellation_fees', 0);
+        $this->actingAs($admin)->getJson('/api/admin/revenue?period=week')->assertOk()
+            ->assertJsonPath('app_fee', 0)
+            ->assertJsonPath('chart', []);
+    }
+
+    /** Hệ thống gỡ cuốc (xe biển trắng) sau khi tài xế tiêu phần bù: khoản lỗ cũng vào phí app. */
+    public function test_white_plate_release_with_unrecoverable_shortfall_reduces_app_fee(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $d = $this->activeDriver();
+        $trip = $this->pointsBooking(User::factory()->create(['role' => 'customer']));
+        AppSetting::set(AppSetting::APP_FEE_PERCENT, '5');
+
+        $this->actingAs($d, 'sanctum')->postJson("/api/driver/trips/{$trip->id}/accept")->assertOk();
+        Wallet::where('user_id', $d->id)->update(['points' => 10]);
+        $this->assertSame(1, app(WhitePlateRetirement::class)->releaseDriverTrips($d->id));
+
+        $this->assertDatabaseHas('booking_cancellation_fees', [
+            'booking_id' => $trip->id, 'driver_id' => $d->id, 'cancelled_by' => 'system', 'kept_fee_points' => -15,
+        ]);
+        $this->actingAs($admin)->getJson('/api/admin/revenue?period=week')->assertOk()->assertJsonPath('app_fee', -15_000);
     }
 
     /**

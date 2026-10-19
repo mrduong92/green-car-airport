@@ -62,6 +62,35 @@ class AdminDashboardTest extends TestCase
             ->assertJsonPath('app_fee_today', 100_000);
     }
 
+    /** Khách huỷ hôm nay, app không thu lại được phần đã bù (25 − 10 = 15 điểm) → phí app hôm nay −15k. */
+    public function test_app_fee_today_includes_loss_from_customer_cancel(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $driver = User::factory()->create(['role' => 'driver']);
+        $driver->driverProfile()->create([
+            'vehicle_make' => 'Toyota', 'vehicle_model' => 'Vios', 'vehicle_plate' => '30A-12398',
+            'vehicle_year' => 2022, 'vehicle_color' => 'Trắng', 'vehicle_type' => 'sedan_4', 'status' => 'active',
+        ]);
+        Wallet::create(['user_id' => $driver->id, 'points' => 1000]);
+        $customer = User::factory()->create(['role' => 'customer']);
+        Wallet::create(['user_id' => $customer->id, 'reward_points' => 1000]);
+        $trip = Booking::create([
+            'customer_id' => $customer->id, 'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài', 'date' => now()->addDay()->format('Y-m-d'), 'time' => '08:00',
+            'vehicle_type' => 'sedan_4', 'distance_km' => 30, 'price' => 500_000, 'discount' => 0, 'surcharge' => 0,
+            'points_used' => 50, 'status' => 'finding_driver',
+        ]);
+        AppSetting::set(AppSetting::APP_FEE_PERCENT, '5');
+
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/trips/{$trip->id}/accept")->assertOk();
+        Wallet::where('user_id', $driver->id)->update(['points' => 10]);
+        $this->actingAs($customer, 'sanctum')->patchJson("/api/bookings/{$trip->id}/cancel")->assertOk();
+
+        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard')->assertOk()
+            ->assertJsonPath('trips_today', 0)
+            ->assertJsonPath('app_fee_today', -15_000);
+    }
+
     public function test_app_fee_today_uses_fee_kept_and_completed_at(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

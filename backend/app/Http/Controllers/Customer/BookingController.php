@@ -8,6 +8,7 @@ use App\Http\Requests\Customer\StoreBookingRequest;
 use App\Jobs\SendNewBookingBroadcastJob;
 use App\Models\AppSetting;
 use App\Models\Booking;
+use App\Models\BookingCancellationFee;
 use App\Models\Voucher;
 use App\Models\Wallet;
 use App\Notifications\BookingCreatedNotification;
@@ -195,7 +196,12 @@ class BookingController extends Controller
 
             // Hoàn cho tài xế đã nhận: phí app + khoản tạm giữ, theo ĐÚNG số đã trừ lúc nhận.
             if ($booking->chargedOnAccept()) {
-                $booking->refundAcceptCharges('khách', refundFee: true);
+                // Hoàn đủ nên thường giữ 0; âm khi app bù shortfall mà tài xế đã tiêu — ghi để
+                // Doanh thu/Dashboard trừ đúng khoản lỗ theo ngày huỷ.
+                BookingCancellationFee::record(
+                    $booking, $booking->driver_id, 'customer',
+                    $booking->refundAcceptCharges('khách', refundFee: true),
+                );
             } elseif ($booking->driver_id) {
                 // Cuốc nhận trước bản trừ-lúc-nhận: không có số đã ghi, tính lại phí như cũ.
                 Wallet::lockedFor($booking->driver_id)->credit(

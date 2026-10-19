@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Booking;
-use App\Models\BookingDriverCancellation;
+use App\Support\CancelledTripFees;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -49,27 +49,23 @@ class RevenueController extends Controller
             ->groupByRaw($bucket)
             ->get();
 
-        // + phí tài xế mất khi BỎ cuốc (theo ngày bỏ): refundAcceptCharges() xoá charged/waived
-        // trên booking, số app thực giữ nằm ở booking_driver_cancellations.forfeited_fee_points.
-        $dropBucket = $this->bucketSql('cancelled_at', $hourly);
-        $drops = BookingDriverCancellation::whereBetween('cancelled_at', [$from, $to])
-            ->selectRaw("{$dropBucket} as bucket, SUM(forfeited_fee_points) * 1000 as fee")
-            ->groupByRaw($dropBucket)
-            ->get();
+        // + phí app giữ lại từ cuốc KHÔNG hoàn thành (tài xế bỏ / khách huỷ / hệ thống gỡ), theo
+        // ngày huỷ: refundAcceptCharges() xoá charged/waived trên booking nên số này nằm ở log.
+        $cancelledFees = CancelledTripFees::vndByBucket($from, $to, $this->bucketSql('cancelled_at', $hourly));
 
         $chart = [];
         foreach ($rows as $r) {
             $chart[$r->bucket] = ['revenue' => (int) $r->revenue, 'fee' => (float) $r->fee];
         }
-        foreach ($drops as $d) {
-            $chart[$d->bucket] ??= ['revenue' => 0, 'fee' => 0.0];
-            $chart[$d->bucket]['fee'] += (float) $d->fee;
+        foreach ($cancelledFees as $bucketKey => $fee) {
+            $chart[$bucketKey] ??= ['revenue' => 0, 'fee' => 0.0];
+            $chart[$bucketKey]['fee'] += $fee;
         }
         ksort($chart); // khoá Y-m-d[ H] — sắp chuỗi = sắp theo thời gian
 
         $totalRevenue = (int) $rows->sum('revenue');
         $totalTrips = (int) $rows->sum('trips');
-        $totalFee = (int) round($rows->sum('fee') + $drops->sum('fee'));
+        $totalFee = (int) round($rows->sum('fee')) + array_sum($cancelledFees);
 
         // ── Previous period for % change ──────────────────────────────────────
         $prev = $inRange(Booking::where('status', 'completed'), $prevFrom, $prevTo)

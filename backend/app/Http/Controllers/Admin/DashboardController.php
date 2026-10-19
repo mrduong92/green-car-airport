@@ -5,14 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Booking;
-use App\Models\BookingDriverCancellation;
 use App\Models\DriverProfile;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\WalletTransaction;
+use App\Support\CancelledTripFees;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -46,21 +45,25 @@ class DashboardController extends Controller
         $completedBetween = fn ($from, $to) => Booking::where('status', 'completed')
             ->whereBetween('completed_at', [$from, $to]);
 
-        $tripsToday = $completedBetween($todayStart, $todayEnd)->count();
+        // MỘT query cho tập cuốc hoàn thành hôm nay: số cuốc, doanh thu (giá − voucher — cùng gốc với
+        // trang Doanh thu) và phí app THỰC giữ lại từng cuốc (ghi lúc nhận, không phải doanh thu ×
+        // tỉ lệ hiện tại — xem Booking::keptAppFeeVndSql()).
+        $feeSql = Booking::keptAppFeeVndSql(AppSetting::appFeePercent());
+        $today = $completedBetween($todayStart, $todayEnd)
+            ->selectRaw("COUNT(*) as trips, SUM(price - COALESCE(discount, 0)) as revenue, SUM({$feeSql}) as fee")
+            ->first();
+
+        $tripsToday = (int) $today->trips;
         $tripsYesterday = $completedBetween($yesterdayStart, $yesterdayEnd)->count();
 
         $tripsTodayChange = $tripsYesterday > 0
             ? (int) round(($tripsToday - $tripsYesterday) / $tripsYesterday * 100)
             : ($tripsToday > 0 ? 100 : 0);
 
-        // Cùng gốc với trang Doanh thu (total_revenue) và phí app: giá − voucher.
-        $revenueToday = (int) $completedBetween($todayStart, $todayEnd)->sum(DB::raw('price - COALESCE(discount, 0)'));
+        $revenueToday = (int) $today->revenue;
 
-        // Phí app = phí THỰC app giữ lại từng cuốc (ghi lúc nhận), không phải doanh thu ×
-        // tỉ lệ hiện tại — xem Booking::keptAppFeeVndSql(); + phí tài xế mất khi bỏ cuốc hôm nay.
-        $appFeeToday = (int) round($completedBetween($todayStart, $todayEnd)
-            ->sum(DB::raw(Booking::keptAppFeeVndSql(AppSetting::appFeePercent()))))
-            + BookingDriverCancellation::forfeitedFeeVndBetween($todayStart, $todayEnd);
+        // + phí app giữ lại từ cuốc không hoàn thành hôm nay (tài xế bỏ / khách huỷ / hệ thống gỡ).
+        $appFeeToday = (int) round((float) $today->fee) + CancelledTripFees::vndBetween($todayStart, $todayEnd);
 
         // ── Drivers ───────────────────────────────────────────────────────────
         $driversTotal = User::where('role', 'driver')->whereNull('deleted_at')->count();
