@@ -84,4 +84,49 @@ test.describe('Xoá tài khoản', () => {
     await page.getByLabel('Nhập mã PIN để xác nhận').fill(TEST_PASSWORD)
     await expect(page.getByRole('button', { name: 'Xoá vĩnh viễn' })).toBeEnabled()
   })
+
+  test('API số dư điểm treo → sau ~8s cảnh báo chung, nút xoá bấm được', async ({ page }) => {
+    // Không bao giờ trả lời — sheet phải tự hết giờ (timeout 8s), không khoá nút mãi.
+    await page.route('**/api/customer/reward-wallet', () => {})
+    await loginExisting(page, APP.customer, SEEDED.customer)
+    await expect(page).toHaveURL(/\/customer\//)
+
+    await page.goto(`${APP.customer}/customer/profile`)
+    await page.getByRole('button', { name: 'Xoá tài khoản' }).click()
+    await page.getByLabel('Nhập mã PIN để xác nhận').fill(TEST_PASSWORD)
+    const del = page.getByRole('button', { name: 'Xoá vĩnh viễn' })
+    await expect(del).toBeDisabled()
+
+    await expect(page.getByTestId('delete-account-reward-warning'))
+      .toHaveText('Bạn có thể còn điểm thưởng — điểm sẽ mất khi xoá tài khoản.', { timeout: 12_000 })
+    await expect(del).toBeEnabled()
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+  })
+
+  test('còn 300 điểm → cảnh báo số điểm; mở lại sheet lấy số dư mới', async ({ page }) => {
+    let points = 300
+    let sheetCalls = 0
+    await page.route('**/api/customer/reward-wallet', (route) => {
+      sheetCalls++
+      return route.fulfill({ json: { reward_points: points, max_rate_percent: 10, cashback_percent: 5, commission_percent: 5 } })
+    })
+    await loginExisting(page, APP.customer, SEEDED.customer)
+    await expect(page).toHaveURL(/\/customer\//)
+
+    await page.goto(`${APP.customer}/customer/profile`)
+    await page.getByRole('button', { name: 'Xoá tài khoản' }).click()
+    const warning = page.getByTestId('delete-account-reward-warning')
+    await expect(warning).toContainText('Bạn còn 300 điểm thưởng')
+    await page.getByLabel('Nhập mã PIN để xác nhận').fill(TEST_PASSWORD)
+    await expect(page.getByRole('button', { name: 'Xoá vĩnh viễn' })).toBeEnabled()
+
+    // Đóng, số dư đổi về 0 (vd vừa dùng hết điểm), mở lại → gọi lại API, không còn cảnh báo.
+    await page.getByRole('button', { name: 'Đóng' }).click()
+    points = 0
+    const before = sheetCalls
+    await page.getByRole('button', { name: 'Xoá tài khoản' }).click()
+    await expect.poll(() => sheetCalls).toBeGreaterThan(before)
+    await expect(page.getByRole('button', { name: 'Xoá vĩnh viễn' })).toBeEnabled() // tải xong
+    await expect(warning).toHaveCount(0)
+  })
 })

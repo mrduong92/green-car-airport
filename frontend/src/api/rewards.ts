@@ -54,7 +54,8 @@ export interface ReferralSummary {
   monthly: { month: string; count: number }[]
 }
 
-export const getRewardWallet = () => api.get<RewardWallet>('/customer/reward-wallet')
+export const getRewardWallet = (config?: { timeout?: number; signal?: AbortSignal }) =>
+  api.get<RewardWallet>('/customer/reward-wallet', config)
 export const getRewardTransactions = (page = 1) =>
   api.get<{ data: RewardTransaction[]; next_page: number | null }>('/customer/reward-wallet/transactions', { params: { page } })
 export const getReferrals = (params?: { from: string; to: string; group: 'day' | 'week' | 'month' }) =>
