@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Booking;
+use App\Models\BookingDriverCancellation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 
 class RevenueController extends Controller
 {
@@ -15,29 +16,28 @@ class RevenueController extends Controller
     {
         $period = $request->query('period', 'week');
 
-        [$from, $to, $prevFrom, $prevTo, $groupFmt] = match ($period) {
+        [$from, $to, $prevFrom, $prevTo, $hourly] = match ($period) {
             'today' => [
                 today()->startOfDay(), today()->endOfDay(),
                 today()->subDay()->startOfDay(), today()->subDay()->endOfDay(),
-                '%H:00',
+                true,
             ],
             'month' => [
                 now()->startOfMonth(), now()->endOfDay(),
                 now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth(),
-                '%d/%m',
+                false,
             ],
             default => [ // week
                 now()->subDays(6)->startOfDay(), now()->endOfDay(),
                 now()->subDays(13)->startOfDay(), now()->subDays(7)->endOfDay(),
-                '%d/%m',
+                false,
             ],
         };
 
-        // Cuốc hoàn thành lọc/gom theo NGÀY HOÀN THÀNH (completed_at, cuốc cũ thì
-        // created_at) — cuốc đặt trước nhiều ngày phải tính vào ngày chạy xong.
-        $doneAt = Booking::completedAtSql();
-        $expr = $this->dateLabel($doneAt, $groupFmt);
-        $inRange = fn ($q, $a, $b) => $q->whereRaw("{$doneAt} BETWEEN ? AND ?", [$a, $b]);
+        // Cuốc hoàn thành lọc/gom theo NGÀY HOÀN THÀNH (completed_at — mọi cuốc completed đều có,
+        // xem migration 2026_10_19_000005) — cuốc đặt trước nhiều ngày tính vào ngày chạy xong.
+        $inRange = fn ($q, $a, $b) => $q->whereBetween('completed_at', [$a, $b]);
+        $bucket = $this->bucketSql('completed_at', $hourly);
 
         // ── Current period ────────────────────────────────────────────────────
         // Phí app = phí THỰC app giữ lại từng cuốc (charged_fee_points − held_shortfall_points,
@@ -45,14 +45,31 @@ class RevenueController extends Controller
         // sau khi cuốc đã nhận. Xem Booking::keptAppFeeVndSql().
         $feeSql = Booking::keptAppFeeVndSql(AppSetting::appFeePercent());
         $rows = $inRange(Booking::where('status', 'completed'), $from, $to)
-            ->selectRaw("{$expr} as label, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips, SUM({$feeSql}) as fee")
-            ->groupByRaw($expr)
-            ->orderByRaw($expr)
+            ->selectRaw("{$bucket} as bucket, SUM(price - COALESCE(discount, 0)) as revenue, COUNT(*) as trips, SUM({$feeSql}) as fee")
+            ->groupByRaw($bucket)
             ->get();
+
+        // + phí tài xế mất khi BỎ cuốc (theo ngày bỏ): refundAcceptCharges() xoá charged/waived
+        // trên booking, số app thực giữ nằm ở booking_driver_cancellations.forfeited_fee_points.
+        $dropBucket = $this->bucketSql('cancelled_at', $hourly);
+        $drops = BookingDriverCancellation::whereBetween('cancelled_at', [$from, $to])
+            ->selectRaw("{$dropBucket} as bucket, SUM(forfeited_fee_points) * 1000 as fee")
+            ->groupByRaw($dropBucket)
+            ->get();
+
+        $chart = [];
+        foreach ($rows as $r) {
+            $chart[$r->bucket] = ['revenue' => (int) $r->revenue, 'fee' => (float) $r->fee];
+        }
+        foreach ($drops as $d) {
+            $chart[$d->bucket] ??= ['revenue' => 0, 'fee' => 0.0];
+            $chart[$d->bucket]['fee'] += (float) $d->fee;
+        }
+        ksort($chart); // khoá Y-m-d[ H] — sắp chuỗi = sắp theo thời gian
 
         $totalRevenue = (int) $rows->sum('revenue');
         $totalTrips = (int) $rows->sum('trips');
-        $totalFee = (int) round($rows->sum('fee'));
+        $totalFee = (int) round($rows->sum('fee') + $drops->sum('fee'));
 
         // ── Previous period for % change ──────────────────────────────────────
         $prev = $inRange(Booking::where('status', 'completed'), $prevFrom, $prevTo)
@@ -84,7 +101,7 @@ class RevenueController extends Controller
         // `created_at` / `id` / `updated_at` — PHẢI qualify tên bảng, nếu không
         // MySQL báo "Column 'created_at' in where clause is ambiguous" (500).
         $topDrivers = Booking::where('bookings.status', 'completed')
-            ->whereRaw(Booking::completedAtSql('bookings').' BETWEEN ? AND ?', [$from, $to])
+            ->whereBetween('bookings.completed_at', [$from, $to])
             ->whereNotNull('bookings.driver_id')
             ->join('users', 'bookings.driver_id', '=', 'users.id')
             ->selectRaw('users.name, SUM(bookings.price - COALESCE(bookings.discount, 0)) as revenue, COUNT(*) as trips')
@@ -120,10 +137,10 @@ class RevenueController extends Controller
             'avg_per_trip' => $totalTrips > 0 ? (int) round($totalRevenue / $totalTrips) : 0,
             'revenue_change' => $revenueChange,
             'trips_change' => $tripsChange,
-            'chart' => $rows->map(fn ($r) => [
-                'label' => $r->label,
-                'revenue' => (int) $r->revenue,
-                'fee' => (int) round($r->fee),
+            'chart' => collect($chart)->map(fn ($c, $key) => [
+                'label' => $this->bucketLabel((string) $key, $hourly),
+                'revenue' => $c['revenue'],
+                'fee' => (int) round($c['fee']),
             ])->values()->all(),
             'vehicle_breakdown' => $vehicleRows->map(fn ($r) => [
                 'type' => $r->vehicle_type,
@@ -141,14 +158,20 @@ class RevenueController extends Controller
     }
 
     /**
-     * Nhãn ngày/giờ cho biểu đồ: DATE_FORMAT trên MySQL (production), strftime trên sqlite
-     * (test suite) — cùng mã định dạng %H/%d/%m. Gom bằng groupByRaw() trên đúng biểu thức
-     * này nên vẫn an toàn với ONLY_FULL_GROUP_BY.
+     * Khoá gom biểu đồ, SQL portable MySQL/sqlite (không rẽ nhánh theo driver): DATE(col) → 'Y-m-d';
+     * theo giờ thì SUBSTR(col, 1, 13) → 'Y-m-d H' (cả hai đều biểu diễn datetime dạng
+     * 'Y-m-d H:i:s'). Gom bằng groupByRaw() trên đúng biểu thức này — an toàn ONLY_FULL_GROUP_BY.
      */
-    private function dateLabel(string $column, string $fmt): string
+    private function bucketSql(string $column, bool $hourly): string
     {
-        return DB::connection()->getDriverName() === 'sqlite'
-            ? "strftime('{$fmt}', {$column})"
-            : "DATE_FORMAT({$column}, '{$fmt}')";
+        return $hourly ? "SUBSTR({$column}, 1, 13)" : "DATE({$column})";
+    }
+
+    /** Nhãn biểu đồ dựng ở PHP từ khoá gom: 'H:00' (hôm nay) hoặc 'd/m'. */
+    private function bucketLabel(string $key, bool $hourly): string
+    {
+        return $hourly
+            ? substr($key, 11, 2).':00'
+            : Carbon::createFromFormat('Y-m-d', substr($key, 0, 10))->format('d/m');
     }
 }

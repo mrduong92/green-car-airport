@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Booking;
+use App\Models\BookingDriverCancellation;
 use App\Models\DriverProfile;
 use App\Models\User;
 use App\Models\Voucher;
@@ -41,10 +42,9 @@ class DashboardController extends Controller
         $yesterdayStart = today()->subDay()->startOfDay();
         $yesterdayEnd = today()->subDay()->endOfDay();
 
-        // Cuốc hoàn thành tính theo NGÀY HOÀN THÀNH (completed_at, cuốc cũ thì created_at).
-        $doneAt = Booking::completedAtSql();
+        // Cuốc hoàn thành tính theo NGÀY HOÀN THÀNH (completed_at).
         $completedBetween = fn ($from, $to) => Booking::where('status', 'completed')
-            ->whereRaw("{$doneAt} BETWEEN ? AND ?", [$from, $to]);
+            ->whereBetween('completed_at', [$from, $to]);
 
         $tripsToday = $completedBetween($todayStart, $todayEnd)->count();
         $tripsYesterday = $completedBetween($yesterdayStart, $yesterdayEnd)->count();
@@ -53,12 +53,14 @@ class DashboardController extends Controller
             ? (int) round(($tripsToday - $tripsYesterday) / $tripsYesterday * 100)
             : ($tripsToday > 0 ? 100 : 0);
 
-        $revenueToday = (int) $completedBetween($todayStart, $todayEnd)->sum('price');
+        // Cùng gốc với trang Doanh thu (total_revenue) và phí app: giá − voucher.
+        $revenueToday = (int) $completedBetween($todayStart, $todayEnd)->sum(DB::raw('price - COALESCE(discount, 0)'));
 
         // Phí app = phí THỰC app giữ lại từng cuốc (ghi lúc nhận), không phải doanh thu ×
-        // tỉ lệ hiện tại — xem Booking::keptAppFeeVndSql().
+        // tỉ lệ hiện tại — xem Booking::keptAppFeeVndSql(); + phí tài xế mất khi bỏ cuốc hôm nay.
         $appFeeToday = (int) round($completedBetween($todayStart, $todayEnd)
-            ->sum(DB::raw(Booking::keptAppFeeVndSql(AppSetting::appFeePercent()))));
+            ->sum(DB::raw(Booking::keptAppFeeVndSql(AppSetting::appFeePercent()))))
+            + BookingDriverCancellation::forfeitedFeeVndBetween($todayStart, $todayEnd);
 
         // ── Drivers ───────────────────────────────────────────────────────────
         $driversTotal = User::where('role', 'driver')->whereNull('deleted_at')->count();

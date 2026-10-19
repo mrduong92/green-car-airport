@@ -207,6 +207,7 @@ class BookingSeeder extends Seeder
                 'vehicle_type'    => $row['vehicle_type'],
                 'status'          => $row['status'],
                 'cancelled_at'    => $row['status'] === 'cancelled' ? $createdAt->copy()->addMinutes(5) : null,
+                'completed_at'    => $row['status'] === 'completed' ? $createdAt : null,
                 'created_at'      => $createdAt,
                 'updated_at'      => $createdAt,
             ]);
@@ -291,6 +292,7 @@ class BookingSeeder extends Seeder
                     'discount'     => 0,
                     'vehicle_type' => 'sedan_4',
                     'status'       => 'completed',
+                    'completed_at' => $ts,
                     'created_at'   => $ts,
                     'updated_at'   => $ts,
                 ]);

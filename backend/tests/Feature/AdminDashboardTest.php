@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -25,12 +26,40 @@ class AdminDashboardTest extends TestCase
             'customer_id' => $customer->id, 'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
             'date' => now()->format('Y-m-d'), 'time' => '08:00', 'vehicle_type' => 'sedan_4',
             'distance_km' => 30, 'price' => 500_000, 'discount' => 50_000, 'points_used' => 40,
-            'surcharge' => 0, 'status' => 'completed',
+            'surcharge' => 0, 'status' => 'completed', 'completed_at' => now(),
         ]);
 
         $res = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard')->assertOk();
 
         $res->assertJsonPath('app_fee_today', 50_000);
+        // Doanh thu cùng gốc với trang Doanh thu: giá − voucher.
+        $res->assertJsonPath('revenue_today', 450_000);
+    }
+
+    /** Phí tài xế mất khi bỏ cuốc hôm nay (charged giữ lại + phần miễn thu thêm) tính vào phí app hôm nay. */
+    public function test_app_fee_today_includes_driver_drop_forfeit(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $driver = User::factory()->create(['role' => 'driver']);
+        $driver->driverProfile()->create([
+            'vehicle_make' => 'Toyota', 'vehicle_model' => 'Vios', 'vehicle_plate' => '30A-12399',
+            'vehicle_year' => 2022, 'vehicle_color' => 'Trắng', 'vehicle_type' => 'sedan_4', 'status' => 'active',
+        ]);
+        Wallet::create(['user_id' => $driver->id, 'points' => 1000]);
+        $trip = Booking::create([
+            'customer_id' => User::factory()->create(['role' => 'customer'])->id, 'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài', 'date' => now()->addDay()->format('Y-m-d'), 'time' => '08:00',
+            'vehicle_type' => 'sedan_4', 'distance_km' => 30, 'price' => 500_000, 'discount' => 0, 'surcharge' => 0,
+            'points_used' => 50, 'status' => 'finding_driver',
+        ]);
+
+        $this->actingAs($driver, 'sanctum')->postJson("/api/driver/trips/{$trip->id}/accept")->assertOk();
+        $this->actingAs($driver, 'sanctum')->patchJson("/api/driver/trips/{$trip->id}/cancel", ['reason' => 'Bận'])->assertOk();
+
+        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard')->assertOk()
+            ->assertJsonPath('trips_today', 0)
+            ->assertJsonPath('revenue_today', 0)
+            ->assertJsonPath('app_fee_today', 100_000);
     }
 
     public function test_app_fee_today_uses_fee_kept_and_completed_at(): void

@@ -112,25 +112,23 @@ class Booking extends Model
         .' - (CASE WHEN points_refunded_at IS NULL THEN COALESCE(points_used, 0) ELSE 0 END) * 1000'
         .' + COALESCE(surcharge, 0) + COALESCE(collection_fee, 0)';
 
-    /** Ngày HOÀN THÀNH cho báo cáo: completed_at, cuốc cũ chưa có cột này thì dùng created_at. */
-    public static function completedAtSql(string $table = 'bookings'): string
-    {
-        return "COALESCE({$table}.completed_at, {$table}.created_at)";
-    }
-
     /**
      * VNĐ phí app app THỰC giữ lại của một cuốc đã hoàn thành (SQL, dùng trong SUM):
      * (charged_fee_points − held_shortfall_points) × 1000 — đúng số đã trừ/bù lúc nhận, không
      * tính lại theo tỉ lệ hiện tại. Cuốc cũ (charged_fee_points NULL) thì dùng công thức cũ
-     * appFeePoints() − points_used theo $feePercent. Portable MySQL/SQLite.
+     * appFeePoints() − points_used theo $feePercent. Portable MySQL/SQLite: chia cho `100000.0`
+     * (không phải số nguyên) để ROUND chạy trên số thập phân ở cả hai — sqlite chia nguyên sẽ cắt
+     * 103,5 thành 103 trong khi MySQL làm tròn lên 104.
      */
     public static function keptAppFeeVndSql(float $feePercent, string $table = 'bookings'): string
     {
         $pct = (string) $feePercent; // float từ app_settings — không phải input người dùng
 
         return "(CASE WHEN {$table}.charged_fee_points IS NULL"
-            ." THEN ROUND(({$table}.price - COALESCE({$table}.discount, 0)) * {$pct} / 100000) - COALESCE({$table}.points_used, 0)"
-            ." ELSE {$table}.charged_fee_points - COALESCE({$table}.held_shortfall_points, 0) END) * 1000";
+            ." THEN ROUND(({$table}.price - COALESCE({$table}.discount, 0)) * {$pct} / 100000.0) - COALESCE({$table}.points_used, 0)"
+            // CAST AS SIGNED: hai cột UNSIGNED, MySQL trừ ra âm (app bù > phí trừ) sẽ nổ
+            // "BIGINT UNSIGNED value is out of range" — sqlite chấp nhận cùng cú pháp.
+            ." ELSE CAST({$table}.charged_fee_points AS SIGNED) - CAST(COALESCE({$table}.held_shortfall_points, 0) AS SIGNED) END) * 1000";
     }
 
     /**
@@ -182,11 +180,16 @@ class Booking extends Model
      * Ngoài khoá dòng còn một chốt nữa: chỉ lời gọi nào xoá được dấu "đã trừ"
      * (UPDATE … WHERE charged_fee_points IS NOT NULL) mới được hoàn — gọi lại trên
      * một bản cũ trong bộ nhớ sẽ không hoàn lần hai.
+     *
+     * Trả về số điểm phí app app THỰC giữ lại sau lần huỷ này (có thể âm): phí đã trừ không hoàn
+     * + phần miễn thu thêm được − phần app bù (shortfall) không thu lại được. Các cột trên booking
+     * bị xoá ở đây, nên luồng tài xế bỏ cuốc ghi số này vào BookingDriverCancellation để Doanh
+     * thu/Dashboard vẫn đếm được.
      */
-    public function refundAcceptCharges(string $cancelledBy, bool $refundFee): void
+    public function refundAcceptCharges(string $cancelledBy, bool $refundFee): int
     {
         if (! $this->chargedOnAccept() || ! $this->driver_id) {
-            return;
+            return 0;
         }
 
         $cleared = [
@@ -195,8 +198,10 @@ class Booking extends Model
         ];
         $claimed = static::whereKey($this->id)->whereNotNull('charged_fee_points')->update($cleared);
         if ($claimed === 0) {
-            return;
+            return 0;
         }
+
+        $kept = $refundFee ? 0 : (int) $this->charged_fee_points;
 
         $wallet = Wallet::lockedFor($this->driver_id);
         $wallet->credit(
@@ -222,6 +227,7 @@ class Booking extends Model
         // dịch để đối soát — không truy thu thêm ở nơi khác.
         if ($this->held_shortfall_points > 0) {
             $clawback = min($wallet->points, $this->held_shortfall_points);
+            $kept -= $this->held_shortfall_points - $clawback;
             if ($clawback > 0) {
                 $description = $clawback < $this->held_shortfall_points
                     ? "Thu lại phần app bù cuốc #{$this->id} (thiếu ".($this->held_shortfall_points - $clawback).' điểm, bỏ qua)'
@@ -239,6 +245,7 @@ class Booking extends Model
         // và ghi vào mô tả để đối soát.
         if (! $refundFee && $this->waived_fee_points > 0) {
             $forfeit = min($wallet->points, $this->waived_fee_points);
+            $kept += $forfeit;
             if ($forfeit > 0) {
                 $description = $forfeit < $this->waived_fee_points
                     ? "Thu phần phí app đã miễn nhờ điểm khách dùng cuốc #{$this->id} (thiếu ".($this->waived_fee_points - $forfeit).' điểm, bỏ qua)'
@@ -248,5 +255,7 @@ class Booking extends Model
         }
 
         $this->forceFill($cleared)->syncOriginal();
+
+        return $kept;
     }
 }

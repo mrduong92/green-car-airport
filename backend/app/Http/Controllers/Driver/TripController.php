@@ -328,14 +328,17 @@ class TripController extends Controller
                 return 'Không thể huỷ ở trạng thái này.';
             }
 
+            // forfeited_fee_points = phí app app THỰC giữ lại từ lần bỏ này — refundAcceptCharges()
+            // xoá charged/waived trên booking nên Doanh thu/Dashboard đọc số này từ log.
+            $forfeited = $booking->refundAcceptCharges('tài xế', refundFee: false);
+
             BookingDriverCancellation::create([
                 'booking_id' => $booking->id,
                 'driver_id' => $driverId,
                 'reason' => $data['reason'] ?? null,
+                'forfeited_fee_points' => $forfeited,
                 'cancelled_at' => now(),
             ]);
-
-            $booking->refundAcceptCharges('tài xế', refundFee: false);
 
             $booking->update([
                 'driver_id' => null,
