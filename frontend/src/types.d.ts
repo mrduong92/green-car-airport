@@ -161,6 +161,8 @@ declare namespace App {
     id: number
     name: string
     phone: string
+    /** Mã tài xế = nội dung chuyển khoản nạp điểm (vd GCA000123) — trả ở API admin. */
+    payment_code?: string | null
     avatar_url?: string
     is_verified: boolean
     status: 'active' | 'pending' | 'blocked'

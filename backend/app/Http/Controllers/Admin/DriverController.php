@@ -26,12 +26,16 @@ class DriverController extends Controller
                 ->where(fn ($w) => $w->whereNull('free_unlocked_until')->orWhere('free_unlocked_until', '<=', now())));
         }
 
-        if ($request->search) {
-            $s = '%' . $request->search . '%';
+        $search = trim((string) $request->search);
+        if ($search !== '') {
+            $s = '%'.$search.'%';
+            // Mã tài xế (payment_code, vd GCA000123) = nội dung CK nạp điểm — nhân viên nạp thủ công tìm theo mã này.
             $query->where(fn ($q) => $q
                 ->where('name', 'like', $s)
                 ->orWhere('phone', 'like', $s)
-                ->orWhereHas('driverProfile', fn ($q2) => $q2->where('vehicle_plate', 'like', $s))
+                ->orWhereHas('driverProfile', fn ($q2) => $q2
+                    ->where('vehicle_plate', 'like', $s)
+                    ->orWhere('payment_code', 'like', $s))
             );
         }
 
@@ -113,15 +117,15 @@ class DriverController extends Controller
         }
 
         $data = $request->validate([
-            'name'          => 'sometimes|string|max:100',
-            'vehicle_make'  => 'sometimes|string|max:50',
+            'name' => 'sometimes|string|max:100',
+            'vehicle_make' => 'sometimes|string|max:50',
             'vehicle_model' => 'sometimes|string|max:50',
             'vehicle_plate' => 'sometimes|string|max:20',
-            'vehicle_year'  => 'sometimes|integer|min:1990|max:2030',
+            'vehicle_year' => 'sometimes|integer|min:1990|max:2030',
             'vehicle_color' => 'sometimes|string|max:30',
-            'vehicle_type'  => 'sometimes|in:sedan_4,suv_5,mpv_7',
+            'vehicle_type' => 'sometimes|in:sedan_4,suv_5,mpv_7',
             // Xe biển trắng (xe cá nhân): bị chặn nhận mọi cuốc. Admin bỏ cờ khi xe đã đổi sang biển vàng.
-            'white_plate'   => 'sometimes|boolean',
+            'white_plate' => 'sometimes|boolean',
         ]);
 
         if (isset($data['name'])) {
@@ -150,7 +154,7 @@ class DriverController extends Controller
 
         $user->driverProfile()->updateOrCreate(
             ['user_id' => $user->id],
-            ['status'  => 'active', 'is_verified' => true],
+            ['status' => 'active', 'is_verified' => true],
         );
 
         app(ReferralService::class)->processDriverReferral(
@@ -165,33 +169,34 @@ class DriverController extends Controller
         $p = $u->driverProfile;
 
         return [
-            'id'             => $u->id,
-            'name'           => $u->name,
-            'phone'          => $u->phone,
-            'vehicle_make'   => $p?->vehicle_make,
-            'vehicle_model'  => $p?->vehicle_model,
-            'vehicle_plate'  => $p?->vehicle_plate,
-            'vehicle_year'   => $p?->vehicle_year,
-            'vehicle_color'  => $p?->vehicle_color,
-            'vehicle_type'   => $p?->vehicle_type,
-            'white_plate'    => (bool) $p?->white_plate,
-            'status'         => $p?->status ?? 'pending',
+            'id' => $u->id,
+            'name' => $u->name,
+            'phone' => $u->phone,
+            'payment_code' => $p?->payment_code,
+            'vehicle_make' => $p?->vehicle_make,
+            'vehicle_model' => $p?->vehicle_model,
+            'vehicle_plate' => $p?->vehicle_plate,
+            'vehicle_year' => $p?->vehicle_year,
+            'vehicle_color' => $p?->vehicle_color,
+            'vehicle_type' => $p?->vehicle_type,
+            'white_plate' => (bool) $p?->white_plate,
+            'status' => $p?->status ?? 'pending',
             'blocked_reason' => $p?->blocked_reason,
-            'is_verified'    => (bool) ($p?->is_verified),
-            'is_online'      => (bool) ($p?->is_online),
-            'rating'         => $p ? (float) $p->rating : null,
-            'trips_count'    => $p?->trips_count ?? 0,
-            'points'                    => $u->wallet?->points ?? 0,
-            'free_unlocked'       => (bool) $p?->hasFreeAccess(),
+            'is_verified' => (bool) ($p?->is_verified),
+            'is_online' => (bool) ($p?->is_online),
+            'rating' => $p ? (float) $p->rating : null,
+            'trips_count' => $p?->trips_count ?? 0,
+            'points' => $u->wallet?->points ?? 0,
+            'free_unlocked' => (bool) $p?->hasFreeAccess(),
             'free_unlocked_until' => $p?->hasFreeAccess() ? $p->free_unlocked_until->getTimestampMs() : null,
             'free_unlock_requested_at' => $p?->free_unlock_requested_at?->getTimestampMs(),
-            'cccd_number'               => $p?->cccd_number,
-            'gplx_number'               => $p?->gplx_number,
-            'vehicle_reg_number'        => $p?->vehicle_reg_number,
+            'cccd_number' => $p?->cccd_number,
+            'gplx_number' => $p?->gplx_number,
+            'vehicle_reg_number' => $p?->vehicle_reg_number,
             'vehicle_inspection_number' => $p?->vehicle_inspection_number,
             'vehicle_inspection_expiry' => $p?->vehicle_inspection_expiry?->format('Y-m-d'),
-            'insurance_number'          => $p?->insurance_number,
-            'insurance_expiry'          => $p?->insurance_expiry?->format('Y-m-d'),
+            'insurance_number' => $p?->insurance_number,
+            'insurance_expiry' => $p?->insurance_expiry?->format('Y-m-d'),
         ];
     }
 }

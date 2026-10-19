@@ -205,7 +205,7 @@ export default function DriversPage() {
         <div className="flex items-center gap-2 border border-border-gray rounded-input px-3 py-2 mb-3">
           <span className="material-symbols-outlined text-neutral-gray text-xl">search</span>
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên, SĐT, biển số"
+            placeholder="Tìm theo tên, SĐT, biển số, mã tài xế"
             className="flex-1 outline-none text-sm text-navy" />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-3">
@@ -241,7 +241,12 @@ export default function DriversPage() {
                     </span>
                   )}
                 </p>
-                <p className="text-caption text-neutral-gray">{d.phone}</p>
+                <p className="text-caption text-neutral-gray">
+                  {d.phone}
+                  {d.payment_code && (
+                    <> · Mã <span data-testid="driver-payment-code" className="font-mono font-semibold text-navy">{d.payment_code}</span></>
+                  )}
+                </p>
                 <p className="text-caption text-neutral-gray">
                   Free: {d.free_unlocked && d.free_unlocked_until ? `mở khóa đến ${new Date(d.free_unlocked_until).toLocaleDateString('vi-VN')}` : 'đang khóa'}
                   {!d.free_unlocked && d.free_unlock_requested_at && (
@@ -450,7 +455,10 @@ export default function DriversPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-navy">{topupTarget.name}</p>
-                  <p className="text-caption text-neutral-gray">{topupTarget.phone}</p>
+                  <p className="text-caption text-neutral-gray">
+                    {topupTarget.phone}
+                    {topupTarget.payment_code && <> · Mã <span className="font-mono font-semibold text-navy">{topupTarget.payment_code}</span></>}
+                  </p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[10px] text-neutral-gray">Số dư</p>
