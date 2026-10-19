@@ -323,6 +323,18 @@ systemctl reload php8.5-fpm
 php artisan queue:restart
 ```
 
+#### Một lần, sau bản deploy có affiliate (PR #40): điền phí tài xế mất khi bỏ cuốc cũ
+
+Các lần bỏ cuốc ghi trước cột `booking_driver_cancellations.forfeited_fee_points` đều = 0, nên
+phí app trên Doanh thu/Dashboard của các kỳ cũ bị thiếu. Lệnh dựng lại số này từ sổ ví tài xế
+(heuristic theo mô tả giao dịch). Lệnh chỉ đụng dòng đang = 0, nên chạy lại không sao.
+
+```bash
+php artisan affiliate:backfill-drop-fees           # DRY-RUN: in bảng + tổng, KHÔNG ghi. Xem kỹ trước
+php artisan affiliate:backfill-drop-fees --apply   # ghi khi số liệu hợp lý
+php artisan cache:forget admin.dashboard           # Dashboard cache 15 phút
+```
+
 ### 2. Frontend (build local, rsync lên)
 
 ⚠️ **Build từ checkout CÓ `frontend/.env`** (file không tracked — worktree mới
