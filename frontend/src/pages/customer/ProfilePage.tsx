@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { getCustomerProfile, updateCustomerProfile } from '@/api/customer'
 import { getCollaboratorWallet } from '@/api/collaborator'
+import { getRewardWallet } from '@/api/rewards'
 import { getContactSettings } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -37,6 +38,11 @@ export default function CustomerProfilePage() {
     queryKey: ['collaborator-wallet'],
     queryFn: () => getCollaboratorWallet().then((r) => r.data),
     enabled: !!user?.is_collaborator,
+  })
+
+  const { data: rewardWallet } = useQuery({
+    queryKey: ['reward-wallet'],
+    queryFn: () => getRewardWallet().then((r) => r.data),
   })
 
   const { data: contact } = useQuery({
@@ -136,6 +142,24 @@ export default function CustomerProfilePage() {
           </span>
         </div>
       )}
+
+      {/* Ví điểm thưởng */}
+      <Link
+        to="/customer/reward-wallet"
+        className="bg-white rounded-card shadow-card border border-border-soft px-4 py-3 flex items-center gap-3"
+      >
+        <div className="w-9 h-9 rounded-logo bg-gold-tint flex items-center justify-center shrink-0">
+          <span className="material-symbols-outlined text-gold text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-navy">Ví điểm thưởng</p>
+          <p className="text-[11px] text-neutral-gray">Hoàn điểm & hoa hồng giới thiệu bạn bè</p>
+        </div>
+        <span className="text-[14px] font-bold text-gold tabular-nums whitespace-nowrap">
+          {(rewardWallet?.reward_points ?? 0).toLocaleString('vi-VN')} điểm
+        </span>
+        <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
+      </Link>
 
       {/* Collaborator wallet section */}
       {user?.is_collaborator && (
@@ -282,7 +306,7 @@ export default function CustomerProfilePage() {
                       <button
                         onClick={() => navigator.share({
                           title: BRAND.name,
-                          text: `Tham gia ${BRAND.name} và nhận voucher ngay!`,
+                          text: `Đăng ký ${BRAND.name} bằng số điện thoại của tôi để nhận ưu đãi`,
                           url: `${window.location.origin}/login?ref=${user.phone}`,
                         })}
                         className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
@@ -292,6 +316,13 @@ export default function CustomerProfilePage() {
                       </button>
                     )}
                   </div>
+                  <button
+                    onClick={() => { setShowReferral(false); navigate('/customer/referrals') }}
+                    className="flex items-center justify-center gap-1.5 text-[13px] text-primary font-medium"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">group</span>
+                    Xem bạn bè đã giới thiệu
+                  </button>
                 </>
               )}
             </div>

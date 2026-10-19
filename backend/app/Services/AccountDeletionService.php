@@ -101,8 +101,11 @@ class AccountDeletionService
             // Giữ SĐT trong khuyến mãi đã nhận (chặn đăng ký lại để nhận lại ưu đãi người mới)
             // nhưng cắt liên kết với id — nếu không, ghép id là ra SĐT thật của tài khoản đã xoá.
             CampaignGrant::where('user_id', $user->id)->update(['user_id' => null]);
-            // Khách hay ghi SĐT/tên vào ghi chú cuốc.
-            Booking::where('customer_id', $user->id)->whereNotNull('note')->update(['note' => null]);
+            // Khách hay ghi SĐT/tên vào ghi chú cuốc. ->toBase(): update thẳng qua query
+            // builder, KHÔNG để Eloquent tự đẩy updated_at — cuốc đã completed của khách
+            // này (hay F1 của một người giới thiệu) không được "nhảy tháng" trong báo cáo
+            // affiliate chỉ vì bị xoá note (xem Booking::completed_at).
+            Booking::where('customer_id', $user->id)->whereNotNull('note')->toBase()->update(['note' => null]);
             $this->scrubDriverNameFromCustomerNotifications($user);
             $this->maskPhoneInBankTransfers($user);
 

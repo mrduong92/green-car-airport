@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Booking;
 use App\Notifications\BookingExpiredNotification;
+use App\Services\AffiliateService;
 use App\Support\AvailableTripsCache;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 class ExpireStaleBookings extends Command
 {
     protected $signature = 'bookings:expire';
+
     protected $description = 'Cancel bookings older than 24h still waiting for a driver';
 
     public function handle(): void
@@ -30,10 +32,12 @@ class ExpireStaleBookings extends Command
                 }
 
                 $booking->update([
-                    'status'       => 'cancelled',
+                    'status' => 'cancelled',
                     'cancelled_at' => now(),
                     'cancelled_by' => 'system',
                 ]);
+
+                app(AffiliateService::class)->refund($booking, 'hết hạn chưa có tài xế');
 
                 return $booking;
             });

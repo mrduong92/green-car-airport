@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Models\Booking;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -124,5 +125,21 @@ class AccountDeletionApiTest extends TestCase
         $this->actingAs($user, 'sanctum')->deleteJson('/api/me')->assertUnprocessable();
 
         $this->assertFalse($user->fresh()->isDeleted());
+    }
+
+    /**
+     * Điểm thưởng KHÔNG chặn xoá — app chỉ cảnh báo (số dư lấy từ /customer/reward-wallet, không
+     * nằm trong payload user của /auth/me).
+     */
+    public function test_diem_thuong_khong_chan_xoa_va_me_khong_tra_diem_thuong(): void
+    {
+        $user = $this->customer();
+        Wallet::create(['user_id' => $user->id, 'points' => 0, 'reward_points' => 37]);
+
+        $this->actingAs($user, 'sanctum')->getJson('/api/auth/me')->assertOk()->assertJsonMissingPath('reward_points');
+        $this->actingAs($user, 'sanctum')->getJson('/api/customer/reward-wallet')->assertJsonPath('reward_points', 37);
+
+        $this->actingAs($user, 'sanctum')->deleteJson('/api/me', ['password' => '123456'])->assertOk();
+        $this->assertTrue($user->fresh()->isDeleted());
     }
 }

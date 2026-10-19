@@ -1,10 +1,13 @@
 <?php
+
 // backend/tests/Feature/AppSettingsTest.php
 
 namespace Tests\Feature;
 
 use App\Models\AppSetting;
 use App\Models\User;
+use App\Models\Voucher;
+use App\Services\ReferralService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,8 +20,8 @@ class AppSettingsTest extends TestCase
         $this->getJson('/api/settings/contact')
             ->assertOk()
             ->assertJson([
-                'hotline'    => '1800 6789',
-                'email'      => 'support@greenca.vn',
+                'hotline' => '1800 6789',
+                'email' => 'support@greenca.vn',
                 'zalo_phone' => '0931919786',
             ]);
     }
@@ -38,8 +41,8 @@ class AppSettingsTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')
             ->putJson('/api/admin/settings', [
-                'contact_hotline'    => '1900 1234',
-                'contact_email'      => 'help@greenca.vn',
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
                 'contact_zalo_phone' => '0931919786',
             ])
             ->assertOk()
@@ -56,8 +59,8 @@ class AppSettingsTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')
             ->putJson('/api/admin/settings', [
-                'contact_hotline'    => '1900 1234',
-                'contact_email'      => 'help@greenca.vn',
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
                 'contact_zalo_phone' => '0931919786',
                 'free_show_group_name' => false,
             ])
@@ -73,8 +76,8 @@ class AppSettingsTest extends TestCase
 
         $this->actingAs($driver, 'sanctum')
             ->putJson('/api/admin/settings', [
-                'contact_hotline'    => '1900 1234',
-                'contact_email'      => 'help@greenca.vn',
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
                 'contact_zalo_phone' => '0931919786',
             ])
             ->assertStatus(403);
@@ -86,8 +89,8 @@ class AppSettingsTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')
             ->putJson('/api/admin/settings', [
-                'contact_hotline'    => '1900 1234',
-                'contact_email'      => 'not-an-email',
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'not-an-email',
                 'contact_zalo_phone' => '0931919786',
             ])
             ->assertStatus(422)
@@ -102,7 +105,7 @@ class AppSettingsTest extends TestCase
             ->getJson('/api/admin/settings')
             ->assertOk()
             ->assertJson([
-                'app_fee_percent'        => 20,
+                'app_fee_percent' => 20,
                 'referral_voucher_value' => 100000,
                 'referral_driver_points' => 50,
             ]);
@@ -114,10 +117,10 @@ class AppSettingsTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')
             ->putJson('/api/admin/settings', [
-                'contact_hotline'        => '1900 1234',
-                'contact_email'          => 'help@greenca.vn',
-                'contact_zalo_phone'     => '0931919786',
-                'app_fee_percent'        => 15,
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
+                'contact_zalo_phone' => '0931919786',
+                'app_fee_percent' => 15,
                 'referral_voucher_value' => 70000,
                 'referral_driver_points' => 30,
             ])
@@ -127,9 +130,9 @@ class AppSettingsTest extends TestCase
         $this->getJson('/api/settings/contact')->assertJsonFragment(['app_fee_percent' => 15]);
 
         $referrer = User::factory()->create(['role' => 'customer']);
-        $new      = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $referrer->id]);
-        app(\App\Services\ReferralService::class)->processCustomerReferral($new);
-        $this->assertEquals(70000, \App\Models\Voucher::where('user_id', $referrer->id)->value('value'));
+        $new = User::factory()->create(['role' => 'customer', 'referred_by_user_id' => $referrer->id]);
+        app(ReferralService::class)->processCustomerReferral($new);
+        $this->assertEquals(70000, Voucher::where('user_id', $referrer->id)->value('value'));
     }
 
     public function test_update_rejects_fee_percent_over_100(): void
@@ -138,12 +141,67 @@ class AppSettingsTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')
             ->putJson('/api/admin/settings', [
-                'contact_hotline'    => '1900 1234',
-                'contact_email'      => 'help@greenca.vn',
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
                 'contact_zalo_phone' => '0931919786',
-                'app_fee_percent'    => 101,
+                'app_fee_percent' => 101,
             ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['app_fee_percent']);
+    }
+
+    /**
+     * driverFeePoints() (Booking) = max(0, phí app − points_used) chỉ đúng khi trần dùng điểm
+     * (points_max_rate_percent) ≤ % phí app — nếu không, khách dùng điểm nhiều hơn phí thì tài xế
+     * bị trừ 0 nhưng vẫn mất phần chênh lệch (net_earning sai, app_fee âm). Chặn ngay ở settings.
+     */
+    public function test_update_rejects_points_max_rate_greater_than_app_fee_percent(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/admin/settings', [
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
+                'contact_zalo_phone' => '0931919786',
+                'app_fee_percent' => 20,
+                'points_max_rate_percent' => 25,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['points_max_rate_percent']);
+
+        $this->assertSame(10.0, AppSetting::pointsMaxRatePercent());
+    }
+
+    public function test_update_rejects_points_max_rate_greater_than_stored_app_fee_percent_when_fee_not_sent(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        // app_fee_percent mặc định 20 (config), không gửi lên lần này.
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/admin/settings', [
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
+                'contact_zalo_phone' => '0931919786',
+                'points_max_rate_percent' => 30,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['points_max_rate_percent']);
+    }
+
+    public function test_update_allows_points_max_rate_equal_to_app_fee_percent(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/admin/settings', [
+                'contact_hotline' => '1900 1234',
+                'contact_email' => 'help@greenca.vn',
+                'contact_zalo_phone' => '0931919786',
+                'app_fee_percent' => 20,
+                'points_max_rate_percent' => 20,
+            ])
+            ->assertOk()
+            ->assertJson(['points_max_rate_percent' => 20]);
     }
 }

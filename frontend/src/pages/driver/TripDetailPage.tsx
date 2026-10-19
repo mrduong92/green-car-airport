@@ -211,7 +211,7 @@ export default function TripDetailPage() {
           { icon: 'calendar_today', label: 'Ngày giờ',      value: fmtDateTime(trip.date, trip.time) },
           { icon: 'straighten',     label: 'Khoảng cách',   value: `${trip.distance_km} km` },
           { icon: 'payments',       label: 'Giá khách trả', value: `${trip.final_price.toLocaleString('vi')} đ` },
-          { icon: 'receipt',        label: `Phí app (${trip.app_fee_percent}%)`, value: `${trip.app_fee.toLocaleString('vi')} đ` },
+          { icon: 'receipt',        label: (trip.points_used ?? 0) > 0 ? 'Phí app (đã trừ phần app bù)' : `Phí app (${trip.app_fee_percent}%)`, value: `${trip.app_fee.toLocaleString('vi')} đ` },
         ].map(({ icon, label, value }) => (
           <div key={label} className="flex flex-col gap-1">
             <div className="flex items-center gap-1 text-[11px] text-neutral-gray">
@@ -221,6 +221,12 @@ export default function TripDetailPage() {
             <span className="text-sm font-medium text-navy">{value}</span>
           </div>
         ))}
+        {(trip.points_used ?? 0) > 0 && (
+          <div className="col-span-2 flex justify-between text-sm">
+            <span className="text-neutral-gray">Khách dùng {trip.points_used} điểm — app bù</span>
+            <span className="text-navy font-medium">{trip.points_discount!.toLocaleString('vi-VN')}đ</span>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

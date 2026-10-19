@@ -11,7 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'name', 'phone', 'role', 'password', 'pending_penalty', 'is_blocked',
@@ -22,9 +22,9 @@ class User extends Authenticatable
     protected $hidden = ['password'];
 
     protected $casts = [
-        'is_blocked'      => 'boolean',
+        'is_blocked' => 'boolean',
         'is_collaborator' => 'boolean',
-        'deleted_at'      => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     /** Đã tự xoá tài khoản — dữ liệu nhận dạng đã bị ẩn danh hoá. */
@@ -44,7 +44,7 @@ class User extends Authenticatable
         static::creating(function (User $user) {
             if (! $user->referral_code) {
                 do {
-                    $code = config('app.code_prefix') . '-' . strtoupper(Str::random(6));
+                    $code = config('app.code_prefix').'-'.strtoupper(Str::random(6));
                 } while (static::where('referral_code', $code)->exists());
                 $user->referral_code = $code;
             }
@@ -54,6 +54,11 @@ class User extends Authenticatable
     public function referredBy()
     {
         return $this->belongsTo(User::class, 'referred_by_user_id');
+    }
+
+    public function referrals()
+    {
+        return $this->hasMany(User::class, 'referred_by_user_id');
     }
 
     public function driverProfile()
@@ -74,7 +79,9 @@ class User extends Authenticatable
     /** Khách/tài xế chưa đồng ý phiên bản điều khoản hiện hành. Admin không bị hỏi. */
     public function needsTermsAcceptance(): bool
     {
-        if ($this->role === 'admin') return false;
+        if ($this->role === 'admin') {
+            return false;
+        }
 
         return ! $this->termsAcceptances()->where('version', config('terms.version'))->exists();
     }
@@ -82,9 +89,9 @@ class User extends Authenticatable
     public function acceptTerms(Request $request): void
     {
         $this->termsAcceptances()->create([
-            'version'     => config('terms.version'),
-            'ip'          => $request->ip(),
-            'user_agent'  => Str::limit((string) $request->userAgent(), 500, ''),
+            'version' => config('terms.version'),
+            'ip' => $request->ip(),
+            'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
             'accepted_at' => now(),
         ]);
     }

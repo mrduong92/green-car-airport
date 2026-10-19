@@ -26,6 +26,12 @@ class AppSetting extends Model
 
     public const FREE_SHOW_RAW_TEXT = 'free_show_raw_text';
 
+    public const AFFILIATE_CASHBACK_PERCENT = 'affiliate_cashback_percent';
+
+    public const AFFILIATE_COMMISSION_PERCENT = 'affiliate_commission_percent';
+
+    public const POINTS_MAX_RATE_PERCENT = 'points_max_rate_percent';
+
     protected $fillable = ['key', 'value'];
 
     /** Phí app dạng hệ số (vd 0.2), admin chỉnh được. */
@@ -59,6 +65,24 @@ class AppSetting extends Model
     public static function freeShow(string $key): bool
     {
         return filter_var(static::get($key, config("business.$key") ? '1' : '0'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /** % giá cơ sở hoàn thành điểm thưởng cho khách khi chuyến hoàn thành. */
+    public static function cashbackPercent(): float
+    {
+        return (float) static::get(self::AFFILIATE_CASHBACK_PERCENT, (string) config('business.affiliate_cashback_percent'));
+    }
+
+    /** % giá cơ sở chuyến của F1 cộng cho người giới thiệu (khách). */
+    public static function commissionPercent(): float
+    {
+        return (float) static::get(self::AFFILIATE_COMMISSION_PERCENT, (string) config('business.affiliate_commission_percent'));
+    }
+
+    /** Trần dùng điểm thưởng khi đặt xe, % giá cơ sở. */
+    public static function pointsMaxRatePercent(): float
+    {
+        return (float) static::get(self::POINTS_MAX_RATE_PERCENT, (string) config('business.points_max_rate_percent'));
     }
 
     public static function get(string $key, ?string $default = null): ?string

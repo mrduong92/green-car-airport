@@ -437,6 +437,13 @@ export default function BookingStatusPage() {
             </>
           )}
 
+          {(booking.points_used ?? 0) > 0 && (
+            <div data-testid="booking-points-line" className="flex justify-between text-[13px]">
+              <span className="text-neutral-gray">Điểm thưởng ({booking.points_used} điểm)</span>
+              <span className="text-primary font-medium">−{(booking.points_discount ?? 0).toLocaleString('vi-VN')}đ</span>
+            </div>
+          )}
+
           {(booking.surcharge ?? 0) > 0 && (
             <div className="flex justify-between text-[13px]">
               <span className="text-neutral-gray">Phụ phí huỷ trước</span>

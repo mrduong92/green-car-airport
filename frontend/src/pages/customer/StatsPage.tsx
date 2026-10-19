@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip,
 } from 'chart.js'
 import { getCustomerStats, type StatsPeriod } from '@/api/stats'
+import { getReferrals } from '@/api/rewards'
 import EmptyState from '@/components/common/EmptyState'
 import clsx from 'clsx'
 
@@ -60,6 +62,12 @@ export default function CustomerStatsPage() {
     },
   }
 
+  // Lối vào trang F1 đặt ở đây cho dễ thấy (trước chỉ nằm trong bottom sheet "Giới thiệu bạn bè" ở Hồ sơ).
+  const { data: referrals } = useQuery({
+    queryKey: ['customer-referrals-summary'],
+    queryFn: () => getReferrals().then((r) => r.data),
+  })
+
   return (
     <div className="w-full flex flex-col pb-6">
       {/* Filter */}
@@ -87,7 +95,7 @@ export default function CustomerStatsPage() {
             { label: 'Hoàn thành',       value: completedCount,                      unit: 'chuyến',  color: 'text-primary' },
             { label: 'Đã huỷ',           value: cancelledCount,                      unit: 'chuyến',  color: 'text-danger-red' },
             { label: 'Tổng chi tiêu',    value: totalSpent.toLocaleString('vi'),     unit: 'đ',       color: 'text-primary' },
-            { label: 'Tiết kiệm voucher',value: totalSaved > 0 ? totalSaved.toLocaleString('vi') : '0', unit: 'đ', color: 'text-success-green' },
+            { label: 'Tiết kiệm (voucher + điểm)', value: totalSaved > 0 ? totalSaved.toLocaleString('vi') : '0', unit: 'đ', color: 'text-success-green' },
           ].map(({ label, value, unit, color }) => (
             <div key={label} className="bg-white rounded-card shadow-card border border-border-soft p-4">
               <p className="text-[11px] text-neutral-gray mb-1.5">{label}</p>
@@ -96,6 +104,26 @@ export default function CustomerStatsPage() {
             </div>
           ))}
         </div>
+
+        {/* Bạn bè đã giới thiệu */}
+        <Link
+          to="/customer/referrals"
+          data-testid="stats-referrals-link"
+          className="bg-white rounded-card shadow-card border border-border-soft px-4 py-3 flex items-center gap-3 active:bg-warm-white"
+        >
+          <div className="w-9 h-9 rounded-logo bg-primary-tint flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-primary text-[18px]">group_add</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-navy">Bạn bè đã giới thiệu</p>
+            <p className="text-[11px] text-neutral-gray">
+              {referrals
+                ? `${referrals.total_f1.toLocaleString('vi-VN')} bạn · ${referrals.f1_this_month.toLocaleString('vi-VN')} tháng này`
+                : 'Xem bạn bè và hoa hồng điểm thưởng'}
+            </p>
+          </div>
+          <span className="material-symbols-outlined text-neutral-dim text-[16px]">chevron_right</span>
+        </Link>
 
         {/* Chart */}
         <div className="bg-white rounded-card shadow-card border border-border-soft p-4">

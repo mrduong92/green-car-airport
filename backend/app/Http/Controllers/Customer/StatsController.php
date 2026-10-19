@@ -47,13 +47,19 @@ class StatsController extends Controller
         $scope = fn () => Booking::where('customer_id', $userId)
             ->when($totalsFrom, fn ($q) => $q->where('date', '>=', $totalsFrom->format('Y-m-d')));
 
-        // final_price = price - discount + surcharge + collection_fee (khớp formatBooking)
-        $finalPrice = 'price - discount + surcharge + COALESCE(collection_fee, 0)';
+        // Cùng công thức Booking::finalPrice() (trừ điểm CHƯA hoàn) — xem Booking::FINAL_PRICE_SQL.
+        $finalPrice = Booking::FINAL_PRICE_SQL;
 
         $completedCount = (clone $scope())->where('status', 'completed')->count();
         $cancelledCount = (clone $scope())->where('status', 'cancelled')->count();
         $totalSpent = (int) (clone $scope())->where('status', 'completed')->sum(DB::raw($finalPrice));
-        $totalSaved = (int) (clone $scope())->sum('discount');
+        // Tổng tiết kiệm = voucher + điểm đã dùng — cùng một khái niệm "giảm giá
+        // cuốc" với khách, không riêng gì voucher (khớp total_spent đã trừ điểm).
+        // Chỉ tính chuyến HOÀN THÀNH (cùng phạm vi với total_spent): voucher/điểm của
+        // đơn đã huỷ không phải tiền khách tiết kiệm thật. Điểm đã bị HOÀN cũng loại,
+        // khớp effectivePointsUsed() dùng ở formatBooking.
+        $totalSaved = (int) (clone $scope())->where('status', 'completed')->sum('discount')
+            + (int) (clone $scope())->where('status', 'completed')->whereNull('points_refunded_at')->sum('points_used') * 1000;
 
         // Gom nhóm theo cột `date` — portable cả MySQL lẫn SQLite. Việc dồn ngày
         // thành tháng cho biểu đồ 'all' làm ở PHP trên tối đa ~180 dòng đã gom.

@@ -17,6 +17,7 @@ const TABS = [
   { to: '/vouchers',  icon: 'confirmation_number', label: 'Voucher' },
   { to: '/campaigns', icon: 'campaign',            label: 'Chiến dịch' },
   { to: '/revenue',   icon: 'bar_chart',           label: 'Doanh thu', primary: true },
+  { to: '/referrals', icon: 'group_add',           label: 'Giới thiệu' },
   { to: '/prices',    icon: 'sell',                label: 'Bảng giá' },
   { to: '/customers', icon: 'manage_accounts',     label: 'Khách hàng', primary: true },
   { to: '/pages',     icon: 'article',             label: 'Trang tĩnh' },

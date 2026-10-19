@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { deleteAccount } from '@/api/auth'
+import { getRewardWallet } from '@/api/rewards'
 import { getContactSettings } from '@/api/settings'
 import { unregisterPushSubscription } from '@/push'
 import { useAuthStore } from '@/stores/auth'
@@ -9,6 +10,8 @@ import { useUiStore } from '@/stores/ui'
 import { apiMessage } from '@/utils/apiError'
 import { zaloLink } from '@/utils/zalo'
 import Button from '@/components/common/Button'
+
+const REWARD_TIMEOUT_MS = 8000
 
 // Xoá tài khoản (yêu cầu Google Play). Dữ liệu nhận dạng xoá ngay; cuốc/giao dịch giữ ẩn danh
 // — xem docs/superpowers/specs/2026-10-14-account-deletion-design.md.
@@ -21,6 +24,26 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const { data: contact } = useQuery({ queryKey: ['contact-settings'], queryFn: getContactSettings, enabled: open })
+  // Điểm thưởng KHÔNG chặn xoá (AccountDeletionService), chỉ cảnh báo — chỉ khách có ví điểm thưởng,
+  // tài xế không gọi. Query RIÊNG (không dùng chung ['reward-wallet'] của các màn khác): mỗi lần mở
+  // sheet đều lấy số dư mới (staleTime 0, gcTime 0), không retry, timeout 8s. Đang tải thì khoá nút
+  // xoá để không bỏ lỡ cảnh báo; lỗi/hết giờ thì cảnh báo chung và vẫn cho xoá.
+  const userId = useAuthStore((s) => s.user?.id)
+  const isCustomer = useAuthStore((s) => s.user?.role === 'customer')
+  const reward = useQuery({
+    queryKey: ['delete-account-reward', userId],
+    queryFn: ({ signal }) => getRewardWallet({ timeout: REWARD_TIMEOUT_MS, signal }).then((r) => r.data),
+    enabled: open && isCustomer,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+  const rewardLoading = isCustomer && reward.isFetching
+  // Chỉ cảnh báo theo kết quả của LẦN MỞ này — đang tải lại thì chưa hiện gì.
+  const rewardFailed = isCustomer && !rewardLoading && reward.isError
+  const rewardPoints = isCustomer && !rewardLoading && !reward.isError ? reward.data?.reward_points ?? 0 : 0
 
   const mutation = useMutation({
     mutationFn: () => deleteAccount(needsPin ? pin : undefined),
@@ -50,6 +73,15 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
         <div className="px-4 py-4 flex flex-col gap-3 text-[13px] text-navy">
           <p><strong>Xoá ngay:</strong> họ tên, số điện thoại, mã PIN, giấy tờ và thông tin xe, thông báo, voucher chưa dùng.</p>
           <p><strong>Giữ ẩn danh:</strong> lịch sử cuốc và giao dịch điểm (chứng từ kế toán), không còn gắn với bạn.</p>
+          {rewardFailed ? (
+            <p className="bg-alert-orange/10 border border-alert-orange/30 rounded-input px-3 py-2.5 text-navy" data-testid="delete-account-reward-warning">
+              Bạn có thể còn điểm thưởng — điểm sẽ mất khi xoá tài khoản.
+            </p>
+          ) : rewardPoints > 0 && (
+            <p className="bg-alert-orange/10 border border-alert-orange/30 rounded-input px-3 py-2.5 text-navy" data-testid="delete-account-reward-warning">
+              Bạn còn <strong>{rewardPoints.toLocaleString('vi-VN')}</strong> điểm thưởng — điểm sẽ mất khi xoá tài khoản.
+            </p>
+          )}
           <p className="text-danger-red font-medium">Không thể khôi phục sau khi xoá.</p>
 
           {needsPin && (<>
@@ -84,7 +116,7 @@ export default function DeleteAccountSheet({ open, onClose }: { open: boolean; o
           <Button
             fullWidth
             variant="danger"
-            loading={mutation.isPending}
+            loading={mutation.isPending || rewardLoading}
             disabled={needsPin && pin.length !== 6}
             onClick={() => mutation.mutate()}
           >

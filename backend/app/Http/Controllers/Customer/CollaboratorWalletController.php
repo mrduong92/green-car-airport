@@ -1,4 +1,5 @@
 <?php
+
 // backend/app/Http/Controllers/Customer/CollaboratorWalletController.php
 
 namespace App\Http\Controllers\Customer;
@@ -22,13 +23,14 @@ class CollaboratorWalletController extends Controller
 
         $totalEarned = $wallet
             ? WalletTransaction::where('wallet_id', $wallet->id)
+                ->where('balance', 'points')
                 ->where('type', 'credit')
                 ->whereHas('booking', fn ($q) => $q->where('collaborator_id', $user->id))
                 ->sum('points')
             : 0;
 
         return response()->json([
-            'points'       => $wallet?->points ?? 0,
+            'points' => $wallet?->points ?? 0,
             'total_earned' => (int) $totalEarned,
         ]);
     }
@@ -46,18 +48,19 @@ class CollaboratorWalletController extends Controller
         }
 
         $transactions = WalletTransaction::where('wallet_id', $wallet->id)
+            ->where('balance', 'points')
             ->where(function ($q) use ($user) {
                 $q->where(fn ($q2) => $q2->where('type', 'credit')->whereHas('booking', fn ($q3) => $q3->where('collaborator_id', $user->id)))
-                  ->orWhere(fn ($q2) => $q2->where('type', 'debit')->whereNull('booking_id'));
+                    ->orWhere(fn ($q2) => $q2->where('type', 'debit')->whereNull('booking_id'));
             })
             ->latest()
             ->get()
             ->map(fn ($t) => [
-                'id'          => $t->id,
-                'booking_id'  => $t->booking_id,
-                'points'      => $t->points,
+                'id' => $t->id,
+                'booking_id' => $t->booking_id,
+                'points' => $t->points,
                 'description' => $t->description,
-                'created_at'  => $t->created_at?->toISOString(),
+                'created_at' => $t->created_at?->toISOString(),
             ]);
 
         return response()->json($transactions);

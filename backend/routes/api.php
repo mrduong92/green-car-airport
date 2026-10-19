@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DriverController;
 use App\Http\Controllers\Admin\FreeRideAdminController;
 use App\Http\Controllers\Admin\PriceConfigController as AdminPriceConfigController;
+use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\RevenueController;
 use App\Http\Controllers\Admin\StaticPageController as AdminStaticPageController;
 use App\Http\Controllers\Admin\ZaloAccountController;
@@ -20,6 +21,8 @@ use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Customer\BookingController;
 use App\Http\Controllers\Customer\CollaboratorWalletController;
 use App\Http\Controllers\Customer\CustomerProfileController;
+use App\Http\Controllers\Customer\ReferralController;
+use App\Http\Controllers\Customer\RewardWalletController;
 use App\Http\Controllers\Customer\StatsController as CustomerStatsController;
 use App\Http\Controllers\Customer\StreamController as CustomerStreamController;
 use App\Http\Controllers\Customer\VoucherController;
@@ -113,6 +116,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/customer/vouchers/apply', [VoucherController::class, 'apply']);
         Route::get('/customer/collaborator/wallet', [CollaboratorWalletController::class, 'show']);
         Route::get('/customer/collaborator/wallet/transactions', [CollaboratorWalletController::class, 'transactions']);
+        Route::get('/customer/reward-wallet', [RewardWalletController::class, 'show']);
+        Route::get('/customer/reward-wallet/transactions', [RewardWalletController::class, 'transactions']);
+        Route::get('/customer/referrals', [ReferralController::class, 'index']);
     });
 
     // Driver
@@ -179,6 +185,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/admin/campaigns', [CampaignController::class, 'store']);
         Route::patch('/admin/campaigns/{campaign}', [CampaignController::class, 'update']);
         Route::get('/admin/revenue', [RevenueController::class, 'index']);
+        Route::get('/admin/referrals', [ReferralReportController::class, 'index']);
+        Route::get('/admin/referrals/{user}', [ReferralReportController::class, 'show']);
         Route::get('/admin/customers', [AdminCustomerController::class, 'index']);
         Route::patch('/admin/customers/{user}', [AdminCustomerController::class, 'update']);
         Route::get('/admin/customers/{user}/bookings', [AdminCustomerController::class, 'bookings']);

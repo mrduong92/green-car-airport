@@ -12,6 +12,8 @@ import CustomerProfilePage from '@/pages/customer/ProfilePage'
 import CustomerNotificationsPage from '@/pages/customer/NotificationsPage'
 import CustomerStatsPage from '@/pages/customer/StatsPage'
 import CollaboratorWalletPage from '@/pages/customer/CollaboratorWalletPage'
+import RewardWalletPage from '@/pages/customer/RewardWalletPage'
+import ReferralsPage from '@/pages/customer/ReferralsPage'
 import InstallPage from '@/pages/InstallPage'
 import StaticPageView from '@/pages/StaticPageView'
 
@@ -44,6 +46,8 @@ export const router = createBrowserRouter([
           { path: '/customer/notifications', element: <CustomerNotificationsPage /> },
           { path: '/customer/profile', element: <CustomerProfilePage /> },
           { path: '/customer/collaborator/wallet', element: <CollaboratorWalletPage /> },
+          { path: '/customer/reward-wallet', element: <RewardWalletPage /> },
+          { path: '/customer/referrals', element: <ReferralsPage /> },
         ],
       },
     ],

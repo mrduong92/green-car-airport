@@ -87,6 +87,25 @@ class AccountDeletionServiceTest extends TestCase
         $this->assertDatabaseHas('bookings', ['id' => $trip->id, 'customer_id' => $customer->id, 'note' => null, 'status' => 'completed']);
     }
 
+    /**
+     * Xoá note KHÔNG được đẩy updated_at của cuốc — nếu không, cuốc đã completed của
+     * khách này sẽ "nhảy" sang tháng hiện tại trong báo cáo affiliate (vốn bám
+     * completed_at, nhưng vẫn phải không đẩy updated_at vô cớ — xem AccountDeletionService::delete()).
+     */
+    public function test_xoa_khach_khong_lam_doi_updated_at_cua_cuoc_cu(): void
+    {
+        $this->travelTo(now()->subDays(10));
+        $customer = User::factory()->create(['role' => 'customer', 'phone' => '0901000333']);
+        $trip = $this->booking(['customer_id' => $customer->id, 'note' => 'Gọi 0901000333']);
+        $updatedAtBefore = $trip->fresh()->updated_at;
+
+        $this->travelBack();
+        $this->service()->delete($customer);
+
+        $this->assertNull($trip->fresh()->note);
+        $this->assertEquals($updatedAtBefore, $trip->fresh()->updated_at);
+    }
+
     public function test_xoa_tai_xe_xoa_ho_so_giu_vi_va_giao_dich(): void
     {
         $driver = $this->driver();

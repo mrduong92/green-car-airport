@@ -50,8 +50,49 @@ class CustomerStatsTest extends TestCase
         $res->assertJsonPath('cancelled', 1);
         // 500.000 - 50.000 + 20.000 + 30.000 = 500.000
         $res->assertJsonPath('total_spent', 500_000);
-        // giảm giá cộng trên MỌI chuyến trong kỳ, không chỉ chuyến hoàn thành
-        $res->assertJsonPath('total_saved', 60_000);
+        // chỉ tính giảm giá của chuyến HOÀN THÀNH — voucher của đơn đã huỷ không phải tiền khách tiết kiệm
+        $res->assertJsonPath('total_saved', 50_000);
+    }
+
+    public function test_totals_subtract_and_count_points_used(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer']);
+        $today = now()->format('Y-m-d');
+
+        // final_price = price - discount - points_used*1000 + surcharge + collection_fee
+        $this->makeBooking($customer, 'completed', $today, [
+            'price' => 500_000, 'discount' => 50_000, 'points_used' => 40,
+        ]);
+
+        $res = $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/customer/stats?period=month')
+            ->assertOk();
+
+        // 500.000 - 50.000 - 40*1.000 = 410.000
+        $res->assertJsonPath('total_spent', 410_000);
+        // tiết kiệm = voucher + điểm đã dùng = 50.000 + 40.000 = 90.000
+        $res->assertJsonPath('total_saved', 90_000);
+    }
+
+    public function test_total_saved_excludes_points_already_refunded(): void
+    {
+        $customer = User::factory()->create(['role' => 'customer']);
+        $today = now()->format('Y-m-d');
+
+        // Điểm đã hoàn (huỷ cuốc) không còn là khoản khách tiết kiệm được thật sự.
+        $this->makeBooking($customer, 'completed', $today, [
+            'price' => 500_000, 'discount' => 0, 'points_used' => 30, 'points_refunded_at' => now(),
+        ]);
+        $this->makeBooking($customer, 'completed', $today, [
+            'price' => 500_000, 'discount' => 0, 'points_used' => 20,
+        ]);
+
+        $res = $this->actingAs($customer, 'sanctum')
+            ->getJson('/api/customer/stats?period=month')
+            ->assertOk();
+
+        // Chỉ tính 20 điểm chưa hoàn = 20.000, bỏ 30 điểm đã hoàn.
+        $res->assertJsonPath('total_saved', 20_000);
     }
 
     public function test_only_counts_own_bookings(): void

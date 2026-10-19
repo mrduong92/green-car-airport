@@ -63,6 +63,30 @@ async function selectAddress(page: Page, placeholder: string, mainText: string):
 }
 
 /**
+ * Fills the booking form (pickup, destination, price, optional collection
+ * fee) but does not submit. `stubGoong` must already be active on this page.
+ * Caller navigates to `/customer/booking` first.
+ */
+export async function fillBookingForm(
+  page: Page,
+  opts: { collectionFee?: number } = {},
+): Promise<void> {
+  await selectAddress(page, 'Tìm địa điểm đón...', PLACES.pickup.mainText)
+  await selectAddress(page, 'Sân bay hoặc điểm đến...', PLACES.dest.mainText)
+
+  // Distance arrives asynchronously and overwrites `price`, so wait for the
+  // auto-filled value before setting our own deterministic price.
+  const priceInput = page.locator('input[name="price"]')
+  await expect(priceInput).not.toHaveValue('')
+  await expect(priceInput).not.toHaveValue('0')
+  await priceInput.fill(String(BOOKING_PRICE))
+
+  if (opts.collectionFee !== undefined) {
+    await page.locator('input[name="collection_fee"]').fill(String(opts.collectionFee))
+  }
+}
+
+/**
  * Creates a booking as the logged-in customer and returns the new booking id.
  * `stubGoong` must already be active on this page.
  *
@@ -78,19 +102,7 @@ export async function createBooking(
 ): Promise<string> {
   await page.goto(`${APP.customer}/customer/booking`)
 
-  await selectAddress(page, 'Tìm địa điểm đón...', PLACES.pickup.mainText)
-  await selectAddress(page, 'Sân bay hoặc điểm đến...', PLACES.dest.mainText)
-
-  // Distance arrives asynchronously and overwrites `price`, so wait for the
-  // auto-filled value before setting our own deterministic price.
-  const priceInput = page.locator('input[name="price"]')
-  await expect(priceInput).not.toHaveValue('')
-  await expect(priceInput).not.toHaveValue('0')
-  await priceInput.fill(String(BOOKING_PRICE))
-
-  if (opts.collectionFee !== undefined) {
-    await page.locator('input[name="collection_fee"]').fill(String(opts.collectionFee))
-  }
+  await fillBookingForm(page, opts)
 
   await page.getByRole('button', { name: 'Đặt xe →' }).click()
 

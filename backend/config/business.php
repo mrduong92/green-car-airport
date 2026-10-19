@@ -7,8 +7,8 @@ return [
     'app_fee_percent' => 20,
 
     // Thưởng giới thiệu.
-    'referral_voucher_value'  => 100000, // VND, voucher cấp cho người giới thiệu khách
-    'referral_driver_points'  => 50,     // điểm (1 điểm = 1.000đ) cho MỖI bên khi giới thiệu tài xế
+    'referral_voucher_value' => 100000, // VND, voucher cấp cho người giới thiệu khách
+    'referral_driver_points' => 50,     // điểm (1 điểm = 1.000đ) cho MỖI bên khi giới thiệu tài xế
 
     // Tiền tố mã voucher thưởng giới thiệu (REF-<userId>-XXXX). Dashboard dựa vào đây để thống kê.
     'referral_voucher_prefix' => 'REF',
@@ -18,4 +18,9 @@ return [
     'free_show_sender_name' => true,
     'free_show_group_name' => true,
     'free_show_raw_text' => true,
+
+    // Tỷ lệ affiliate — phần trăm.
+    'affiliate_cashback_percent' => 5,
+    'affiliate_commission_percent' => 5,
+    'points_max_rate_percent' => 10,
 ];

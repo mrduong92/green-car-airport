@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class AppSettingController extends Controller
 {
@@ -22,6 +23,9 @@ class AppSettingController extends Controller
             'free_show_sender_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_SENDER_NAME),
             'free_show_group_name' => AppSetting::freeShow(AppSetting::FREE_SHOW_GROUP_NAME),
             'free_show_raw_text' => AppSetting::freeShow(AppSetting::FREE_SHOW_RAW_TEXT),
+            'affiliate_cashback_percent' => AppSetting::cashbackPercent(),
+            'affiliate_commission_percent' => AppSetting::commissionPercent(),
+            'points_max_rate_percent' => AppSetting::pointsMaxRatePercent(),
         ]);
     }
 
@@ -38,7 +42,22 @@ class AppSettingController extends Controller
             'free_show_sender_name' => 'sometimes|required|boolean',
             'free_show_group_name' => 'sometimes|required|boolean',
             'free_show_raw_text' => 'sometimes|required|boolean',
+            'affiliate_cashback_percent' => 'sometimes|required|numeric|min:0|max:50',
+            'affiliate_commission_percent' => 'sometimes|required|numeric|min:0|max:50',
+            'points_max_rate_percent' => 'sometimes|required|numeric|min:0|max:50',
         ]);
+
+        // driverFeePoints() (Booking) = max(0, phí app − points_used) chỉ đúng khi trần dùng điểm
+        // ≤ % phí app — nếu không, khách dùng điểm nhiều hơn phí thì tài xế mất phần chênh lệch
+        // (app_fee âm, net_earning sai). Dùng giá trị HIỆU LỰC (gửi lên hoặc đang lưu), không chỉ
+        // giá trị trong request, vì admin có thể chỉ sửa một trong hai trường ở mỗi lần gọi.
+        $fee = $data['app_fee_percent'] ?? AppSetting::appFeePercent();
+        $maxRate = $data['points_max_rate_percent'] ?? AppSetting::pointsMaxRatePercent();
+        if ($maxRate > $fee) {
+            throw ValidationException::withMessages([
+                'points_max_rate_percent' => ['% tối đa trừ bằng điểm không được lớn hơn % phí app (app bù điểm từ phí).'],
+            ]);
+        }
 
         AppSetting::set(AppSetting::CONTACT_HOTLINE, $data['contact_hotline']);
         AppSetting::set(AppSetting::CONTACT_EMAIL, $data['contact_email']);
@@ -48,6 +67,9 @@ class AppSettingController extends Controller
             AppSetting::REFERRAL_VOUCHER_VALUE,
             AppSetting::REFERRAL_DRIVER_POINTS,
             AppSetting::FREE_UNLOCK_FEE_VND,
+            AppSetting::AFFILIATE_CASHBACK_PERCENT,
+            AppSetting::AFFILIATE_COMMISSION_PERCENT,
+            AppSetting::POINTS_MAX_RATE_PERCENT,
         ] as $key) {
             if (array_key_exists($key, $data)) {
                 AppSetting::set($key, (string) $data[$key]);

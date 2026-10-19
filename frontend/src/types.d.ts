@@ -40,6 +40,8 @@ declare namespace App {
     voucher_code?: string | null
     note?: string | null
     vehicle_type?: VehicleType
+    points_used?: number
+    points_discount?: number
     status: BookingStatus
     driver?: {
       id: number
@@ -76,6 +78,7 @@ declare namespace App {
     voucher_code?: string
     note?: string
     collection_fee?: number
+    use_points?: boolean
   }
 
   interface Trip {
@@ -98,6 +101,10 @@ declare namespace App {
     final_price: number
     app_fee: number
     app_fee_percent: number
+    /** Số điểm khách dùng để trừ trực tiếp vào cuốc này */
+    points_used?: number
+    /** Số tiền (VNĐ) app bù cho phần điểm khách dùng ở trên */
+    points_discount?: number
     /** Điểm ví bị trừ lúc nhận: phí app + tạm giữ thu hộ + phí phạt huỷ */
     required_points?: number
     /** Điểm thu hộ bị tạm giữ — 0 nếu cuốc không có CTV dù có collection_fee */
