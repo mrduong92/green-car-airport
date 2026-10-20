@@ -205,7 +205,7 @@ export default function DriversPage() {
         <div className="flex items-center gap-2 border border-border-gray rounded-input px-3 py-2 mb-3">
           <span className="material-symbols-outlined text-neutral-gray text-xl">search</span>
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên, SĐT, biển số"
+            placeholder="Tìm theo tên, SĐT, biển số, ID"
             className="flex-1 outline-none text-sm text-navy" />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-3">
