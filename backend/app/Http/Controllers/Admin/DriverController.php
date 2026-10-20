@@ -32,6 +32,8 @@ class DriverController extends Controller
                 ->where('name', 'like', $s)
                 ->orWhere('phone', 'like', $s)
                 ->orWhereHas('driverProfile', fn ($q2) => $q2->where('vehicle_plate', 'like', $s))
+                // ID tài xế: khớp chính xác (453 không kéo theo 1453), chấp nhận cả dạng "#453".
+                ->when(preg_match('/^#?(\d+)$/', trim($request->search), $m), fn ($q2) => $q2->orWhere('id', (int) $m[1]))
             );
         }
 
