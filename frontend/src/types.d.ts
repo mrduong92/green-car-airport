@@ -377,12 +377,16 @@ declare namespace App {
 
   interface WalletAdjustment {
     id: number
+    category: 'topup' | 'app_fee' | 'collection' | 'refund' | 'admin' | 'other'
     direction: 'in' | 'out'
     points: number
     description: string | null
-    admin_name: string | null
+    booking_id: number | null
+    creator_name: string | null
     created_at: string
   }
+
+  type WalletHistoryKind = 'all' | 'topup' | 'trip' | 'refund' | 'admin'
 
   interface Paginated<T> {
     data: T[]

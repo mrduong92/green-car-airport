@@ -43,24 +43,24 @@ class AdminWalletAdjustmentsTest extends TestCase
         $this->assertSame(2, WalletTransaction::where('wallet_id', $wallet->id)->where('created_by', $admin->id)->count());
     }
 
-    public function test_lists_only_admin_adjustments_newest_first(): void
+    public function test_admin_kind_lists_only_admin_adjustments_newest_first(): void
     {
         Notification::fake();
         $admin = $this->admin('Admin Hà');
         [$driver, $wallet] = $this->driverWithWallet(1000);
         $customer = User::factory()->create(['role' => 'customer']);
         $booking = Booking::create([
-            'customer_id'  => $customer->id,
-            'pickup'       => 'Hà Nội',
-            'destination'  => 'Sân bay Nội Bài',
-            'date'         => now()->addDay()->format('Y-m-d'),
-            'time'         => '08:00',
+            'customer_id' => $customer->id,
+            'pickup' => 'Hà Nội',
+            'destination' => 'Sân bay Nội Bài',
+            'date' => now()->addDay()->format('Y-m-d'),
+            'time' => '08:00',
             'vehicle_type' => 'sedan_4',
-            'distance_km'  => 30,
-            'price'        => 500_000,
-            'discount'     => 0,
-            'surcharge'    => 0,
-            'status'       => 'completed',
+            'distance_km' => 30,
+            'price' => 500_000,
+            'discount' => 0,
+            'surcharge' => 0,
+            'status' => 'completed',
         ]);
 
         // Không phải thao tác của admin: phí cuốc, thưởng giới thiệu, nạp qua cổng thanh toán
@@ -79,7 +79,7 @@ class AdminWalletAdjustmentsTest extends TestCase
             ->assertOk();
 
         $res = $this->actingAs($admin, 'sanctum')
-            ->getJson("/api/admin/drivers/{$driver->id}/wallet-adjustments")
+            ->getJson("/api/admin/drivers/{$driver->id}/wallet-adjustments?kind=admin")
             ->assertOk()
             ->assertJsonCount(3, 'data');
 
@@ -110,5 +110,53 @@ class AdminWalletAdjustmentsTest extends TestCase
         $this->actingAs($this->admin(), 'sanctum')
             ->getJson("/api/admin/drivers/{$customer->id}/wallet-adjustments")
             ->assertStatus(422);
+    }
+
+    public function test_all_kind_returns_every_points_transaction_with_categories_and_filters(): void
+    {
+        Notification::fake();
+        $admin = $this->admin('Admin Hà');
+        [$driver, $wallet] = $this->driverWithWallet(1000);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $mk = fn (string $status) => Booking::create([
+            'customer_id' => $customer->id, 'pickup' => 'Hà Nội', 'destination' => 'Sân bay Nội Bài',
+            'date' => now()->addDay()->format('Y-m-d'), 'time' => '08:00', 'vehicle_type' => 'sedan_4',
+            'distance_km' => 30, 'price' => 500_000, 'discount' => 0, 'surcharge' => 0, 'status' => $status,
+        ]);
+        $cancelled = $mk('cancelled');
+        $done = $mk('completed');
+        $tx = fn (array $a) => WalletTransaction::create(['wallet_id' => $wallet->id] + $a);
+
+        $activation = $tx(['type' => 'topup', 'description' => 'Nạp điểm qua SePay #1', 'points' => 300]);
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/admin/drivers/{$driver->id}/topup", ['points' => 100])->assertOk();
+        $feeCancelled = $tx(['type' => 'debit', 'booking_id' => $cancelled->id, 'description' => "Phí app 20% cuốc #{$cancelled->id}", 'points' => 100]);
+        $refund = $tx(['type' => 'credit', 'booking_id' => $cancelled->id, 'description' => "Hoàn phí app cuốc #{$cancelled->id} (khách huỷ)", 'points' => 100]);
+        $feeDone = $tx(['type' => 'debit', 'booking_id' => $done->id, 'description' => "Phí app 20% cuốc #{$done->id}", 'points' => 90]);
+        $collect = $tx(['type' => 'debit', 'booking_id' => $done->id, 'description' => "Thu hộ cuốc #{$done->id}", 'points' => 50]);
+        $rewardRow = $tx(['type' => 'credit', 'balance' => 'reward', 'kind' => 'commission', 'description' => 'Hoa hồng', 'points' => 77]);
+
+        $get = fn (string $q = '') => $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/admin/drivers/{$driver->id}/wallet-adjustments{$q}")->assertOk();
+
+        $all = $get()->assertJsonCount(6, 'data');
+        $this->assertNotContains($rewardRow->id, collect($all->json('data'))->pluck('id')->all());
+        $cats = collect($all->json('data'))->pluck('category', 'id');
+        $this->assertSame('topup', $cats[$activation->id]);
+        $this->assertSame('app_fee', $cats[$feeCancelled->id]);
+        $this->assertSame('refund', $cats[$refund->id]);
+        $this->assertSame('collection', $cats[$collect->id]);
+        $this->assertSame('admin', $cats->first(fn ($c, $id) => ! in_array($id, [$activation->id, $feeCancelled->id, $refund->id, $feeDone->id, $collect->id])));
+        $all->assertJsonPath('data.0.id', $collect->id);
+
+        $ids = fn ($r) => collect($r->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame([$activation->id], $ids($get('?kind=topup')));
+        $this->assertSame(collect([$feeCancelled->id, $feeDone->id, $collect->id])->sort()->values()->all(), $ids($get('?kind=trip')));
+        $this->assertSame([$refund->id], $ids($get('?kind=refund')));
+        $get('?kind=admin')->assertJsonCount(1, 'data')->assertJsonPath('data.0.points', 100)->assertJsonPath('data.0.creator_name', 'Admin Hà');
+        $get('?kind=all')->assertJsonCount(6, 'data');
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/admin/drivers/{$driver->id}/wallet-adjustments?kind=bogus")->assertStatus(422);
     }
 }
