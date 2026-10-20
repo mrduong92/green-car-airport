@@ -44,7 +44,7 @@ export default function DriverPointsHistoryModal({ driver, onClose }: Props) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={onClose}>
       <div className="bg-white w-full rounded-t-2xl flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-4 border-b border-border-gray">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-border-gray shrink-0">
           <div>
             <p className="text-[15px] font-semibold text-navy">Lịch sử điểm</p>
             <p className="text-[12px] text-neutral-gray">
@@ -56,7 +56,8 @@ export default function DriverPointsHistoryModal({ driver, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex gap-1.5 overflow-x-auto px-4 py-3 border-b border-border-gray">
+        {/* shrink-0: khung là cột flex có max-h — không có thì danh sách dài ép dải lọc thấp lại, cắt mất nửa dưới các nút */}
+        <div className="flex gap-1.5 overflow-x-auto px-4 py-3 border-b border-border-gray shrink-0">
           {FILTERS.map((f) => (
             <button
               key={f.kind}
