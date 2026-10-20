@@ -22,6 +22,7 @@ use App\Http\Controllers\Customer\BookingController;
 use App\Http\Controllers\Customer\CollaboratorWalletController;
 use App\Http\Controllers\Customer\CustomerProfileController;
 use App\Http\Controllers\Customer\ReferralController;
+use App\Http\Controllers\Driver\ReferralController as DriverReferralController;
 use App\Http\Controllers\Customer\RewardWalletController;
 use App\Http\Controllers\Customer\StatsController as CustomerStatsController;
 use App\Http\Controllers\Customer\StreamController as CustomerStreamController;
@@ -138,6 +139,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/wallet/topups', [WalletController::class, 'topups']);
         Route::get('/driver/profile', [ProfileController::class, 'show']);
         Route::put('/driver/profile', [ProfileController::class, 'update']);
+        Route::get('/driver/referrals', [DriverReferralController::class, 'index']);
         Route::patch('/driver/status', [StatusController::class, 'update']);
         // Nhịp "đang mở app" (45 giây/lần khi hiển thị) — không push cuốc Free khi tài xế đang mở app.
         Route::post('/driver/app-presence', [AppPresenceController::class, 'update'])->middleware('throttle:30,1,app-presence');

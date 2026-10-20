@@ -14,6 +14,7 @@ import WalletPage from '@/pages/driver/WalletPage'
 import TopUpPage from '@/pages/driver/TopUpPage'
 import DriverProfilePage from '@/pages/driver/ProfilePage'
 import DriverNotificationsPage from '@/pages/driver/NotificationsPage'
+import DriverReferralsPage from '@/pages/driver/ReferralsPage'
 import DriverStatsPage from '@/pages/driver/StatsPage'
 import DriverPendingPage from '@/pages/driver/DriverPendingPage'
 import InstallPage from '@/pages/InstallPage'
@@ -61,6 +62,7 @@ export const router = createBrowserRouter([
           { path: '/driver/wallet/topup', element: <TopUpPage /> },
           { path: '/driver/stats', element: <DriverStatsPage /> },
           { path: '/driver/notifications', element: <DriverNotificationsPage /> },
+          { path: '/driver/referrals', element: <DriverReferralsPage /> },
           { path: '/driver/profile', element: <DriverProfilePage /> },
         ],
       },

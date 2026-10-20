@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getDriverProfile, updateDriverProfile } from '@/api/trips'
 import { getContactSettings } from '@/api/settings'
+import { getDriverReferrals } from '@/api/driverReferrals'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { apiMessage } from '@/utils/apiError'
@@ -28,6 +29,8 @@ export default function DriverProfilePage() {
   const { user } = useAuthStore()
   const showToast = useUiStore((s) => s.showToast)
   const qc = useQueryClient()
+  const { data: referrals } = useQuery({ queryKey: ['driver-referrals'], queryFn: getDriverReferrals })
+  const refPoints = referrals?.reward_points_per_referral ?? 50
   const navigate = useNavigate()
   const { canInstall } = usePwaInstall()
   const [editing, setEditing] = useState(false)
@@ -173,6 +176,18 @@ export default function DriverProfilePage() {
       {/* Actions */}
       <div className="bg-white mx-4 mt-3 rounded-card shadow-card divide-y divide-border-gray">
         <PushSettingsRow />
+        <button
+          data-testid="referrals-link"
+          onClick={() => navigate('/driver/referrals')}
+          className="w-full flex items-center gap-3 px-4 py-4 text-navy"
+        >
+          <span className="material-symbols-outlined text-primary">group_add</span>
+          <span className="text-sm font-medium flex-1 text-left">
+            Tài xế đã giới thiệu
+            {referrals && <span className="text-neutral-gray font-normal"> · {referrals.total_f1} người</span>}
+          </span>
+          <span className="material-symbols-outlined text-neutral-gray text-[16px]">chevron_right</span>
+        </button>
         {user?.free_rides_enabled !== false && (
           <button
             data-testid="my-rides-link"
@@ -223,7 +238,7 @@ export default function DriverProfilePage() {
             <p className="text-sm font-semibold text-navy">Giới thiệu tài xế</p>
           </div>
           <p className="text-[12px] text-neutral-gray mb-3">
-            Mời tài xế mới — cả hai nhận 50 điểm (50.000đ) khi họ hoàn thành chuyến đầu tiên
+            Mời tài xế mới — cả hai nhận {refPoints.toLocaleString('vi-VN')} điểm ({(refPoints * 1000).toLocaleString('vi-VN')}đ) khi họ hoàn thành chuyến đầu tiên
           </p>
           <div className="bg-light-green rounded-input px-3 py-2.5 flex items-center mb-3">
             <span data-testid="referral-code" className="text-primary font-bold text-sm tracking-wider flex-1">{user.phone}</span>
@@ -243,7 +258,7 @@ export default function DriverProfilePage() {
               <button
                 onClick={() => navigator.share({
                   title: BRAND.name,
-                  text: `Tham gia ${BRAND.name} và nhận 50 điểm (50.000đ)!`,
+                  text: `Tham gia ${BRAND.name} và nhận ${refPoints.toLocaleString('vi-VN')} điểm (${(refPoints * 1000).toLocaleString('vi-VN')}đ)!`,
                   url: `${window.location.origin}/login?ref=${user.phone}`,
                 })}
                 className="flex-1 h-10 rounded-pill bg-primary text-white text-[13px] font-semibold flex items-center justify-center gap-1"
