@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Tách cuốc tài xế đăng bằng AI ở nền: điền chiều/giờ/số chỗ/giá để lọc + cảnh báo đẩy. Thẻ cuốc vẫn hiện
- * nguyên văn tin (is_raw) — AI hỏng thì cuốc vẫn sống, chỉ không lọc được (parse_status=failed).
+ * tuyến đón → trả (is_raw=false khi tách được điểm đón). AI hỏng thì cuốc vẫn sống, hiện nguyên văn tin (is_raw)
+ * và chỉ không lọc được (parse_status=failed).
  */
 class ParseDriverRide implements ShouldQueue
 {
@@ -49,6 +50,8 @@ class ParseDriverRide implements ShouldQueue
             $pickupAt = $draft->pickupAt?->copy()->setTimezone($tz);
             $ride->update([
                 'parse_status' => 'done',
+                // Tách được điểm đón thì thẻ hiện tuyến đón → trả (tin gốc nhỏ bên dưới); không thì giữ nguyên văn.
+                'is_raw' => $draft->pickup === null,
                 'direction' => $draft->direction,
                 'pickup' => $draft->pickup,
                 'destination' => $draft->destination,

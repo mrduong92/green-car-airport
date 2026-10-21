@@ -59,9 +59,21 @@ class ParseDriverRideTest extends TestCase
         $this->assertSame('to_airport', $ride->direction);
         $this->assertSame(5, $ride->seats);
         $this->assertTrue($ride->expires_at->eq(Carbon::parse('2026-10-17 15:30:00')));
-        $this->assertTrue($ride->is_raw); // thẻ vẫn hiện nguyên văn tin
+        $this->assertFalse($ride->is_raw); // tách được điểm đón → thẻ hiện tuyến đón → trả
         Bus::assertDispatched(BroadcastFreeRidesSignal::class);
         Bus::assertDispatched(NotifyFreeRideAlerts::class);
+    }
+
+    public function test_keeps_raw_when_pickup_not_extracted(): void
+    {
+        $ride = $this->ride();
+        $this->parserReturns(new RideDraft('other', null, 'Sân bay Nội Bài', null, null, null, null, null, false));
+
+        ParseDriverRide::dispatchSync($ride->id);
+
+        $ride->refresh();
+        $this->assertSame('done', $ride->parse_status);
+        $this->assertTrue($ride->is_raw);
     }
 
     public function test_utc_pickup_time_stored_as_same_instant(): void
