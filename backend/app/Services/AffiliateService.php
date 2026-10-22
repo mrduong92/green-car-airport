@@ -30,6 +30,10 @@ class AffiliateService
     /** Điểm được dùng cho một cuốc: min(số dư điểm thưởng, trần max_rate% giá cơ sở). Nguồn DUY NHẤT — hold() gọi trên số dư đã khoá. */
     public static function cap(int $balance, int $basePrice): int
     {
+        if (! AppSetting::pointsSpendEnabled()) {
+            return 0;
+        }
+
         return max(0, min($balance, self::rewardPoints($basePrice, AppSetting::pointsMaxRatePercent())));
     }
 

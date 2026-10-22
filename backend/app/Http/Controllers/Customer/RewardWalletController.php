@@ -16,6 +16,7 @@ class RewardWalletController extends Controller
     {
         return response()->json([
             'reward_points' => (int) Wallet::where('user_id', $request->user()->id)->value('reward_points'),
+            'spend_enabled' => AppSetting::pointsSpendEnabled(),
             'max_rate_percent' => AppSetting::pointsMaxRatePercent(),
             'cashback_percent' => AppSetting::cashbackPercent(),
             'commission_percent' => AppSetting::commissionPercent(),

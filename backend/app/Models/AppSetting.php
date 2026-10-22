@@ -32,6 +32,8 @@ class AppSetting extends Model
 
     public const POINTS_MAX_RATE_PERCENT = 'points_max_rate_percent';
 
+    public const POINTS_SPEND_ENABLED = 'points_spend_enabled';
+
     protected $fillable = ['key', 'value'];
 
     /** Phí app dạng hệ số (vd 0.2), admin chỉnh được. */
@@ -83,6 +85,12 @@ class AppSetting extends Model
     public static function pointsMaxRatePercent(): float
     {
         return (float) static::get(self::POINTS_MAX_RATE_PERCENT, (string) config('business.points_max_rate_percent'));
+    }
+
+    /** Khóa bật/tắt cho khách dùng điểm thưởng trừ vào cuốc. Tắt thì vẫn tích điểm (cashback/hoa hồng) bình thường. */
+    public static function pointsSpendEnabled(): bool
+    {
+        return filter_var(static::get(self::POINTS_SPEND_ENABLED, config('business.points_spend_enabled') ? '1' : '0'), FILTER_VALIDATE_BOOLEAN);
     }
 
     public static function get(string $key, ?string $default = null): ?string

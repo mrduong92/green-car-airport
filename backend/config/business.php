@@ -23,4 +23,6 @@ return [
     'affiliate_cashback_percent' => 5,
     'affiliate_commission_percent' => 5,
     'points_max_rate_percent' => 10,
+    // Cho khách dùng điểm trừ vào cuốc hay chưa (tích điểm vẫn chạy). Admin bật/tắt ở trang Cài đặt.
+    'points_spend_enabled' => false,
 ];

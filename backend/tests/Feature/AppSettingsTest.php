@@ -52,6 +52,21 @@ class AppSettingsTest extends TestCase
             ->assertJsonFragment(['hotline' => '1900 1234']);
     }
 
+    public function test_admin_can_toggle_points_spend_and_customer_wallet_reflects_it(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $customer = User::factory()->create(['role' => 'customer']);
+        $this->assertFalse(AppSetting::pointsSpendEnabled());
+
+        $base = ['contact_hotline' => '1900 1234', 'contact_email' => 'help@greenca.vn', 'contact_zalo_phone' => '0931919786'];
+        $this->actingAs($admin, 'sanctum')
+            ->putJson('/api/admin/settings', $base + ['points_spend_enabled' => true])
+            ->assertOk()->assertJson(['points_spend_enabled' => true]);
+
+        $this->actingAs($customer, 'sanctum')->getJson('/api/customer/reward-wallet')
+            ->assertOk()->assertJson(['spend_enabled' => true]);
+    }
+
     public function test_admin_can_toggle_each_free_show_setting_independently(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

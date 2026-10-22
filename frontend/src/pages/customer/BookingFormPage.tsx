@@ -627,7 +627,7 @@ export default function BookingFormPage() {
         />
 
         {/* ── DÙNG ĐIỂM THƯỞNG (ẩn khi số dư 0) ───────────── */}
-        {rewardWallet && rewardWallet.reward_points > 0 && (
+        {rewardWallet && rewardWallet.spend_enabled && rewardWallet.reward_points > 0 && (
           <label className="mt-3 bg-white rounded-card shadow-card border border-border-soft px-4 py-3 flex items-center gap-3 cursor-pointer">
             <span className="material-symbols-outlined text-gold" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
             <span className="flex-1 min-w-0">
