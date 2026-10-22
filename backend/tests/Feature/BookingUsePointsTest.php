@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppSetting;
 use App\Models\Booking;
 use App\Models\User;
 use App\Models\Voucher;
@@ -12,6 +13,12 @@ use Tests\TestCase;
 class BookingUsePointsTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        AppSetting::set(AppSetting::POINTS_SPEND_ENABLED, '1');
+    }
 
     private function customer(int $reward): User
     {
@@ -44,6 +51,17 @@ class BookingUsePointsTest extends TestCase
             ->assertJson(['discount' => 50_000, 'points_used' => 45, 'points_discount' => 45_000, 'final_price' => 405_000]);
 
         $this->assertSame(955, $this->reward($c));
+    }
+
+    public function test_spend_switch_off_keeps_points_untouched(): void
+    {
+        AppSetting::set(AppSetting::POINTS_SPEND_ENABLED, '0');
+        $c = $this->customer(1000);
+
+        $this->actingAs($c, 'sanctum')->postJson('/api/bookings', $this->payload(['use_points' => true]))
+            ->assertCreated()->assertJson(['points_used' => 0, 'final_price' => 500_000]);
+
+        $this->assertSame(1000, $this->reward($c));
     }
 
     public function test_without_use_points_nothing_is_spent(): void

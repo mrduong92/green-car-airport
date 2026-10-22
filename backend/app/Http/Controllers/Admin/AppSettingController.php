@@ -26,6 +26,7 @@ class AppSettingController extends Controller
             'affiliate_cashback_percent' => AppSetting::cashbackPercent(),
             'affiliate_commission_percent' => AppSetting::commissionPercent(),
             'points_max_rate_percent' => AppSetting::pointsMaxRatePercent(),
+            'points_spend_enabled' => AppSetting::pointsSpendEnabled(),
         ]);
     }
 
@@ -45,6 +46,7 @@ class AppSettingController extends Controller
             'affiliate_cashback_percent' => 'sometimes|required|numeric|min:0|max:50',
             'affiliate_commission_percent' => 'sometimes|required|numeric|min:0|max:50',
             'points_max_rate_percent' => 'sometimes|required|numeric|min:0|max:50',
+            'points_spend_enabled' => 'sometimes|required|boolean',
         ]);
 
         // driverFeePoints() (Booking) = max(0, phí app − points_used) chỉ đúng khi trần dùng điểm
@@ -80,6 +82,7 @@ class AppSettingController extends Controller
             AppSetting::FREE_SHOW_SENDER_NAME,
             AppSetting::FREE_SHOW_GROUP_NAME,
             AppSetting::FREE_SHOW_RAW_TEXT,
+            AppSetting::POINTS_SPEND_ENABLED,
         ] as $key) {
             if (array_key_exists($key, $data)) {
                 AppSetting::set($key, $data[$key] ? '1' : '0');

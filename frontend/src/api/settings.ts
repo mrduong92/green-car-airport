@@ -19,6 +19,7 @@ export interface AdminSettings {
   affiliate_cashback_percent: number
   affiliate_commission_percent: number
   points_max_rate_percent: number
+  points_spend_enabled: boolean
 }
 
 export const getAdminSettings = () =>

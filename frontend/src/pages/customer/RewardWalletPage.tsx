@@ -55,7 +55,7 @@ export default function RewardWalletPage() {
         </p>
         {wallet && (
           <p className="text-[11px] text-neutral-gray mt-1">
-            Hoàn {wallet.cashback_percent}% mỗi chuyến · nhận {wallet.commission_percent}% chuyến của bạn bè bạn giới thiệu · dùng tối đa {wallet.max_rate_percent}% giá mỗi chuyến
+            Hoàn {wallet.cashback_percent}% mỗi chuyến · nhận {wallet.commission_percent}% chuyến của bạn bè bạn giới thiệu{wallet.spend_enabled ? ` · dùng tối đa ${wallet.max_rate_percent}% giá mỗi chuyến` : ''}
           </p>
         )}
       </div>

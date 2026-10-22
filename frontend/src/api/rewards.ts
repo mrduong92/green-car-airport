@@ -2,6 +2,7 @@ import api from './axios'
 
 export interface RewardWallet {
   reward_points: number
+  spend_enabled: boolean
   max_rate_percent: number
   cashback_percent: number
   commission_percent: number

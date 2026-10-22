@@ -23,6 +23,7 @@ const schema = z.object({
   affiliate_cashback_percent:   z.coerce.number().min(0, 'Từ 0 đến 50').max(50, 'Từ 0 đến 50'),
   affiliate_commission_percent: z.coerce.number().min(0, 'Từ 0 đến 50').max(50, 'Từ 0 đến 50'),
   points_max_rate_percent:      z.coerce.number().min(0, 'Từ 0 đến 50').max(50, 'Từ 0 đến 50'),
+  points_spend_enabled:         z.boolean(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -36,7 +37,7 @@ export default function AdminSettingsPage() {
 
   const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_name: true, free_show_group_name: true, free_show_raw_text: true, affiliate_cashback_percent: 5, affiliate_commission_percent: 5, points_max_rate_percent: 10 },
+    defaultValues: { contact_hotline: '', contact_email: '', contact_zalo_phone: '', app_fee_percent: 20, referral_voucher_value: 100000, referral_driver_points: 50, free_unlock_fee_vnd: 300000, free_show_sender_name: true, free_show_group_name: true, free_show_raw_text: true, affiliate_cashback_percent: 5, affiliate_commission_percent: 5, points_max_rate_percent: 10, points_spend_enabled: false },
   })
 
   useEffect(() => {
@@ -146,6 +147,12 @@ export default function AdminSettingsPage() {
             className="w-full border border-border-gray rounded-input px-3 py-2 text-sm outline-none" />
           {errors.points_max_rate_percent && <p className="text-danger-red text-xs mt-1">{errors.points_max_rate_percent.message}</p>}
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-navy cursor-pointer">
+          <input type="checkbox" data-testid="setting-points-spend-enabled" {...register('points_spend_enabled')} />
+          Cho khách dùng điểm trừ vào cuốc
+        </label>
+        <p className="text-xs text-neutral-gray -mt-1">Tắt: khách vẫn được tích điểm, nhưng chưa trừ điểm khi đặt xe.</p>
 
         <hr className="border-border-gray" />
         <p className="text-sm font-semibold text-navy">Tab Cuốc Free — thông tin hiển thị cho tài xế</p>

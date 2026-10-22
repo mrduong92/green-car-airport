@@ -17,6 +17,12 @@ class AffiliateServiceTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        AppSetting::set(AppSetting::POINTS_SPEND_ENABLED, '1');
+    }
+
     private function svc(): AffiliateService
     {
         return app(AffiliateService::class);
